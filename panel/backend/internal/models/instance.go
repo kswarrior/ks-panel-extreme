@@ -21,9 +21,10 @@ type Template struct {
 	// Image is the driver-specific base (e.g. "alpine:3.19", "ubuntu/22.04",
 	// "debian-12"). Forwarded verbatim to the driver.
 	Image string `json:"image"`
-	// Spec is the JSON blob of driver-specific config (env, ports, limits,
+	// Spec is the YAML document of driver-specific config (env, ports, limits,
 	// mounts, command…). Treated as opaque by the panel beyond validation of
-	// being well-formed JSON.
+	// being well-formed YAML (legacy JSON rows parse identically and
+	// auto-migrate to YAML on the next save).
 	Spec string `json:"spec"`
 	// Icon is raw SVG markup for the template tile (same convention as
 	// instances: full <svg>…</svg> block or inner markup, empty = driver
@@ -288,17 +289,18 @@ func anyToStr(v any) string {
 }
 
 // DiskQuotaBytes extracts the configured disk quota in bytes from an
-// instance.Config / template Spec JSON blob. It mirrors the frontend
-// parseLimits key order (limits → top-level → advanced.multipass/kvm/lxd)
-// so the Overview shows the same 10240M the template declares. Keys ending
-// in _mb are interpreted as mebibytes. Returns 0 when no quota is set.
+// instance.Config (JSON) or template Spec (canonical YAML, legacy JSON)
+// blob. It mirrors the frontend parseLimits key order (limits → top-level →
+// advanced.multipass/kvm/lxd) so the Overview shows the same 10240M the
+// template declares. Keys ending in _mb are interpreted as mebibytes.
+// Returns 0 when no quota is set.
 func DiskQuotaBytes(configJSON string) int64 {
 	configJSON = strings.TrimSpace(configJSON)
 	if configJSON == "" {
 		return 0
 	}
-	var cfg map[string]any
-	if err := json.Unmarshal([]byte(configJSON), &cfg); err != nil || cfg == nil {
+	cfg, err := specyaml.Parse(configJSON)
+	if err != nil || cfg == nil {
 		return 0
 	}
 	limits, _ := cfg["limits"].(map[string]any)

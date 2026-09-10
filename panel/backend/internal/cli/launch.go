@@ -28,6 +28,7 @@ import (
 	"github.com/example/kspanel/internal/probe"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/scheduler"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/example/kspanel/internal/security"
 	"github.com/example/kspanel/internal/sysinfo"
 	"github.com/spf13/cobra"
@@ -706,8 +707,9 @@ func parseAutoStopDelay(v any) int {
 }
 
 // findActionDelay reads an action's auto_stop_delay_s out of a template
-// spec JSON blob. Unknown action, bad JSON or missing/invalid field = 0
-// (immediate), so a template edited mid-run can never wedge the teardown.
+// spec (canonical YAML, legacy JSON accepted). Unknown action, bad spec or
+// missing/invalid field = 0 (immediate), so a template edited mid-run can
+// never wedge the teardown.
 func findActionDelay(specJSON, actionID string) int {
 	var spec struct {
 		Actions []struct {
@@ -715,7 +717,7 @@ func findActionDelay(specJSON, actionID string) int {
 			AutoStopDelayS any    `json:"auto_stop_delay_s"`
 		} `json:"actions"`
 	}
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+	if err := specyaml.Unmarshal(specJSON, &spec); err != nil {
 		return 0
 	}
 	for _, a := range spec.Actions {

@@ -26,6 +26,7 @@ import (
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/example/kspanel/internal/version"
 )
 
@@ -1888,7 +1889,7 @@ func aiTemplateRuntime(t *models.Template) (string, []string) {
 	actions := []string{}
 	if strings.TrimSpace(t.Spec) != "" {
 		var spec map[string]any
-		if err := json.Unmarshal([]byte(t.Spec), &spec); err == nil {
+		if spec, _ = specyaml.Parse(t.Spec); spec != nil {
 			switch c := spec["command"].(type) {
 			case string:
 				cmd = c

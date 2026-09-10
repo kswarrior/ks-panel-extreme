@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/spf13/cobra"
 )
 
@@ -90,12 +90,11 @@ func runImportTemplate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unknown built-in template: %s", key)
 	}
 
-	// Validate the canned spec is well-formed JSON before touching the DB so
-	// a bad edit to builtinTemplates fails loudly here rather than at the
+	// Validate the canned spec is well-formed YAML/JSON before touching the DB
+	// so a bad edit to builtinTemplates fails loudly here rather than at the
 	// first deploy. This mirrors the admin API's validateTemplate path.
-	var probe any
-	if err := json.Unmarshal([]byte(builtin.Spec), &probe); err != nil {
-		print.Fail("spec", "built-in spec is not valid JSON: "+err.Error())
+	if _, err := specyaml.Parse(builtin.Spec); err != nil {
+		print.Fail("spec", "built-in spec is not valid YAML/JSON: "+err.Error())
 		return fmt.Errorf("built-in spec invalid: %w", err)
 	}
 
