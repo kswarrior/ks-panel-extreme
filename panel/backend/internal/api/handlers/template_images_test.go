@@ -1,9 +1,10 @@
 package handlers
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/example/kspanel/internal/specyaml"
 )
 
 func imagesSpec() map[string]any {
