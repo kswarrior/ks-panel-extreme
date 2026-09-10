@@ -439,8 +439,9 @@ export interface ThemeUtilities {
 
 // ThemeCards styles the semantic card variants layered on top of the base
 // card look: list rows (.ks-list-card), stat strips (.ks-stat-card) and
-// form sections (.ks-form-card). Defaults inherit the base card appearance,
-// matching today's rendering.
+// form sections (.ks-form-card). List/stat defaults inherit the base card
+// appearance; form defaults are their own black + tighter values (empty
+// string falls back to the base Card tab).
 export interface ThemeCards {
   list_background: string;
   list_border_color: string;

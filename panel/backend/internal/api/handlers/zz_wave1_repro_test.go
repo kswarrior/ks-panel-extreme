@@ -3,7 +3,6 @@ package handlers
 // TEMPORARY wave-1 repro. Deleted before the final diff.
 
 import (
-	"encoding/json"
 	"testing"
 )
 
@@ -12,10 +11,16 @@ func TestReproFetchDotBypass(t *testing.T) {
 		`window.fetch('/api/users').then(function(r){})`,
 		`self.fetch('/x')`,
 		`globalThis.fetch('/x')`,
+		`fetch('/api/users')`,
 	} {
 		if err := validateReactSource(src); err == nil {
 			t.Errorf("BYPASS: %q passed validateReactSource (want rejection, must use sdk.fetchPanel)", src)
 		}
+	}
+	// The sanctioned bridge must keep working.
+	ok := `sdk.fetchPanel('/api/instances', {}).then(function(r){ return React.createElement('div', null, 'x'); })`
+	if err := validateReactSource(ok); err != nil {
+		t.Errorf("REGRESSION: sdk.fetchPanel rejected: %v", err)
 	}
 }
 
@@ -31,25 +36,22 @@ func TestReproSubBundleInjection(t *testing.T) {
 	if err := validateSubPages(raw); err == nil {
 		t.Errorf("BYPASS: sub-page bundle_js with eval/fetch passed validateSubPages (want rejection)")
 	}
+	// Build-stamped bundles (== validated source) must keep passing.
+	rawOK := `[{"path":"edit","name":"Editor","content_type":"react","source_tsx":"function P(){return React.createElement('div',null,'x');}","bundle_js":"function P(){return React.createElement('div',null,'x');}"}]`
+	if err := validateSubPages(rawOK); err != nil {
+		t.Errorf("REGRESSION: build-stamped sub bundle rejected: %v", err)
+	}
 }
 
 func TestReproExecAllowanceDivergence(t *testing.T) {
+	// Both execute paths must now resolve through findSpecPageRow (exact slug,
+	// original_slug, nested sub-page) — the single gate the SPA uses.
 	specJSON := `{"pages":[{"slug":"console","original_slug":"terminal","enabled":true,"actions":[{"type":"shell","command":"uptime"}]}]}`
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
-		t.Fatal(err)
-	}
-	// What ExecutePageActionHandler (/:id/actions) uses: exact-slug list.
-	allowed := false
-	for _, p := range getEnabledPages(spec) {
-		if p == "terminal" {
-			allowed = true
-		}
-	}
-	// What the SPA + ExecuteCustomPageActionHandler use: slug/original/sub.
 	row := findSpecPageRow(parseSpecRows(specJSON), "terminal")
-	t.Logf("getEnabledPages=%v row==nil:%v", getEnabledPages(spec), row == nil)
-	if row != nil && !allowed {
-		t.Errorf("DIVERGENCE: findSpecPageRow allows 'terminal' (renamed builtin) but getEnabledPages denies it, so POST /:id/actions 403s a page the SPA renders")
+	if row == nil {
+		t.Errorf("REGRESSION: renamed builtin 'terminal' no longer resolves via findSpecPageRow")
+	}
+	if row != nil && !savedActionMatches(row.actions[0], "shell", "uptime", "", "", nil, nil) {
+		t.Errorf("REGRESSION: spec-row saved action no longer matches")
 	}
 }

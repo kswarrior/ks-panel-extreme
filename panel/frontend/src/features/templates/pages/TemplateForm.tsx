@@ -58,6 +58,8 @@ import {
   serializeSpec,
   parseSpec,
   stripUnit,
+  pageOverrideFromInstancePage,
+  validateTemplatePages,
 } from '../utils/templateFormUtils';
 
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
@@ -114,60 +116,13 @@ const TemplatePagesImportModal: React.FC<TemplatePagesImportModalProps> = ({
   const handleAdd = () => {
     const additions: PageOverride[] = [];
     // Slugs already on the parent's pages array — skip those to avoid
-    // adding the same page twice.
+    // adding the same page twice. Use relinkPage below to refresh a linked
+    // row after a library rebuild instead of re-adding it.
     const skip = new Set<string>(existingSlugs);
     for (const p of instancePages) {
       if (!selected.has(p.slug) || skip.has(p.slug)) continue;
       if (p.kind === 'builtin') continue;
-      additions.push({
-        slug: p.slug,
-        original_slug: '',
-        enabled: true,
-        label: p.name,
-        icon_svg: p.icon_svg || '',
-        icon_color: (p as any).icon_color || '',
-        kind: 'custom',
-        content_type: (['html', 'markdown', 'blocks', 'react'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
-        content_html: p.content_html || '',
-        content_markdown: p.content_markdown || '',
-        content_blocks: p.content_blocks || '',
-        // React snapshot MUST ride along like actions: dropping it here would
-        // deploy a react page with no bundle (renders the "no built bundle" card).
-        ...((p as any).source_tsx ? { source_tsx: (p as any).source_tsx } : {}),
-        ...((p as any).bundle_js ? { bundle_js: (p as any).bundle_js } : {}),
-        ...((p as any).bundle_css ? { bundle_css: (p as any).bundle_css } : {}),
-        ...((p as any).build_status ? { build_status: (p as any).build_status } : {}),
-        // Saved actions MUST ride along: the runtime allow-list matches
-        // against the spec row's actions, so dropping them here made every
-        // action on the page fail with 403 once deployed.
-        ...(parsePageActions(p.actions).length > 0
-          ? { actions: parsePageActions(p.actions) }
-          : {}),
-        // Multi-page support: sub-pages stay INSIDE the parent row (effective
-        // route "<slug>/<path>", e.g. files/edit) so they never show up as
-        // separate top-level tabs — the tab bar lists the parent page only.
-        ...(parseSubPages(p.sub_pages).length > 0
-          ? {
-              sub_pages: parseSubPages(p.sub_pages).map((sub) => ({
-                path: sub.path,
-                name: sub.name,
-                content_type: (['html', 'markdown', 'blocks', 'react'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks' | 'react',
-                content_html: sub.content_html || '',
-                content_markdown: sub.content_markdown || '',
-                content_blocks: sub.content_blocks || '',
-                ...((sub as any).source_tsx ? { source_tsx: (sub as any).source_tsx } : {}),
-                ...((sub as any).bundle_js ? { bundle_js: (sub as any).bundle_js } : {}),
-                ...((sub as any).bundle_css ? { bundle_css: (sub as any).bundle_css } : {}),
-              })),
-            }
-          : {}),
-        ...(parsePageComponents(p.components).length > 0
-          ? { components: parsePageComponents(p.components) }
-          : {}),
-        ...(parsePageConfigure((p as any).configure).length > 0
-          ? { configure: parsePageConfigure((p as any).configure) }
-          : {}),
-      });
+      additions.push(pageOverrideFromInstancePage(p));
       skip.add(p.slug);
     }
     if (additions.length > 0) {

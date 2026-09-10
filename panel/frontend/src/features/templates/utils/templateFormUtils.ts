@@ -1,7 +1,7 @@
 // TemplateForm utilities - extracted from TemplateForm.tsx
 
 import type { TemplateFormState, PortMapping, Mount, ResourceLimits, FeatureCaps, EnvVariable, InstallStep, TemplateAction, ActionStep, Label, Device, Healthcheck, Advanced, KvRuntime, MpRuntime, LxdRuntime, PageOverride, RestartPolicy, NetworkMode, LogLevel, InstallAction } from '../types/templateForm';
-import { parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
+import { parsePageActions, parsePageComponents, parsePageConfigure, parseSubPages, type InstancePage } from '@/features/instance-pages/types/instancePage';
 import { DEFAULT_INSTANCE_CONTROLS, isControlsCustom, resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 // emptyForm is a runtime value (not a type) — it seeds every partial
 // `advanced` produced below so serializeSpec can keep assuming the full
@@ -22,6 +22,110 @@ function stripUnit(v: string): string {
   let n = parseFloat(m[1]);
   if (m[2].toLowerCase() === 'g') n *= 1024;
   return String(Math.round(n));
+}
+
+// React snapshot budgets (mirror backend migration 075 caps): author source
+// ≤512KiB, built bundle / CSS ≤1MiB each. Enforced at template save time so
+// an oversize linked page fails fast in the editor, not at deploy/render.
+export const MAX_TEMPLATE_PAGE_SOURCE_BYTES = 512 * 1024;
+export const MAX_TEMPLATE_PAGE_BUNDLE_BYTES = 1024 * 1024;
+
+// pageOverrideFromInstancePage copies one library row into a template
+// spec.pages row (the single TEMPLATE LINK copier shared by the template
+// form import modal and TemplatePagesSection). Bundle_js/css are
+// build-owned: they ship ONLY when the library build is green
+// (build_status === 'ok') — otherwise the renderer would prefer a
+// stale/failed artifact over the author source, so the row links
+// source-only and the operator must rebuild + re-link.
+export function pageOverrideFromInstancePage(p: InstancePage): PageOverride {
+  const buildOk = (p as any).build_status === 'ok';
+  return {
+    slug: p.slug,
+    original_slug: '',
+    enabled: true,
+    label: p.name,
+    icon_svg: p.icon_svg || '',
+    icon_color: (p as any).icon_color || '',
+    kind: 'custom',
+    content_type: (['html', 'markdown', 'blocks', 'react'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
+    content_html: p.content_html || '',
+    content_markdown: p.content_markdown || '',
+    content_blocks: p.content_blocks || '',
+    // React snapshot MUST ride along like actions: dropping it here would
+    // deploy a react page with no bundle (renders the "no built bundle" card).
+    ...((p as any).source_tsx ? { source_tsx: (p as any).source_tsx } : {}),
+    ...(buildOk && (p as any).bundle_js ? { bundle_js: (p as any).bundle_js } : {}),
+    ...(buildOk && (p as any).bundle_css ? { bundle_css: (p as any).bundle_css } : {}),
+    ...(buildOk && (p as any).build_status ? { build_status: (p as any).build_status } : {}),
+    // Saved actions MUST ride along: the runtime allow-list matches
+    // against the spec row's actions, so dropping them here made every
+    // action on the page fail with 403 once deployed.
+    ...(parsePageActions(p.actions).length > 0
+      ? { actions: parsePageActions(p.actions) }
+      : {}),
+    // Multi-page support: sub-pages stay INSIDE the parent row (effective
+    // route "<slug>/<path>", e.g. files/edit) so they never show up as
+    // separate top-level tabs — the tab bar lists the parent page only.
+    ...(parseSubPages(p.sub_pages).length > 0
+      ? {
+          sub_pages: parseSubPages(p.sub_pages).map((sub) => ({
+            path: sub.path,
+            name: sub.name,
+            content_type: (['html', 'markdown', 'blocks', 'react'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks' | 'react',
+            content_html: sub.content_html || '',
+            content_markdown: sub.content_markdown || '',
+            content_blocks: sub.content_blocks || '',
+            ...((sub as any).source_tsx ? { source_tsx: (sub as any).source_tsx } : {}),
+            ...((sub as any).bundle_js ? { bundle_js: (sub as any).bundle_js } : {}),
+            ...((sub as any).bundle_css ? { bundle_css: (sub as any).bundle_css } : {}),
+          })),
+        }
+      : {}),
+    ...(parsePageComponents(p.components).length > 0
+      ? { components: parsePageComponents(p.components) }
+      : {}),
+    ...(parsePageConfigure((p as any).configure).length > 0
+      ? { configure: parsePageConfigure((p as any).configure) }
+      : {}),
+  };
+}
+
+// validateTemplatePages fail-closes the template link at save time: react
+// rows need author source, snapshots must fit the backend budgets, and slugs
+// must be present + unique (parseSpec silently keeps the first duplicate,
+// so a dup would deploy a page the editor no longer shows).
+export function validateTemplatePages(pages: PageOverride[]): string[] {
+  const errs: string[] = [];
+  const seen = new Set<string>();
+  const checkReact = (at: string, contentType: unknown, src: unknown, js: unknown, css: unknown) => {
+    if (contentType === 'react' && String(src ?? '').trim() === '') {
+      errs.push(`${at}: source_tsx is required for react pages — rebuild in the Instance Pages library and re-link`);
+    }
+    if (String(src ?? '').length > MAX_TEMPLATE_PAGE_SOURCE_BYTES) {
+      errs.push(`${at}: source_tsx too large (max 512KB)`);
+    }
+    if (String(js ?? '').length > MAX_TEMPLATE_PAGE_BUNDLE_BYTES) {
+      errs.push(`${at}: bundle_js too large (max 1MB) — rebuild with a smaller source and re-link`);
+    }
+    if (String(css ?? '').length > MAX_TEMPLATE_PAGE_BUNDLE_BYTES) {
+      errs.push(`${at}: bundle_css too large (max 1MB)`);
+    }
+  };
+  (pages || []).forEach((p, i) => {
+    const slug = String((p as any).slug ?? '').trim();
+    const at = `pages[${i}]${slug ? ` (${slug})` : ''}`;
+    if (!slug) {
+      errs.push(`${at}: slug is required`);
+    } else {
+      if (seen.has(slug)) errs.push(`${at}: duplicate slug ${JSON.stringify(slug)}`);
+      seen.add(slug);
+    }
+    checkReact(at, p.content_type, (p as any).source_tsx, (p as any).bundle_js, (p as any).bundle_css);
+    ((p as any).sub_pages || []).forEach((s: any, j: number) => {
+      checkReact(`${at}.sub_pages[${j}] (${String(s?.path ?? '')})`, s?.content_type, s?.source_tsx, s?.bundle_js, s?.bundle_css);
+    });
+  });
+  return errs;
 }
 
 export function serializeSpec(f: TemplateFormState): string {
@@ -807,8 +911,10 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       }
       out.advanced = outA;
     }
-  } catch {
-    /* ignore */
+  } catch (e) {
+    // Never swallow a corrupt spec silently: the caller seeds the form from
+    // the return value, so log the bad payload instead of blanking the form.
+    console.error('parseSpec: invalid template spec JSON', e);
   }
   return out;
 }
