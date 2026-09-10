@@ -81,11 +81,11 @@ func Default() Config {
 	}
 }
 
-// Load reads and decodes config.yaml from the given path. Missing fields are
+// Load reads and decodes config.toml from the given path. Missing fields are
 // backfilled from Default(), so the operator only needs to specify the bits
 // unique to their deployment (token, panel url, maybe listen port).
 //
-// We merge rather than overwrite so an older config.yaml that predates a new
+// We merge rather than overwrite so an older config.toml that predates a new
 // field (e.g. skip_verify) still loads cleanly — the new field just gets its
 // zero/ default value.
 func Load(path string) (Config, error) {
@@ -94,15 +94,15 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return cfg, fmt.Errorf("read config: %w", err)
 	}
-	// Decode on top of the default-filled struct so YAML's "absent key"
+	// Decode on top of the default-filled struct so TOML's "absent key"
 	// behaviour preserves defaults for missing keys.
-	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+	if _, err := toml.Decode(string(raw), &cfg); err != nil {
 		return cfg, fmt.Errorf("parse config: %w", err)
 	}
 	if err := cfg.validate(); err != nil {
 		return cfg, err
 	}
-	// Normalise: a bare number of seconds in YAML is fine for humans, but Go's
+	// Normalise: a bare number of seconds in TOML is fine for humans, but Go's
 	// time.Duration decode wants "60s" style strings. The field stays an
 	// integer number of seconds (see HeartbeatIntervalOr), so no further
 	// normalisation is needed here.
@@ -113,7 +113,7 @@ func Load(path string) (Config, error) {
 // loudly at startup rather than silently sending junk heartbeats.
 //
 // For the panel's "localnode" flow the operator can start the health
-// endpoint with just a listen port — the panel will push a real config.yaml
+// endpoint with just a listen port — the panel will push a real config.toml
 // later. In that case both the token and panel URL are empty, so we treat
 // the config as valid (the lifecycle handler will reject any RPC until the
 // edge receives real credentials).

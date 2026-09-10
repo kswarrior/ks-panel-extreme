@@ -28,7 +28,7 @@ func Encode(cfg map[string]any) ([]byte, error) {
 // the installer itself just wrote.
 func Decode(data []byte) (map[string]any, error) {
 	var cfg map[string]any
-	if err := toml.Decode(string(data), &cfg); err != nil {
+	if _, err := toml.Decode(string(data), &cfg); err != nil {
 		return nil, fmt.Errorf("decode edge config: %w", err)
 	}
 	return cfg, nil

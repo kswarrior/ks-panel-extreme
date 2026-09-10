@@ -46,7 +46,7 @@ func superviseCmd() *cobra.Command {
 		Short: "Run the edge agent under an auto-restart supervisor (restarts on crash)",
 		Long: `Run ksedge launch as a supervised child and restart it on crash.
 
-  ./ksedge supervise --config config.yaml
+  ./ksedge supervise --config config.toml
 
 Exit-code contract: child exit 0 = clean stop (no restart); exit !=0 = crash
 (panic, fatal, OOM-kill) → restart with exponential backoff (base doubles per
@@ -69,7 +69,7 @@ restarting.`,
 			})
 		},
 	}
-	cmd.Flags().StringVarP(&configPath, "config", "c", "config.yaml", "Path to the edge config file (forwarded to launch)")
+	cmd.Flags().StringVarP(&configPath, "config", "c", "config.toml", "Path to the edge config file (forwarded to launch)")
 	cmd.Flags().IntVarP(&port, "port", "p", 0, "Override the edge HTTP listen port (forwarded to launch)")
 	cmd.Flags().StringVar(&panelURL, "panel", "", "Override panel_url from config (forwarded to launch)")
 	cmd.Flags().StringVar(&token, "token", "", "Override the edge token (forwarded to launch)")
