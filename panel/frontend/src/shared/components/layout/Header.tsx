@@ -13,6 +13,7 @@ import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs, { useEffectiveInstanceNav } from '@/features/instances/components/InstanceTabs';
 import { useInstanceNav } from './InstanceNavContext';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
+import UpdateBell from '@/features/system/components/UpdateBell';
 import { canOpenAIChat } from '@/features/ai-chat/components/ChatFab';
 import { useAIChatStore } from '@/features/ai-chat/store/aiChatStore';
 import { Icons as SidebarIcons } from './Sidebar';
@@ -811,10 +812,11 @@ const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* Right cluster: notification bell + profile. Always visible so the
+      {/* Right cluster: update bell + notification bell + profile. Always visible so the
        * header stays a normal single row on every page (the main thing of
        * an instance lives in the floating instance menu). */}
       <div className="flex items-center gap-2 shrink-0">
+          <UpdateBell />
           <NotificationBell />
           <RichMenu
             items={items}
