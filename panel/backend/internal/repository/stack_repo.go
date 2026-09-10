@@ -91,7 +91,7 @@ func stackTokenPrefixOf(token string) string {
 	return token
 }
 
-const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, proxy_port, COALESCE(proxy_root_url, ''), COALESCE(remote_address, ''), COALESCE(remote_use_tls, 0), COALESCE(remote_skip_verify, 0), COALESCE(token_hash, ''), COALESCE(token_prefix, ''), COALESCE(token_plain, ''), COALESCE(status, 'down'), last_seen_at, created_at, updated_at"
+const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, proxy_port, COALESCE(proxy_root_url, ''), COALESCE(remote_address, ''), COALESCE(remote_use_tls, 0), COALESCE(remote_skip_verify, 0), COALESCE(token_hash, ''), COALESCE(token_prefix, ''), COALESCE(token_plain, ''), COALESCE(status, 'down'), last_seen_at, created_at, updated_at, COALESCE(serve_port, 0), COALESCE(serve_auth, 1)"
 
 func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var s models.Stack
@@ -108,7 +108,8 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var tokenHash, tokenPrefix, tokenPlain sql.NullString
 	var status sql.NullString
 	var lastSeen sql.NullString
-	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated); err != nil {
+	var servePort, serveAuth int
+	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated, &servePort, &serveAuth); err != nil {
 		return nil, err
 	}
 	s.Manifest = json.RawMessage(manifest)
@@ -160,6 +161,15 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	}
 	s.RemoteUseTLS = remoteUseTLS != 0
 	s.RemoteSkipVerify = remoteSkipVerify != 0
+	// Dedicated serve port (migration 077): the panel listens on
+	// serve_port itself and renders the app at /. Clamp defensively so
+	// a hand-edited row can never bind a bad port; serve_auth defaults
+	// ON (fail closed) when the stored value is anything but explicit 0.
+	if !models.ValidStackServePort(servePort) {
+		servePort = 0
+	}
+	s.ServePort = servePort
+	s.ServeAuth = serveAuth != 0
 	if tokenPrefix.Valid {
 		s.TokenPrefix = tokenPrefix.String
 	}
@@ -670,8 +680,8 @@ func (r *StackRepository) ApplyAnnounce(stackID int64, in AnnounceInput) (pendin
 }
 
 // UpdateStackInput is the editable overlay: human-facing fields + spec +
-// node-style remote pairing + proxy mount. Requested caps are NOT mutable
-// (re-declaring caps is a re-upload).
+// node-style remote pairing + proxy mount + dedicated serve port.
+// Requested caps are NOT mutable (re-declaring caps is a re-upload).
 type UpdateStackInput struct {
 	Name         string
 	Category     string
@@ -688,6 +698,12 @@ type UpdateStackInput struct {
 	RemoteAddress    string
 	RemoteUseTLS     bool
 	RemoteSkipVerify bool
+	// ServePort is the dedicated TCP port the panel itself opens for
+	// this stack (0 = off). ServeAuth gates that port behind the panel
+	// login. The upstream resolves exactly like the path mount
+	// (ProxyPort loopback or RemoteAddress).
+	ServePort int
+	ServeAuth bool
 }
 
 func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.Stack, error) {
@@ -798,7 +814,7 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		return out, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.proxy_port, COALESCE(s.proxy_root_url, ''), COALESCE(s.remote_address, ''), COALESCE(s.remote_use_tls, 0), COALESCE(s.remote_skip_verify, 0), COALESCE(s.token_hash, ''), COALESCE(s.token_prefix, ''), COALESCE(s.token_plain, ''), COALESCE(s.status, 'down'), s.last_seen_at, s.created_at, s.updated_at, u.username
+		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.proxy_port, COALESCE(s.proxy_root_url, ''), COALESCE(s.remote_address, ''), COALESCE(s.remote_use_tls, 0), COALESCE(s.remote_skip_verify, 0), COALESCE(s.token_hash, ''), COALESCE(s.token_prefix, ''), COALESCE(s.token_plain, ''), COALESCE(s.status, 'down'), s.last_seen_at, s.created_at, s.updated_at, COALESCE(s.serve_port, 0), COALESCE(s.serve_auth, 1), u.username
 		FROM stacks s
 		LEFT JOIN users u ON u.id = s.uploaded_by
 		ORDER BY s.updated_at DESC`)
@@ -821,8 +837,9 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		var tokenHash, tokenPrefix, tokenPlain sql.NullString
 		var status sql.NullString
 		var lastSeen sql.NullString
+		var servePort, serveAuth int
 		var owner sql.NullString
-		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated, &owner); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated, &servePort, &serveAuth, &owner); err != nil {
 			return nil, err
 		}
 		s.Manifest = json.RawMessage(manifest)
@@ -859,6 +876,11 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		}
 		s.RemoteUseTLS = remoteUseTLS != 0
 		s.RemoteSkipVerify = remoteSkipVerify != 0
+		if !models.ValidStackServePort(servePort) {
+			servePort = 0
+		}
+		s.ServePort = servePort
+		s.ServeAuth = serveAuth != 0
 		if tokenPrefix.Valid {
 			s.TokenPrefix = tokenPrefix.String
 		}
