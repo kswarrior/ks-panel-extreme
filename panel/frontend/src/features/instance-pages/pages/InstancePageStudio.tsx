@@ -598,9 +598,10 @@ const InstancePageStudio: React.FC = () => {
         actions: Array.isArray(data.actions) ? JSON.stringify(data.actions) : p.actions,
       }));
       if (Array.isArray(data.actions)) setActions(defsToActions(JSON.stringify(data.actions)));
-      // Library files (instance_pages/pages/*.json, GUIDE.md §2.1) store
-      // sub-pages/components as JSON-encoded STRINGS; Studio exports use
-      // inline arrays. Accept both so library files import without dropping rows.
+      // Library files (instance_pages/pages/*.yaml, GUIDE.md §2.1) store
+      // sub-pages/components as native YAML lists; legacy *.json files store
+      // them as JSON-encoded STRINGS; Studio exports use inline arrays.
+      // Accept all three so every library file imports without dropping rows.
       if (Array.isArray(data.pages)) {
         const rows = subRowsFromJSON(JSON.stringify(data.pages));
         setSubs(rows);

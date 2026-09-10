@@ -114,7 +114,7 @@ const InstancePages: React.FC = () => {
     setImportError('');
     try {
       if (addTab === 'file') {
-        if (!importFile) { setImportError('Please select a .json page file'); setImportLoading(false); return; }
+        if (!importFile) { setImportError('Please select a .yaml or .json page file'); setImportLoading(false); return; }
         await importInstancePageFromFile(importFile);
       } else if (addTab === 'url') {
         if (!importUrl.trim()) { setImportError('Please enter a URL'); setImportLoading(false); return; }
@@ -675,12 +675,12 @@ const InstancePages: React.FC = () => {
               <input
                 value={importUrl}
                 onChange={(e) => { setImportUrl(e.target.value); setImportError(''); }}
-                placeholder="https://example.com/pages/my-page.json"
+                placeholder="https://example.com/pages/my-page.yaml"
                 className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
               />
             </label>
             <p className="text-[11px] text-gray-500 mt-1">
-              The response must be valid JSON. The fetched URL is recorded for audit trail.
+              The response must be valid YAML or JSON. The fetched URL is recorded for audit trail.
             </p>
             {importError && <p className="text-red-400 text-xs">{importError}</p>}
           </>
