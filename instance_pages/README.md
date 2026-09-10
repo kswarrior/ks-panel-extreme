@@ -50,7 +50,7 @@ Each instance page is defined as a JSON file with the following structure:
 - `source_tsx` (required if content_type=react): author React JS source (`function Page() { … }` + `return Page;`, `React.createElement`, no JSX in v1); click **Build** in the Studio to validate it into the executable bundle (`bundle_js`)
 - `icon_svg` (optional): Raw SVG inner markup for custom icon
 - `actions` (optional): JSON array of saved executable actions (`{name, type, command/path/content, args, env, timeout, description}`). Pages execute ONLY these via `KSPageSDK.runAction(name)`; an action may opt in to caller-supplied arguments with `"open_args": true` — shell commands then substitute the validated runtime args into a `{{args}}` placeholder in the stored command.
-- `sub_pages` / `pages` (optional): JSON array of nested sub-page definitions (`{path, name, content_type, content_*}`) reachable at `<slug>/<path>`
+- `sub_pages` / `pages` (optional): JSON array of nested sub-page definitions (`{path, name, content_type, content_*, source_tsx, bundle_css}` — sub-pages support `react` too) reachable at `<slug>/<path>`
 
 ## Import Methods
 
