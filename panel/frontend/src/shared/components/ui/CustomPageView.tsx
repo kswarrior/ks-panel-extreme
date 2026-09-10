@@ -110,7 +110,7 @@ const ReactModuleView: React.FC<{
   return (
     <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}`}>
       <div className="ks-react-page animate-fade-in">
-        {bundleCss && bundleCss.trim() !== '' ? <style>{`.ks-react-page { ${bundleCss} }`}</style> : null}
+        {bundleCss && bundleCss.trim() !== '' ? <style>{`/* react page css (scope selectors under .ks-react-page) */\n${bundleCss}`}</style> : null}
         {React.createElement(PageComp as React.ComponentType)}
       </div>
     </ReactModuleErrorBoundary>
@@ -1365,6 +1365,8 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
   const activeTheme = useThemeStore((s) => s.active());
 
   // The real SDK lives in the host origin; bridged calls execute against it.
+  // hostSdk is the synchronous twin of sdkRef for host-rendered pages
+  // (markdown/blocks/react) that need it during render, not after an effect.
   const sdkRef = useRef<ReturnType<typeof createCustomPageSDK> | null>(null);
   const pageConfigMap = useMemo(() => {
     const vals: Record<string, string> = {};
@@ -1378,18 +1380,28 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     }
     return vals;
   }, [content.configure, content.config]);
+  const savedActionsKey = useMemo(
+    () => JSON.stringify(Array.isArray(content.actions) ? content.actions : []),
+    [content.actions],
+  );
+  const hostSdk = useMemo(
+    () =>
+      instanceContext
+        ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '', pageConfigMap)
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [instanceContext?.id, pageSlug, savedActionsKey, pageConfigMap],
+  );
   useEffect(() => {
     // pageSlug MUST ride along: the backend (ExecuteCustomPageActionHandler)
     // rejects execute-action calls without it, so every bridged shell/file
     // action fails closed without it.
-    sdkRef.current = instanceContext
-      ? createCustomPageSDK(instanceContext, Array.isArray(content.actions) ? content.actions : [], pageSlug ?? '', pageConfigMap)
-      : null;
+    sdkRef.current = hostSdk;
     if (instanceContext) {
-      // Also publish on window for markdown/blocks pages rendered in-host.
-      (window as any).KSPageSDK = sdkRef.current;
+      // Also publish on window for markdown/blocks/react pages rendered in-host.
+      (window as any).KSPageSDK = hostSdk;
     }
-  }, [instanceContext, content.actions, pageSlug, pageConfigMap]);
+  }, [instanceContext, hostSdk]);
 
   const srcDoc = useMemo(() => {
     if (content.type !== 'html') return undefined;

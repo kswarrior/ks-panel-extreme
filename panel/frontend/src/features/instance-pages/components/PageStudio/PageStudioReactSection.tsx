@@ -23,7 +23,7 @@ export interface PageStudioReactSectionProps {
   sectionCls: string;
 }
 
-const STARTER = `function Page(sdk, React) {
+const STARTER = `function Page() {
   const el = React.createElement;
   const status = el('span', { className: 'ks-badge' }, sdk.instance.status);
   const run = function() { sdk.runAction('ping'); };
@@ -32,7 +32,8 @@ const STARTER = `function Page(sdk, React) {
       el('h2', null, sdk.instance.name),
       el('div', { className: 'ks-row' }, status),
       el('button', { className: 'ks-btn ks-btn-blue', onClick: run }, 'Ping')));
-}`;
+}
+return Page;`;
 
 export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
   source,
@@ -82,9 +83,10 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
         </div>
       </div>
       <p className="text-xs text-gray-500">
-        Stateful React (hooks, no full refresh). Plain JS with <code>React.createElement</code> — no JSX in v1.
-        Entry: <code>function Page(sdk, React)</code> returning an element. Use <code>sdk.runAction/fetchPanel</code> —
-        never <code>fetch()</code>, <code>eval</code> or browser storage directly.
+        Stateful React (hooks via <code>React.useState/useEffect</code>, no full refresh). Plain JS with{' '}
+        <code>React.createElement</code> — no JSX in v1. Define <code>function Page()</code> (closes over{' '}
+        <code>sdk</code> + <code>React</code>) and end with <code>return Page;</code>. Use{' '}
+        <code>sdk.runAction/fetchPanel</code> — never <code>fetch()</code>, <code>eval</code> or browser storage directly.
       </p>
       <label className="block text-xs text-gray-400 mt-3 mb-2">
         Page source (JS)
