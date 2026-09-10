@@ -75,10 +75,19 @@ function card(title,innerHtml){return '<div class="ks-card"><h3 style="margin:0 
 function cardUnit(key,title,innerHtml){return '<div class="ks-card" data-ks-key="'+esc(key)+'"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+esc(title)+'</h3>'+innerHtml+'</div>';}
 // ── React-like per-unit patching (no full page reload, only changed unit updates) ──
 // ksPatch diffs containers and patches only changed units (by data-ks-key / id), preserving scroll/focus.
-// This gives React-style granularity: fetching latest data patches only the unit whose data changed,
-// instead of wiping the whole page via innerHTML. Deep-keyed units ([data-ks-key]) are patched
-// individually like React reconciliation; non-keyed chrome (headers, skeletons) uses shallow child diff.
+// Final writes use the ORIGINAL Element.prototype setter (ksRawSet) with a
+// re-entrancy guard — writing via the patched setter would re-enter ksPatch
+// and overflow the stack, blanking every HTML instance page (terminal/files/…).
+var ksOrigDesc=typeof Element!=='undefined'?Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML'):null;
+var ksOrigGet=ksOrigDesc&&ksOrigDesc.get?ksOrigDesc.get:function(){return this.__ksHtml||'';};
+var ksOrigSet=ksOrigDesc&&ksOrigDesc.set?ksOrigDesc.set:function(v){this.__ksHtml=String(v);};
+var ksPatchGuard={};
+function ksRawGet(n){try{return ksOrigGet.call(n);}catch(e){try{return n.innerHTML;}catch(e2){return '';}}}
+function ksRawSet(n,v){try{ksOrigSet.call(n,String(v));}catch(e){try{n.innerHTML=String(v);}catch(e2){}}}
 function ksPatch(targetId, newHtml){
+  if(typeof ksPatchGuard!=='undefined'&&ksPatchGuard[targetId])return;
+  try{ksPatchGuard[targetId]=true;}catch(e){}
+  try{
   var root=document.getElementById(targetId);
   if(!root) return;
   var tmp=document.createElement('div');
@@ -122,9 +131,9 @@ function ksPatch(targetId, newHtml){
     if(oldNodes.length===0 && newKeys.length>0){
       // first real load after skeleton: tmp has keys, root had none — replace inner but preserve scroll
       // Only if root's current html is skeleton (no keys) we can safely replace
-      if(root.innerHTML!==newHtml){
+      if(ksRawGet(root)!==newHtml){
         var st0=root.scrollTop, sl0=root.scrollLeft;
-        root.innerHTML=newHtml;
+        ksRawSet(root,newHtml);
         try{root.scrollTop=st0; root.scrollLeft=sl0;}catch(e){}
       }
       return;
@@ -146,25 +155,26 @@ function ksPatch(targetId, newHtml){
       }
       if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; }
     }
-    if(ch===0 && root.innerHTML!==tmp.innerHTML){
-      if(root.innerHTML!==newHtml){
+    if(ch===0 && ksRawGet(root)!==ksRawGet(tmp)){
+      if(ksRawGet(root)!==newHtml){
         var st=root.scrollTop, sl=root.scrollLeft;
-        root.innerHTML=newHtml;
+        ksRawSet(root,newHtml);
         try{root.scrollTop=st; root.scrollLeft=sl;}catch(e){}
       }
     }
     return;
   }
-  if(root.innerHTML!==newHtml){
+  if(ksRawGet(root)!==newHtml){
     var st2=root.scrollTop, sl2=root.scrollLeft;
-    root.innerHTML=newHtml;
+    ksRawSet(root,newHtml);
     try{root.scrollTop=st2; root.scrollLeft=sl2;}catch(e){}
   }
+  }finally{try{ksPatchGuard[targetId]=false;}catch(e){}}
 }
 function ksUnitPatch(unitId, innerHtml){
   var n=document.getElementById(unitId);
   if(!n) return;
-  if(n.innerHTML!==innerHtml) n.innerHTML=innerHtml;
+  if(ksRawGet(n)!==innerHtml) ksRawSet(n,innerHtml);
 }
 function ksRefreshUnit(unitId, fetcher, renderer){
   return fetcher().then(function(data){

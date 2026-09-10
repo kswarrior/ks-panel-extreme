@@ -1020,19 +1020,20 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
         for(var i=0;i<tmp.children.length;i++){ var nn=tmp.children[i]; var oo=root.children[i]; var nnHasKey=!!nn.querySelector('[data-ks-key]')||nn.hasAttribute('data-ks-key'); var ooHasKey=!!oo.querySelector('[data-ks-key]')||oo.hasAttribute('data-ks-key'); if(nnHasKey||ooHasKey) continue; if(oo.outerHTML!==nn.outerHTML){ oo.replaceWith(nn.cloneNode(true)); } }
       }
       if(oldNodes.length===0 && newKeys.length>0){
-        if(root.innerHTML!==newHtml){ var st0=root.scrollTop, sl0=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st0; root.scrollLeft=sl0;}catch(e){} }
+        if(ksRawGet(root)!==newHtml){ var st0=root.scrollTop, sl0=root.scrollLeft; ksRawSet(root,newHtml); try{root.scrollTop=st0; root.scrollLeft=sl0;}catch(e){} }
         return;
       }
       return;
     }
     if(root.children.length && tmp.children.length && root.children.length===tmp.children.length){
       var ch=0; for(var i=0;i<tmp.children.length;i++){ var nn2=tmp.children[i]; var oo2=root.children[i]; var nk=nn2.getAttribute('data-ks-key')||nn2.id||''; var ok=oo2.getAttribute('data-ks-key')||oo2.id||''; if(nk!==ok){ if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; } continue; } if(oo2.outerHTML!==nn2.outerHTML){ oo2.replaceWith(nn2.cloneNode(true)); ch++; } }
-      if(ch===0 && root.innerHTML!==tmp.innerHTML){ if(root.innerHTML!==newHtml){ var st=root.scrollTop, sl=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st; root.scrollLeft=sl;}catch(e){} } }
+      if(ch===0 && ksRawGet(root)!==ksRawGet(tmp)){ if(ksRawGet(root)!==newHtml){ var st=root.scrollTop, sl=root.scrollLeft; ksRawSet(root,newHtml); try{root.scrollTop=st; root.scrollLeft=sl;}catch(e){} } }
       return;
     }
-    if(root.innerHTML!==newHtml){ var st2=root.scrollTop, sl2=root.scrollLeft; root.innerHTML=newHtml; try{root.scrollTop=st2; root.scrollLeft=sl2;}catch(e){} }
+    if(ksRawGet(root)!==newHtml){ var st2=root.scrollTop, sl2=root.scrollLeft; ksRawSet(root,newHtml); try{root.scrollTop=st2; root.scrollLeft=sl2;}catch(e){} }
+    }finally{ksPatchGuard[targetId]=false;}
   }
-  function ksUnitPatch(unitId, innerHtml){ var n=document.getElementById(unitId); if(!n) return; if(n.innerHTML!==innerHtml) n.innerHTML=innerHtml; }
+  function ksUnitPatch(unitId, innerHtml){ var n=document.getElementById(unitId); if(!n) return; if(ksRawGet(n)!==innerHtml) ksRawSet(n,innerHtml); }
   function ksRefreshUnit(unitId, fetcher, renderer){ return fetcher().then(function(data){ var html=renderer(data); ksUnitPatch(unitId, html); return data; }); }
   try{
     var _gid=document.getElementById.bind(document);
