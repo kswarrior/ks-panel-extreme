@@ -336,6 +336,30 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     if (TINT_WARN_RE.test(line)) return `\x1b[33;1m${line}\x1b[0m`;
     return line;
   };
+  // Display-only "[02:41:03 INFO]" stamp stripping (settings pill toggle).
+  // Minecraft-style log lines start with one or two [...] blocks, e.g.
+  // "[02:41:03 INFO]: ...", "[02:41:03] [Server thread/INFO]: ...".
+  // When the operator turns the prefix OFF we drop those leading blocks
+  // per line; lines carrying ANSI escapes are left untouched so
+  // interactive apps (vim/htop) never break.
+  const LOG_TS_RE = /^\s*\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*[A-Za-z]*\]\s*:?\s*/;
+  const LOG_LVL_RE = /^\s*\[[^\]\n]*?(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL|SEVERE)[^\]\n]*?\]\s*:?\s*/i;
+  const stripLogPrefix = (line: string): string => {
+    if (!line || line.includes('\x1b')) return line;
+    let out = line;
+    for (let i = 0; i < 3; i++) {
+      const before = out;
+      if (LOG_TS_RE.test(out)) out = out.replace(LOG_TS_RE, '');
+      else if (LOG_LVL_RE.test(out)) out = out.replace(LOG_LVL_RE, '');
+      else break;
+      if (out === before) break;
+    }
+    return out;
+  };
+  const displayLine = (line: string): string => {
+    const noPrefix = showLogPrefixRef.current === false ? stripLogPrefix(line) : line;
+    return tintLine(noPrefix);
+  };
   // writeTinted streams one stdout/stderr chunk through the line tinter.
   // A streaming TextDecoder + carry buffer reassembles lines split across
   // WS frames; completed lines are tinted, the tail waits for more bytes.
@@ -353,7 +377,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       const parts = tintBufRef.current.split('\n');
       tintBufRef.current = parts.pop() ?? '';
       for (const ln of parts) {
-        term.write(`${tintLine(ln.endsWith('\r') ? ln.slice(0, -1) : ln)}\n`);
+        term.write(`${displayLine(ln.endsWith('\r') ? ln.slice(0, -1) : ln)}\n`);
       }
     } catch {
       try { term.write(bytes); } catch { /* noop */ }
@@ -363,7 +387,37 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     const tail = tintBufRef.current;
     tintBufRef.current = '';
     if (tail) {
-      try { term.write(`${tintLine(tail)}\n`); } catch { /* noop */ }
+      try { term.write(`${displayLine(tail)}\n`); } catch { /* noop */ }
+    }
+  };
+  // writeFiltered is the byte-faithful path with optional prefix stripping
+  // for side-shell / workflow panes. Stripping works chunk-wise (no line
+  // buffering) so interactive prompts without a trailing newline still
+  // render instantly; a prefix split across two WS frames is simply kept
+  // (rare, harmless). Lines with ANSI escapes are never stripped.
+  const stripDecRef = useRef<TextDecoder | null>(null);
+  const writeFiltered = (term: XTerm, bytes: Uint8Array) => {
+    if (showLogPrefixRef.current !== false) {
+      term.write(bytes);
+      return;
+    }
+    try {
+      if (!stripDecRef.current) stripDecRef.current = new TextDecoder('utf-8');
+      const text = stripDecRef.current.decode(bytes, { stream: true });
+      // Strip a leading stamp at chunk start and after every newline.
+      // Two passes cover "[time] [level]" double stamps.
+      let out = text;
+      for (let i = 0; i < 2; i++) {
+        const prev = out;
+        out = out.replace(/(^|\n)\s*\[\d{1,2}:\d{2}:\d{2}(?:\.\d+)?\s*[A-Za-z]*\]\s*:?\s*/g, '$1');
+        out = out.replace(/(^|\n)\s*\[[^\]\n]*?(?:INFO|WARN(?:ING)?|ERROR|DEBUG|TRACE|FATAL|SEVERE)[^\]\n]*?\]\s*:?\s*/gi, '$1');
+        if (out === prev) break;
+      }
+      // If the chunk carried escapes, only the plain-text replacements
+      // above ran — escape sequences themselves pass through untouched.
+      term.write(out);
+    } catch {
+      try { term.write(bytes); } catch { /* noop */ }
     }
   };
 
@@ -377,7 +431,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
       cursorStyle: 'bar',
       cursorWidth: 4,
       fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace',
-      fontSize: 13,
+      fontSize: fontSizeRef.current,
       lineHeight: 1.25,
       convertEol: true,
       allowProposedApi: true,
@@ -597,10 +651,13 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     // textarea so the OS virtual keyboard appears (xterm's own click
     // handler is async in some versions and breaks the user-gesture
     // requirement on iOS/Android). Only real TAPS steal focus: touchstart
-    // just records the position (passive, never blocks page scroll);
-    // touchend focuses only when the finger barely moved, so swipes that
-    // start inside the terminal still scroll the page instead of popping
-    // the keyboard.
+    // just records the position (passive, never blocks scroll); touchmove
+    // cancels the tap once the finger slides (so a scroll gesture never
+    // focuses); touchend focuses only when the finger barely moved, so
+    // swipes scroll the terminal buffer / page instead of popping the
+    // keyboard. The viewport itself keeps `touch-action: pan-y` (see
+    // ks-terminal CSS) so one-finger vertical swipes scroll the
+    // scrollback natively with momentum.
     const el = containerRef.current;
     const focusTerm = () => {
       try { term.focus(); } catch { /* noop */ }
@@ -615,6 +672,13 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
         touchActive = true;
       }
     };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!touchActive) return;
+      const t = e.touches[0];
+      if (t && Math.hypot(t.clientX - touchPos.x, t.clientY - touchPos.y) > 10) {
+        touchActive = false;
+      }
+    };
     const handleTouchEnd = (e: TouchEvent) => {
       if (!touchActive) return;
       touchActive = false;
@@ -627,6 +691,7 @@ const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ instanceId, onStat
     const handleTouchCancel = () => { touchActive = false; };
     el.addEventListener('click', focusTerm);
     el.addEventListener('touchstart', handleTouchStart as EventListener, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove as EventListener, { passive: true });
     el.addEventListener('touchend', handleTouchEnd as EventListener, { passive: false });
     el.addEventListener('touchcancel', handleTouchCancel);
     el.addEventListener('copy', handleCopyEvent as EventListener);
