@@ -350,17 +350,24 @@ function pagePayloadFromRow(p: any): PageContent {
 // pagePayloadFromSub builds the PageContent payload from one nested sub-page
 // entry (no actions of its own — actions live on the parent row). Components
 // also live on the parent row and are passed in as the second argument.
+// React subs execute bundle_js (stamped by POST /:id/build), falling back to
+// the author source like top-level rows.
 function pagePayloadFromSub(s: any, parentComponents?: PageComponentDef[], parentConfigure?: PageContent['configure'], parentConfig?: PageContent['config']): PageContent {
-  const type: PageContentType = ['html', 'markdown', 'blocks'].includes(s.content_type)
+  const type: PageContentType = ['html', 'markdown', 'blocks', 'react'].includes(s.content_type)
     ? s.content_type
     : s.content_html ? 'html'
     : s.content_blocks ? 'blocks'
+    : s.bundle_js || s.source_tsx ? 'react'
     : 'markdown';
   return {
     type,
     html: typeof s.content_html === 'string' ? s.content_html : undefined,
     markdown: typeof s.content_markdown === 'string' ? s.content_markdown : undefined,
     blocks: typeof s.content_blocks === 'string' ? s.content_blocks : undefined,
+    bundle: typeof s.bundle_js === 'string' && s.bundle_js.trim() !== ''
+      ? s.bundle_js
+      : typeof s.source_tsx === 'string' && s.source_tsx.trim() !== '' ? s.source_tsx : undefined,
+    bundleCss: typeof s.bundle_css === 'string' ? s.bundle_css : undefined,
     components: parentComponents,
     configure: parentConfigure,
     config: parentConfig,
