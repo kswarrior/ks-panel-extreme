@@ -616,7 +616,7 @@ func (r *StackRepository) ApplyAnnounce(stackID int64, in AnnounceInput) (pendin
 			return 0, err
 		}
 	}
-	rows, err := r.db.Query(
+	rows, err := tx.Query(
 		`SELECT capability FROM stack_permissions WHERE stack_id = ?`,
 		stackID,
 	)

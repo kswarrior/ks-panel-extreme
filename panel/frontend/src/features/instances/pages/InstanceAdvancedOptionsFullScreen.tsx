@@ -453,9 +453,18 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
               content_html: np.content_html || '',
               content_markdown: np.content_markdown || '',
               content_blocks: np.content_blocks || '',
+              // React snapshot MUST ride along like actions: dropping it
+              // deploys a react page with no bundle, which renders the
+              // "has no content" card on the instance.
+              ...(np.source_tsx ? { source_tsx: np.source_tsx } : {}),
+              ...(np.bundle_js ? { bundle_js: np.bundle_js } : {}),
+              ...(np.bundle_css ? { bundle_css: np.bundle_css } : {}),
+              ...(np.build_status ? { build_status: np.build_status } : {}),
               ...(np.actions && np.actions.length > 0 ? { actions: np.actions } : {}),
               ...(np.sub_pages && np.sub_pages.length > 0 ? { sub_pages: np.sub_pages } : {}),
               ...(np.components && np.components.length > 0 ? { components: np.components } : {}),
+              ...(np.configure && np.configure.length > 0 ? { configure: np.configure } : {}),
+              ...(np.config && Object.keys(np.config).length > 0 ? { config: np.config } : {}),
             },
           ],
         };
