@@ -86,7 +86,7 @@ export async function downloadStack(id: number): Promise<Blob> {
 
 export async function updateStack(
   id: number,
-  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown; proxyPort?: number; proxyRootUrl?: string; remoteAddress?: string; remoteUseTls?: boolean; remoteSkipVerify?: boolean },
+  payload: { name: string; category: string; version: string; description: string; icon: string; color?: string; spec?: unknown; proxyPort?: number; proxyRootUrl?: string; remoteAddress?: string; remoteUseTls?: boolean; remoteSkipVerify?: boolean; servePort?: number; serveAuth?: boolean },
 ): Promise<Stack> {
   const res = await client.put<Stack>(`/api/stacks/${id}`, payload);
   return res.data;

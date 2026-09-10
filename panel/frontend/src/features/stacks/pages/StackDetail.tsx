@@ -88,7 +88,11 @@ const StackDetail: React.FC = () => {
   const [opStopping, setOpStopping] = useState(false);
   const opBusy = opJob?.status === 'running';
   const [copied, setCopied] = useState('');
-  // App proxy (externally-run Go app floated at /<root>).
+  // App proxy (externally-run Go app): two independent servings of the
+  // same app — floated at /<root> behind the panel session, and/or on a
+  // dedicated panel-opened port rendered at /. The toggles below derive
+  // from the inputs (root set = path on, port set = port on); switching a
+  // toggle off persists cleared settings for that mode immediately.
   const [proxyPort, setProxyPort] = useState('');
   const [proxyRoot, setProxyRoot] = useState('');
   const [proxySaving, setProxySaving] = useState(false);
@@ -97,6 +101,10 @@ const StackDetail: React.FC = () => {
   const [remoteAddress, setRemoteAddress] = useState('');
   const [remoteUseTls, setRemoteUseTls] = useState(false);
   const [remoteSkipVerify, setRemoteSkipVerify] = useState(false);
+  // Dedicated serve port (panel-opened, renders the app at /).
+  const [servePort, setServePort] = useState('');
+  const [serveAuth, setServeAuth] = useState(true);
+  const [serveSaving, setServeSaving] = useState(false);
   // Pairing snippet + Verify verdict (fetched on demand; the token is
   // shown only here and never stored client-side).
   const [pairing, setPairing] = useState<StackPairing | null>(null);
