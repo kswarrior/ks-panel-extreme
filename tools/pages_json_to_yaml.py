@@ -38,40 +38,25 @@ STRINGIFIED_LIST_FIELDS = (
 
 
 class Literal(str):
-    """A string that PyYAML always emits as a `|` literal block."""
+    """A string that PyYAML always emits as a `|` literal block.
+
+    NOTE: the style must be exactly "|" (never "|-" / "|+"): PyYAML's
+    emitter auto-selects the correct chomping indicator from the trailing
+    newlines, while an explicit "|-"/"|+" degrades to double-quoted style
+    as soon as the scalar contains non-ASCII characters.
+    """
 
 
-class LiteralStrip(Literal):
-    """Literal block with `-` chomping (no trailing newline)."""
+def _literal_representer(dumper, data):
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
 
 
-class LiteralKeep(Literal):
-    """Literal block with `+` chomping (keep all trailing newlines)."""
+yaml.add_representer(Literal, _literal_representer, Dumper=yaml.SafeDumper)
 
 
-def _literal_representer(style):
-    def _rep(dumper, data):
-        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
-
-    return _rep
-
-
-yaml.add_representer(Literal, _literal_representer("|"), Dumper=yaml.SafeDumper)
-yaml.add_representer(
-    LiteralStrip, _literal_representer("|-"), Dumper=yaml.SafeDumper
-)
-yaml.add_representer(
-    LiteralKeep, _literal_representer("|+"), Dumper=yaml.SafeDumper
-)
-
-
-def as_literal(value: str):
+def as_literal(value: str) -> Literal:
     """Wrap a multiline string so a YAML round-trip preserves it byte-exact."""
-    if value.endswith("\n\n"):
-        return LiteralKeep(value)
-    if value.endswith("\n"):
-        return Literal(value)
-    return LiteralStrip(value)
+    return Literal(value)
 
 
 def to_yaml_doc(src: dict) -> dict:
