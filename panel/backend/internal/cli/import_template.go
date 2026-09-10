@@ -17,7 +17,7 @@ import (
 //
 // Drops one of the canned, code-owned blueprints (see builtinTemplates) into
 // the database so it shows up on the admin Templates page without the
-// operator having to hand-write the JSON spec. Re-importing the same name
+// operator having to hand-write the YAML spec. Re-importing the same name
 // updates the existing row in place — so bumping a builtin's spec in code and
 // re-running the command fixes every panel without orphaning rows.
 //

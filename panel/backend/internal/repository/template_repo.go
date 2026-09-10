@@ -10,7 +10,7 @@ import (
 
 // TemplateRepository manages the `templates` table. Templates are pure data
 // (no execution lives here) — the panel only stores them so operators can
-// reuse a known-good JSON spec across many deploys.
+// reuse a known-good YAML spec across many deploys.
 type TemplateRepository struct {
 	db *sql.DB
 }
@@ -180,7 +180,8 @@ type TemplateInput struct {
 }
 
 // Create inserts a new template. The handler validates Spec is well-formed
-// JSON before calling here so the column never holds garbage. OwnerID 0
+// YAML (legacy JSON accepted, normalized to YAML) before calling here so
+// the column never holds garbage. OwnerID 0
 // is the CLI / seed / orphan path (pre-054) — we omit the owner_id column
 // entirely so the row lands with NULL (which the FK allows) instead of 0
 // (which violates the FK) or a bare nil that the modernc sqlite driver
