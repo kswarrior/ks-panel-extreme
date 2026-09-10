@@ -3,8 +3,8 @@ import { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import type { PageOverride } from '@/features/templates/types/templateForm';
+import { pageOverrideFromInstancePage } from '@/features/templates/utils/templateFormUtils';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
-import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
 export interface PageOverrideInput extends PageOverride {}
@@ -97,60 +97,13 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
     // Slugs already on the parent's pages array — skip those to avoid
     // adding the same page twice. Legacy `kind: 'builtin'` rows (pre-
     // conversion stubs with no content) are skipped too — every importable
-    // page is a custom row now.
+    // page is a custom row now. The shared copier ships bundles only for
+    // green builds so a failed/stale build links source-only.
     const skip = new Set<string>(alreadyAddedSlugs);
     for (const p of instancePages) {
       if (!selectedSlugs.has(p.slug) || skip.has(p.slug)) continue;
       if (p.kind === 'builtin') continue;
-      additions.push({
-        slug: p.slug,
-        original_slug: '',
-        enabled: true,
-        label: p.name,
-        icon_svg: p.icon_svg || '',
-        icon_color: (p as any).icon_color || '',
-        kind: 'custom',
-        content_type: (['html', 'markdown', 'blocks', 'react'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
-        content_html: p.content_html || '',
-        content_markdown: p.content_markdown || '',
-        content_blocks: p.content_blocks || '',
-        // React snapshot MUST ride along like actions: dropping it here would
-        // deploy a react page with no bundle (renders the "no built bundle" card).
-        ...((p as any).source_tsx ? { source_tsx: (p as any).source_tsx } : {}),
-        ...((p as any).bundle_js ? { bundle_js: (p as any).bundle_js } : {}),
-        ...((p as any).bundle_css ? { bundle_css: (p as any).bundle_css } : {}),
-        ...((p as any).build_status ? { build_status: (p as any).build_status } : {}),
-        // Saved actions MUST ride along: the runtime allow-list matches
-        // against the spec row's actions, so dropping them here made every
-        // action on the page fail with 403 once deployed.
-        ...(parsePageActions(p.actions).length > 0
-          ? { actions: parsePageActions(p.actions) }
-          : {}),
-        // Multi-page support: sub-pages stay INSIDE the parent row (effective
-        // route "<slug>/<path>", e.g. files/edit) so they never show up as
-        // separate top-level tabs — the tab bar lists the parent page only.
-        ...(parseSubPages(p.sub_pages).length > 0
-          ? {
-              sub_pages: parseSubPages(p.sub_pages).map((sub) => ({
-                path: sub.path,
-                name: sub.name,
-                content_type: (['html', 'markdown', 'blocks', 'react'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks' | 'react',
-                content_html: sub.content_html || '',
-                content_markdown: sub.content_markdown || '',
-                content_blocks: sub.content_blocks || '',
-                ...((sub as any).source_tsx ? { source_tsx: (sub as any).source_tsx } : {}),
-                ...((sub as any).bundle_js ? { bundle_js: (sub as any).bundle_js } : {}),
-                ...((sub as any).bundle_css ? { bundle_css: (sub as any).bundle_css } : {}),
-              })),
-            }
-          : {}),
-        ...(parsePageComponents(p.components).length > 0
-          ? { components: parsePageComponents(p.components) }
-          : {}),
-        ...(parsePageConfigure((p as any).configure).length > 0
-          ? { configure: parsePageConfigure((p as any).configure) }
-          : {}),
-      });
+      additions.push(pageOverrideFromInstancePage(p));
       skip.add(p.slug);
     }
     if (additions.length > 0) {

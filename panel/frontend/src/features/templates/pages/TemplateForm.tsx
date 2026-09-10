@@ -363,6 +363,8 @@ const TemplateForm: React.FC = () => {
     if (!form.name.trim()) { setError('Name is required'); return; }
     if (!form.image.trim()) { setError('Image is required'); return; }
     if (form.color && !/^#[0-9a-fA-F]{6}$/.test(form.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); return; }
+    const pageErrs = validateTemplatePages(form.pages);
+    if (pageErrs.length > 0) { setError(pageErrs[0]); setTab('pages'); return; }
     setSaving(true);
     setError('');
     try {
@@ -461,6 +463,33 @@ const TemplateForm: React.FC = () => {
       return { ...f, pages: [...f.pages, ...additions] };
     });
     closeImportModal();
+  };
+
+  // Re-link one row after a library rebuild: refresh the content snapshot
+  // (source/bundle/actions/subs/components/configure) from the Instance
+  // Pages library while keeping the operator's template-level overrides
+  // (label, enabled, icon, per-page config values). Without this the linked
+  // bundle goes stale the moment the library source is rebuilt.
+  const relinkPage = async (i: number) => {
+    const slug = form.pages[i]?.slug;
+    if (!slug) return;
+    setError('');
+    try {
+      const lib = instancePages.length > 0 ? instancePages : await listInstancePages().then((ps) => { setInstancePages(ps); return ps; });
+      const hit = lib.find((x) => x.slug === slug && x.kind !== 'builtin');
+      if (!hit) { setError(`Page "${slug}" is not in the Instance Pages library — it may have been deleted. Remove the row or re-import it.`); return; }
+      const fresh = pageOverrideFromInstancePage(hit);
+      setForm((f) => {
+        const p2 = [...f.pages];
+        const cur = p2[i];
+        if (!cur || cur.slug !== slug) return f;
+        p2[i] = { ...fresh, label: (cur.label || '').trim() !== '' ? cur.label : fresh.label, enabled: cur.enabled, icon_svg: cur.icon_svg || fresh.icon_svg, icon_color: (cur as any).icon_color || (fresh as any).icon_color, ...(cur.config && Object.keys(cur.config).length > 0 ? { config: cur.config } : {}) };
+        return { ...f, pages: p2 };
+      });
+    } catch (e: any) {
+      const d = e?.response?.data;
+      setError(typeof d === 'string' && d ? d : 'Failed to re-link page from the library');
+    }
   };
 
   // ---- Add pages ---------------------------------------------------------
@@ -823,6 +852,14 @@ const TemplateForm: React.FC = () => {
                             Configure
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => relinkPage(i)}
+                          className="px-2.5 py-1 text-xs font-medium border border-white/10 text-gray-300 rounded hover:bg-white/5 shrink-0"
+                          title="Refresh this page from the Instance Pages library (ships the latest build)"
+                        >
+                          Re-link
+                        </button>
                         <CardMenu
                           ariaLabel={`Actions for page ${p.label || defLabel}`}
                           items={[
@@ -872,7 +909,7 @@ const TemplateForm: React.FC = () => {
                               />
                             </div>
                           </div>
-                          {p.kind === 'custom' && (
+                          {p.kind === 'custom' && p.content_type !== 'react' && (
                             <CustomPageStudio
                               page={{
                                 content_type: p.content_type,
@@ -880,8 +917,15 @@ const TemplateForm: React.FC = () => {
                                 content_html: p.content_html,
                                 content_markdown: p.content_markdown,
                               } as { content_type?: string; content_blocks?: string; content_html?: string; content_markdown?: string }}
-                              onChange={(patch: Partial<{ content_type: string; content_blocks: string; content_html: string; content_markdown: string }>) => setForm((f): TemplateFormState => { const p2 = [...f.pages] as PageOverride[]; const updatedPage = { ...p2[i], content_type: patch.content_type, content_blocks: patch.content_blocks, content_html: patch.content_html, content_markdown: patch.content_markdown } as PageOverride; p2[i] = updatedPage; return { ...f, pages: p2 }; })}
+                              // Merge patch fields with the current row: the
+                              // studio emits partial patches (e.g. blocks-only),
+                              // so overwriting every field with patch values
+                              // wiped content_type + the sibling payloads.
+                              onChange={(patch: Partial<{ content_type: string; content_blocks: string; content_html: string; content_markdown: string }>) => setForm((f): TemplateFormState => { const p2 = [...f.pages] as PageOverride[]; const cur = p2[i]; const updatedPage = { ...cur, content_type: patch.content_type ?? cur.content_type, content_blocks: patch.content_blocks ?? cur.content_blocks, content_html: patch.content_html ?? cur.content_html, content_markdown: patch.content_markdown ?? cur.content_markdown } as PageOverride; p2[i] = updatedPage; return { ...f, pages: p2 }; })}
                             />
+                          )}
+                          {p.kind === 'custom' && p.content_type === 'react' && (
+                            <p className="text-xs text-gray-500">React page — the source snapshot and built bundle are managed in the Instance Pages library. Edit there, rebuild, then use Re-link on this row to ship the fresh bundle.</p>
                           )}
                         </div>
                       )}
