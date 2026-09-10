@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { listTemplates, createTemplate, updateTemplate, listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
-import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
 import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
