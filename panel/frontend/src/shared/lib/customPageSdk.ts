@@ -227,6 +227,43 @@ function shellQuote(s: string): string {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
 
+// --- CSRF token cache (mirrors shared/api/client.ts) ---
+// Tokens are minted by public GET /api/csrf-token (reusable ~1h) and sent
+// back as X-CSRF-Token on mutating requests. Module-level on purpose: the
+// token is panel-wide, so every page SDK instance shares one mint.
+let csrfToken: string | null = null;
+let csrfInflight: Promise<string | null> | null = null;
+
+function isCsrfExemptUrl(url: string): boolean {
+  return (
+    url.includes('/api/csrf-token') ||
+    url.includes('/api/auth/') ||
+    url.includes('/api/nodes/heartbeat') ||
+    url.includes('/api/edge/tunnel')
+  );
+}
+
+async function fetchCsrfToken(): Promise<string | null> {
+  if (csrfToken) return csrfToken;
+  if (!csrfInflight) {
+    csrfInflight = fetch('/api/csrf-token', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        csrfToken = d && typeof d.csrf_token === 'string' ? d.csrf_token : null;
+        return csrfToken;
+      })
+      .catch(() => null)
+      .finally(() => {
+        csrfInflight = null;
+      });
+  }
+  return csrfInflight;
+}
+
+function clearCsrfToken(): void {
+  csrfToken = null;
+}
+
 export function createCustomPageSDK(
   instanceContext: InstanceContext,
   savedActions: PageActionDef[] = [],
@@ -262,23 +299,59 @@ export function createCustomPageSDK(
     }
     return e as Error;
   }
+  // --- CSRF (mirrors shared/api/client.ts without the axios dependency) ---
+  // The backend enforces X-CSRF-Token on cookie-only mutating requests.
+  // Without this every SDK POST (executeAction, fetchPanel writes) 403s with
+  // "invalid CSRF token" while built-in pages (axios client) keep working.
+  function mutatingNeedsCsrf(url: string, options?: RequestInit): boolean {
+    const method = String(options?.method || 'GET').toUpperCase();
+    if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') return false;
+    return !isCsrfExemptUrl(url);
+  }
+  async function withCsrf(url: string, options?: RequestInit): Promise<RequestInit | undefined> {
+    if (!mutatingNeedsCsrf(url, options)) return options;
+    const t = await fetchCsrfToken();
+    if (!t) return options;
+    return { ...options, headers: { ...(options?.headers || {}), 'X-CSRF-Token': t } };
+  }
+  async function fetchWithTimeoutCsrf(url: string, options?: RequestInit, retried = false): Promise<Response> {
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(url, await withCsrf(url, options));
+    } catch (e) {
+      throw timeoutErr(e);
+    }
+    // Transparent CSRF retry: a 403 mentioning csrf means our cached token
+    // expired (1h TTL). Clear it, mint fresh, retry once — same contract as
+    // the axios client so long-idle pages don't spuriously fail.
+    if (!retried && res.status === 403 && !isCsrfExemptUrl(url)) {
+      const text = await res.text();
+      if (text.toLowerCase().includes('csrf')) {
+        clearCsrfToken();
+        const fresh = await fetchCsrfToken();
+        if (fresh) {
+          return fetchWithTimeoutCsrf(url, {
+            ...options,
+            headers: { ...(options?.headers || {}), 'X-CSRF-Token': fresh },
+          }, true);
+        }
+      }
+      throw new Error(sanitizeHttpError(text, res.status));
+    }
+    return res;
+  }
   async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     const body = options?.body;
     const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
     const defaultHeaders: Record<string, string> = {};
     if (body != null && !isFormData) defaultHeaders['Content-Type'] = 'application/json';
-    let res: Response;
-    try {
-      res = await fetchWithTimeout(url, {
-        ...options,
-        headers: {
-          ...defaultHeaders,
-          ...(options?.headers || {}),
-        },
-      });
-    } catch (e) {
-      throw timeoutErr(e);
-    }
+    const res = await fetchWithTimeoutCsrf(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...(options?.headers || {}),
+      },
+    });
     if (!res.ok) {
       const text = await res.text();
       throw new Error(sanitizeHttpError(text, res.status));
@@ -300,12 +373,7 @@ export function createCustomPageSDK(
   }
   
   async function fetchText(url: string, options?: RequestInit): Promise<string> {
-    let res: Response;
-    try {
-      res = await fetchWithTimeout(url, { ...options });
-    } catch (e) {
-      throw timeoutErr(e);
-    }
+    const res = await fetchWithTimeoutCsrf(url, options);
     if (!res.ok) throw new Error(sanitizeHttpError(await res.text(), res.status));
     return res.text();
   }
