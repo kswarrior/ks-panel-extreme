@@ -98,6 +98,10 @@ const GroupIcon: React.FC<{ label: string; size?: number; className?: string }> 
       return (
         <svg {...common}><path d="M12 2 2 7l10 5 10-5-10-5z" /><path d="M2 12l10 5 10-5" /><path d="M2 17l10 5 10-5" /></svg>
       );
+    case 'System':
+      return (
+        <svg {...common}><path d="M21 12a9 9 0 1 1-3-6.7" /><path d="M21 3v5h-5" /></svg>
+      );
     default:
       return (
         <svg {...common}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>

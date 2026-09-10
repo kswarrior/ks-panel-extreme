@@ -423,6 +423,15 @@ export const PERMISSION_AREAS: PermissionArea[] = [
       PermissionKey.AI_CHAT_THREADS,
     ],
   },
+  // System cluster: MANAGE_PANEL_UPDATE is the umbrella (panel self-update
+  // verb — update check + download + swap + restart). No CRUD verbs and no
+  // Own/All scope: the update surface is a single global verb. Mirrors the
+  // backend AreaGroups trailing System group one-for-one.
+  {
+    label: 'System',
+    umbrella: PermissionKey.MANAGE_PANEL_UPDATE,
+    keys: {},
+  },
 ];
 
 /** All perm keys that belong to a regulatable area (umbrella + sub-keys + Own/All), for quick membership tests. */

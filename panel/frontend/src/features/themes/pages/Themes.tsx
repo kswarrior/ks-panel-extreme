@@ -9,7 +9,6 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useAuthStore } from '@/shared/stores/authStore';
-import { AREAS, STANDALONE_PAGES } from '@/features/instance-pages/types/pageregistry';
 import type { Theme } from '@/features/themes/types/theme';
 import { downloadTheme, installThemeFromUrl, uploadThemeFile } from '@/features/themes/api/themes';
 import { themeManifestToToml } from '@/features/themes/toml';
@@ -58,20 +57,6 @@ const ApplyToRichMenu: React.FC<{ theme: Theme }> = ({ theme }) => {
     />
   );
 };
-
-// Pretty-print a single assignment scope for the "Used on" caption on each
-// theme card. Area scopes render as the area label; page scopes render the
-// page label prefixed with its area so the admin can tell "Users" apart
-// from "Instance · Files".
-function scopeLabel(scope: string): string {
-  if (scope.startsWith('area:')) {
-    const id = scope.slice(5);
-    return AREAS.find((a) => a.id === id)?.label || scope;
-  }
-  const id = scope.slice(5);
-  const page = [...AREAS.flatMap((a) => a.pages), ...STANDALONE_PAGES].find((p) => p.id === id);
-  return page?.label || id;
-}
 
 const Themes: React.FC = () => {
   const navigate = useNavigate();
@@ -452,7 +437,6 @@ const Themes: React.FC = () => {
 
 <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-themes-grid">
         {filteredThemes.map(({ theme: t, origin }) => {
-          const scopes = scopesFor(t.id);
           const canAssign = origin !== 'global' || canManageGlobal;
 
           return (

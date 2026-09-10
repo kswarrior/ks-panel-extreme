@@ -410,11 +410,18 @@ var AreaGroups = []Group{
 		AIChatWritesKey,
 		AIChatThreadsKey,
 	}},
-	// Stacks cluster, appended last so the positional AreaGroups indexes
-	// server.go relies on (0..12) keep pointing at the same areas.
+	// Stacks cluster. It must stay AFTER the Users..Themes entries above so
+	// the positional AreaGroups indexes server.go relies on (0..12) keep
+	// pointing at the same areas; server.go resolves Stacks (and everything
+	// appended after it) by label via GroupByLabel.
 	{Label: "Stacks", Umbrella: ManageStacksKey, Keys: map[Action]string{
 		ActionView: StacksViewKey, ActionCreate: StacksCreateKey, ActionEdit: StacksEditKey, ActionDelete: StacksDeleteKey,
 	}, OwnKey: StacksOwnKey, AllKey: StacksAllKey},
+	// System cluster: ManagePanelUpdateKey is the umbrella (panel self-update
+	// verb — update check + download + swap + restart). No CRUD verbs and no
+	// Own/All scope: the update surface is a single global verb. Appended
+	// after Stacks so the positional indexes above are untouched.
+	{Label: "System", Umbrella: ManagePanelUpdateKey},
 }
 
 // AllGroups is the ordered slice of every regulatable area. It is the union of
