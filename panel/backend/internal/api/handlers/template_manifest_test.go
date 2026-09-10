@@ -188,6 +188,45 @@ func TestUploadTemplateFileYAML(t *testing.T) {
 	if !strings.Contains(tmpl.Spec, "curl -fsSLO") {
 		t.Fatalf("stored spec lost YAML values: %s", tmpl.Spec)
 	}
+	// Canonical storage is YAML even though the upload was YAML already.
+	if strings.HasPrefix(strings.TrimSpace(tmpl.Spec), "{") {
+		t.Fatalf("stored spec must be YAML, got JSON: %s", tmpl.Spec)
+	}
+}
+
+func TestUploadTemplateFileJSONNormalizesToYAML(t *testing.T) {
+	templateUploadTestDB(t)
+	rr := postTemplateManifest(t, "minecraft.json", `{"name":"mc-json-up","kind":"docker","image":"eclipse-temurin:21-jre","spec":{"install":[{"action":"shell","command":"java -jar server.jar"}]}}`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status %d, body: %s", rr.Code, rr.Body.String())
+	}
+	var got struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer con.Close()
+	tmpl, err := repository.NewTemplateRepository(con).Get(got.ID)
+	if err != nil || tmpl == nil {
+		t.Fatalf("read back template: %v", err)
+	}
+	// Legacy JSON uploads keep working but are stored as canonical YAML.
+	if strings.HasPrefix(strings.TrimSpace(tmpl.Spec), "{") {
+		t.Fatalf("JSON upload must normalize to YAML storage, got: %s", tmpl.Spec)
+	}
+	var spec map[string]any
+	if err := yaml.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
+		t.Fatalf("stored spec is not valid YAML: %v\n%s", err, tmpl.Spec)
+	}
+	install, ok := spec["install"].([]any)
+	if !ok || len(install) != 1 {
+		t.Fatalf("stored spec lost install steps: %s", tmpl.Spec)
+	}
 }
 
 func TestUploadTemplateFileJSONStillWorks(t *testing.T) {
