@@ -332,20 +332,23 @@ type CreateStackInput struct {
 }
 
 // CreateStack inserts a new stack with its requested-capability rows seeded
-// granted = 0 (pending admin approval). Duplicate slug surfaces as a UNIQUE
-// error the handler turns into 409.
-func (r *StackRepository) CreateStack(in CreateStackInput) (*models.Stack, error) {
+// granted = 0 (pending admin approval) and mints the node-style pairing
+// token the stack app uses to heartbeat WITHOUT any manual API key.
+// It returns the row plus the raw token — the handler shows the token to
+// the operator immediately and then discards it (mirrors CreateNode).
+// Duplicate slug surfaces as a UNIQUE error the handler turns into 409.
+func (r *StackRepository) CreateStack(in CreateStackInput) (*models.Stack, string, error) {
 	if in.Name == "" || in.Slug == "" {
-		return nil, fmt.Errorf("name and slug are required")
+		return nil, "", fmt.Errorf("name and slug are required")
 	}
 	if !models.ValidStackSlug(in.Slug) {
-		return nil, fmt.Errorf("invalid slug %q: use lowercase letters, digits and hyphens (max 64 chars)", in.Slug)
+		return nil, "", fmt.Errorf("invalid slug %q: use lowercase letters, digits and hyphens (max 64 chars)", in.Slug)
 	}
 	if in.Runtime == "" {
 		in.Runtime = models.StackRuntimeStatic
 	}
 	if !models.ValidStackRuntime(in.Runtime) {
-		return nil, fmt.Errorf("unknown runtime %q", in.Runtime)
+		return nil, "", fmt.Errorf("unknown runtime %q", in.Runtime)
 	}
 	if in.ThemeMode == "" {
 		in.ThemeMode = models.StackThemePanel
@@ -372,52 +375,140 @@ func (r *StackRepository) CreateStack(in CreateStackInput) (*models.Stack, error
 		in.Version = "1.0.0"
 	}
 	if err := validateStackPermissionRequests(in.PermissionsRequested); err != nil {
-		return nil, err
+		return nil, "", err
 	}
+	token, err := GenerateStackToken()
+	if err != nil {
+		return nil, "", err
+	}
+	tokenHash := hashStackToken(token)
+	tokenPrefix := stackTokenPrefixOf(token)
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 
 	tx, err := r.db.Begin()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer tx.Rollback()
 
-	cols := `INSERT INTO stacks (name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, owner_id, source, source_url, package_size, created_at, updated_at)`
+	cols := `INSERT INTO stacks (name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, owner_id, source, source_url, package_size, token_hash, token_prefix, token_plain, status, created_at, updated_at)`
 	var execRes sql.Result
 	if in.UploadedBy != 0 {
 		execRes, err = tx.Exec(
-			cols+` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color, in.Runtime, in.Entrypoint, manifest, spec, in.ThemeMode, in.PageStyle, in.UploadedBy, in.UploadedBy, source, in.SourceURL, in.PackageSize, now, now,
+			cols+` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'down', ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color, in.Runtime, in.Entrypoint, manifest, spec, in.ThemeMode, in.PageStyle, in.UploadedBy, in.UploadedBy, source, in.SourceURL, in.PackageSize, tokenHash, tokenPrefix, token, now, now,
 		)
 	} else {
 		execRes, err = tx.Exec(
-			cols+` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color, in.Runtime, in.Entrypoint, manifest, spec, in.ThemeMode, in.PageStyle, source, in.SourceURL, in.PackageSize, now, now,
+			cols+` VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, 0, ?, ?, ?, ?, ?, ?, 'down', ?, ?)`,
+			in.Name, in.Slug, in.Category, in.Version, in.Description, in.Icon, in.Color, in.Runtime, in.Entrypoint, manifest, spec, in.ThemeMode, in.PageStyle, source, in.SourceURL, in.PackageSize, tokenHash, tokenPrefix, token, now, now,
 		)
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	id, err := execRes.LastInsertId()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	for _, p := range in.PermissionsRequested {
 		if _, err := tx.Exec(
 			`INSERT INTO stack_permissions (stack_id, capability, access_level, granted) VALUES (?, ?, ?, 0)`,
 			id, p.Capability, p.AccessLevel,
 		); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return r.GetStack(id)
+	s, err := r.GetStack(id)
+	if err != nil {
+		return nil, "", err
+	}
+	return s, token, nil
 }
 
-// UpdateStackInput is the editable overlay: human-facing fields + spec only.
-// Requested caps are NOT mutable (re-declaring caps is a re-upload).
+// RotateStackToken reissues the pairing token and returns the plaintext
+// once (mirrors RotateToken for nodes). The old token stops working
+// immediately; the operator must paste the new one into the app config.
+func (r *StackRepository) RotateStackToken(id int64) (string, error) {
+	token, err := GenerateStackToken()
+	if err != nil {
+		return "", err
+	}
+	res, err := r.db.Exec(
+		`UPDATE stacks SET token_hash = ?, token_prefix = ?, token_plain = ?, status = 'down', updated_at = ? WHERE id = ?`,
+		hashStackToken(token), stackTokenPrefixOf(token), token,
+		time.Now().UTC().Format("2006-01-02 15:04:05"), id,
+	)
+	if err != nil {
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return "", ErrStackNotFound
+	}
+	return token, nil
+}
+
+// StackPlainToken returns the stored pairing token for the config-snippet
+// view (admin EDIT-gated in the handler — mirrors nodes PlainToken used by
+// the local-setup path). Empty when the row predates migration 076 and the
+// operator has not rotated yet.
+func (r *StackRepository) StackPlainToken(id int64) (string, error) {
+	var plain sql.NullString
+	if err := r.db.QueryRow(`SELECT token_plain FROM stacks WHERE id = ?`, id).Scan(&plain); err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrStackNotFound
+		}
+		return "", err
+	}
+	if !plain.Valid {
+		return "", nil
+	}
+	return plain.String, nil
+}
+
+// GetStackByToken resolves a pairing token to its stack row (heartbeat +
+// stack-token API auth). Unknown/empty tokens return ErrStackNotFound so
+// the handler maps them to 401 without leaking which stacks exist.
+func (r *StackRepository) GetStackByToken(token string) (*models.Stack, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrStackNotFound
+	}
+	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE token_hash = ?`, hashStackToken(token))
+	s, err := scanStack(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrStackNotFound
+		}
+		return nil, err
+	}
+	return s, nil
+}
+
+// IngestStackHeartbeat records a pairing-token heartbeat: flips status to
+// up and stamps last_seen_at. The version/app fields ride along for the
+// Verify card ("" when the app omits them — legacy apps send token only).
+func (r *StackRepository) IngestStackHeartbeat(token string) (*models.Stack, error) {
+	s, err := r.GetStackByToken(token)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	if _, err := r.db.Exec(
+		`UPDATE stacks SET status = 'up', last_seen_at = ?, updated_at = ? WHERE id = ?`,
+		now, now, s.ID,
+	); err != nil {
+		return nil, err
+	}
+	return r.GetStack(s.ID)
+}
+
+// UpdateStackInput is the editable overlay: human-facing fields + spec +
+// node-style remote pairing + proxy mount. Requested caps are NOT mutable
+// (re-declaring caps is a re-upload).
 type UpdateStackInput struct {
 	Name         string
 	Category     string
@@ -428,6 +519,12 @@ type UpdateStackInput struct {
 	Spec         json.RawMessage
 	ProxyPort    int
 	ProxyRootURL string
+	// RemoteAddress is the stack app's dial address on another host
+	// ("" = same-host loopback via ProxyPort). RemoteUseTLS /
+	// RemoteSkipVerify tune the panel→app dial (probe + proxy).
+	RemoteAddress    string
+	RemoteUseTLS     bool
+	RemoteSkipVerify bool
 }
 
 func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.Stack, error) {
@@ -443,11 +540,22 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	if models.IsReservedStackProxyRoot(in.ProxyRootURL) {
 		return nil, fmt.Errorf("proxy root URL %q is reserved by the panel", in.ProxyRootURL)
 	}
-	if in.ProxyRootURL != "" && in.ProxyPort == 0 {
-		return nil, fmt.Errorf("proxy root URL requires a proxy port (1-65535)")
+	remoteAddr := strings.TrimSpace(in.RemoteAddress)
+	if !models.ValidStackRemoteAddress(remoteAddr) {
+		return nil, fmt.Errorf("invalid remote address %q (want host:port or bare host, no scheme)", in.RemoteAddress)
 	}
-	if in.ProxyPort != 0 && in.ProxyRootURL == "" {
-		return nil, fmt.Errorf("proxy port requires a proxy root URL")
+	// Proxy mount requirements depend on locality: a remote stack is
+	// dialled at its address so the loopback port is optional; a
+	// same-host stack still needs port+root together.
+	if remoteAddr == "" {
+		if in.ProxyRootURL != "" && in.ProxyPort == 0 {
+			return nil, fmt.Errorf("proxy root URL requires a proxy port (1-65535)")
+		}
+		if in.ProxyPort != 0 && in.ProxyRootURL == "" {
+			return nil, fmt.Errorf("proxy port requires a proxy root URL")
+		}
+	} else if in.ProxyRootURL == "" {
+		return nil, fmt.Errorf("a remote stack needs a proxy root URL to float at /<root>/")
 	}
 	taken, err := r.ProxyRootTaken(in.ProxyRootURL, id)
 	if err != nil {
@@ -460,10 +568,17 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	if spec == "" {
 		spec = "{}"
 	}
+	remoteTLS, remoteSkip := 0, 0
+	if in.RemoteUseTLS {
+		remoteTLS = 1
+	}
+	if in.RemoteSkipVerify {
+		remoteSkip = 1
+	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	res, err := r.db.Exec(
-		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, proxy_port = ?, proxy_root_url = ?, updated_at = ? WHERE id = ?`,
-		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, in.ProxyPort, in.ProxyRootURL, now, id,
+		`UPDATE stacks SET name = ?, category = ?, version = ?, description = ?, icon = ?, color = ?, spec = ?, proxy_port = ?, proxy_root_url = ?, remote_address = ?, remote_use_tls = ?, remote_skip_verify = ?, updated_at = ? WHERE id = ?`,
+		in.Name, in.Category, in.Version, in.Description, in.Icon, in.Color, spec, in.ProxyPort, in.ProxyRootURL, remoteAddr, remoteTLS, remoteSkip, now, id,
 	)
 	if err != nil {
 		return nil, err
@@ -498,7 +613,7 @@ func (r *StackRepository) GetActiveStackByProxyRoot(root string) (*models.Stack,
 	if root == "" {
 		return nil, ErrStackNotFound
 	}
-	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE proxy_root_url = ? AND active = 1 AND proxy_port > 0`, root)
+	row := r.db.QueryRow(`SELECT `+stackColumns+` FROM stacks WHERE proxy_root_url = ? AND active = 1 AND (proxy_port > 0 OR COALESCE(remote_address, '') != '')`, root)
 	s, err := scanStack(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -520,7 +635,7 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		return out, nil
 	}
 	rows, err := r.db.Query(`
-		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.proxy_port, COALESCE(s.proxy_root_url, ''), s.created_at, s.updated_at, u.username
+		SELECT s.id, s.name, s.slug, s.category, s.version, s.description, s.icon, s.color, s.runtime, s.entrypoint, s.manifest, s.spec, s.frontend_theme_mode, s.page_style, s.active, s.uploaded_by, COALESCE(s.owner_id, 0), s.source, s.source_url, s.package_size, s.proxy_port, COALESCE(s.proxy_root_url, ''), COALESCE(s.remote_address, ''), COALESCE(s.remote_use_tls, 0), COALESCE(s.remote_skip_verify, 0), COALESCE(s.token_hash, ''), COALESCE(s.token_prefix, ''), COALESCE(s.token_plain, ''), COALESCE(s.status, 'down'), s.last_seen_at, s.created_at, s.updated_at, u.username
 		FROM stacks s
 		LEFT JOIN users u ON u.id = s.uploaded_by
 		ORDER BY s.updated_at DESC`)
@@ -538,8 +653,13 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		var source, sourceURL string
 		var packageSize int64
 		var proxyRootURL sql.NullString
+		var remoteAddress sql.NullString
+		var remoteUseTLS, remoteSkipVerify int
+		var tokenHash, tokenPrefix, tokenPlain sql.NullString
+		var status sql.NullString
+		var lastSeen sql.NullString
 		var owner sql.NullString
-		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &created, &updated, &owner); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated, &owner); err != nil {
 			return nil, err
 		}
 		s.Manifest = json.RawMessage(manifest)
@@ -567,6 +687,27 @@ func (r *StackRepository) ListStacks() ([]models.Stack, error) {
 		}
 		if !models.ValidStackProxyRoot(s.ProxyRootURL) || models.IsReservedStackProxyRoot(s.ProxyRootURL) {
 			s.ProxyRootURL = ""
+		}
+		if remoteAddress.Valid {
+			s.RemoteAddress = remoteAddress.String
+		}
+		if !models.ValidStackRemoteAddress(s.RemoteAddress) {
+			s.RemoteAddress = ""
+		}
+		s.RemoteUseTLS = remoteUseTLS != 0
+		s.RemoteSkipVerify = remoteSkipVerify != 0
+		if tokenPrefix.Valid {
+			s.TokenPrefix = tokenPrefix.String
+		}
+		if status.Valid && status.String != "" {
+			s.Status = status.String
+		} else {
+			s.Status = "down"
+		}
+		if lastSeen.Valid && lastSeen.String != "" {
+			if ts, err := parseSQLiteTime(lastSeen.String); err == nil {
+				s.LastSeenAt = &ts
+			}
 		}
 		if uploadedBy.Valid {
 			v := uploadedBy.Int64
