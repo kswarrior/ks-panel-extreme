@@ -47,10 +47,10 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Form Card (ks-form-card)" hint="Form sections, settings panels." />
-        <ColorField label="Background" value={inh(draft.cards?.form_background, D.cards.form_background)} onChange={(v) => patch('cards', { form_background: v })} placeholder="Follow Card tab" />
-        <ColorField label="Border color" value={inh(draft.cards?.form_border_color, D.cards.form_border_color)} onChange={(v) => patch('cards', { form_border_color: v })} placeholder="Follow Card tab" />
-        <ColorField label="Shadow" value={inh(draft.cards?.form_shadow, D.cards.form_shadow)} onChange={(v) => patch('cards', { form_shadow: v })} placeholder="Follow Card tab" />
+        <Label label="Form Card (ks-form-card)" hint="Form sections, settings panels. Own black default — clear a field to follow the Card tab." />
+        <ColorField label="Background" value={draft.cards?.form_background ?? D.cards.form_background} onChange={(v) => patch('cards', { form_background: v })} placeholder="Empty = follow Card tab" />
+        <ColorField label="Border color" value={draft.cards?.form_border_color ?? D.cards.form_border_color} onChange={(v) => patch('cards', { form_border_color: v })} placeholder="Empty = follow Card tab" />
+        <ColorField label="Shadow" value={draft.cards?.form_shadow ?? D.cards.form_shadow} onChange={(v) => patch('cards', { form_shadow: v })} placeholder="Empty = follow Card tab" />
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <Slider label="Border radius" max={24} value={draft.cards?.form_border_radius ?? D.cards.form_border_radius} onChange={(v) => patch('cards', { form_border_radius: v })} />
           <Slider label="Padding" max={32} value={draft.cards?.form_padding ?? D.cards.form_padding} onChange={(v) => patch('cards', { form_padding: v })} />
