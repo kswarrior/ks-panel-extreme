@@ -273,6 +273,7 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
           )}
         </div>
       </div>
+      </GlassModal>
     </div>
   );
 };
