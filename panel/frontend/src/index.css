@@ -60,6 +60,19 @@
   .ks-form-card {
     @apply ks-card;
   }
+  /* Template row cards — the per-entry rows in the Template form's
+     Actions / Env Variables / Install sections (row header with the
+     entry name, up/down mover, delete button and expand toggle).
+     Shared hook (.ks-template-row-card) plus per-type hooks
+     (.ks-action-card / .ks-env-card / .ks-install-card) so they can be
+     targeted separately from generic form sections. Inherits ks-card
+     so the default look is unchanged. */
+  .ks-template-row-card,
+  .ks-action-card,
+  .ks-env-card,
+  .ks-install-card {
+    @apply ks-card;
+  }
   /* Modal/dialog cards — used for modals, dropdowns, overlays.
      Inherits glass-strong for stronger visual separation. */
   .ks-modal-card {

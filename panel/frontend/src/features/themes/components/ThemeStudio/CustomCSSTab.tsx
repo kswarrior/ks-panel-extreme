@@ -133,6 +133,8 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
                 <li><span className="text-gray-200">.ks-list-card</span> — list items (instances, nodes, templates, users, roles, etc.)</li>
                 <li><span className="text-gray-200">.ks-stat-card</span> — stat cards in header strips</li>
                 <li><span className="text-gray-200">.ks-form-card</span> — form sections, settings panels</li>
+                <li><span className="text-gray-200">.ks-template-row-card</span> — template action / env / install row cards</li>
+                <li><span className="text-gray-200">.ks-action-card</span>, <span className="text-gray-200">.ks-env-card</span>, <span className="text-gray-200">.ks-install-card</span> — per-type row hooks</li>
                 <li><span className="text-gray-200">.ks-modal-card</span> — modals, dropdowns, overlays</li>
                 <li><span className="text-gray-200">.glass-card</span>, <span className="text-gray-200">.glass-strong</span>, <span className="text-gray-200">.glass-chrome</span> — base glassmorphism surfaces</li>
               </ul>
