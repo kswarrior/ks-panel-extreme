@@ -53,7 +53,7 @@ export const TemplateLabelsDevicesSection: React.FC<LabelsDevicesSectionProps> =
           {labels.map((l, i) => {
             const isEditing = editingLabelIdx === i;
             return (
-            <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+            <div key={i} className="ks-card ks-form-card ks-row-card rounded-md overflow-hidden">
               <div className="p-3 flex items-center gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -70,7 +70,7 @@ export const TemplateLabelsDevicesSection: React.FC<LabelsDevicesSectionProps> =
                 </div>
               </div>
               {isEditing && (
-                <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                   <div className="flex gap-2">
                     <input value={l.key} onChange={(e) => onLabelUpdate(i, { key: e.target.value })} placeholder="key (e.g. com.kspanel.audit)" className={monoCls + ' flex-1'} />
                     <input value={l.value} onChange={(e) => onLabelUpdate(i, { value: e.target.value })} placeholder="value" className={glassFieldClass + ' flex-1'} />
@@ -94,7 +94,7 @@ export const TemplateLabelsDevicesSection: React.FC<LabelsDevicesSectionProps> =
           {devices.map((d, i) => {
             const isEditing = editingDeviceIdx === i;
             return (
-            <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+            <div key={i} className="ks-card ks-form-card ks-row-card rounded-md overflow-hidden">
               <div className="p-3 flex items-center gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -112,7 +112,7 @@ export const TemplateLabelsDevicesSection: React.FC<LabelsDevicesSectionProps> =
                 </div>
               </div>
               {isEditing && (
-                <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                   <div className="flex gap-2 items-center">
                     <input value={d.host} onChange={(e) => onDeviceUpdate(i, { host: e.target.value })} placeholder="/dev/nvidia0" className={monoCls + ' flex-1'} />
                     <span className="self-center text-gray-500">→</span>

@@ -175,6 +175,22 @@ ManageStacksKey = "MANAGE_STACKS"
 	InstancesControlKey = "INSTANCES_CONTROL" // power control (start / stop / restart / kill / reinstall / suspend)
 	InstancesDeleteKey = "INSTANCES_DELETE"
 
+	// ----------------------------------------------------------------------
+	// Instance power sub-capabilities — children of INSTANCES_CONTROL.
+	// INSTANCES_CONTROL stays the sub-umbrella: holding it (or the area
+	// umbrella MANAGE_INSTANCES) implies every sub-action below, so legacy
+	// roles keep working untouched. A narrowed role can instead hold only
+	// e.g. INSTANCES_START + INSTANCES_STOP to allow power-on/off without
+	// restart/kill/reinstall/suspend. INSTANCES_SUSPEND gates BOTH the
+	// /suspend and /unsuspend routes (one suspend verb, like Own/All pairs).
+	// ----------------------------------------------------------------------
+	InstancesStartKey    = "INSTANCES_START"    // start a stopped instance
+	InstancesStopKey     = "INSTANCES_STOP"     // graceful stop a running instance
+	InstancesRestartKey  = "INSTANCES_RESTART"  // restart a running instance
+	InstancesKillKey     = "INSTANCES_KILL"     // force-stop (kill, skips graceful shutdown)
+	InstancesReinstallKey = "INSTANCES_REINSTALL" // wipe + redeploy from stored spec
+	InstancesSuspendKey  = "INSTANCES_SUSPEND"  // suspend + unsuspend an instance
+
 	ApiKeysViewKey   = "API_KEYS_VIEW"
 	ApiKeysCreateKey = "API_KEYS_CREATE"
 	ApiKeysEditKey   = "API_KEYS_EDIT"
@@ -331,6 +347,24 @@ type Group struct {
 	//   AllKey – may act on ANY resource in the area
 	OwnKey string
 	AllKey string
+	// SubKeys maps a parent key (e.g. INSTANCES_CONTROL) to its expandable
+	// child keys (e.g. INSTANCES_START / STOP / RESTART ...). The parent
+	// stays the sub-umbrella: holding the parent (or the area Umbrella)
+	// implies every child, so legacy roles keep working. A narrowed role
+	// holds only the children it needs. The Roles form renders each entry
+	// as an expandable row with a toggle + chevron.
+	SubKeys map[string][]string
+}
+
+// InstancesControlSubKeys is the ordered child list for INSTANCES_CONTROL.
+// Single source of truth for seeding, route gates and the frontend mirror.
+var InstancesControlSubKeys = []string{
+	InstancesStartKey,
+	InstancesStopKey,
+	InstancesRestartKey,
+	InstancesKillKey,
+	InstancesReinstallKey,
+	InstancesSuspendKey,
 }
 
 // AreaGroups is the single source of truth for the regulatable CRUD areas
@@ -352,7 +386,15 @@ var AreaGroups = []Group{
 	}, OwnKey: TemplatesOwnKey, AllKey: TemplatesAllKey},
 	{Label: "Instances", Umbrella: ManageInstancesKey, Keys: map[Action]string{
 		ActionView: InstancesViewKey, ActionCreate: InstancesCreateKey, ActionEdit: InstancesEditKey, ActionControl: InstancesControlKey, ActionDelete: InstancesDeleteKey,
-	}, ExtraKeys: []string{ViewInstancesKey}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey},
+	}, ExtraKeys: []string{ViewInstancesKey}, OwnKey: InstancesOwnKey, AllKey: InstancesAllKey,
+		SubKeys: map[string][]string{InstancesControlKey: {
+			InstancesStartKey,
+			InstancesStopKey,
+			InstancesRestartKey,
+			InstancesKillKey,
+			InstancesReinstallKey,
+			InstancesSuspendKey,
+		}}},
 	{Label: "API Keys", Umbrella: ManageApiKeysKey, Keys: map[Action]string{
 		ActionView: ApiKeysViewKey, ActionCreate: ApiKeysCreateKey, ActionEdit: ApiKeysEditKey, ActionDelete: ApiKeysDeleteKey,
 	}, OwnKey: ApiKeysOwnKey, AllKey: ApiKeysAllKey},
@@ -455,7 +497,7 @@ func (g Group) ScopeKeys() []string {
 }
 
 // AllKeys returns every key that belongs to the group: umbrella + CRUD +
-// extras + scope (Own/All). Used by the Roles form parent checkbox to decide
+// extras + sub-keys + scope (Own/All). Used by the Roles form parent checkbox to decide
 // whether the whole group is on/off.
 func (g Group) AllKeys() []string {
 	var out []string
@@ -468,6 +510,9 @@ func (g Group) AllKeys() []string {
 		}
 	}
 	out = append(out, g.ExtraKeys...)
+	for _, children := range g.SubKeys {
+		out = append(out, children...)
+	}
 	out = append(out, g.ScopeKeys()...)
 	return out
 }
@@ -483,6 +528,35 @@ func (g Group) KeysForAction(action Action) []string {
 	}
 	if k, ok := g.Keys[action]; ok {
 		out = append(out, k)
+	}
+	return out
+}
+
+// SubKeysFor returns the expandable child keys for the given parent key
+// (e.g. INSTANCES_CONTROL → its 6 power sub-keys), or nil when the parent
+// has no children. Used by the Roles form to render the chevron row.
+func (g Group) SubKeysFor(parent string) []string {
+	if g.SubKeys == nil {
+		return nil
+	}
+	return g.SubKeys[parent]
+}
+
+// KeysForControlSubKey returns the route-gate key set for one instance power
+// sub-action: the area umbrella OR the CONTROL sub-umbrella OR the specific
+// sub-key. Legacy roles carrying only MANAGE_INSTANCES or INSTANCES_CONTROL
+// keep full access; narrowed roles carrying only e.g. INSTANCES_START pass
+// just their verb.
+func (g Group) KeysForControlSubKey(subKey string) []string {
+	var out []string
+	if g.Umbrella != "" {
+		out = append(out, g.Umbrella)
+	}
+	if c, ok := g.Keys[ActionControl]; ok && c != "" {
+		out = append(out, c)
+	}
+	if subKey != "" {
+		out = append(out, subKey)
 	}
 	return out
 }

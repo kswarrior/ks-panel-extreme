@@ -12,6 +12,7 @@ function groupKeySet(area: PermissionArea): Set<string> {
   if (area.umbrella) s.add(area.umbrella);
   for (const k of Object.values(area.keys)) if (k) s.add(k);
   for (const k of area.extraKeys ?? []) s.add(k);
+  for (const children of Object.values(area.subKeys ?? {})) for (const k of children) if (k) s.add(k);
   if (area.ownKey) s.add(area.ownKey);
   if (area.allKey) s.add(area.allKey);
   return s;
@@ -128,6 +129,8 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   const [importSearch, setImportSearch] = useState('');
   // per-key scope map: key -> 'OWN' | 'ALL' for each checked permission
   const [keyScopes, setKeyScopes] = useState<Record<string, 'OWN' | 'ALL'>>({});
+  // expanded parent rows (e.g. INSTANCES_CONTROL) whose sub-key children are visible
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
   const permByKey = useMemo(() => {
     const m = new Map<string, Permission>();
@@ -158,6 +161,11 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     if (q) list = list.filter((a) => a.label.toLowerCase().includes(q) || (a.umbrella || '').toLowerCase().includes(q));
     return list;
   }, [selectedGroups, importSearch]);
+
+  // Reset expanded sub-key rows whenever the configured group changes.
+  useEffect(() => {
+    setExpandedParents(new Set());
+  }, [configureArea?.label]);
 
   // Keep keyScopes in sync when formPermissions changes externally (e.g. role load or import)
   // For any checked key without an entry, default to current area global scope (ALL if present else OWN else ALL)
@@ -195,13 +203,17 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   // the (stale) render closure, so rapid toggle/remove sequences resolve
   // against the membership that will actually be committed.
   const syncAreaScopesToPermissions = (area: PermissionArea, scopes: Record<string, 'OWN' | 'ALL'>, perms: string[] = formPermissions) => {
-    const areaKeysSet = new Set([
+    const parentKeysSet = new Set([
       ...(area.umbrella ? [area.umbrella] : []),
       ...Object.values(area.keys).filter(Boolean) as string[],
       ...(area.extraKeys ?? []),
     ]);
+    // Sub-key children share the area scope but carry no per-key scope entry;
+    // they still count as "checked" so a child-only grant keeps its Own/All.
+    const allAreaKeys = new Set<string>([...parentKeysSet]);
+    for (const children of Object.values(area.subKeys ?? {})) for (const k of children) allAreaKeys.add(k);
     const values = Object.entries(scopes)
-      .filter(([k]) => areaKeysSet.has(k) && perms.includes(k))
+      .filter(([k]) => parentKeysSet.has(k) && perms.includes(k))
       .map(([, v]) => v);
     // If no checked keys, keep existing scopes as is (don't auto-remove)
     // For bulk operations we will have at least one checked key, so values non-empty
@@ -214,8 +226,10 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       next = next.filter((k) => k !== area.ownKey && k !== area.allKey);
       if (values.length === 0) {
         // No checked keys: keep no scopes (group will be removed anyway) – but if area still has checked keys via f, fallback to global
-        // Instead, if there are checked keys but no scopes (should not happen), default to ALL
-        const hasChecked = [...areaKeysSet].some((k) => f.includes(k));
+        // Instead, if there are checked keys but no scopes (should not happen), default to ALL.
+        // Child-only grants (e.g. only INSTANCES_START) land here: no parent
+        // scope entry exists, but the area still needs an Own/All scope.
+        const hasChecked = [...allAreaKeys].some((k) => f.includes(k));
         if (hasChecked) {
           // default to ALL
           if (area.allKey && !next.includes(area.allKey)) next.push(area.allKey);
@@ -233,9 +247,114 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   // Note: updaters must stay pure (no setState / side effects inside) so
   // StrictMode double-invocation can't double-apply them. Scope sync runs
   // as a separate queued update against explicitly computed state.
+  //
+  // Granular keys are REAL: toggling a verb adds/removes only that key (plus
+  // an Own/All scope default) — the area umbrella is an independent toggle
+  // that implies all verbs backend-side, never auto-added. Parent keys with
+  // subKeys (INSTANCES_CONTROL) behave as a sub-umbrella: enabling the
+  // parent enables all children; disabling one child while the parent is on
+  // turns the parent off and materialises the remaining siblings so the
+  // narrowing takes effect immediately.
   const togglePerm = (key: string) => {
     const area = findAreaForKey(key);
+    if (!area) {
+      setFormPermissions((f) => (f.includes(key) ? f.filter((p) => p !== key) : [...f, key]));
+      return;
+    }
+    const childList: string[] | undefined = area.subKeys?.[key];
+    const isParent = !!childList && childList.length > 0;
+    let parentOf: string | null = null;
+    if (!isParent && area.subKeys) {
+      for (const [p, children] of Object.entries(area.subKeys)) {
+        if (children.includes(key)) {
+          parentOf = p;
+          break;
+        }
+      }
+    }
     const isRemoving = formPermissions.includes(key);
+
+    if (isParent && childList) {
+      if (isRemoving) {
+        // Disabling a parent disables the parent + all its children (clean off).
+        const toRemove = new Set([key, ...childList]);
+        const n = { ...keyScopes };
+        for (const k of toRemove) delete n[k];
+        setKeyScopes(n);
+        setExpandedParents((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+        const remaining = formPermissions.filter((p) => !toRemove.has(p));
+        syncAreaScopesToPermissions(area, n, remaining);
+        setFormPermissions((f) => f.filter((p) => !toRemove.has(p)));
+      } else {
+        // Enabling a parent enables the parent + every child (full power).
+        const toAdd = [key, ...childList].filter((k) => permByKey.has(k) || k === key);
+        const defaultScope: 'OWN' | 'ALL' =
+          keyScopes[key] ?? (formPermissions.includes(area.allKey!) ? 'ALL' : formPermissions.includes(area.ownKey!) ? 'OWN' : 'ALL');
+        const n = { ...keyScopes, [key]: defaultScope };
+        setKeyScopes(n);
+        setExpandedParents((prev) => new Set(prev).add(key));
+        const merged = new Set([...formPermissions, ...toAdd]);
+        // ensure a scope is present – default to ALL when first verb of area is enabled
+        if (area.ownKey && area.allKey && ![...merged].some((k) => k === area.ownKey || k === area.allKey)) {
+          if (area.allKey) merged.add(area.allKey);
+        }
+        const nextArr = Array.from(merged);
+        syncAreaScopesToPermissions(area, n, nextArr);
+        setFormPermissions(nextArr);
+      }
+      return;
+    }
+
+    if (parentOf) {
+      const siblings = (area.subKeys?.[parentOf] ?? []).filter((k) => k !== key);
+      const parentOn = formPermissions.includes(parentOf);
+      if (isRemoving) {
+        if (parentOn) {
+          // Parent implies all children backend-side, so merely removing one
+          // child would have no effect. Turn the parent off and materialise
+          // the remaining siblings so "off" really means denied.
+          const n = { ...keyScopes };
+          delete n[key];
+          delete n[parentOf];
+          setKeyScopes(n);
+          const base = formPermissions.filter((p) => p !== key && p !== parentOf);
+          const merged = new Set(base);
+          for (const s of siblings) {
+            if (permByKey.has(s) || true) merged.add(s);
+          }
+          const nextArr = Array.from(merged);
+          syncAreaScopesToPermissions(area, n, nextArr);
+          setFormPermissions(nextArr);
+        } else {
+          const n = { ...keyScopes };
+          delete n[key];
+          setKeyScopes(n);
+          const remaining = formPermissions.filter((p) => p !== key);
+          syncAreaScopesToPermissions(area, n, remaining);
+          setFormPermissions(remaining);
+        }
+      } else {
+        // Enabling a single child never auto-adds the parent/umbrella so a
+        // narrowed grant (only START) stays narrowed.
+        const merged = new Set(formPermissions);
+        merged.add(key);
+        if (area.ownKey && area.allKey && ![...merged].some((k) => k === area.ownKey || k === area.allKey)) {
+          if (area.allKey) merged.add(area.allKey);
+        }
+        const nextArr = Array.from(merged);
+        // No per-child scope entry — children share the area scope.
+        syncAreaScopesToPermissions(area, keyScopes, nextArr);
+        setFormPermissions(nextArr);
+      }
+      return;
+    }
+
+    // Normal (non-nested) key: toggle only itself + scope default. No
+    // auto-umbrella — umbrella is an independent full-access toggle.
     if (isRemoving) {
       const n = { ...keyScopes };
       delete n[key];
@@ -259,11 +378,19 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       const has = f.includes(key);
       if (has) return f.filter((p) => p !== key);
       const next = [...f, key];
-      if (area?.umbrella && !next.includes(area.umbrella)) next.push(area.umbrella);
       // ensure a scope is present – default to ALL when first verb of area is enabled
       if (area?.ownKey && area?.allKey && !next.includes(area.ownKey) && !next.includes(area.allKey)) {
         next.push(area.allKey);
       }
+      return next;
+    });
+  };
+
+  const toggleExpandedParent = (parentKey: string) => {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentKey)) next.delete(parentKey);
+      else next.add(parentKey);
       return next;
     });
   };
@@ -321,13 +448,12 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
     for (const k of keys) n[k] = scope;
     setKeyScopes(n);
     syncAreaScopesToPermissions(area, n);
-    // also ensure formPermissions has correct global scope immediately (optimistic)
+    // also ensure formPermissions has correct global scope immediately (optimistic).
+    // No auto-umbrella: bulk scope only flips Own/All, never widens verbs.
     setFormPermissions((f) => {
       let next = f.filter((k) => k !== area.ownKey && k !== area.allKey);
       if (scope === 'OWN' && area.ownKey) next.push(area.ownKey);
       if (scope === 'ALL' && area.allKey) next.push(area.allKey);
-      // ensure umbrella stays
-      if (area.umbrella && !next.includes(area.umbrella) && keys.length > 0) next.push(area.umbrella);
       return next;
     });
   };
@@ -390,7 +516,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
   // ---- configure subpage rows ----
   const configRows = useMemo(() => {
     if (!configureArea) return [];
-    const rows: Array<{ key: string; perm?: Permission; label: string; description: string; isView?: boolean }> = [];
+    const rows: Array<{ key: string; perm?: Permission; label: string; description: string; isView?: boolean; children?: Array<{ key: string; perm?: Permission; description: string }> }> = [];
     // umbrella first
     if (configureArea.umbrella) {
       const p = permByKey.get(configureArea.umbrella);
@@ -406,12 +532,38 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       if (!k) continue;
       const p = permByKey.get(k);
       if (!p) continue;
-      rows.push({ key: k, perm: p, label: action, description: p.description, isView: action === 'VIEW' });
+      const childKeys = configureArea.subKeys?.[k] ?? [];
+      const children = childKeys
+        .map((ck) => ({ key: ck, perm: permByKey.get(ck), description: permByKey.get(ck)?.description ?? ck }))
+        .filter((c) => permByKey.has(c.key));
+      rows.push({
+        key: k,
+        perm: p,
+        label: action,
+        description: p.description,
+        isView: action === 'VIEW',
+        children: children.length > 0 ? children : undefined,
+      });
     }
     for (const k of configureArea.extraKeys ?? []) {
       const p = permByKey.get(k);
       if (!p) continue;
-      rows.push({ key: k, perm: p, label: k, description: p.description });
+      const childKeys = configureArea.subKeys?.[k] ?? [];
+      const children = childKeys
+        .map((ck) => ({ key: ck, perm: permByKey.get(ck), description: permByKey.get(ck)?.description ?? ck }))
+        .filter((c) => permByKey.has(c.key));
+      rows.push({ key: k, perm: p, label: k, description: p.description, children: children.length > 0 ? children : undefined });
+    }
+    // Parents that live only in subKeys (no CRUD row) still render when the
+    // DB knows them — defensive so a backend-only parent never vanishes.
+    for (const [parent, childKeys] of Object.entries(configureArea.subKeys ?? {})) {
+      if (rows.some((r) => r.key === parent)) continue;
+      if (!permByKey.has(parent)) continue;
+      const p = permByKey.get(parent);
+      const children = childKeys
+        .map((ck) => ({ key: ck, perm: permByKey.get(ck), description: permByKey.get(ck)?.description ?? ck }))
+        .filter((c) => permByKey.has(c.key));
+      rows.push({ key: parent, perm: p, label: parent, description: p?.description ?? parent, children: children.length > 0 ? children : undefined });
     }
     return rows;
   }, [configureArea, permByKey]);
@@ -449,6 +601,9 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
         <div className="space-y-2">
           <p className="text-xs text-gray-400">
             Toggle the verbs for <span className="text-gray-200 font-medium">{configureArea.label}</span>. When a verb is enabled you can choose its scope — <span className="text-white">Own</span> (only resources you own) or <span className="text-white">All</span> (any resource).
+            {configureArea.label === 'Instances' && (
+              <> Expand <span className="text-white font-mono">INSTANCES_CONTROL</span> for per-action power toggles (start / stop / restart / kill / reinstall / suspend).</>
+            )}
           </p>
 
           {configRows.length === 0 ? (
@@ -458,41 +613,124 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
               {configRows.map((row) => {
                 const checked = formPermissions.includes(row.key);
                 const perKeyVal: 'OWN' | 'ALL' = keyScopes[row.key] ?? (formPermissions.includes(configureArea.allKey!) ? 'ALL' : formPermissions.includes(configureArea.ownKey!) ? 'OWN' : 'ALL');
+                const hasChildren = !!row.children && row.children.length > 0;
+                const anyChildOn = hasChildren && row.children!.some((c) => formPermissions.includes(c.key));
+                // Chevron appears when the parent toggle is on (or any child is
+                // on for narrowed roles) so sub-keys stay manageable.
+                const showChevron = hasChildren && (checked || anyChildOn);
+                const expanded = expandedParents.has(row.key);
                 return (
                   <div
                     key={row.key}
-                    className={`group flex items-start gap-3 p-3 rounded-xl border transition-colors ${
+                    className={`group rounded-xl border transition-colors ${
                       checked ? 'bg-white/[0.04] border-white/10 hover:border-white/15' : 'bg-black/20 border-white/5 hover:border-white/10'
                     }`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => togglePerm(row.key)}
-                      className="mt-1 accent-indigo-500 w-4 h-4 shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-sm font-medium ${checked ? 'text-white' : 'text-gray-300'}`}>{row.key}</span>
-                        {row.isView && checked && (
-                          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-300 border border-amber-700/40">controls scope</span>
-                        )}
+                    <div className="flex items-start gap-3 p-3">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={checked}
+                        aria-label={`Toggle ${row.key}`}
+                        onClick={() => togglePerm(row.key)}
+                        className={`ks-toggle shrink-0 mt-0.5 ${checked ? 'is-on' : ''}`}
+                      >
+                        <span className={`ks-toggle__thumb ${checked ? 'translate-x-5' : ''}`} />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-sm font-medium ${checked ? 'text-white' : 'text-gray-300'}`}>{row.key}</span>
+                          {row.isView && checked && (
+                            <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-900/30 text-amber-300 border border-amber-700/40">controls scope</span>
+                          )}
+                          {hasChildren && checked && (
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-gray-400">
+                              {row.children!.filter((c) => formPermissions.includes(c.key)).length}/{row.children!.length} sub-keys
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-0.5 leading-relaxed">{row.description}</div>
                       </div>
-                      <div className="text-xs text-gray-400 mt-0.5 leading-relaxed">{row.description}</div>
+
+                      {/* Scope dropdown – visible when this row's toggle is on. */}
+                      {checked && configureArea.ownKey && configureArea.allKey && (
+                        <div className="shrink-0 ml-auto flex flex-col items-end gap-1">
+                          <label className="text-[10px] uppercase tracking-wide text-gray-500">Scope</label>
+                          <select
+                            value={perKeyVal}
+                            onChange={(e) => handlePerKeyScopeChange(configureArea, row.key, e.target.value as 'OWN' | 'ALL')}
+                            className="text-xs bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 min-w-[5.5rem]"
+                          >
+                            <option value="OWN">Own</option>
+                            <option value="ALL">All</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {/* Expand chevron – only when toggle is on (or a child is on). */}
+                      {showChevron && (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandedParent(row.key)}
+                          aria-expanded={expanded}
+                          aria-label={expanded ? `Collapse ${row.key} sub-keys` : `Expand ${row.key} sub-keys`}
+                          title={expanded ? 'Collapse sub-keys' : 'Expand sub-keys'}
+                          className="shrink-0 self-center w-7 h-7 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/10 text-gray-300 hover:text-white flex items-center justify-center transition-colors"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={`w-4 h-4 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
 
-                    {/* Scope dropdown – visible when this row's checkbox is on. Every row shows Own/All per spec "in all keys show Own All"; VIEW row is highlighted via spec but behavior is uniform. */}
-                    {checked && configureArea.ownKey && configureArea.allKey && (
-                      <div className="shrink-0 ml-auto flex flex-col items-end gap-1">
-                        <label className="text-[10px] uppercase tracking-wide text-gray-500">Scope</label>
-                        <select
-                          value={perKeyVal}
-                          onChange={(e) => handlePerKeyScopeChange(configureArea, row.key, e.target.value as 'OWN' | 'ALL')}
-                          className="text-xs bg-black/40 border border-white/10 rounded-md px-2 py-1.5 text-white focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/20 min-w-[5.5rem]"
-                        >
-                          <option value="OWN">Own</option>
-                          <option value="ALL">All</option>
-                        </select>
+                    {/* Sub-keys – visible when expanded. Each child is its own real permission toggle. */}
+                    {hasChildren && expanded && (checked || anyChildOn) && (
+                      <div className="ml-11 mr-3 mb-3 space-y-1.5 border-l border-white/10 pl-3">
+                        {row.children!.map((child) => {
+                          const childOn = formPermissions.includes(child.key);
+                          const implied = checked && !childOn;
+                          return (
+                            <div
+                              key={child.key}
+                              className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-colors ${
+                                childOn ? 'bg-white/[0.05] border-white/10' : 'bg-black/30 border-white/5'
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={childOn}
+                                aria-label={`Toggle ${child.key}`}
+                                onClick={() => togglePerm(child.key)}
+                                className={`ks-toggle ks-toggle-sm shrink-0 mt-0.5 ${childOn ? 'is-on' : ''}`}
+                              >
+                                <span className={`ks-toggle__thumb ${childOn ? 'translate-x-4' : ''}`} />
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-[13px] font-medium font-mono ${childOn ? 'text-white' : 'text-gray-300'}`}>{child.key}</span>
+                                  {implied && (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">via {row.key}</span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-gray-500 mt-0.5 leading-relaxed">{child.description}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <p className="text-[11px] text-gray-500 px-1">
+                          Turn off a sub-key while <span className="font-mono text-gray-400">{row.key}</span> is on to narrow it — the parent switches off and the rest stay on.
+                        </p>
                       </div>
                     )}
                   </div>
@@ -652,7 +890,7 @@ const RolePermissions: React.FC<RolePermissionsProps> = ({ formPermissions, setF
       </div>
 
       <p className="text-[11px] text-gray-500">
-        Tip: <span className="text-gray-400">Configure</span> opens the group’s verbs. Checking <span className="text-gray-400">VIEW</span> reveals the <span className="text-gray-300">Own / All</span> scope selector — every enabled key shows the same selector. Bulk <span className="text-white">Own/All</span> at bottom sets all.
+        Tip: <span className="text-gray-400">Configure</span> opens the group’s verbs as toggles. Enabling a verb reveals its <span className="text-gray-300">Own / All</span> scope selector. In <span className="text-gray-300">Instances</span>, turning on <span className="font-mono text-gray-400">INSTANCES_CONTROL</span> shows a chevron — expand it for per-action toggles (start / stop / restart / kill / reinstall / suspend). Bulk <span className="text-white">Own/All</span> at bottom sets all.
       </p>
 
       {/* Import modal – groups only */}

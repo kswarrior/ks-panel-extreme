@@ -7,15 +7,15 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 // of an instance (power, actions, status) lives in the floating draggable
 // menu (InstanceMenuFab), so this is just the scrollable tab row.
 
-// INSTANCE_TOOL_SLUGS are self-sufficient utility pages (Files / Terminal /
-// Ports / Automation / Env) that never render as tabs — they live in the floating instance
-// menu's shortcut row, so the tab row stays reserved for content pages.
-// Direct URLs keep working: this only affects nav presentation, never the
-// route guards.
-export const INSTANCE_TOOL_SLUGS = ['files', 'terminal', 'ports', 'automation', 'env'];
+// No self-sufficient utility pages remain — Terminal, Files, Ports, Env
+// and Automation are all custom instance pages now, so every linked page
+// renders as a normal tab. The floating instance menu's shortcut row still
+// offers quick navigation. Direct URLs keep working: this only affects nav
+// presentation, never the route guards.
+export const INSTANCE_TOOL_SLUGS: string[] = [];
 
-// useEffectiveInstanceNav — instance content pages. Tool slugs (Files /
-// Terminal / Ports / Automation / Env) are excluded here — they render in the floating menu.
+// useEffectiveInstanceNav — instance content pages (no tool-slug exclusions
+// remain; the list is kept for forward compatibility).
 export function useEffectiveInstanceNav() {
   const { nav } = useInstanceNav();
   return useMemo(() => {

@@ -135,6 +135,7 @@ export const CustomCSSTab: React.FC<CustomCSSTabProps> = ({ draft, patch }) => {
                 <li><span className="text-gray-200">.ks-form-card</span> — form sections, settings panels</li>
                 <li><span className="text-gray-200">.ks-row-card</span> — per-entry rows (actions, env, install steps, configure vars, blocks)</li>
                 <li><span className="text-gray-200">.ks-page-card</span> — page rows (template pages, sub-pages)</li>
+                <li><span className="text-gray-200">.ks-row-card-body</span>, <span className="text-gray-200">.ks-page-card-body</span> — inset editors under row/page headers (follow the variant)</li>
                 <li><span className="text-gray-200">.ks-action-card</span>, <span className="text-gray-200">.ks-env-card</span>, <span className="text-gray-200">.ks-install-card</span> — per-type row hooks</li>
                 <li><span className="text-gray-200">.ks-modal-card</span> — modals, dropdowns, overlays</li>
                 <li><span className="text-gray-200">.glass-card</span>, <span className="text-gray-200">.glass-strong</span>, <span className="text-gray-200">.glass-chrome</span> — base glassmorphism surfaces</li>

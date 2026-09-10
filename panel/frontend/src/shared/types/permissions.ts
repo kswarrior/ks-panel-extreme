@@ -77,6 +77,17 @@ export const PermissionKey = {
   INSTANCES_CONTROL: 'INSTANCES_CONTROL',
   INSTANCES_DELETE: 'INSTANCES_DELETE',
 
+  // Instance power sub-capabilities — children of INSTANCES_CONTROL.
+  // CONTROL stays the sub-umbrella (it implies every sub-action); a narrowed
+  // role can hold only e.g. START + STOP. SUSPEND gates both suspend and
+  // unsuspend. Keep in sync with internal/permissions/keys.go.
+  INSTANCES_START: 'INSTANCES_START',
+  INSTANCES_STOP: 'INSTANCES_STOP',
+  INSTANCES_RESTART: 'INSTANCES_RESTART',
+  INSTANCES_KILL: 'INSTANCES_KILL',
+  INSTANCES_REINSTALL: 'INSTANCES_REINSTALL',
+  INSTANCES_SUSPEND: 'INSTANCES_SUSPEND',
+
   API_KEYS_VIEW: 'API_KEYS_VIEW',
   API_KEYS_CREATE: 'API_KEYS_CREATE',
   API_KEYS_EDIT: 'API_KEYS_EDIT',
@@ -205,6 +216,13 @@ export interface PermissionArea {
   /** Ownership scope: may act only on own resources (Own) vs any (All). */
   ownKey?: string;
   allKey?: string;
+  /**
+   * Expandable child keys: parent key → ordered child keys.
+   * The parent stays the sub-umbrella (it implies every child). The Roles
+   * form renders each parent with a toggle + chevron that expands to the
+   * child toggles (e.g. INSTANCES_CONTROL → START / STOP / RESTART ...).
+   */
+  subKeys?: Record<string, string[]>;
 }
 
 /**
@@ -274,6 +292,16 @@ export const PERMISSION_AREAS: PermissionArea[] = [
     extraKeys: [PermissionKey.VIEW_INSTANCES],
     ownKey: PermissionKey.INSTANCES_OWN,
     allKey: PermissionKey.INSTANCES_ALL,
+    subKeys: {
+      [PermissionKey.INSTANCES_CONTROL]: [
+        PermissionKey.INSTANCES_START,
+        PermissionKey.INSTANCES_STOP,
+        PermissionKey.INSTANCES_RESTART,
+        PermissionKey.INSTANCES_KILL,
+        PermissionKey.INSTANCES_REINSTALL,
+        PermissionKey.INSTANCES_SUSPEND,
+      ],
+    },
   },
   {
     label: 'API Keys',
@@ -438,7 +466,14 @@ export const PERMISSION_AREAS: PermissionArea[] = [
 
 /** All perm keys that belong to a regulatable area (umbrella + sub-keys + Own/All), for quick membership tests. */
 export const AREA_PERM_KEYS: Set<string> = new Set(
-  PERMISSION_AREAS.flatMap((a) => [a.umbrella, ...Object.values(a.keys), ...(a.extraKeys ?? []), a.ownKey, a.allKey].filter(Boolean) as string[]),
+  PERMISSION_AREAS.flatMap((a) => [
+    a.umbrella,
+    ...Object.values(a.keys),
+    ...(a.extraKeys ?? []),
+    ...Object.values(a.subKeys ?? {}).flat(),
+    a.ownKey,
+    a.allKey,
+  ].filter(Boolean) as string[]),
 );
 
 /**
@@ -454,6 +489,31 @@ export function keysForAreaAction(area: PermissionArea, action: PermAction): str
   if (k) out.push(k);
   return out;
 }
+
+/**
+ * Returns the route-gate key set for one instance power sub-action: the area
+ * umbrella OR the CONTROL sub-umbrella OR the specific sub-key. Mirrors the
+ * backend Group.KeysForControlSubKey so narrowed roles (only START) pass
+ * just their verb while legacy CONTROL roles keep full access.
+ */
+export function keysForControlSubKey(area: PermissionArea, subKey: string): string[] {
+  const out: string[] = [];
+  if (area.umbrella) out.push(area.umbrella);
+  const control = area.keys.CONTROL;
+  if (control) out.push(control);
+  if (subKey) out.push(subKey);
+  return out;
+}
+
+/** Ordered child list for INSTANCES_CONTROL — mirrors backend InstancesControlSubKeys. */
+export const INSTANCES_CONTROL_SUB_KEYS: string[] = [
+  PermissionKey.INSTANCES_START,
+  PermissionKey.INSTANCES_STOP,
+  PermissionKey.INSTANCES_RESTART,
+  PermissionKey.INSTANCES_KILL,
+  PermissionKey.INSTANCES_REINSTALL,
+  PermissionKey.INSTANCES_SUSPEND,
+];
 
 /**
  * True if the supplied permission-key set holds ANY key that grants the

@@ -113,7 +113,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                  <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                     <div className="flex gap-2 items-center">
                       <span className="text-xs text-gray-500 w-8">#{i + 1}</span>
                       <select value={s.action} onChange={(e) => onInstallUpdate(i, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44'}>

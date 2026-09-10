@@ -2572,11 +2572,27 @@ func aiPretty(v any) string {
 // instance_action
 
 func aiProposeInstanceAction(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
-		return "", "", fmt.Errorf("denied: instance actions need MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
-	}
 	id := aiInt(args, "instance_id")
 	action := aiStr(args, "action")
+	// Per-verb gate: umbrella OR CONTROL sub-umbrella OR the matching
+	// sub-key (INSTANCES_START / STOP / RESTART). Narrowed roles with only
+	// e.g. START pass just their verb; legacy CONTROL roles keep full access.
+	subKey := ""
+	switch action {
+	case "start":
+		subKey = permissions.InstancesStartKey
+	case "stop":
+		subKey = permissions.InstancesStopKey
+	case "restart":
+		subKey = permissions.InstancesRestartKey
+	}
+	gate := []string{permissions.ManageInstancesKey, permissions.InstancesControlKey}
+	if subKey != "" {
+		gate = append(gate, subKey)
+	}
+	if err := a.checker.EnsureAny(a.uid, gate...); err != nil {
+		return "", "", fmt.Errorf("denied: instance actions need MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
+	}
 	if id == 0 {
 		return "", "", fmt.Errorf("instance_id is required (use list_instances first — never guess)")
 	}
@@ -3302,7 +3318,7 @@ func aiExecEditInstance(a *aiCallCtx, args map[string]any) (string, error) {
 // reinstall_instance (wipe + redeploy from stored spec).
 
 func aiCheckReinstallable(a *aiCallCtx, id int64) (*models.Instance, map[string]any, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey, permissions.InstancesReinstallKey); err != nil {
 		return nil, nil, fmt.Errorf("denied: reinstalling needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	if id == 0 {
@@ -3461,7 +3477,7 @@ func aiExecDeleteInstance(a *aiCallCtx, args map[string]any) (string, error) {
 // suspend / unsuspend.
 
 func aiProposeSuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey, permissions.InstancesSuspendKey); err != nil {
 		return "", "", fmt.Errorf("denied: suspending needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	id := aiInt(args, "instance_id")
@@ -3512,7 +3528,7 @@ func aiExecSuspendInstance(a *aiCallCtx, args map[string]any) (string, error) {
 }
 
 func aiProposeUnsuspendInstance(a *aiCallCtx, args map[string]any) (string, string, error) {
-	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey); err != nil {
+	if err := a.checker.EnsureAny(a.uid, permissions.ManageInstancesKey, permissions.InstancesControlKey, permissions.InstancesSuspendKey); err != nil {
 		return "", "", fmt.Errorf("denied: unsuspending needs MANAGE_INSTANCES or INSTANCES_CONTROL — explain that the user lacks permission")
 	}
 	id := aiInt(args, "instance_id")

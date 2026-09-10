@@ -62,11 +62,6 @@ export const MAX_DEFAULT_TERMINALS = 10;
 // stdin path + server policy.
 export const MAX_TERMINAL_SHORTCUTS = 20;
 
-// Display suggestion shown in the template form when no default terminal
-// is configured yet. Writing anything back persists it for real; removing
-// it keeps the legacy single-blank-shell behaviour.
-export const SUGGESTED_DEFAULT_TERMINAL: TerminalDefaultDef = { name: 'Main', id: 'main' };
-
 // InstanceShortcutConfig — per-tool config for the floating menu's quick
 // shortcuts (Files / Terminal / Ports / Automation / Env) + the page they open. Stored inside
 // `instance_controls.shortcuts` so it snapshots per template/instance like

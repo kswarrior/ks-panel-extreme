@@ -84,6 +84,14 @@
   .ks-page-card {
     @apply ks-card;
   }
+  /* Inset editor bodies under row/page headers. Pre-theme fallback keeps
+     today's look (dark wash + hairline divider); the theme override in
+     the studio stylesheet turns both theme-driven (inset scrim follows
+     any base fill, divider follows the variant border). */
+  .ks-row-card-body,
+  .ks-page-card-body {
+    @apply border-t border-white/5 bg-black/20;
+  }
   /* Modal/dialog cards — used for modals, dropdowns, overlays.
      Inherits glass-strong for stronger visual separation. */
   .ks-modal-card {

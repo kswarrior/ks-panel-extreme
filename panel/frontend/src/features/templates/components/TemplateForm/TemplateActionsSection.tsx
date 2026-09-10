@@ -124,7 +124,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20 min-w-0 max-w-full overflow-x-clip">
+                  <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-3 min-w-0 max-w-full overflow-x-clip">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div>
                         <label className="block text-[11px] text-gray-500 mb-0.5">Action ID * (lowercase, snake_case)</label>

@@ -58,7 +58,7 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Row Card (ks-row-card)" hint="Per-entry rows: template actions / env / install steps, studio configure vars, block rows. Defaults follow the Card tab until changed." />
+        <Label label="Row Card (ks-row-card)" hint="Per-entry rows + their inset editors: template actions / env / install steps, studio configure vars, block rows. Defaults follow the Card tab until changed." />
         <ColorField label="Background" value={inh(draft.cards?.row_background, D.cards.row_background)} onChange={(v) => patch('cards', { row_background: v })} placeholder="Follow Card tab" />
         <ColorField label="Border color" value={inh(draft.cards?.row_border_color, D.cards.row_border_color)} onChange={(v) => patch('cards', { row_border_color: v })} placeholder="Follow Card tab" />
         <ColorField label="Hover border color" value={inh(draft.cards?.row_hover_border_color, D.cards.row_hover_border_color)} onChange={(v) => patch('cards', { row_hover_border_color: v })} placeholder="Follow Card tab" />
@@ -71,7 +71,7 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Page Card (ks-page-card)" hint="Page rows: template pages, studio sub-pages. Defaults follow the Card tab until changed." />
+        <Label label="Page Card (ks-page-card)" hint="Page rows + their inset editors: template pages, studio sub-pages. Defaults follow the Card tab until changed." />
         <ColorField label="Background" value={inh(draft.cards?.page_background, D.cards.page_background)} onChange={(v) => patch('cards', { page_background: v })} placeholder="Follow Card tab" />
         <ColorField label="Border color" value={inh(draft.cards?.page_border_color, D.cards.page_border_color)} onChange={(v) => patch('cards', { page_border_color: v })} placeholder="Follow Card tab" />
         <ColorField label="Hover border color" value={inh(draft.cards?.page_hover_border_color, D.cards.page_hover_border_color)} onChange={(v) => patch('cards', { page_hover_border_color: v })} placeholder="Follow Card tab" />

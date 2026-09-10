@@ -139,7 +139,17 @@ const InstancePowerMenu: React.FC = () => {
     permissions,
     PermissionKey.MANAGE_INSTANCES,
     PermissionKey.INSTANCES_CONTROL,
+    PermissionKey.INSTANCES_START,
+    PermissionKey.INSTANCES_STOP,
+    PermissionKey.INSTANCES_RESTART,
+    PermissionKey.INSTANCES_KILL,
   );
+  // Per-verb power gates: a narrowed role with only e.g. START sees just
+  // Start; legacy CONTROL / umbrella roles pass every verb below.
+  const canStart = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_START);
+  const canStop = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_STOP);
+  const canRestart = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_RESTART);
+  const canKill = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_KILL);
 
   // Quick shortcuts (Files / Terminal / Ports / Automation / Env) — pure builtins surfaced
   // directly above the template Actions so operators can jump without
@@ -165,23 +175,23 @@ const InstancePowerMenu: React.FC = () => {
   // Transitional states (deploy/install in flight) — no power action is valid,
   // so render no buttons rather than clickable-then-failing ones.
   const isTransitional = status === 'creating' || status === 'installing';
-  // State-aware buttons gated by the template allow-list: stopped/errored/etc
-  // → Start only; running → Stop + Restart + Kill (Start hidden);
-  // transitional → none.
-  const showStart = !isRunning && !isTransitional && controls.allow_start;
-  const showStop = isRunning && controls.allow_stop;
-  const showRestart = isRunning && controls.allow_restart;
-  const showKill = isRunning && controls.allow_kill;
+  // State-aware buttons gated by the template allow-list AND the per-verb
+  // permission: stopped/errored/etc → Start only; running → Stop + Restart
+  // + Kill (Start hidden); transitional → none.
+  const showStart = !isRunning && !isTransitional && controls.allow_start && canStart;
+  const showStop = isRunning && controls.allow_stop && canStop;
+  const showRestart = isRunning && controls.allow_restart && canRestart;
+  const showKill = isRunning && controls.allow_kill && canKill;
   const showPowerRow = showStart || showStop || showRestart || showKill;
   const busyAny = busy !== null || loading;
 
   const run = async (action: 'start' | 'stop' | 'restart' | 'kill') => {
     if (!instance || busy) return;
-    // Template allow-list gate (defense in depth — buttons are hidden too).
-    if (action === 'start' && !controls.allow_start) return;
-    if (action === 'stop' && !controls.allow_stop) return;
-    if (action === 'restart' && !controls.allow_restart) return;
-    if (action === 'kill' && !controls.allow_kill) return;
+    // Template allow-list + per-verb permission gate (defense in depth — buttons are hidden too).
+    if (action === 'start' && (!controls.allow_start || !canStart)) return;
+    if (action === 'stop' && (!controls.allow_stop || !canStop)) return;
+    if (action === 'restart' && (!controls.allow_restart || !canRestart)) return;
+    if (action === 'kill' && (!controls.allow_kill || !canKill)) return;
     // Kill is forceful (SIGKILL, no graceful shutdown) — confirm first so
     // a stray click can't nuke unsaved in-memory state.
     if (action === 'kill') {

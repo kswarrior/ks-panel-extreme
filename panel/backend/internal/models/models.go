@@ -75,27 +75,6 @@ type Role struct {
 	Description string   `json:"description"`
 	Icon        string   `json:"icon"`
 	Permissions []string `json:"permissions,omitempty"`
-	// OwnerID ties the role to the user that authored it. Migration 054
-	// wires the ROLES_OWN / ROLES_ALL scope keys: an Own role only sees
-	// rows where OwnerID = caller; All / umbrella keep the full list.
-	// Zero = pre-054 row (orphan) — every role created before this
-	// migration lands with NULL and stays visible only to admins.
-	OwnerID int64 `json:"owner_id,omitempty"`
-	// OwnerName is the denormalised username so the admin Roles list
-	// can render "alice" instead of just the integer id.
-	OwnerName string `json:"owner_name,omitempty"`
-	// AllowedAuthTypes is the admin-curated subset of the admin-enabled
-	// authority providers that users WITH THIS ROLE are allowed to turn
-	// on for their own login (see UserAuthorityConfig). nil/missing
-	// (serialized as JSON null) === "unrestricted" — every admin-enabled
-	// authority is offered; an explicit empty slice (serialized as `[]`)
-	// === the role disallows every non-password authority; non-empty
-	// === the curated subset. Kept on the role (not as a permission key)
-	// because it's a per-role data attribute, not a CRUD verb. Persisted
-	// as a per-role settings-KV JSON blob (migration-free) so repo reads
-	// populate it transparently. The omitempty tag is intentionally
-	// ABSENT so the null vs [] distinction round-trips over the wire.
-	AllowedAuthTypes []string `json:"allowed_auth_types"`
 }
 
 type Permission struct {

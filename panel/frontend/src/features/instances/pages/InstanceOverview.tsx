@@ -160,6 +160,19 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     permissions,
     PermissionKey.MANAGE_INSTANCES,
     PermissionKey.INSTANCES_CONTROL,
+    PermissionKey.INSTANCES_START,
+    PermissionKey.INSTANCES_STOP,
+    PermissionKey.INSTANCES_RESTART,
+    PermissionKey.INSTANCES_KILL,
+    PermissionKey.INSTANCES_REINSTALL,
+    PermissionKey.INSTANCES_SUSPEND,
+  );
+  // Reinstall rides on its own sub-key (CONTROL implies it for legacy roles).
+  const canReinstall = hasPermissionAny(
+    permissions,
+    PermissionKey.MANAGE_INSTANCES,
+    PermissionKey.INSTANCES_CONTROL,
+    PermissionKey.INSTANCES_REINSTALL,
   );
   // EDIT covers config-only mutations (rename, advanced config editor).
   // DELETE covers destroy. CONTROL covers power/lifecycle (reinstall).
@@ -351,7 +364,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   };
 
   const onReinstall = async () => {
-    if (!canControl || !controls.allow_reinstall || reinstallBusy) return;
+    if (!canReinstall || !controls.allow_reinstall || reinstallBusy) return;
     const ok = await confirm({
       title: 'Reinstall instance',
       message: `Wipe "${displayName}" and redeploy it from the stored spec? ALL data inside the workload will be lost.`,
@@ -746,9 +759,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               Destructive actions. Reinstall wipes the workload and redeploys it from the
               stored spec; destroy removes it from the edge and the panel.
             </p>
-            {canControl || canDelete ? (
+            {canReinstall || canDelete ? (
               <div className="flex flex-col sm:flex-row gap-2">
-                {controls.allow_reinstall && canControl && (
+                {controls.allow_reinstall && canReinstall && (
                 <button
                   type="button"
                   onClick={() => void onReinstall()}

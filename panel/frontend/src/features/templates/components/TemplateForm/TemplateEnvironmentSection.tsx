@@ -103,7 +103,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
             {ports.map((p, i) => {
               const isEditing = editingIdx === i;
               return (
-              <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+              <div key={i} className="ks-card ks-form-card ks-row-card rounded-md overflow-hidden">
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -121,7 +121,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                  <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                     <div className="flex gap-2">
                       <input value={p.host} onChange={(e) => onPortUpdate(i, { host: e.target.value })} placeholder="host" className={glassFieldClass} />
                       <span className="self-center text-gray-500">:</span>
@@ -150,7 +150,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
             {mounts.map((m, i) => {
               const isEditing = editingMountIdx === i;
               return (
-              <div key={i} className="ks-card ks-form-card rounded-md overflow-hidden">
+              <div key={i} className="ks-card ks-form-card ks-row-card rounded-md overflow-hidden">
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -168,7 +168,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-2 bg-black/20">
+                  <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                     <div className="flex gap-2">
                       <input value={m.source} onChange={(e) => onMountUpdate(i, { source: e.target.value })} placeholder="source path" className={glassFieldClass} />
                       <span className="self-center text-gray-500">→</span>

@@ -3,6 +3,66 @@
   "updated": "2026-09-10",
   "pages": [
     {
+      "id": "ports",
+      "name": "Ports",
+      "description": "Port allocations for this instance: host to container mappings with add and remove. Fully theme-aware.",
+      "category": "networking",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "networking",
+        "ports"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/ports.json",
+      "icon_svg": "<rect x=\"2\" y=\"7\" width=\"20\" height=\"8\" rx=\"2\"/><path d=\"M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2\"/><path d=\"M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2\"/>",
+      "preview_image": ""
+    },
+    {
+      "id": "env",
+      "name": "Env",
+      "description": "Environment variables for this instance: add, edit, import and save. Saving recreates the workload. Fully theme-aware.",
+      "category": "configuration",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "configuration",
+        "env"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/env.json",
+      "icon_svg": "<path d=\"M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1\"/><path d=\"M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1\"/>",
+      "preview_image": ""
+    },
+    {
+      "id": "files",
+      "name": "Files",
+      "description": "File manager for this instance: browse, upload, download, copy, rename, permissions, archives, server search, SFTP view, and a built-in editor. Fully theme-aware.",
+      "category": "management",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "files",
+        "sftp"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/files.json",
+      "icon_svg": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z\"/>",
+      "preview_image": ""
+    },
+    {
+      "id": "terminal",
+      "name": "Terminal",
+      "description": "Live terminal consoles for this instance: shell panes, bound action/install/startup terminals, shortcuts, copy/download and display settings. Fully theme-aware.",
+      "category": "console",
+      "author": "kswarrior",
+      "version": "1.0",
+      "tags": [
+        "console",
+        "terminal"
+      ],
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.json",
+      "icon_svg": "<polyline points=\"4 17 10 11 4 5\"/><line x1=\"12\" y1=\"19\" x2=\"20\" y2=\"19\"/>",
+      "preview_image": ""
+    },
+    {
       "id": "mc-properties",
       "name": "Server Properties",
       "description": "Edit every server.properties key with the right editor (text, number, true/false, options, password). Stateful React page: auto-detects server.properties, mc/server.properties or /mc/server.properties, applies per key with change tracking. Restart required.",

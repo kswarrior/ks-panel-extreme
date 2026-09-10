@@ -804,18 +804,22 @@ func NewRouter() http.Handler {
 			// fetchPanel bridge to poll this instance's live status +
 			// install-workflow state. Same data the list endpoint returns.
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/{id}", handlers.GetInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/start", handlers.StartInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/stop", handlers.StopInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/kill", handlers.KillInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/restart", handlers.RestartInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/reinstall", handlers.ReinstallInstanceHandler)
+		// Power sub-actions: umbrella OR CONTROL sub-umbrella OR the specific
+		// sub-key (INSTANCES_START / STOP / ...). Legacy roles with only
+		// MANAGE_INSTANCES or INSTANCES_CONTROL keep full access; narrowed
+		// roles with only e.g. INSTANCES_START pass just their verb.
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesStartKey)...)).Post("/{id}/start", handlers.StartInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesStopKey)...)).Post("/{id}/stop", handlers.StopInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesKillKey)...)).Post("/{id}/kill", handlers.KillInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesRestartKey)...)).Post("/{id}/restart", handlers.RestartInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesReinstallKey)...)).Post("/{id}/reinstall", handlers.ReinstallInstanceHandler)
 		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}/identity", handlers.UpdateInstanceIdentityHandler)
 		// Admin config editor: persists the edited spec; recreates the
 		// workload on the edge only when a create-time-only field changed.
 		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateInstanceHandler)
 		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionDelete)).Delete("/{id}", handlers.DestroyInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/suspend", handlers.SuspendInstanceHandler)
-		r.With(requireUmbrellaOrAction(instancesG, permissions.ActionControl)).Post("/{id}/unsuspend", handlers.UnsuspendInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesSuspendKey)...)).Post("/{id}/suspend", handlers.SuspendInstanceHandler)
+		r.With(requireAnyPermission(instancesG.KeysForControlSubKey(permissions.InstancesSuspendKey)...)).Post("/{id}/unsuspend", handlers.UnsuspendInstanceHandler)
 		})
 
 		// Instance actions: invoke a template-defined named action (e.g. the

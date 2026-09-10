@@ -106,7 +106,7 @@ export const TemplateEnvVariablesSection: React.FC<EnvVariablesSectionProps> = (
                   </div>
                 </div>
                 {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
+                  <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <input value={v.name} onChange={(e) => onEnvUpdate(i, { name: e.target.value })} placeholder="Variable name (KEY)" className={monoCls} />
                       <input value={v.label} onChange={(e) => onEnvUpdate(i, { label: e.target.value })} placeholder="Display label" className={glassFieldClass} />

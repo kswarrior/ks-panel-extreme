@@ -93,7 +93,7 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
               </div>
 
               {isEditing && (
-                <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
+                <div className="px-3 pb-3 pt-1 ks-page-card-body space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <label className="block">
                       <span className="text-xs text-gray-400">Path * (becomes /{'{slug}'}/path)</span>

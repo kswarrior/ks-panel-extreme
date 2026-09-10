@@ -60,7 +60,7 @@ const RequirePermission: React.FC<Props> = ({ permission, anyOf, children }) => 
   return <>{children}</>;
 };
 
-// Precompute the full key set per area (umbrella + CRUD + extras + Own/All) so the
+// Precompute the full key set per area (umbrella + CRUD + extras + sub-keys + Own/All) so the
 // guard doesn't rebuild it on every render. Mirrors the backend
 // permissions.Group keysForAction rule (umbrella implies all actions).
 const AREA_KEYS_FOR_AREA = new Map<string, string[]>(
@@ -69,6 +69,7 @@ const AREA_KEYS_FOR_AREA = new Map<string, string[]>(
     if (a.umbrella) keys.push(a.umbrella);
     for (const k of Object.values(a.keys)) if (k) keys.push(k);
     for (const k of a.extraKeys ?? []) keys.push(k);
+    for (const children of Object.values(a.subKeys ?? {})) for (const k of children) keys.push(k);
     if (a.ownKey) keys.push(a.ownKey);
     if (a.allKey) keys.push(a.allKey);
     return [a.label, keys];

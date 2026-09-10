@@ -88,7 +88,7 @@ export const PageStudioConfigureSection: React.FC<PageStudioConfigureSectionProp
                 </div>
               </div>
               {isEditing && (
-                <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
+                <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <input value={v.name} onChange={(e) => onUpdate(v.id, { name: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, '') })} placeholder="Variable name (KEY)" className={`${glassFieldClass} font-mono`} />
                     <input value={v.label} onChange={(e) => onUpdate(v.id, { label: e.target.value })} placeholder="Display label" className={glassFieldClass} />

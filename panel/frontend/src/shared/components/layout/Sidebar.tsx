@@ -308,6 +308,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       if (area.umbrella) allKeys.push(area.umbrella);
       for (const k of Object.values(area.keys)) if (k) allKeys.push(k as string);
       if (area.extraKeys) allKeys.push(...area.extraKeys);
+      for (const children of Object.values(area.subKeys ?? {})) allKeys.push(...children);
       if (area.ownKey) allKeys.push(area.ownKey);
       if (area.allKey) allKeys.push(area.allKey);
       if (hasPermissionAny(permissions, ...allKeys)) return true;
@@ -324,8 +325,8 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
         ].filter(Boolean) as string[];
         if (hasPermissionAny(permissions, ...instKeys)) return true;
       }
-      // also allow granular INSTANCES_* directly
-      if (hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_VIEW, PermissionKey.INSTANCES_CREATE, PermissionKey.INSTANCES_EDIT, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_DELETE)) return true;
+      // also allow granular INSTANCES_* directly (incl. power sub-keys)
+      if (hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_VIEW, PermissionKey.INSTANCES_CREATE, PermissionKey.INSTANCES_EDIT, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_DELETE, PermissionKey.INSTANCES_START, PermissionKey.INSTANCES_STOP, PermissionKey.INSTANCES_RESTART, PermissionKey.INSTANCES_KILL, PermissionKey.INSTANCES_REINSTALL, PermissionKey.INSTANCES_SUSPEND)) return true;
     }
     // Themes: MANAGE_THEMES umbrella also handled above, but also allow bare theme sub-caps
     // (already covered by area lookup). For safety, allow any theme key explicitly.

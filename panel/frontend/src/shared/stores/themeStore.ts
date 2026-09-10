@@ -2290,6 +2290,26 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 .ks-page-card:hover { border-color: var(--ks-pagecard-hover) !important; }
 
 /* ------------------------------------------------------------------
+   Theme Studio → Cards: row/page inset editor bodies. The collapsible
+   area under each row/page header (the part that used to be a hardcoded
+   bg-black/20 + border-white/5 pair, which stayed dark gray no matter
+   what the Card tab was set to). The dim is an INSET scrim so it
+   darkens ANY base fill proportionally — light, dark, image and
+   gradient cards all keep a recessed editor look — and the divider
+   follows the variant border token.
+   ------------------------------------------------------------------ */
+.ks-row-card-body {
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 999px rgba(0,0,0,0.20) !important;
+  border-top: 1px solid var(--ks-rowcard-border) !important;
+}
+.ks-page-card-body {
+  background-color: transparent !important;
+  box-shadow: inset 0 0 0 999px rgba(0,0,0,0.20) !important;
+  border-top: 1px solid var(--ks-pagecard-border) !important;
+}
+
+/* ------------------------------------------------------------------
    Theme Studio → Pill. The fixed top-right action cluster AND the phone
    bottom tabs pill (PageTabsPill shares the same pill section, so one
    Pill tab paints both pills). The triple-class selector (0,3,0) beats the
