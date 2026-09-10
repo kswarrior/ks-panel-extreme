@@ -55,6 +55,7 @@ import ModStats from '@/features/mods/pages/ModStats';
 import ModDetail from '@/features/mods/pages/ModDetail';
 import ModSchedules from '@/features/mods/pages/ModSchedules';
 import AdminApplications from '@/features/applications/pages/Applications';
+import ApplicationStudio from '@/features/applications/pages/ApplicationStudio';
 import ApplicationEdit from '@/features/applications/pages/ApplicationEdit';
 import ApplicationConfigure from '@/features/applications/pages/ApplicationConfigure';
 import ApplicationStats from '@/features/applications/pages/ApplicationStats';
