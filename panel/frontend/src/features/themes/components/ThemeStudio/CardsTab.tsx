@@ -58,6 +58,32 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Row Card (ks-row-card)" hint="Per-entry rows: template actions / env / install steps, studio configure vars, block rows. Defaults follow the Card tab until changed." />
+        <ColorField label="Background" value={inh(draft.cards?.row_background, D.cards.row_background)} onChange={(v) => patch('cards', { row_background: v })} placeholder="Follow Card tab" />
+        <ColorField label="Border color" value={inh(draft.cards?.row_border_color, D.cards.row_border_color)} onChange={(v) => patch('cards', { row_border_color: v })} placeholder="Follow Card tab" />
+        <ColorField label="Hover border color" value={inh(draft.cards?.row_hover_border_color, D.cards.row_hover_border_color)} onChange={(v) => patch('cards', { row_hover_border_color: v })} placeholder="Follow Card tab" />
+        <ColorField label="Shadow" value={inh(draft.cards?.row_shadow, D.cards.row_shadow)} onChange={(v) => patch('cards', { row_shadow: v })} placeholder="Follow Card tab" />
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Slider label="Border radius" max={24} value={draft.cards?.row_border_radius ?? D.cards.row_border_radius} onChange={(v) => patch('cards', { row_border_radius: v })} />
+          <Slider label="Backdrop blur" max={48} value={draft.cards?.row_backdrop_blur ?? D.cards.row_backdrop_blur} onChange={(v) => patch('cards', { row_backdrop_blur: v })} />
+          <Slider label="Padding" max={32} value={draft.cards?.row_padding ?? D.cards.row_padding} onChange={(v) => patch('cards', { row_padding: v })} />
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-4">
+        <Label label="Page Card (ks-page-card)" hint="Page rows: template pages, studio sub-pages. Defaults follow the Card tab until changed." />
+        <ColorField label="Background" value={inh(draft.cards?.page_background, D.cards.page_background)} onChange={(v) => patch('cards', { page_background: v })} placeholder="Follow Card tab" />
+        <ColorField label="Border color" value={inh(draft.cards?.page_border_color, D.cards.page_border_color)} onChange={(v) => patch('cards', { page_border_color: v })} placeholder="Follow Card tab" />
+        <ColorField label="Hover border color" value={inh(draft.cards?.page_hover_border_color, D.cards.page_hover_border_color)} onChange={(v) => patch('cards', { page_hover_border_color: v })} placeholder="Follow Card tab" />
+        <ColorField label="Shadow" value={inh(draft.cards?.page_shadow, D.cards.page_shadow)} onChange={(v) => patch('cards', { page_shadow: v })} placeholder="Follow Card tab" />
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Slider label="Border radius" max={24} value={draft.cards?.page_border_radius ?? D.cards.page_border_radius} onChange={(v) => patch('cards', { page_border_radius: v })} />
+          <Slider label="Backdrop blur" max={48} value={draft.cards?.page_backdrop_blur ?? D.cards.page_backdrop_blur} onChange={(v) => patch('cards', { page_backdrop_blur: v })} />
+          <Slider label="Padding" max={32} value={draft.cards?.page_padding ?? D.cards.page_padding} onChange={(v) => patch('cards', { page_padding: v })} />
+        </div>
+      </div>
+
+      <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Glass Card (base .glass-card)" hint="Edits the same values as every card — single source of truth for the whole panel." />
         <Select
           label="Card background type"
@@ -170,6 +196,14 @@ export const CardsTab: React.FC<CardsTabProps> = ({ draft, patch }) => {
           <div className="ks-form-card p-4 min-w-[180px]">
             <div className="text-sm font-semibold">Form Card</div>
             <div className="text-xs text-gray-400 mt-1">Settings, Forms</div>
+          </div>
+          <div className="ks-row-card p-4 min-w-[180px]">
+            <div className="text-sm font-semibold">Row Card</div>
+            <div className="text-xs text-gray-400 mt-1">Actions, Env, Steps</div>
+          </div>
+          <div className="ks-page-card p-4 min-w-[180px]">
+            <div className="text-sm font-semibold">Page Card</div>
+            <div className="text-xs text-gray-400 mt-1">Pages, Sub-pages</div>
           </div>
         </div>
         <div className="flex flex-wrap items-start gap-3">

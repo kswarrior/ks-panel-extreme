@@ -63,14 +63,25 @@
   /* Template row cards — the per-entry rows in the Template form's
      Actions / Env Variables / Install sections (row header with the
      entry name, up/down mover, delete button and expand toggle).
-     Shared hook (.ks-template-row-card) plus per-type hooks
-     (.ks-action-card / .ks-env-card / .ks-install-card) so they can be
-     targeted separately from generic form sections. Inherits ks-card
-     so the default look is unchanged. */
-  .ks-template-row-card,
+     Per-type hooks (.ks-action-card / .ks-env-card / .ks-install-card)
+     allow targeting one section; the shared look comes from the
+     Row Card variant (.ks-row-card) themed in Theme Studio → Cards.
+     Inherits ks-card so the default look is unchanged. */
   .ks-action-card,
   .ks-env-card,
   .ks-install-card {
+    @apply ks-card;
+  }
+  /* Row cards — per-entry collapsible rows (template actions/env/install
+     steps, studio configure vars, block rows). Themed in the studio's
+     Cards tab; inherits ks-card so no visual change by default. */
+  .ks-row-card {
+    @apply ks-card;
+  }
+  /* Page cards — page rows (template pages, studio sub-pages). Themed in
+     the studio's Cards tab; inherits ks-card so no visual change
+     by default. */
+  .ks-page-card {
     @apply ks-card;
   }
   /* Modal/dialog cards — used for modals, dropdowns, overlays.

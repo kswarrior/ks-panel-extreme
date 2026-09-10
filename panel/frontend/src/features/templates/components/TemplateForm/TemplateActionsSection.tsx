@@ -97,7 +97,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
           {actions.map((a, i) => {
             const isEditing = editingIdx === i;
             return (
-              <div key={i} className="ks-card ks-form-card ks-template-row-card ks-action-card rounded-md overflow-hidden min-w-0 max-w-full">
+              <div key={i} className="ks-card ks-form-card ks-row-card ks-action-card rounded-md overflow-hidden min-w-0 max-w-full">
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="flex flex-col gap-0.5 shrink-0">
                     <button type="button" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed">
@@ -404,7 +404,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                         </button>
                       </div>
                       {a.steps.map((s, j) => (
-                        <div key={j} className="ks-card ks-form-card rounded-md space-y-2">
+                        <div key={j} className="ks-card ks-form-card ks-row-card rounded-md space-y-2">
                           <div className="flex gap-2 items-center flex-wrap min-w-0">
                             <span className="text-xs text-gray-500 w-12 shrink-0">#{j + 1}</span>
                              <select value={s.action} onChange={(e) => onActionStepUpdate(i, j, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44 max-w-full min-w-0'}>

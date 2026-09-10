@@ -39,7 +39,7 @@ export const PageStudioBlocksEditor: React.FC<PageStudioBlocksEditorProps> = ({ 
         <p className="text-xs text-gray-500">No blocks yet. Add your first block below.</p>
       )}
       {rows.map((b, i) => (
-        <div key={i} className="ks-card ks-form-card rounded-lg space-y-2">
+        <div key={i} className="ks-card ks-form-card ks-row-card rounded-lg space-y-2">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-gray-300 uppercase tracking-wide">
               {BLOCK_TYPES.find((t) => t.type === b.type)?.label ?? b.type}

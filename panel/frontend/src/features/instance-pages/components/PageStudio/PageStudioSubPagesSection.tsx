@@ -66,7 +66,7 @@ export const PageStudioSubPagesSection: React.FC<PageStudioSubPagesSectionProps>
             else onUpdate(sub.id, { content_blocks: value });
           };
           return (
-            <div key={sub.id} className="ks-card ks-form-card rounded-md overflow-hidden">
+            <div key={sub.id} className="ks-card ks-form-card ks-page-card rounded-md overflow-hidden">
               <div className="p-3 flex items-center gap-3 flex-wrap">
                 <div className="flex flex-col gap-0.5 shrink-0">
                   <button type="button" aria-label="Move up" onClick={() => onMove?.(idx, -1)} disabled={idx === 0} className="ks-btn-header ks-icon-btn disabled:opacity-30 disabled:cursor-not-allowed" title="Move up">

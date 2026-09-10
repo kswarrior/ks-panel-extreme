@@ -160,7 +160,7 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
             return (
               <div
                 key={p.slug + ':' + i}
-                className={`ks-card ks-form-card rounded-md overflow-hidden ${p.enabled ? '' : 'opacity-60'}`}
+                className={`ks-card ks-form-card ks-page-card rounded-md overflow-hidden ${p.enabled ? '' : 'opacity-60'}`}
               >
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   {/* Up/Down reorder arrows. Hidden for the first / last
