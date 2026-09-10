@@ -930,8 +930,8 @@ const StackDetail: React.FC = () => {
             hint="Float the app at /<root>/ behind your panel session"
           />
           {pathOn && (
-          <div className="pt-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+            <div className="pt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
           <label className="block">
             <span className="text-xs text-gray-400">Loopback port (empty = off, optional for remote)</span>
             <input
@@ -998,7 +998,7 @@ const StackDetail: React.FC = () => {
             {probeResult.reachable === 'yes' ? '● reachable' : `● unreachable${probeResult.note ? ` — ${probeResult.note}` : ''}`}
           </p>
         ) : null}
-          </div>
+            </div>
           )}
         </div>
 
@@ -1011,7 +1011,7 @@ const StackDetail: React.FC = () => {
             hint="The panel itself listens on 127.0.0.1:<port> (loopback only) and renders the whole app at the origin root"
           />
           {portOn && (
-          <div className="pt-3 space-y-3">
+            <div className="pt-3 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
               <label className="block">
                 <span className="text-xs text-gray-400">Port</span>
