@@ -47,10 +47,20 @@ export interface InstancePage {
   category: string;
   /** Page flavor tag (dashboard, status, docs, …) — persisted as page_type. "" == unset. */
   type: string;
-  content_type: 'html' | 'markdown' | 'blocks' | '';
+  content_type: 'html' | 'markdown' | 'blocks' | 'react' | '';
   content_html: string;
   content_markdown: string;
   content_blocks: string;
+  /** Author React JS source for content_type == 'react' (React.createElement, no JSX in v1). */
+  source_tsx: string;
+  /** Validated build output for content_type == 'react' (POST /:id/build). */
+  bundle_js: string;
+  /** Optional page CSS for content_type == 'react'. */
+  bundle_css: string;
+  /** Build status: '' | 'building' | 'ok' | 'error'. */
+  build_status: string;
+  /** Last build output (capped 64KiB server-side). */
+  build_log: string;
   icon_svg: string;
   /** Optional #rrggbb accent tinting the icon tile on cards (migration 060). */
   icon_color?: string;
@@ -181,10 +191,12 @@ export interface CreateInstancePagePayload {
   kind: InstancePageKind;
   category: string;
   type: string;
-  content_type: 'html' | 'markdown' | 'blocks';
+  content_type: 'html' | 'markdown' | 'blocks' | 'react';
   content_html: string;
   content_markdown: string;
   content_blocks: string;
+  source_tsx: string;
+  bundle_css: string;
   icon_svg: string;
   icon_color?: string;
   actions: string;
@@ -200,10 +212,12 @@ export interface UpdateInstancePagePayload {
   kind: InstancePageKind;
   category: string;
   type: string;
-  content_type: 'html' | 'markdown' | 'blocks';
+  content_type: 'html' | 'markdown' | 'blocks' | 'react';
   content_html: string;
   content_markdown: string;
   content_blocks: string;
+  source_tsx: string;
+  bundle_css: string;
   icon_svg: string;
   icon_color?: string;
   actions: string;

@@ -1024,6 +1024,20 @@ export async function executePageAction(
   return res.data;
 }
 
+// Build a React instance page: validates Studio source_tsx (+ optional
+// bundle_css) into the executable bundle (migration 075). Save-and-build in
+// one round-trip when source is sent; otherwise builds the stored source.
+export async function buildInstancePage(
+  id: number,
+  payload?: { source_tsx?: string; bundle_css?: string },
+): Promise<{ id: number; build_status: string; build_log: string }> {
+  const res = await client.post<{ id: number; build_status: string; build_log: string }>(
+    `/api/instance-pages/${id}/build`,
+    payload ?? {},
+  );
+  return res.data;
+}
+
 export async function executeModulePageAction(
   instanceId: number,
   moduleId: string,
