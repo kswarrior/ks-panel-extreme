@@ -4246,13 +4246,13 @@ func aiSaveTemplateSpec(a *aiCallCtx, tmpl *models.Template, spec map[string]any
 	if err := validateTemplateSpec(spec); err != nil {
 		return "", fmt.Errorf("resulting template is invalid: %s", aiCap(err.Error(), 300))
 	}
-	specBytes, err := json.Marshal(spec)
+	specYAML, err := specyaml.Marshal(spec)
 	if err != nil {
 		return "", fmt.Errorf("server error")
 	}
 	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
 		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
-		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+		Image: tmpl.Image, Spec: specYAML, Icon: tmpl.Icon, Color: tmpl.Color,
 	}); err != nil {
 		return "", fmt.Errorf("edit failed: %s", aiCap(err.Error(), 300))
 	}
@@ -4558,14 +4558,14 @@ func aiExecEditTemplatePorts(a *aiCallCtx, args map[string]any) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	specBytes, err := json.Marshal(plan.spec)
+	specYAML, err := specyaml.Marshal(plan.spec)
 	if err != nil {
 		return "", fmt.Errorf("server error")
 	}
 	tmpl := plan.tmpl
 	if err := repository.NewTemplateRepository(a.con).Update(tmpl.ID, repository.TemplateInput{
 		Name: tmpl.Name, Description: tmpl.Description, Kind: tmpl.Kind,
-		Image: tmpl.Image, Spec: string(specBytes), Icon: tmpl.Icon, Color: tmpl.Color,
+		Image: tmpl.Image, Spec: specYAML, Icon: tmpl.Icon, Color: tmpl.Color,
 	}); err != nil {
 		return "", fmt.Errorf("edit ports failed: %s", aiCap(err.Error(), 300))
 	}
