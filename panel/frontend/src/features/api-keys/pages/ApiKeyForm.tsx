@@ -112,6 +112,8 @@ const ApiKeyForm: React.FC = () => {
   const [error, setError] = useState('');
   const [createdToken, setCreatedToken] = useState<CreateApiKeyResult | null>(null);
   const [tab, setTab] = useState<ApiKeyFormTabId>('identity');
+  // Accent-colour sub-page modal (instance-form icon system).
+  const [colorModalOpen, setColorModalOpen] = useState(false);
 
   // ── Limits state ────────────────────────────────────────────────────────
   // `noExpiry=true` => key never expires (expires_atLocal ignored).
@@ -485,16 +487,89 @@ const ApiKeyForm: React.FC = () => {
               />
            </GlassField>
 
-            {/* Accent colour — same swatch + custom-picker pattern the role
-                form uses, so admins see one consistent control across both
-                forms. */}
+            {/* Accent colour — instance-form icon system: compact preview
+                row + small button opens the colour sub-page modal. */}
+            <div className="flex items-center gap-3">
+              <div className="relative shrink-0" title="Badge preview">
+                <span
+                  className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+                  aria-hidden="true"
+                >
+                  <span
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border"
+                    style={
+                      form.accent_color
+                        ? { backgroundColor: form.accent_color, color: '#000', borderColor: form.accent_color }
+                        : { backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', borderColor: 'rgba(255,255,255,0.18)' }
+                    }
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true">
+                      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                    </svg>
+                    Key
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setColorModalOpen(true)}
+                  title="Edit accent colour"
+                  aria-label="Edit accent colour"
+                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 hover:bg-neutral-700 text-gray-200 transition-colors"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                </button>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-gray-200 font-medium truncate">{displayLabel || 'New API key'}</p>
+                <p className="text-xs text-gray-500 truncate">Accent colour tints the badge on the admin list</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setColorModalOpen(true)}
+                title="Edit accent colour"
+                className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v8" /><path d="M8 12h8" /></svg>
+                Colour
+              </button>
+            </div>
+
+            <GlassModal
+              open={colorModalOpen}
+              onClose={() => setColorModalOpen(false)}
+              title="Accent colour"
+              maxWidth="max-w-lg"
+              footer={
+                <>
+                  <button onClick={() => setColorModalOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+                  <button onClick={() => setColorModalOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+                </>
+              }
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border shrink-0"
+                  style={
+                    form.accent_color
+                      ? { backgroundColor: form.accent_color, color: '#000', borderColor: form.accent_color }
+                      : { backgroundColor: 'rgba(255,255,255,0.08)', color: '#fff', borderColor: 'rgba(255,255,255,0.18)' }
+                  }
+                  aria-hidden="true"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true">
+                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                  </svg>
+                  {displayLabel}
+                </span>
+                <p className="text-xs text-gray-500">Live preview — pick a preset or use the picker for any CSS colour.</p>
+              </div>
             <div>
               <label className="block text-sm font-medium text-gray-200 mb-1">
                 Accent colour
-             </label>
+              </label>
               <p className="text-xs text-gray-400 mb-2">
                 Tints the badge on the admin list. Pick a preset or use the picker for any CSS colour.
-             </p>
+              </p>
               <div className="flex items-center gap-2 overflow-x-auto ks-hscroll pb-2 -mx-0.5 px-0.5">
                 {COLOR_SWATCHES.map((s) => {
                   const active = (form.accent_color || '') === s.value;
