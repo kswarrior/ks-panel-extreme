@@ -47,6 +47,13 @@ type stackResponse struct {
 	RemoteAddress    string `json:"remote_address,omitempty"`
 	RemoteUseTLS     bool   `json:"remote_use_tls"`
 	RemoteSkipVerify bool   `json:"remote_skip_verify"`
+	// Dedicated serve port (migration 077): the TCP port the panel itself
+	// opened for this stack (0 = off). ServeListening reports whether the
+	// listener actually bound (bind failures stay audible here instead of
+	// trusting the saved value).
+	ServePort      int  `json:"serve_port"`
+	ServeAuth      bool `json:"serve_auth"`
+	ServeListening bool `json:"serve_listening"`
 	TokenPrefix      string `json:"token_prefix,omitempty"`
 	Status           string `json:"status"`
 	LastSeenAt       string `json:"last_seen_at,omitempty"`
@@ -101,6 +108,9 @@ func toStackResponse(repo *repository.StackRepository, s *models.Stack) stackRes
 		RemoteAddress:    s.RemoteAddress,
 		RemoteUseTLS:     s.RemoteUseTLS,
 		RemoteSkipVerify: s.RemoteSkipVerify,
+		ServePort:      s.ServePort,
+		ServeAuth:      s.ServeAuth,
+		ServeListening: StackServeListening(s.ID),
 		TokenPrefix:      s.TokenPrefix,
 		Status:           s.Status,
 		OwnerName:   s.OwnerName,
@@ -244,6 +254,10 @@ type stackUpsertDTO struct {
 	RemoteAddress        string                          `json:"remoteAddress"`
 	RemoteUseTLS         bool                            `json:"remoteUseTls"`
 	RemoteSkipVerify     bool                            `json:"remoteSkipVerify"`
+	// ServePort/ServeAuth configure the dedicated panel-opened port that
+	// renders the app at / (0 = off, migration 077).
+	ServePort            int                             `json:"servePort"`
+	ServeAuth            bool                            `json:"serveAuth"`
 	Spec                 json.RawMessage                 `json:"spec"`
 	PermissionsRequested []repository.StackPermissionReq `json:"permissionsRequested"`
 }
@@ -564,6 +578,26 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "proxy root URL is already used by another stack", http.StatusConflict)
 		return
 	}
+	// Dedicated serve port (migration 077): must be a usable TCP port, must
+	// not clash with another stack's serve port, and needs an app to serve
+	// (loopback port or remote address — the /<root> mount stays optional).
+	if !models.ValidStackServePort(dto.ServePort) {
+		http.Error(w, "invalid serve port (want 0 or 1-65535)", http.StatusBadRequest)
+		return
+	}
+	if dto.ServePort != 0 {
+		if dto.ProxyPort == 0 && remoteAddr == "" {
+			http.Error(w, "serve port needs an app to serve: set a loopback port or a remote address", http.StatusBadRequest)
+			return
+		}
+		if taken, terr := repo.ServePortTaken(dto.ServePort, id); terr != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		} else if taken {
+			http.Error(w, "serve port is already used by another stack", http.StatusConflict)
+			return
+		}
+	}
 	// A proxy mount must not shadow the panel's own base path (Settings >
 	// General > Root URL): /panel/<root> would never reach the mount.
 	if proxyRoot != "" {
@@ -581,6 +615,7 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		Description: dto.Description, Icon: dto.Icon, Color: dto.Color, Spec: dto.Spec,
 		ProxyPort: dto.ProxyPort, ProxyRootURL: proxyRoot,
 		RemoteAddress: remoteAddr, RemoteUseTLS: dto.RemoteUseTLS, RemoteSkipVerify: dto.RemoteSkipVerify,
+		ServePort: dto.ServePort, ServeAuth: dto.ServeAuth,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrStackNotFound) {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -176,7 +177,10 @@ func serveStackPort(w http.ResponseWriter, r *http.Request, stackID int64) {
 		}
 	} else if id, uerr := stackServeOptionalSession(r); uerr == nil {
 		uid = id
-		username, _ = stackServeUsername(id)
+		if con, cerr := repository.OpenDB(); cerr == nil {
+			username, _ = stackServeUsername(con, id)
+			_ = con.Close()
+		}
 	}
 	scheme, addr := s.StackDialTarget()
 	if strings.TrimSpace(addr) == "" || strings.TrimSpace(addr) == "127.0.0.1:0" {
@@ -292,17 +296,10 @@ func stackServeBearer(r *http.Request) string {
 	return strings.TrimSpace(h[len(prefix):])
 }
 
-func stackServeUsername(uid int64) (string, error) {
-	con, err := repository.OpenDB()
-	if err != nil {
-		return "", err
+func stackServeUsername(con *sql.DB, uid int64) (string, error) {
+	u, err := repository.NewUserRepository(con).GetByID(uid)
+	if err != nil || u == nil {
+		return "", fmt.Errorf("unknown user")
 	}
-	defer con.Close()
-	return stackServeUsernameWith(con, uid)
-}
-
-func stackServeUsernameWith(con interface {
-	QueryRow(query string, args ...any) *struct{} // placeholder — replaced below
-}, uid int64) (string, error) {
-	return "", fmt.Errorf("unimplemented")
+	return u.Username, nil
 }
