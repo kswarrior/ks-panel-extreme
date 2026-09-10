@@ -259,8 +259,8 @@ func handleInfo(w http.ResponseWriter) {
 
 func handleCheck(w http.ResponseWriter) {
 	local := version.Snapshot()
-	// no-store so browsers/proxies never serve a cached recheck; the `?t=`
-	// cache-buster below defeats the CDN edge cache on version.json itself.
+	// no-store so browsers/proxies never serve a cached recheck; freshness
+	// against the CDN edge cache comes from fetchEdgeManifest (API-first).
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	resp := checkResponse{
@@ -268,37 +268,9 @@ func handleCheck(w http.ResponseWriter) {
 		CheckedAt: time.Now().UTC().Format(time.RFC3339),
 		UpdateURL: ksedgeBinaryURL,
 	}
-	client := &http.Client{Timeout: 15 * time.Second}
-	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	manifest, err := fetchEdgeManifest()
 	if err != nil {
-		resp.Error = "could not reach update server: " + err.Error()
-		writeJSON(w, resp)
-		return
-	}
-	req.Header.Set("Cache-Control", "no-cache")
-	req.Header.Set("Pragma", "no-cache")
-	httpResp, err := client.Do(req)
-	if err != nil {
-		resp.Error = "could not reach update server: " + err.Error()
-		writeJSON(w, resp)
-		return
-	}
-	defer httpResp.Body.Close()
-	if httpResp.StatusCode != http.StatusOK {
-		resp.Error = fmt.Sprintf("update server returned HTTP %d", httpResp.StatusCode)
-		writeJSON(w, resp)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
-	if err != nil {
-		resp.Error = "read manifest: " + err.Error()
-		writeJSON(w, resp)
-		return
-	}
-	var manifest versionManifest
-	if err := json.Unmarshal(body, &manifest); err != nil {
-		resp.Error = "malformed manifest: " + err.Error()
+		resp.Error = err.Error()
 		writeJSON(w, resp)
 		return
 	}

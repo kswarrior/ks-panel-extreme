@@ -114,10 +114,60 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// cliAPIManifestURL serves the same version.json via the GitHub Contents API
+// (Accept: raw, 60s edge cache) instead of raw.githubusercontent (300s edge
+// cache which ignores the `?t=` query buster). Tried first for the default
+// manifest URL only; a custom --url override is always fetched directly.
+const cliAPIManifestURL = "https://api.github.com/repos/kswarrior/ks-panel-extreme/contents/release/version.json?ref=main"
+
 // fetchCLIManifest GETs the manifest with a bounded client. The body is
 // capped at 1 MiB — a manifest is a few hundred bytes; anything larger is
-// not a manifest.
+// not a manifest. For the default URL it tries the GitHub API first (much
+// fresher) and falls back to raw.githubusercontent on any failure, including
+// API rate limiting, so throttling degrades instead of erroring.
 func fetchCLIManifest(manifestURL string) (*cliVersionManifest, error) {
+	if manifestURL == cliUpdateManifestURL {
+		if m, err := fetchCLIManifestViaAPI(); err == nil && strings.TrimSpace(m.Version) != "" {
+			return m, nil
+		}
+	}
+	return fetchCLIManifestViaURL(manifestURL)
+}
+
+// fetchCLIManifestViaAPI GETs version.json through the GitHub Contents API
+// with Accept: raw (raw file bytes, same JSON shape, no base64 envelope).
+func fetchCLIManifestViaAPI() (*cliVersionManifest, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, cliAPIManifestURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.raw")
+	req.Header.Set("User-Agent", "kspanel-update-check")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("HTTP %d for %s", resp.StatusCode, cliAPIManifestURL)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	var m cliVersionManifest
+	if err := json.Unmarshal(body, &m); err != nil {
+		return nil, fmt.Errorf("invalid manifest JSON: %w", err)
+	}
+	if strings.TrimSpace(m.Version) == "" {
+		return nil, fmt.Errorf("manifest carries no version")
+	}
+	return &m, nil
+}
+
+// fetchCLIManifestViaURL GETs the manifest from the given raw URL directly.
+func fetchCLIManifestViaURL(manifestURL string) (*cliVersionManifest, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Get(manifestURL)
 	if err != nil {

@@ -51,18 +51,75 @@ import (
 // proceeds unverified but records that fact in the response log + audit
 // row, so old manifests don't brick updates while new ones are enforced.
 
+// githubAPIManifestURL serves the same version.json via the GitHub Contents
+// API (Accept: raw). Its edge cache is 60s vs raw.githubusercontent's 300s,
+// and — critically — raw.githubusercontent ignores the `?t=` query string
+// (proven: identical x-cache HIT + expires for ?t=111, ?t=222 and no query,
+// even with Cache-Control: no-cache), so the query buster never defeats the
+// 5-minute stale window where the URL shows a newer release but the panel
+// reports "You are on the latest version" until the TTL expires.
+const githubAPIManifestURL = "https://api.github.com/repos/kswarrior/ks-panel-extreme/contents/release/version.json?ref=main"
+
 // fetchUpdateManifest re-fetches version.json with the same 15s client +
 // 1MiB cap discipline as UpdateCheckHandler. Shared so check + apply +
-// reinstall-script generation all read one source of truth. The `?t=`
-// cache-buster defeats the CDN edge cache (raw.githubusercontent serves
-// version.json with `Cache-Control: max-age=300`): without it a recheck
-// inside the cache window returns the previous manifest and the UI reports
-// stale "latest" data. `Cache-Control: no-cache` / `Pragma: no-cache`
-// request headers ask any intermediate cache to revalidate as a second layer.
+// reinstall-script generation all read one source of truth. It tries the
+// GitHub Contents API first (60s cache, much fresher) and falls back to
+// raw.githubusercontent (300s cache) on any failure — including API rate
+// limiting (60/hr unauthenticated) — so a throttled check degrades to the
+// previous behavior instead of erroring.
 func fetchUpdateManifest() (updateVersionManifest, error) {
+	if m, err := fetchUpdateManifestViaAPI(); err == nil && strings.TrimSpace(m.Version) != "" {
+		return m, nil
+	}
+	return fetchUpdateManifestViaRaw()
+}
+
+// fetchUpdateManifestViaAPI GETs version.json through the GitHub Contents
+// API with Accept: raw, which returns the raw file bytes (same JSON shape,
+// no base64 envelope to decode). A non-200 (e.g. 403/429 rate limit) or an
+// empty version is an error so the caller falls back to raw.
+func fetchUpdateManifestViaAPI() (updateVersionManifest, error) {
 	var m updateVersionManifest
 	client := &http.Client{Timeout: 15 * time.Second}
-	url := fmt.Sprintf("%s?t=%d", kspanelVersionURL, time.Now().Unix())
+	req, err := http.NewRequest(http.MethodGet, githubAPIManifestURL, nil)
+	if err != nil {
+		return m, fmt.Errorf("could not reach update server: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.raw")
+	req.Header.Set("User-Agent", "kspanel-update-check")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	httpResp, err := client.Do(req)
+	if err != nil {
+		return m, fmt.Errorf("could not reach update server: %w", err)
+	}
+	defer httpResp.Body.Close()
+	if httpResp.StatusCode != http.StatusOK {
+		return m, fmt.Errorf("update server returned HTTP %d", httpResp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
+	if err != nil {
+		return m, fmt.Errorf("read manifest: %w", err)
+	}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return m, fmt.Errorf("malformed manifest: %w", err)
+	}
+	if strings.TrimSpace(m.Version) == "" {
+		return m, fmt.Errorf("malformed manifest: empty version")
+	}
+	return m, nil
+}
+
+// fetchUpdateManifestViaRaw GETs version.json from raw.githubusercontent.
+// The `?t=` query is kept as a best-effort buster for intermediates that
+// honor query keys, but Fastly (fronting raw.githubusercontent) ignores it,
+// so this path can serve up to 300s-stale data — hence API-first above.
+// `Cache-Control: no-cache` / `Pragma: no-cache` are likewise best-effort:
+// Fastly still answers HIT with them set.
+func fetchUpdateManifestViaRaw() (updateVersionManifest, error) {
+	var m updateVersionManifest
+	client := &http.Client{Timeout: 15 * time.Second}
+	url := fmt.Sprintf("%s?t=%d", kspanelVersionURL, time.Now().UnixNano())
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return m, fmt.Errorf("could not reach update server: %w", err)

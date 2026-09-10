@@ -636,6 +636,9 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		TargetID: &id, TargetLabel: dto.Name,
 		Message: fmt.Sprintf("edited stack %q", dto.Name),
 	})
+	// Sync the dedicated serve listener with the saved row so the
+	// serve_listening flag in the response below is already fresh.
+	ReconcileStackServePort(id)
 	writeJSON(w, toStackResponse(repo, s))
 }
 
@@ -676,6 +679,8 @@ func DeleteStackHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("DeleteStack: remove files for %q: %v", slug, perr)
 		}
 	}
+	// The row is gone — drop its serve listener if it had one.
+	ReconcileStackServePort(id)
 	RecordActivity(r, repository.ActivityInput{
 		Category: models.ActivityCategoryStack, Action: "delete",
 		TargetID: &id, TargetLabel: label,

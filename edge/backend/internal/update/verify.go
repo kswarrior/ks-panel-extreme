@@ -39,17 +39,71 @@ import (
 // old manifests don't brick edge updates while new ones are enforced.
 // The bare manifest.sha256 is the PANEL digest and is NEVER accepted here.
 
+// githubAPIEdgeManifestURL serves the same version.json via the GitHub
+// Contents API (Accept: raw). Its edge cache is 60s vs
+// raw.githubusercontent's 300s, and raw.githubusercontent ignores the `?t=`
+// query string (identical x-cache HIT + expires regardless of query, even
+// with Cache-Control: no-cache), so the query buster never defeats the
+// 5-minute stale window where the URL shows a newer release but the check
+// reports up-to-date until the TTL expires.
+const githubAPIEdgeManifestURL = "https://api.github.com/repos/kswarrior/ks-panel-extreme/contents/release/version.json?ref=main"
+
 // fetchEdgeManifest re-fetches version.json with the same 15s client +
-// 1MiB cap discipline as handleCheck. The `?t=` cache-buster defeats the
-// CDN edge cache (raw.githubusercontent serves version.json with
-// `Cache-Control: max-age=300`): without it a recheck inside the cache
-// window returns the previous manifest and the UI reports stale data.
-// `Cache-Control: no-cache` / `Pragma: no-cache` request headers ask any
-// intermediate cache to revalidate as a second layer.
+// 1MiB cap discipline as handleCheck. It tries the GitHub Contents API
+// first (60s cache, much fresher) and falls back to raw.githubusercontent
+// (300s cache) on any failure — including API rate limiting (60/hr
+// unauthenticated) — so a throttled check degrades to the previous behavior
+// instead of erroring.
 func fetchEdgeManifest() (versionManifest, error) {
+	if m, err := fetchEdgeManifestViaAPI(); err == nil && strings.TrimSpace(m.Version) != "" {
+		return m, nil
+	}
+	return fetchEdgeManifestViaRaw()
+}
+
+// fetchEdgeManifestViaAPI GETs version.json through the GitHub Contents API
+// with Accept: raw (raw file bytes, no base64 envelope). Non-200 (e.g.
+// 403/429 rate limit) or empty version is an error for raw fallback.
+func fetchEdgeManifestViaAPI() (versionManifest, error) {
 	var m versionManifest
 	client := &http.Client{Timeout: 15 * time.Second}
-	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().Unix())
+	req, err := http.NewRequest(http.MethodGet, githubAPIEdgeManifestURL, nil)
+	if err != nil {
+		return m, fmt.Errorf("could not reach update server: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.raw")
+	req.Header.Set("User-Agent", "ksedge-update-check")
+	req.Header.Set("Cache-Control", "no-cache")
+	req.Header.Set("Pragma", "no-cache")
+	httpResp, err := client.Do(req)
+	if err != nil {
+		return m, fmt.Errorf("could not reach update server: %w", err)
+	}
+	defer httpResp.Body.Close()
+	if httpResp.StatusCode != http.StatusOK {
+		return m, fmt.Errorf("update server returned HTTP %d", httpResp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(httpResp.Body, 1<<20))
+	if err != nil {
+		return m, fmt.Errorf("read manifest: %w", err)
+	}
+	if err := json.Unmarshal(body, &m); err != nil {
+		return m, fmt.Errorf("malformed manifest: %w", err)
+	}
+	if strings.TrimSpace(m.Version) == "" {
+		return m, fmt.Errorf("malformed manifest: empty version")
+	}
+	return m, nil
+}
+
+// fetchEdgeManifestViaRaw GETs version.json from raw.githubusercontent. The
+// `?t=` query is best-effort only (Fastly ignores it) and can serve up to
+// 300s-stale data — hence API-first above. The no-cache request headers are
+// likewise best-effort: Fastly still answers HIT with them set.
+func fetchEdgeManifestViaRaw() (versionManifest, error) {
+	var m versionManifest
+	client := &http.Client{Timeout: 15 * time.Second}
+	url := fmt.Sprintf("%s?t=%d", ksedgeVersionURL, time.Now().UnixNano())
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return m, fmt.Errorf("could not reach update server: %w", err)
