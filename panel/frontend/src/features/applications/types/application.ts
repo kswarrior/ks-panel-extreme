@@ -261,3 +261,97 @@ export interface ApplicationActivateConflict {
   pending: number;
   permissions: ApplicationPermission[];
 }
+
+// ---------------------------------------------------------------------------
+// Application Studio — visual + code manifest builder types (mirrors the Mod
+// Studio contract in shared/types/mod.ts).
+//
+// The Studio models an application as an editable "draft": the admin edits
+// structured builder blocks (no-code) OR types raw manifest JSON (pro-code),
+// previewing the produced manifest live. Saving the draft ships it through
+// the existing POST /api/applications/ + POST /:id/env endpoints (the same
+// ones the upload button uses), so the Studio is a GENERATOR, not a new
+// runtime — it does NOT bypass the security model.
+// ---------------------------------------------------------------------------
+
+// The full editable draft. It mirrors ApplicationUpsertPayload + the saved
+// env defaults so the Studio can emit everything createApplication needs in
+// one step. mainFile/command are kept separate for UX (custom runtimes need
+// a command, others need a file path); emitStudioPayload folds them into a
+// single entrypoint.
+export interface ApplicationStudioDraft {
+  name: string;
+  slug: string;
+  category: string;
+  version: string;
+  description: string;
+  icon: string;
+  color: string;
+  runtime: string;
+  mainFile: string;
+  command: string;
+  config_schema: ApplicationConfigField[];
+  env: Record<string, string>;
+  files: ApplicationFile[];
+  permissionsRequested: ApplicationPermissionReq[];
+}
+
+// The empty starter draft the Studio opens with.
+export const blankApplicationStudioDraft = (): ApplicationStudioDraft => ({
+  name: '',
+  slug: '',
+  category: 'custom',
+  version: '1.0.0',
+  description: '',
+  icon: '',
+  color: '',
+  runtime: 'nodejs',
+  mainFile: '',
+  command: '',
+  config_schema: [],
+  env: {},
+  files: [],
+  permissionsRequested: [],
+});
+
+// emitStudioPayload turns a draft into the exact payload createApplication
+// expects, plus the saved env defaults for the follow-up updateApplicationEnv
+// call. The entrypoint rule mirrors Applications.tsx handleStudioSave:
+// custom runtimes use command, others prefer mainFile (falling back to the
+// first script file).
+export function emitStudioPayload(draft: ApplicationStudioDraft): {
+  payload: ApplicationUpsertPayload;
+  env: Record<string, string>;
+} {
+  const mainFile = draft.mainFile.trim() ||
+    (draft.runtime !== 'custom' && draft.files.length > 0 ? draft.files[0].path : '');
+  const entrypoint = draft.runtime === 'custom' ? draft.command.trim() : mainFile;
+  return {
+    payload: {
+      name: draft.name,
+      slug: draft.slug,
+      category: draft.category,
+      version: draft.version,
+      description: draft.description,
+      icon: draft.icon.trim(),
+      color: draft.color.trim().toUpperCase(),
+      runtime: draft.runtime,
+      entrypoint,
+      config_schema: draft.config_schema,
+      files: draft.files.filter((f) => f.path.trim() && f.content !== undefined),
+      permissionsRequested: draft.permissionsRequested,
+    },
+    env: draft.env,
+  };
+}
+
+// slugify produces a URL-safe slug from a freeform name, matching the
+// convention the application system keys on. Mirrors mod slugify.
+export function slugifyApp(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
+}
