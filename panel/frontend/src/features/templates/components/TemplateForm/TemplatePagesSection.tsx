@@ -28,9 +28,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   onPageMove,
   onAddPages,
   sectionCls,
-  labelCls,
-  monoCls,
-  addBtn,
 }) => {
   const alreadyAddedSlugs = useMemo(
     () => new Set(pages.map((p) => p.slug)),
