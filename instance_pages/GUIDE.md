@@ -4,7 +4,16 @@
 > Covers every field, content type, action, component, sub-page, SDK, theme
 > and validation rule you need. Verified against the live codebase.
 
-**Scope:** `instance_pages/pages/*.json` + `marketplace.json` → embedded via `panel/backend/internal/pagelib` → stored in `instance_pages` DB → copied to `template.spec.pages[]` → snapshotted into `instance.config` → rendered by `panel/frontend/src/shared/components/ui/CustomPageView.tsx:11` + `panel/frontend/src/shared/lib/customPageSdk.ts:216`.
+**Scope:** `instance_pages/pages/*.yaml` + `marketplace.json` → embedded via `panel/backend/internal/pagelib` → stored in `instance_pages` DB → copied to `template.spec.pages[]` → snapshotted into `instance.config` → rendered by `panel/frontend/src/shared/components/ui/CustomPageView.tsx:11` + `panel/frontend/src/shared/lib/customPageSdk.ts:216`.
+
+> **Authoring format:** library files are **YAML** (`pages/*.yaml`) — literal
+> `|` blocks for HTML/JS/markdown, native lists for
+> `actions`/`sub_pages`/`components`/`configure`, `#` comments allowed.
+> Legacy `pages/*.json` still imports everywhere. The **stored/wire shape**
+> (DB columns, `template.spec`, Studio export, API bodies) remains JSON with
+> those lists as JSON-encoded strings — the backend normalizes YAML to that
+> shape on import (`pagelib.NormalizePageBytes`). JSON snippets below show
+> the stored shape; for the authoring equivalent open any `pages/*.yaml`.
 
 Legacy `kind: "builtin"` was removed in migration `046_instance_pages_drop_builtin.sql` — only `kind: "custom"` is accepted (`panel/backend/internal/api/handlers/instance_page_handler.go:75`).
 
@@ -47,21 +56,23 @@ repo/
     GUIDE.md           ← this file
     marketplace.json   ← catalog whose download_url points at raw GitHub
     pages/
-      *.json           ← ONE JSON file per page (canonical library)
-      home.json        ← reserved "." slug → instance index route
-      files.json       ← example with sub_pages
-      minecraft-properties.json (stateful React page; the library starts small — add more via Studio)
-    *.json (top-level) ← legacy override — still read but new pages belong in pages/
+      *.yaml           ← ONE YAML file per page (canonical library)
+      files.yaml       ← example with sub_pages
+      minecraft-properties.yaml (stateful React page; the library starts small — add more via Studio)
+    *.json (top-level) ← legacy override — still read but new pages belong in pages/ as YAML
 
-Build: rebuild.sh → sync_pagelib() copies marketplace.json + pages/*.json
-       into panel/backend/internal/pagelib/library/ → go:embed all:library
-       → kspanel binary carries pages even when instance_pages/ is absent on disk.
+Build: rebuild.sh → sync_pagelib() copies marketplace.json + pages/*.yaml
+       (+ any legacy *.json) into panel/backend/internal/pagelib/library/
+       → go:embed all:library → kspanel binary carries pages even when
+       instance_pages/ is absent on disk.
 
 Runtime read order (panel/backend/internal/pagelib/pagelib.go:98):
-  1. instance_pages/pages/<name>   (disk canonical)
+  1. instance_pages/pages/<name>   (disk canonical, *.yaml preferred —
+     a stale *.json sharing the stem never shadows its *.yaml)
   2. instance_pages/<name>         (disk legacy)
   3. embedded library/pages/<name> (binary fallback)
-  name is bare basename, no "/" or ".." allowed.
+  name is a bare basename with a .yaml/.yml/.json extension;
+  no "/" or ".." allowed.
 ```
 
 Empty-by-default: a template exposes **no** sidebar tabs until you link pages. An instance's `config` is a deploy-time snapshot — editing the library later does not affect already-deployed instances until you re-link.
@@ -70,9 +81,33 @@ Empty-by-default: a template exposes **no** sidebar tabs until you link pages. A
 
 ## 2) File Format & Minimal Templates
 
-Every page is a single JSON object. Only `name`, `slug` and `content_type` + one `content_*` are strictly required; everything else is optional but should be set for production pages.
+Author new pages as **YAML** (`instance_pages/pages/<slug>.yaml`). Every page
+is a single YAML document; only `name`, `slug` and `content_type` + one
+`content_*` are strictly required. Multiline content uses `|` literal
+blocks, lists are native YAML, `#` comments are allowed, and empty
+placeholders are omitted:
 
-### 2.1 Raw JSON shape (stored on disk / in DB)
+```yaml
+# files.yaml (excerpt) — the real file is the reference implementation
+name: Files
+slug: files
+kind: custom
+category: management
+description: File manager with upload, download, copy, rename, …
+content_type: html
+content_html: |
+  <style id="ks-instance-theme-support">…</style>
+  <div class="ks-page">…raw HTML, zero escaping…</div>
+icon_svg: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>
+sub_pages:
+  - path: edit
+    name: Editor
+    content_type: html
+    content_html: |
+      <div>…</div>
+```
+
+### 2.1 Stored JSON shape (DB / API / Studio export)
 
 ```json
 {
@@ -93,7 +128,7 @@ Every page is a single JSON object. Only `name`, `slug` and `content_type` + one
 }
 ```
 
-Note: `actions` / `sub_pages` / `components` are **JSON-encoded strings** on disk and in the `instance_pages` DB (`panel/backend/internal/models/instance.go:56`). When copied into `template.spec.pages[]` they become inline arrays (`panel/frontend/src/features/templates/types/templateForm.ts:136`).
+Note: `actions` / `sub_pages` / `components` are **JSON-encoded strings** in storage and in the `instance_pages` DB (`panel/backend/internal/models/instance.go:56`). In YAML library files they are native lists (normalized on import); when copied into `template.spec.pages[]` they become inline arrays (`panel/frontend/src/features/templates/types/templateForm.ts:136`).
 
 ### 2.2 Minimal working examples per content_type
 
@@ -146,7 +181,7 @@ Note: `actions` / `sub_pages` / `components` are **JSON-encoded strings** on dis
 }
 ```
 
-Save any of these as `instance_pages/pages/<slug>.json` and run `rebuild.sh` to embed, or import via Studio / API (see §13).
+Save the YAML form as `instance_pages/pages/<slug>.yaml` and run `rebuild.sh` to embed, or import via Studio / API (see §13). The JSON snippets below show the equivalent stored shape.
 
 ---
 
@@ -347,7 +382,8 @@ Example `content_blocks` JSON string (pretty-printed, then minified for storage)
 ]
 ```
 
-Stored as a single-line JSON string: replace newlines with `\n` and wrap in quotes for the `content_blocks` field (see `instance_pages/pages/complete-example.json:10`).
+Stored as a JSON array string in the DB; in YAML library files write it as a
+native list (see `instance_pages/pages/*.yaml`).
 
 ---
 
@@ -518,7 +554,7 @@ Studio → **Sub-pages** tab (`PageStudioSubPagesSection.tsx:23`): collapsible c
 
 ### 9.5 Real example — Files with Editor sub-page
 
-`instance_pages/pages/files.json:12` `sub_pages` carries `path: "edit"` with its own `content_html` (full editor UI that `fetchPanel` + `writeFile` via `KSPageSDK`). Navigation:
+`instance_pages/pages/files.yaml` `sub_pages` carries `path: "edit"` with its own `content_html` (full editor UI that `fetchPanel` + `writeFile` via `KSPageSDK`). Navigation:
 
 ```js
 KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app.conf`)
@@ -544,7 +580,7 @@ KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app
       "author": "kswarrior",
       "version": "1.0",
       "tags": ["documentation"],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/api-reference.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/api-reference.yaml",
       "icon_svg": "<path d=\"...\"/>",
       "preview_image": ""
     }
