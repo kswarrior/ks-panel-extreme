@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import GlassModal from '@/shared/components/ui/Modal';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { ICON_PRESETS, COLOR_SWATCHES } from '@/features/instances/types/instanceForm';
@@ -37,6 +38,9 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
   addBtn,
 }) => {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  // Icon sub-page modal (instance-form icon system) — index of the action
+  // being edited, null = closed.
+  const [iconModalIdx, setIconModalIdx] = useState<number | null>(null);
   const move = (i: number, dir: -1 | 1) => { onActionMove?.(i, dir); };
 
   // Known instance states for the allowed-states chips. Toggling a chip
@@ -136,8 +140,7 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                       <input value={a.description} onChange={(e) => onActionUpdate(i, { description: e.target.value })} placeholder="Boot the Java process and patch the world seed" className={glassFieldClass} />
                     </div>
                     <div className="pt-1">
-                      <label className="block text-[11px] text-gray-500 mb-0.5">Icon & colour (shown on action tiles and menus)</label>
-                      <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
+                      <div className="flex items-center gap-2.5">
                         <span
                           className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
                           style={a.icon_color ? { color: a.icon_color } : undefined}
@@ -147,47 +150,89 @@ export const TemplateActionsSection: React.FC<ActionsSectionProps> = ({
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-gray-500"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
                           )}
                         </span>
-                        <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
-                          {ICON_PRESETS.map((p) => (
-                            <button
-                              key={p.value || 'none'}
-                              type="button"
-                              onClick={() => onActionUpdate(i, { icon_svg: p.svg })}
-                              className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${a.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
-                              title={p.label || 'No icon'}
-                            >
-                              {p.svg ? (
-                                <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
-                              ) : (
-                                <span className="text-[11px] text-gray-400 px-0.5">∅</span>
-                              )}
-                              <span className="text-[11px] text-gray-300">{p.label || 'None'}</span>
-                            </button>
-                          ))}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] text-gray-200 font-medium">Icon &amp; colour</p>
+                          <p className="text-[11px] text-gray-500 truncate">Shown on action tiles and menus</p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setIconModalIdx(i)}
+                          title="Edit action icon & colour"
+                          className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+                          Icon
+                        </button>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
-                        <input value={a.icon_svg || ''} onChange={(e) => onActionUpdate(i, { icon_svg: e.target.value })} placeholder="…or paste custom SVG markup" className={monoCls} />
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {COLOR_SWATCHES.map((c) => (
-                            <button
-                              key={c.value || 'none'}
-                              type="button"
-                              onClick={() => onActionUpdate(i, { icon_color: c.value })}
-                              className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${a.icon_color === c.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
-                              style={{ backgroundColor: c.value || 'transparent' }}
-                              title={c.label || 'No colour'}
+                      <GlassModal
+                        open={iconModalIdx === i}
+                        onClose={() => setIconModalIdx(null)}
+                        title="Action icon & colour"
+                        maxWidth="max-w-lg"
+                        footer={
+                          <>
+                            <button onClick={() => setIconModalIdx(null)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+                            <button onClick={() => setIconModalIdx(null)} className="ks-btn-form ks-btn-primary">Done</button>
+                          </>
+                        }
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 shrink-0 [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                            style={a.icon_color ? { color: a.icon_color } : undefined}
+                            aria-hidden="true"
+                          >
+                            {actionIcon(a.icon_svg, a.icon_color, 'flex items-center justify-center [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block', 'w-6 h-6') || (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-gray-500"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
+                            )}
+                          </span>
+                          <p className="text-xs text-gray-500">Live preview — pick a preset or paste custom SVG below.</p>
+                        </div>
+                        <div>
+                          <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
+                          <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
+                            {ICON_PRESETS.map((p) => (
+                              <button
+                                key={p.value || 'none'}
+                                type="button"
+                                onClick={() => onActionUpdate(i, { icon_svg: p.svg })}
+                                className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${a.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                                title={p.label || 'No icon'}
+                              >
+                                {p.svg ? (
+                                  <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                                ) : (
+                                  <span className="text-[11px] text-gray-400 px-0.5">∅</span>
+                                )}
+                                <span className="text-[11px] text-gray-300">{p.label || 'None'}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {COLOR_SWATCHES.map((c) => (
+                              <button
+                                key={c.value || 'none'}
+                                type="button"
+                                onClick={() => onActionUpdate(i, { icon_color: c.value })}
+                                className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${a.icon_color === c.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                                style={{ backgroundColor: c.value || 'transparent' }}
+                                title={c.label || 'No colour'}
+                              />
+                            ))}
+                            <input
+                              type="color"
+                              value={/^#[0-9a-fA-F]{6}$/.test(a.icon_color || '') ? (a.icon_color as string) : '#a78bfa'}
+                              onChange={(e) => onActionUpdate(i, { icon_color: e.target.value })}
+                              className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
+                              title="Custom colour"
                             />
-                          ))}
-                          <input
-                            type="color"
-                            value={/^#[0-9a-fA-F]{6}$/.test(a.icon_color || '') ? (a.icon_color as string) : '#a78bfa'}
-                            onChange={(e) => onActionUpdate(i, { icon_color: e.target.value })}
-                            className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
-                            title="Custom colour"
-                          />
+                          </div>
                         </div>
-                      </div>
+                        <input value={a.icon_svg || ''} onChange={(e) => onActionUpdate(i, { icon_svg: e.target.value })} placeholder="…or paste custom SVG markup" className={monoCls} />
+                      </GlassModal>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div className="sm:col-span-1">

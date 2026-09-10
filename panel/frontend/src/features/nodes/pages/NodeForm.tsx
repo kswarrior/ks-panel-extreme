@@ -799,8 +799,6 @@ const NodeForm: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              </div>
-            </div>
             {showCustomIcon && (
               <div>
                 <label htmlFor="node_icon_custom" className="block text-sm font-medium text-gray-200 mb-1">Custom SVG</label>
@@ -838,7 +836,7 @@ const NodeForm: React.FC = () => {
                 {!colorOk && <p className="text-xs text-red-400 mt-1">Color must be a #rrggbb hex value</p>}
               </div>
             )}
-          </div>
+          </GlassModal>
 
           <div className="ks-card ks-form-card rounded-md space-y-3">
             <div>
