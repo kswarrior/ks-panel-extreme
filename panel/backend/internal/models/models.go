@@ -75,6 +75,61 @@ type Role struct {
 	Description string   `json:"description"`
 	Icon        string   `json:"icon"`
 	Permissions []string `json:"permissions,omitempty"`
+	// OwnerID ties the role to the user that authored it. Migration 054
+	// wires the ROLES_OWN / ROLES_ALL scope keys: an Own role only sees
+	// rows where OwnerID = caller; All / umbrella keep the full list.
+	// Zero = pre-054 row (orphan) — every role created before this
+	// migration lands with NULL and stays visible only to admins.
+	OwnerID int64 `json:"owner_id,omitempty"`
+	// OwnerName is the denormalised username so the admin Roles list
+	// can render "alice" instead of just the integer id.
+	OwnerName string `json:"owner_name,omitempty"`
+	// AllowedAuthTypes is the admin-curated subset of the admin-enabled
+	// authority providers that users WITH THIS ROLE are allowed to turn
+	// on for their own login (see UserAuthorityConfig). nil/missing
+	// (serialized as JSON null) === "unrestricted" — every admin-enabled
+	// authority is offered; an explicit empty slice (serialized as `[]`)
+	// === the role disallows every non-password authority; non-empty
+	// === the curated subset. Kept on the role (not as a permission key)
+	// because it's a per-role data attribute, not a CRUD verb. Persisted
+	// as a per-role settings-KV JSON blob (migration-free) so repo reads
+	// populate it transparently. The omitempty tag is intentionally
+	// ABSENT so the null vs [] distinction round-trips over the wire.
+	AllowedAuthTypes []string `json:"allowed_auth_types"`
+	// Quotas caps how many resources EACH user with this role may own
+	// (per-user counting via owner_id/user_id/created_by). Nil/missing =
+	// unlimited (0/omitted per field). E.g. MaxInstances=2 blocks the 3rd
+	// deploy with 403. Persisted as settings-KV `role_quotas:<id>`
+	// (migration-free, like AllowedAuthTypes). See role_quota_repo.go.
+	Quotas *RoleQuotas `json:"quotas,omitempty"`
+	// AllowLists restricts WHICH foreign resources the role may use
+	// (dropdown pickers in the Limits section). Nil = unrestricted.
+	// Explicit empty = deny-all. Persisted as `role_allowlists:<id>`.
+	AllowLists *RoleAllowLists `json:"allow_lists,omitempty"`
+}
+
+// RoleQuotas caps per-user owned counts (0/omitted = unlimited).
+type RoleQuotas struct {
+	MaxInstances     int `json:"max_instances,omitempty"`
+	MaxNodes         int `json:"max_nodes,omitempty"`
+	MaxTemplates     int `json:"max_templates,omitempty"`
+	MaxAPIKeys       int `json:"max_api_keys,omitempty"`
+	MaxUsers         int `json:"max_users,omitempty"`
+	MaxRoles         int `json:"max_roles,omitempty"`
+	MaxMods          int `json:"max_mods,omitempty"`
+	MaxApplications  int `json:"max_applications,omitempty"`
+	MaxStacks        int `json:"max_stacks,omitempty"`
+	MaxInstancePages int `json:"max_instance_pages,omitempty"`
+	MaxTickets       int `json:"max_tickets,omitempty"`
+}
+
+// RoleAllowLists restricts which foreign resources a role may use.
+type RoleAllowLists struct {
+	AllowedTemplateIDs []int64  `json:"allowed_template_ids,omitempty"`
+	AllowedNodeIDs     []int64  `json:"allowed_node_ids,omitempty"`
+	AllowedKinds       []string `json:"allowed_kinds,omitempty"`
+	AllowedRoleIDs     []int64  `json:"allowed_role_ids,omitempty"`
+	AllowedCategories  []string `json:"allowed_categories,omitempty"`
 }
 
 type Permission struct {

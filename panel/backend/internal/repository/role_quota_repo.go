@@ -5,7 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/example/kspanel/internal/models"
 )
+
+// Re-export the wire structs so handlers can refer to repository.RoleQuotas
+// without importing models directly. The canonical definitions live in
+// internal/models (Role.Quotas / Role.AllowLists).
+type RoleQuotas = models.RoleQuotas
+type RoleAllowLists = models.RoleAllowLists
 
 // Role quotas + allow-lists — the "powerful system" behind the Roles form
 // Limits section (number inputs + dropdown pickers, not just toggles).
