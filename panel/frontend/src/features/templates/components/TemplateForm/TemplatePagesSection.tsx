@@ -140,10 +140,13 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
               sub_pages: parseSubPages(p.sub_pages).map((sub) => ({
                 path: sub.path,
                 name: sub.name,
-                content_type: (['html', 'markdown', 'blocks'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks',
+                content_type: (['html', 'markdown', 'blocks', 'react'].includes(sub.content_type) ? sub.content_type : 'html') as 'html' | 'markdown' | 'blocks' | 'react',
                 content_html: sub.content_html || '',
                 content_markdown: sub.content_markdown || '',
                 content_blocks: sub.content_blocks || '',
+                ...((sub as any).source_tsx ? { source_tsx: (sub as any).source_tsx } : {}),
+                ...((sub as any).bundle_js ? { bundle_js: (sub as any).bundle_js } : {}),
+                ...((sub as any).bundle_css ? { bundle_css: (sub as any).bundle_css } : {}),
               })),
             }
           : {}),

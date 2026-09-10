@@ -235,6 +235,9 @@ export function serializeSpec(f: TemplateFormState): string {
           ...(s.content_html ? { content_html: s.content_html } : {}),
           ...(s.content_markdown ? { content_markdown: s.content_markdown } : {}),
           ...(s.content_blocks ? { content_blocks: s.content_blocks } : {}),
+          ...((s as any).source_tsx ? { source_tsx: (s as any).source_tsx } : {}),
+          ...((s as any).bundle_js ? { bundle_js: (s as any).bundle_js } : {}),
+          ...((s as any).bundle_css ? { bundle_css: (s as any).bundle_css } : {}),
         }));
       }
       return out;
@@ -647,10 +650,13 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
                   .map((s: any) => ({
                     path: String(s.path),
                     name: String(s.name ?? s.path),
-                    content_type: (['html', 'markdown', 'blocks'].includes(s.content_type) ? s.content_type : 'html') as 'html' | 'markdown' | 'blocks',
+                    content_type: (['html', 'markdown', 'blocks', 'react'].includes(s.content_type) ? s.content_type : 'html') as 'html' | 'markdown' | 'blocks' | 'react',
                     content_html: typeof s.content_html === 'string' ? s.content_html : '',
                     content_markdown: typeof s.content_markdown === 'string' ? s.content_markdown : '',
                     content_blocks: typeof s.content_blocks === 'string' ? s.content_blocks : '',
+                    ...(typeof s.source_tsx === 'string' && s.source_tsx !== '' ? { source_tsx: s.source_tsx } : {}),
+                    ...(typeof s.bundle_js === 'string' && s.bundle_js !== '' ? { bundle_js: s.bundle_js } : {}),
+                    ...(typeof s.bundle_css === 'string' && s.bundle_css !== '' ? { bundle_css: s.bundle_css } : {}),
                   })),
               }
             : {}),

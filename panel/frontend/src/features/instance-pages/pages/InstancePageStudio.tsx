@@ -355,6 +355,7 @@ const InstancePageStudio: React.FC = () => {
       };
     }
     return {
+      type: (page.content_type || 'html') as PageContent['type'],
       html: page.content_html,
       markdown: page.content_markdown,
       blocks: page.content_blocks,
