@@ -127,12 +127,20 @@ func runImportTemplate(cmd *cobra.Command, args []string) error {
 	print.OK("ready", "schema present")
 
 	repo := repository.NewTemplateRepository(con)
+	// Canonical storage is YAML: normalize the canned spec so the row lands
+	// as YAML even if a future builtin is authored as JSON (JSON parses as
+	// YAML, so this is a no-op for already-canonical rows).
+	yamlSpec, nerr := specyaml.NormalizeToYAML(builtin.Spec)
+	if nerr != nil {
+		print.Fail("spec", "built-in spec is not valid YAML/JSON: "+nerr.Error())
+		return fmt.Errorf("built-in spec invalid: %w", nerr)
+	}
 	in := repository.TemplateInput{
 		Name:        builtin.Name,
 		Description: builtin.Description,
 		Kind:        builtin.Kind,
 		Image:       builtin.Image,
-		Spec:        builtin.Spec,
+		Spec:        yamlSpec,
 	}
 
 	print.Step("template", fmt.Sprintf("%s (%s, %s)", builtin.Name, builtin.Kind, builtin.Image))
