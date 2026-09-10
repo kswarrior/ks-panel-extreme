@@ -402,6 +402,10 @@ const InstancePageStudio: React.FC = () => {
     if (compErr) { setError(compErr); return; }
     const cfgErr = validateConfigureRows(configure);
     if (cfgErr) { setError(cfgErr); return; }
+    if ((page.content_type as string) === 'react' && !((page as any).source_tsx ?? '').trim()) {
+      setError('React pages need source before saving (React tab → Starter).');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -416,6 +420,8 @@ const InstancePageStudio: React.FC = () => {
         content_html: page.content_html ?? '',
         content_markdown: page.content_markdown ?? '',
         content_blocks: page.content_blocks ?? '',
+        source_tsx: (page as any).source_tsx ?? '',
+        bundle_css: (page as any).bundle_css ?? '',
         icon_svg: page.icon_svg ?? '',
         icon_color: iconColor.toUpperCase(),
         actions: JSON.stringify(actionDefs),
@@ -449,6 +455,8 @@ const InstancePageStudio: React.FC = () => {
       content_html: page.content_html ?? '',
       content_markdown: page.content_markdown ?? '',
       content_blocks: page.content_blocks ?? '',
+      source_tsx: (page as any).source_tsx ?? '',
+      bundle_css: (page as any).bundle_css ?? '',
       icon_svg: page.icon_svg ?? '',
       icon_color: (page as any).icon_color ?? '',
       actions: actionDefs,
@@ -484,10 +492,12 @@ const InstancePageStudio: React.FC = () => {
         category: typeof data.category === 'string' ? data.category : p.category,
         type: typeof data.type === 'string' ? data.type : p.type,
         description: typeof data.description === 'string' ? data.description : p.description,
-        content_type: ['html', 'markdown', 'blocks'].includes(data.content_type) ? data.content_type : p.content_type,
+        content_type: ['html', 'markdown', 'blocks', 'react'].includes(data.content_type) ? data.content_type : p.content_type,
         content_html: typeof data.content_html === 'string' ? data.content_html : p.content_html,
         content_markdown: typeof data.content_markdown === 'string' ? data.content_markdown : p.content_markdown,
         content_blocks: typeof data.content_blocks === 'string' ? data.content_blocks : p.content_blocks,
+        source_tsx: typeof (data as any).source_tsx === 'string' ? (data as any).source_tsx : (p as any).source_tsx,
+        bundle_css: typeof (data as any).bundle_css === 'string' ? (data as any).bundle_css : (p as any).bundle_css,
         icon_svg: typeof data.icon_svg === 'string' ? data.icon_svg : p.icon_svg,
         icon_color: typeof (data as any).icon_color === 'string' ? (data as any).icon_color : (p as any).icon_color,
         actions: Array.isArray(data.actions) ? JSON.stringify(data.actions) : p.actions,
@@ -526,7 +536,7 @@ const InstancePageStudio: React.FC = () => {
     );
   }
 
-  const contentType = (page.content_type || 'html') as 'html' | 'markdown' | 'blocks';
+  const contentType = (page.content_type || 'html') as 'html' | 'markdown' | 'blocks' | 'react';
 
   // Preview panel shared by the normal Preview tab and full-screen mode.
   // Delegated to PageStudioPreviewSection for consistency with template split.
