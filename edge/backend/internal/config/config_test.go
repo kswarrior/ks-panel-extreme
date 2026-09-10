@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestLoadYAML(t *testing.T) {
+func TestLoadTOML(t *testing.T) {
 	dir := t.TempDir()
 	raw := "# edge config\nuuid = \"u1\"\nname = \"e1\"\npanel_url = \"https://p.example\"\ntoken = \"kse_abc\"\nlisten_port = 4041\nuse_tls_upstream = true\nheartbeat_interval = 30\nskip_verify = false\ninstances_dir = \"/data/inst\"\nconnection_mode = \"reverse_tunnel\"\n"
 	p := filepath.Join(dir, "config.toml")
