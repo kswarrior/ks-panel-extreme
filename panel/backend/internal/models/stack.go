@@ -60,6 +60,17 @@ type Stack struct {
 	RemoteAddress    string `json:"remote_address,omitempty"`
 	RemoteUseTLS     bool   `json:"remote_use_tls"`
 	RemoteSkipVerify bool   `json:"remote_skip_verify"`
+	// ServePort is a second TCP port the PANEL itself opens: the dash app
+	// is served at the origin root there (localhost:6901/ IS the dash).
+	// 0 = port serving off (the /<root> path mount is independent).
+	// ServeAuth gates the port behind the panel login (unauthenticated
+	// browsers bounce to the login page, then land on the dash).
+	// ServeTheme shares the panel theme with the dash, read-only: the
+	// proxy stamps X-Panel-Theme(-Name) and the dash applies it only when
+	// its own config enables theme support. Migration 077.
+	ServePort  int  `json:"serve_port"`
+	ServeAuth  bool `json:"serve_auth"`
+	ServeTheme bool `json:"serve_theme"`
 	// TokenPrefix is the first 8 chars of the pairing token so the operator
 	// can recognise which token is configured (the raw token is returned
 	// only at create/rotate time, never again — mirrors nodes).
@@ -137,6 +148,15 @@ var stackProxyRootRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
 // ValidStackProxyPort reports whether port is a usable proxy target.
 // 0 disables the proxy; otherwise a TCP port number is required.
 func ValidStackProxyPort(port int) bool {
+	return port == 0 || (port >= 1 && port <= 65535)
+}
+
+// ValidStackServePort reports whether port is a usable panel-opened serve
+// port. 0 disables port serving; otherwise a TCP port number is required.
+// Privileged ports (<1024) pass validation — the reconciler reports the
+// bind failure in the log and the detail page shows serve_listening=false
+// instead of failing the save for operators who run as root.
+func ValidStackServePort(port int) bool {
 	return port == 0 || (port >= 1 && port <= 65535)
 }
 

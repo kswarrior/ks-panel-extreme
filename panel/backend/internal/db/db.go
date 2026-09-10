@@ -759,6 +759,22 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "077_stack_serve_port.sql":
+			// Panel-opened per-stack serve port + auth/theme toggles
+			// (serve_port/serve_auth/serve_theme on stacks, migration
+			// 077). Bare ADD COLUMN on sqlite/mysql like 076, so the
+			// runtime guard owns convergence — mirrors 076_stack_nodes.
+			if err := guardedAddColumns(d, db, name, "stacks", []columnSpec{
+				{"serve_port", "INTEGER NOT NULL DEFAULT 0"},
+				{"serve_auth", "INTEGER NOT NULL DEFAULT 1"},
+				{"serve_theme", "INTEGER NOT NULL DEFAULT 1"},
+			}); err != nil {
+				return err
+			}
+			if err := guardedCreateIndex(d, db, name, "stacks", "idx_stacks_serve_port", "serve_port"); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
