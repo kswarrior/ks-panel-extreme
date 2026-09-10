@@ -1238,6 +1238,22 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			s, _ := pm["slug"].(string)
 			if s == page.Slug {
 				// Main row of this family: replace with the fresh copy.
+				// Per-template Configure values live only on the spec row
+				// (the library carries just definitions + defaults), so a
+				// re-link must not wipe them — carry the existing
+				// config/configure_values forward onto the fresh entry.
+				if _, hasConfig := pageEntry["config"]; !hasConfig {
+					if existing, ok := pm["config"].(map[string]any); ok && len(existing) > 0 {
+						pageEntry["config"] = existing
+					} else if raw, ok := pm["config"].(map[string]string); ok && len(raw) > 0 {
+						pageEntry["config"] = raw
+					}
+				}
+				if _, hasLegacy := pageEntry["configure_values"]; !hasLegacy {
+					if existing, ok := pm["configure_values"]; ok && existing != nil {
+						pageEntry["configure_values"] = existing
+					}
+				}
 				out = append(out, pageEntry)
 				replaced = true
 				continue
