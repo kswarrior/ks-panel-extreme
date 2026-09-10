@@ -28,7 +28,7 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 	if n == 0 {
 		return out, nil
 	}
-	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, COALESCE(p.icon_color, ''), p.actions, p.sub_pages, p.components, p.configure, p.created_at, p.updated_at,
+	rows, err := r.db.Query(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, COALESCE(p.icon_color, ''), p.actions, p.sub_pages, p.components, p.configure, COALESCE(p.source_tsx, ''), COALESCE(p.bundle_js, ''), COALESCE(p.bundle_css, ''), COALESCE(p.build_status, ''), COALESCE(p.build_log, ''), p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
 		COALESCE(p.source, 'studio'),
@@ -43,16 +43,22 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 		var p models.InstancePage
 		var created, updated string
 		var actions, subPages, components, configure sql.NullString
+		var sourceTSX, bundleJS, bundleCSS, buildStatus, buildLog sql.NullString
 		var ownerID sql.NullInt64
 		var ownerName sql.NullString
 		var source, marketID, marketVersion sql.NullString
-		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &p.IconColor, &actions, &subPages, &components, &configure, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Slug, &p.Kind, &p.Category, &p.PageType, &p.Description, &p.ContentType, &p.ContentHTML, &p.ContentMarkdown, &p.ContentBlocks, &p.IconSVG, &p.IconColor, &actions, &subPages, &components, &configure, &sourceTSX, &bundleJS, &bundleCSS, &buildStatus, &buildLog, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion); err != nil {
 			return nil, err
 		}
 		p.Actions = actions.String
 		p.SubPages = subPages.String
 		p.Components = components.String
 		p.Configure = configure.String
+		p.SourceTSX = sourceTSX.String
+		p.BundleJS = bundleJS.String
+		p.BundleCSS = bundleCSS.String
+		p.BuildStatus = buildStatus.String
+		p.BuildLog = buildLog.String
 		p.Source = source.String
 		p.MarketID = marketID.String
 		p.MarketVersion = marketVersion.String
@@ -71,15 +77,15 @@ func (r *InstancePageRepository) List() ([]models.InstancePage, error) {
 func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	var p models.InstancePage
 	var pid, ownerID sql.NullInt64
-	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, iconColor, actions, subPages, components, configure, created, updated, ownerName, source, marketID, marketVersion sql.NullString
-	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, COALESCE(p.icon_color, ''), p.actions, p.sub_pages, p.components, p.configure, p.created_at, p.updated_at,
+	var name, slug, kind, category, pageType, desc, contentType, contentHTML, contentMarkdown, contentBlocks, iconSVG, iconColor, actions, subPages, components, configure, sourceTSX, bundleJS, bundleCSS, buildStatus, buildLog, created, updated, ownerName, source, marketID, marketVersion sql.NullString
+	err := r.db.QueryRow(`SELECT p.id, p.name, p.slug, p.kind, p.category, p.page_type, p.description, p.content_type, p.content_html, p.content_markdown, p.content_blocks, p.icon_svg, COALESCE(p.icon_color, ''), p.actions, p.sub_pages, p.components, p.configure, COALESCE(p.source_tsx, ''), COALESCE(p.bundle_js, ''), COALESCE(p.bundle_css, ''), COALESCE(p.build_status, ''), COALESCE(p.build_log, ''), p.created_at, p.updated_at,
 		COALESCE(p.owner_id, 0),
 		COALESCE((SELECT username FROM users WHERE id = p.owner_id), ''),
 		COALESCE(p.source, 'studio'),
 		COALESCE(p.market_id, ''),
 		COALESCE(p.market_version, '')
 		FROM instance_pages p WHERE p.id = ?`, id).Scan(
-		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &iconColor, &actions, &subPages, &components, &configure, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
+		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &iconColor, &actions, &subPages, &components, &configure, &sourceTSX, &bundleJS, &bundleCSS, &buildStatus, &buildLog, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
 	if err != nil || !pid.Valid {
 		return nil, fmt.Errorf("instance page not found")
 	}
@@ -104,6 +110,11 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 	p.SubPages = subPages.String
 	p.Components = components.String
 	p.Configure = configure.String
+	p.SourceTSX = sourceTSX.String
+	p.BundleJS = bundleJS.String
+	p.BundleCSS = bundleCSS.String
+	p.BuildStatus = buildStatus.String
+	p.BuildLog = buildLog.String
 	p.Source = source.String
 	p.MarketID = marketID.String
 	p.MarketVersion = marketVersion.String
@@ -141,6 +152,17 @@ type InstancePageInput struct {
 	// Configure is a JSON array of page-level env-style var definitions
 	// ("" == none). The caller validates shape; see validateInstancePage.
 	Configure string
+	// SourceTSX is the author React JS source for content_type == "react"
+	// ("" == non-React page). Migration 075.
+	SourceTSX string
+	// BundleJS/BundleCSS are validated build outputs ("" == not built).
+	// Migration 075.
+	BundleJS  string
+	BundleCSS string
+	// BuildStatus is "" | "building" | "ok" | "error". Migration 075.
+	BuildStatus string
+	// BuildLog carries the last build output. Migration 075.
+	BuildLog string
 	// OwnerID ties the page to the user that authored it. Migration 054
 	// wires the INSTANCE_PAGES_OWN / _ALL scope keys; see the
 	// handler for the full contract.
@@ -163,11 +185,11 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 	var res sql.Result
 	var err error
 	if in.OwnerID != 0 {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.OwnerID, in.Source, in.MarketID, in.MarketVersion)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, source_tsx, bundle_js, bundle_css, build_status, build_log, icon_svg, icon_color, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.SourceTSX, in.BundleJS, in.BundleCSS, in.BuildStatus, in.BuildLog, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.OwnerID, in.Source, in.MarketID, in.MarketVersion)
 	} else {
-		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion)
+		res, err = r.db.Exec(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, source_tsx, bundle_js, bundle_css, build_status, build_log, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.SourceTSX, in.BundleJS, in.BundleCSS, in.BuildStatus, in.BuildLog, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion)
 	}
 	if err != nil {
 		return 0, err
@@ -175,7 +197,9 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 	return res.LastInsertId()
 }
 
-// Update patches an editable instance page.
+// Update patches an editable instance page. React bundle columns are owned
+// by the build endpoint, not by Update — Update preserves them so a plain
+// Studio save never clobbers a good build. Use UpdateBuild to write them.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
 	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, icon_color = ?, actions = ?, sub_pages = ?, components = ?, configure = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion, id)
