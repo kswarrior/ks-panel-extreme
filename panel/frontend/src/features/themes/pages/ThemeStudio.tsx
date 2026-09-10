@@ -240,7 +240,7 @@ const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactN
   { key: 'forms', label: 'Forms', hint: 'Inputs, checks & toggles', icon: ICON_FORMS },
   { key: 'components', label: 'Components', hint: 'Modals, glass & chrome', icon: ICON_COMPONENTS },
   { key: 'utilities', label: 'Utilities', hint: 'Tokens, shadows & z-index', icon: ICON_UTILITIES },
-  { key: 'cards', label: 'Cards', hint: 'List, stat & form cards', icon: ICON_CARD },
+  { key: 'cards', label: 'Cards', hint: 'List, stat, form, row & page cards', icon: ICON_CARD },
   { key: 'customCSS', label: 'Custom CSS', hint: 'Raw CSS, global & scoped', icon: ICON_CSS },
   { key: 'market', label: 'Market', hint: 'Browse & install themes', icon: ICON_MARKET },
   { key: 'history', label: 'History', hint: 'Versions & restore', icon: ICON_HISTORY },
