@@ -18,6 +18,7 @@ import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
+import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
@@ -36,8 +37,8 @@ function kindKey(k: string): KindKey {
 }
 
 function parseSpec(raw: string): Record<string, any> {
-  if (!raw) return {};
-  try { return JSON.parse(raw) as Record<string, any>; } catch { return {}; }
+  // Template specs are canonical YAML (legacy JSON parses identically).
+  return parseSpecDocument(raw);
 }
 
 // Zero time from the API (Go's 0001-01-01T00:00:00Z) parses as a valid Date
@@ -113,7 +114,7 @@ const Templates: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${t.name}.json`;
+      a.download = `${t.name}.yaml`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -128,8 +129,11 @@ const Templates: React.FC = () => {
     setUploadFile(file);
     setUploadError('');
     file.text().then((txt) => {
+      // Manifests are YAML (legacy JSON parses identically); the panel
+      // re-validates server-side, this is only the preview card.
       let parsed: Record<string, any> | null = null;
-      try { parsed = JSON.parse(txt) as Record<string, any>; } catch { /* */ }
+      const doc = parseSpecDocument(txt);
+      if (doc && Object.keys(doc).length > 0) parsed = doc;
       if (!parsed && /\.ya?ml$/i.test(file.name || '')) {
         // YAML manifests are validated server-side; sniff top-level
         // key: value lines for the preview card only.
@@ -142,7 +146,7 @@ const Templates: React.FC = () => {
       }
       if (!parsed) {
         setUploadParsed(null);
-        setUploadError('File is not valid JSON or YAML. A template manifest must be .json or .yaml/.yml.');
+        setUploadError('File is not valid YAML or JSON. A template manifest must be .yaml/.yml or legacy .json.');
         return;
       }
       setUploadParsed(parsed);

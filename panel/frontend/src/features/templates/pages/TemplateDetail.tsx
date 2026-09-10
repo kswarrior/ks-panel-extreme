@@ -517,7 +517,7 @@ const TemplateDetail: React.FC = () => {
 
       <div className="flex gap-2">
         <button onClick={() => navigate(`/templates/${template.id}/edit`)} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200">Edit template</button>
-        <button onClick={handleDownload} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download JSON'}</button>
+        <button onClick={handleDownload} disabled={downloading} className="px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-50">{downloading ? 'Downloading…' : 'Download YAML'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to templates</button>
       </div>
     </div>
