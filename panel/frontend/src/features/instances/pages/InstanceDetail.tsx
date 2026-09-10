@@ -878,6 +878,7 @@ const TerminalRealPage: React.FC<{ instance: any; title?: string; showHeader?: b
                       <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition ${showLogPrefix ? 'translate-x-4' : ''}`} />
                     </button>
                   </div>
+                  <p className="text-[11px] text-gray-500">New lines follow the toggle at once — tap Refresh in the pill to reload history.</p>
                   <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
                     <button
                       type="button"
