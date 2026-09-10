@@ -255,9 +255,11 @@ type stackUpsertDTO struct {
 	RemoteUseTLS         bool                            `json:"remoteUseTls"`
 	RemoteSkipVerify     bool                            `json:"remoteSkipVerify"`
 	// ServePort/ServeAuth configure the dedicated panel-opened port that
-	// renders the app at / (0 = off, migration 077).
+	// renders the app at / (0 = off, migration 077). ServeAuth is a
+	// pointer so an omitted key preserves the row's gate (fail closed:
+	// a bare {"servePort": 6901} must not silently drop the login gate).
 	ServePort            int                             `json:"servePort"`
-	ServeAuth            bool                            `json:"serveAuth"`
+	ServeAuth            *bool                           `json:"serveAuth"`
 	Spec                 json.RawMessage                 `json:"spec"`
 	PermissionsRequested []repository.StackPermissionReq `json:"permissionsRequested"`
 }
@@ -530,9 +532,24 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer closeFn()
-	if ex, gerr := repo.GetStack(id); gerr == nil && stackOwnBlocked(r, ex) {
+	ex, gerr := repo.GetStack(id)
+	if gerr != nil {
+		if errors.Is(gerr, repository.ErrStackNotFound) {
+			http.Error(w, "stack not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if stackOwnBlocked(r, ex) {
 		http.Error(w, "forbidden: own-scope may only edit stacks you uploaded", http.StatusForbidden)
 		return
+	}
+	// Omitted serveAuth preserves the row's gate (fail closed — see the
+	// DTO comment); an explicit value replaces it.
+	serveAuth := ex.ServeAuth
+	if dto.ServeAuth != nil {
+		serveAuth = *dto.ServeAuth
 	}
 	// Validate the proxy mount up front so misconfiguration 400s/409s with
 	// a clear message (the repo re-validates defensively; anything it
@@ -617,7 +634,7 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 		Description: dto.Description, Icon: dto.Icon, Color: dto.Color, Spec: dto.Spec,
 		ProxyPort: dto.ProxyPort, ProxyRootURL: proxyRoot,
 		RemoteAddress: remoteAddr, RemoteUseTLS: dto.RemoteUseTLS, RemoteSkipVerify: dto.RemoteSkipVerify,
-		ServePort: dto.ServePort, ServeAuth: dto.ServeAuth,
+		ServePort: dto.ServePort, ServeAuth: serveAuth,
 	})
 	if err != nil {
 		if errors.Is(err, repository.ErrStackNotFound) {
