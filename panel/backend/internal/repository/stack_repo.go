@@ -1,7 +1,10 @@
 package repository
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,7 +68,30 @@ func (r *StackRepository) SetStacksEnabled(enabled bool) error {
 	return err
 }
 
-const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, proxy_port, COALESCE(proxy_root_url, ''), created_at, updated_at"
+// GenerateStackToken returns a fresh stack pairing token. Only the
+// SHA-256 digest is persisted; the plaintext is handed to the operator
+// exactly once at create/rotate time (mirrors GenerateEdgeToken).
+func GenerateStackToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return models.StackTokenPrefix + hex.EncodeToString(b), nil
+}
+
+func hashStackToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func stackTokenPrefixOf(token string) string {
+	if len(token) > 8 {
+		return token[:8]
+	}
+	return token
+}
+
+const stackColumns = "id, name, slug, category, version, description, icon, color, runtime, entrypoint, manifest, spec, frontend_theme_mode, page_style, active, uploaded_by, COALESCE(owner_id, 0), source, source_url, package_size, proxy_port, COALESCE(proxy_root_url, ''), COALESCE(remote_address, ''), COALESCE(remote_use_tls, 0), COALESCE(remote_skip_verify, 0), COALESCE(token_hash, ''), COALESCE(token_prefix, ''), COALESCE(token_plain, ''), COALESCE(status, 'down'), last_seen_at, created_at, updated_at"
 
 func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var s models.Stack
@@ -77,7 +103,12 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	var source, sourceURL string
 	var packageSize int64
 	var proxyRootURL sql.NullString
-	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &created, &updated); err != nil {
+	var remoteAddress sql.NullString
+	var remoteUseTLS, remoteSkipVerify int
+	var tokenHash, tokenPrefix, tokenPlain sql.NullString
+	var status sql.NullString
+	var lastSeen sql.NullString
+	if err := scanner.Scan(&s.ID, &s.Name, &s.Slug, &s.Category, &s.Version, &s.Description, &s.Icon, &s.Color, &s.Runtime, &s.Entrypoint, &manifest, &spec, &s.ThemeMode, &s.PageStyle, &active, &uploadedBy, &ownerID, &source, &sourceURL, &packageSize, &s.ProxyPort, &proxyRootURL, &remoteAddress, &remoteUseTLS, &remoteSkipVerify, &tokenHash, &tokenPrefix, &tokenPlain, &status, &lastSeen, &created, &updated); err != nil {
 		return nil, err
 	}
 	s.Manifest = json.RawMessage(manifest)
@@ -117,6 +148,30 @@ func scanStack(scanner interface{ Scan(...any) error }) (*models.Stack, error) {
 	}
 	if ownerID.Valid {
 		s.OwnerID = ownerID.Int64
+	}
+	// Node-style pairing (migration 076): remote dial address + TLS flags,
+	// token prefix for the UI label, heartbeat status. Clamp defensively
+	// so a hand-edited row can never route the panel at a bad address.
+	if remoteAddress.Valid {
+		s.RemoteAddress = remoteAddress.String
+	}
+	if !models.ValidStackRemoteAddress(s.RemoteAddress) {
+		s.RemoteAddress = ""
+	}
+	s.RemoteUseTLS = remoteUseTLS != 0
+	s.RemoteSkipVerify = remoteSkipVerify != 0
+	if tokenPrefix.Valid {
+		s.TokenPrefix = tokenPrefix.String
+	}
+	if status.Valid && status.String != "" {
+		s.Status = status.String
+	} else {
+		s.Status = "down"
+	}
+	if lastSeen.Valid && lastSeen.String != "" {
+		if ts, err := parseSQLiteTime(lastSeen.String); err == nil {
+			s.LastSeenAt = &ts
+		}
 	}
 	s.CreatedAt, _ = parseSQLiteTime(created)
 	s.UpdatedAt, _ = parseSQLiteTime(updated)
