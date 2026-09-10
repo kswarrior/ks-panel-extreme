@@ -685,6 +685,12 @@ func NewRouter() http.Handler {
 			// edge's page-action endpoint which runs the command inside the
 			// instance container.
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Post("/{id}/actions", handlers.ExecutePageActionHandler)
+			// React pages (migration 075): validate Studio source into the
+			// executable bundle, and serve it back for Studio preview.
+			// Instance rendering prefers the inline spec.pages snapshot.
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionEdit)).Post("/{id}/build", handlers.BuildInstancePageHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/bundle.js", handlers.ServeInstancePageBundleHandler)
+			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/{id}/bundle.css", handlers.ServeInstancePageBundleHandler)
 		})
 
 		// Admin: Instance Page Modules management. MANAGE_INSTANCE_PAGES (umbrella) implies every action;

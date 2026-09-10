@@ -927,9 +927,9 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	var stmt *sql.Stmt
 	if ownerID != 0 {
-		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, source_tsx, bundle_css, icon_svg, icon_color, actions, sub_pages, components, configure, owner_id, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	} else {
-		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		stmt, err = tx.Prepare(`INSERT INTO instance_pages (name, slug, kind, category, page_type, description, content_type, content_html, content_markdown, content_blocks, source_tsx, bundle_css, icon_svg, icon_color, actions, sub_pages, components, configure, source, market_id, market_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	}
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -958,9 +958,9 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 		var res sql.Result
 		var eerr error
 		if ownerID != 0 {
-			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, ownerID, pageSourceStudio, "", "")
+			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.SourceTSX, dto.BundleCSS, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, ownerID, pageSourceStudio, "", "")
 		} else {
-			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
+			res, eerr = stmt.Exec(dto.Name, dto.Slug, dto.Kind, dto.Category, dto.Type, dto.Description, dto.ContentType, dto.ContentHTML, dto.ContentMarkdown, dto.ContentBlocks, dto.SourceTSX, dto.BundleCSS, dto.IconSVG, dto.IconColor, dto.Actions, dto.SubPages, dto.Components, dto.Configure, pageSourceStudio, "", "")
 		}
 		if eerr != nil {
 			if isDuplicateSlugError(eerr.Error()) {
@@ -2310,6 +2310,8 @@ func ImportInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML:     dto.ContentHTML,
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
+		SourceTSX:       dto.SourceTSX,
+		BundleCSS:       dto.BundleCSS,
 		IconSVG:         dto.IconSVG,
 		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
@@ -2998,6 +3000,8 @@ func ImportInstancePageFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML:     dto.ContentHTML,
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
+		SourceTSX:       dto.SourceTSX,
+		BundleCSS:       dto.BundleCSS,
 		IconSVG:         dto.IconSVG,
 		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
@@ -3231,6 +3235,8 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 		ContentHTML:     dto.ContentHTML,
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
+		SourceTSX:       dto.SourceTSX,
+		BundleCSS:       dto.BundleCSS,
 		IconSVG:         dto.IconSVG,
 		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
@@ -3548,6 +3554,8 @@ func ImportLocalInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		ContentHTML:     dto.ContentHTML,
 		ContentMarkdown: dto.ContentMarkdown,
 		ContentBlocks:   dto.ContentBlocks,
+		SourceTSX:       dto.SourceTSX,
+		BundleCSS:       dto.BundleCSS,
 		IconSVG:         dto.IconSVG,
 		IconColor:       dto.IconColor,
 		Actions:         dto.Actions,
