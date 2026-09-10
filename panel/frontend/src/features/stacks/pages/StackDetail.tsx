@@ -1039,8 +1039,8 @@ const StackDetail: React.FC = () => {
               ) : stack.serve_port ? (
                 <span className="text-[11px] font-mono text-amber-300">○ not listening — check the panel log</span>
               ) : null}
+              </div>
             </div>
-          </div>
           )}
         </div>
       </GlassCard>
