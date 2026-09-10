@@ -14,10 +14,13 @@ import { parseEnvOptions, checkboxChecked, checkboxValues } from '@/features/tem
 import {
   KindIcon,
 } from '../components/InstanceFormComponents';
+import { TemplateTabs } from '@/features/templates/components/TemplateFormComponents';
+import { TEMPLATE_TABS } from '@/features/templates/types/templateForm';
+import InstanceAdvancedTabContent from '../components/InstanceAdvancedTabContent';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import { KIND_META, ICON_PRESETS, COLOR_SWATCHES, driverEnabled, kindKey } from '../types/instanceForm';
-import { buildOverrides, parseTemplateImages } from '../utils/instanceFormUtils';
+import { buildOverrides, parseTemplateImages, serializeEditor } from '../utils/instanceFormUtils';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const monoCls = glassFieldClass + ' font-mono ks-input-mono';
@@ -45,6 +48,7 @@ const InstanceForm: React.FC = () => {
     loading, setLoading,
     deploying, setDeploying,
     error, setError,
+    tab, setTab,
   } = useDeployForm();
 
   useEffect(() => {
@@ -308,6 +312,14 @@ const InstanceForm: React.FC = () => {
   // card only shows the live preview + a small edit button.
   const [iconModalOpen, setIconModalOpen] = useState(false);
 
+  // Spec preview + template ref for the advanced tabs (same source the
+  // standalone Advance Option page used — now rendered inline).
+  const specPreview = useMemo(() => JSON.stringify(serializeEditor(editor), null, 2), [editor]);
+  const advSelectedTemplate = useMemo(() => {
+    const t = templates.find((x) => x.id === templateId) ?? null;
+    return t ? { image: t.image, kind: t.kind } : null;
+  }, [templates, templateId]);
+
   if (loading) {
     return (
       <FormPage
@@ -349,34 +361,38 @@ const InstanceForm: React.FC = () => {
     <FormPage
       crumbs={[{ label: 'Instances', to: '/instances' }, { label: 'Deploy Instance' }]}
       onSubmit={submit}
-      maxWidth="max-w-3xl"
+      maxWidth="max-w-4xl"
       hideHeader
     >
-      <div className="space-y-6">
-        {error && (
-          <GlassCard className="border-red-600/40 bg-red-950/30">
-            <div className="flex items-start gap-2.5">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-5 h-5 text-red-400 shrink-0 mt-0.5">
-                <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="13" /><path d="M12 16h.01" />
-               </svg>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-red-200">Deployment failed</p>
-                <p className="text-sm text-red-300/90 mt-0.5 break-words">{error}</p>
-              </div>
-            </div>
-          </GlassCard>
-        )}
-
-        {driverMissing && (
-          <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4 shrink-0">
-              <path d="M12 9v4M12 17h.01" /><circle cx="12" cy="12" r="9" />
+      {error && (
+        <GlassCard className="border-red-600/40 bg-red-950/30 mb-4">
+          <div className="flex items-start gap-2.5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="w-5 h-5 text-red-400 shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="13" /><path d="M12 16h.01" />
              </svg>
-            Selected node <span className="font-medium text-amber-200">{selectedNode?.name}</span> doesn't advertise the
-            {' '}{kindKey(selectedTemplate!.kind)} driver — deploy may fail. Enable the driver on that edge or pick another node.
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-red-200">Deployment failed</p>
+              <p className="text-sm text-red-300/90 mt-0.5 break-words">{error}</p>
+            </div>
           </div>
-        )}
+        </GlassCard>
+      )}
 
+      {driverMissing && (
+        <div className="flex items-center gap-2 text-xs text-amber-300 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-4 h-4 shrink-0">
+            <path d="M12 9v4M12 17h.01" /><circle cx="12" cy="12" r="9" />
+           </svg>
+          Selected node <span className="font-medium text-amber-200">{selectedNode?.name}</span> doesn't advertise the
+          {' '}{kindKey(selectedTemplate!.kind)} driver — deploy may fail. Enable the driver on that edge or pick another node.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
+        <TemplateTabs tab={tab} onChange={setTab} tabs={TEMPLATE_TABS} />
+        <div className="space-y-6 mt-2 min-w-0 max-w-full">
+          {tab === 'general' && (
+          <>
         <GlassCard variant="form" className="">
             <div className="mb-1">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300">General</h3>
@@ -679,30 +695,12 @@ const InstanceForm: React.FC = () => {
               </GlassCard>
             )}
 
-{selectedTemplate && (
-              <GlassCard variant="form">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => navigate('/instances/new/advanced')}
-                  className="ks-ghost-btn w-full flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0 text-gray-300">
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <path d="M9 9h6v6H9z" />
-                    </svg>
-                    <div className="text-left min-w-0">
-                      <div className="text-sm font-medium text-gray-100">Advance Option</div>
-                      <div className="text-xs text-gray-500">Open a separate page to override environment, install, runtime, labels, healthcheck, pages and inspect the generated spec</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-gray-400 uppercase tracking-wide shrink-0">Open</span>
-                </button>
-              </div>
-              </GlassCard>
-            )}
-
+          </>
+          )}
+          {tab !== 'general' && (
+            <InstanceAdvancedTabContent selectedTemplate={advSelectedTemplate} specPreview={specPreview} />
+          )}
+        </div>
       </div>
     </FormPage>
 
