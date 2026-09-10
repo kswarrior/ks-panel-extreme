@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import GlassField from '@/shared/components/ui/Field';
+import GlassModal from '@/shared/components/ui/Modal';
 
 interface Form {
   name: string;
@@ -50,6 +51,9 @@ const renderSVG = (svgString: string, size: number = 20) => {
 };
 
 const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
+  // Icon & colour sub-page modal (instance-form icon system).
+  const [iconModalOpen, setIconModalOpen] = useState(false);
+  const activePreset = ICON_PRESETS.find((s) => s.value !== '' && (form.icon || '') === s.value);
   return (
     <div className="ks-card ks-form-card rounded-md space-y-4">
       <GlassField label="Name" htmlFor="name">
@@ -79,6 +83,75 @@ const RoleIdentity: React.FC<RoleIdentityProps> = ({ form, setForm }) => {
           placeholder={form.name || 'optional'}
         />
       </GlassField>
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0" title="Icon preview">
+          <span
+            className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
+            style={form.color ? { color: form.color } : undefined}
+            aria-hidden="true"
+          >
+            {form.icon.startsWith('<svg') ? (
+              renderSVG(form.icon, 24)
+            ) : activePreset ? (
+              renderSVG(activePreset.svg, 24)
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setIconModalOpen(true)}
+            title="Edit icon & colour"
+            aria-label="Edit icon & colour"
+            className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 hover:bg-neutral-700 text-gray-200 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+          </button>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-gray-200 font-medium truncate">{form.display_name.trim() || form.name.trim() || 'New role'}</p>
+          <p className="text-xs text-gray-500 truncate">Icon &amp; accent colour shown on role cards</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIconModalOpen(true)}
+          title="Edit icon & colour"
+          className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+          Icon
+        </button>
+      </div>
+
+      {/* ---- Icon & colour sub-page (instance-form icon system) ---- */}
+      <GlassModal
+        open={iconModalOpen}
+        onClose={() => setIconModalOpen(false)}
+        title="Icon & colour"
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setIconModalOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+            <button onClick={() => setIconModalOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-3">
+          <span
+            className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 shrink-0"
+            style={form.color ? { color: form.color } : undefined}
+            aria-hidden="true"
+          >
+            {form.icon.startsWith('<svg') ? (
+              renderSVG(form.icon, 24)
+            ) : activePreset ? (
+              renderSVG(activePreset.svg, 24)
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+            )}
+          </span>
+          <p className="text-xs text-gray-500">Live preview — pick a preset or paste custom SVG below.</p>
+        </div>
       <div>
         <label className="block text-sm font-medium text-gray-200 mb-1">
           Accent colour

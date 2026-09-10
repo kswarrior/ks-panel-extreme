@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import GlassModal from '@/shared/components/ui/Modal';
 import type { InstanceControls, InstanceShortcutConfig, OverviewDefaultTab, ShortcutKey, TerminalDefaultDef, TerminalShortcutDef } from '@/features/instances/utils/instanceControls';
 import { DEFAULT_INSTANCE_CONTROLS, DEFAULT_SHORTCUTS, SHORTCUT_KEYS, isShortcutCustom, MAX_DEFAULT_TERMINALS, SUGGESTED_DEFAULT_TERMINAL, MAX_TERMINAL_SHORTCUTS } from '@/features/instances/utils/instanceControls';
 import { BUILTIN_PAGE_SLUGS, normalizePageSlug } from '@/shared/utils/instancePages';
@@ -199,6 +200,9 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
   const [openShortcut, setOpenShortcut] = useState<ShortcutKey | null>(null);
   const toggleShortcut = (key: ShortcutKey) =>
     setOpenShortcut((prev) => (prev === key ? null : key));
+  // Icon sub-page modal (instance-form icon system) — which shortcut's
+  // SVG + colour is being edited, null = closed.
+  const [iconModalKey, setIconModalKey] = useState<ShortcutKey | null>(null);
   // Dismissal of the suggested Main/main default-terminal row (shown while
   // nothing is configured). Dismissing writes nothing — empty stays empty
   // (legacy blank shell); any edit/add persists the rows for real.
@@ -320,8 +324,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[11px] text-gray-500 mb-0.5">SVG icon + colour</label>
-                    <div className="flex items-center gap-2 flex-wrap min-w-0 max-w-full">
+                    <div className="flex items-center gap-2.5">
                       <span
                         className="w-9 h-9 shrink-0 rounded-md flex items-center justify-center border bg-white/[0.05] border-white/10 [&>svg]:w-5 [&>svg]:h-5 [&>svg]:block"
                         style={s.icon_color ? { color: s.icon_color } : { color: d.icon_color }}
@@ -330,26 +333,86 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                       >
                         {s.icon_svg.trim() === '' && <ShortcutDefaultGlyph shortcutKey={key} />}
                       </span>
-                      <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
-                        {ICON_PRESETS.map((p) => (
-                          <button
-                            key={p.value || 'none'}
-                            type="button"
-                            onClick={() => updateShortcut(key, { icon_svg: p.svg })}
-                            className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${s.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
-                            title={p.label || 'Default icon'}
-                          >
-                            {p.svg ? (
-                              <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
-                            ) : (
-                              <span className="text-[11px] text-gray-400 px-0.5">∅</span>
-                            )}
-                            <span className="text-[11px] text-gray-300">{p.label || 'Default'}</span>
-                          </button>
-                        ))}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] text-gray-200 font-medium">SVG icon &amp; colour</p>
+                        <p className="text-[11px] text-gray-500 truncate">Shown on the {label} shortcut</p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => setIconModalKey(key)}
+                        title={`Edit ${label} icon & colour`}
+                        className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
+                        Icon
+                      </button>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                    <GlassModal
+                      open={iconModalKey === key}
+                      onClose={() => setIconModalKey(null)}
+                      title={`${label} icon & colour`}
+                      maxWidth="max-w-lg"
+                      footer={
+                        <>
+                          <button onClick={() => setIconModalKey(null)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+                          <button onClick={() => setIconModalKey(null)} className="ks-btn-form ks-btn-primary">Done</button>
+                        </>
+                      }
+                    >
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 shrink-0 [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                          style={s.icon_color ? { color: s.icon_color } : { color: d.icon_color }}
+                          aria-hidden="true"
+                          dangerouslySetInnerHTML={s.icon_svg.trim() !== '' ? { __html: sanitizeSvgIcon(s.icon_svg) } : undefined}
+                        >
+                          {s.icon_svg.trim() === '' && <ShortcutDefaultGlyph shortcutKey={key} />}
+                        </span>
+                        <p className="text-xs text-gray-500">Live preview — pick a preset or paste custom SVG below.</p>
+                      </div>
+                      <div>
+                        <span className="block text-sm font-medium text-gray-200 mb-1">Icon</span>
+                        <div className="flex gap-1.5 overflow-x-auto ks-hscroll pb-1 flex-1 min-w-0">
+                          {ICON_PRESETS.map((p) => (
+                            <button
+                              key={p.value || 'none'}
+                              type="button"
+                              onClick={() => updateShortcut(key, { icon_svg: p.svg })}
+                              className={`shrink-0 flex items-center gap-1 px-2 py-1.5 rounded-lg border transition-colors ${s.icon_svg === p.svg ? 'border-sky-400/60 bg-sky-500/15' : 'border-white/10 bg-white/5 hover:border-white/20'}`}
+                              title={p.label || 'Default icon'}
+                            >
+                              {p.svg ? (
+                                <span className="[&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" dangerouslySetInnerHTML={{ __html: p.svg }} />
+                              ) : (
+                                <span className="text-[11px] text-gray-400 px-0.5">∅</span>
+                              )}
+                              <span className="text-[11px] text-gray-300">{p.label || 'Default'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="block text-sm font-medium text-gray-200 mb-1">Colour</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {COLOR_SWATCHES.map((sw) => (
+                            <button
+                              key={sw.value || 'none'}
+                              type="button"
+                              onClick={() => updateShortcut(key, { icon_color: sw.value })}
+                              className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${(s.icon_color || '') === sw.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
+                              style={{ backgroundColor: sw.value || 'transparent' }}
+                              title={sw.label || 'Default colour'}
+                            />
+                          ))}
+                          <input
+                            type="color"
+                            value={/^#[0-9a-fA-F]{6}$/.test(s.icon_color || '') ? (s.icon_color as string) : d.icon_color}
+                            onChange={(e) => updateShortcut(key, { icon_color: e.target.value })}
+                            className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
+                            title="Custom colour"
+                          />
+                        </div>
+                      </div>
                       <input
                         value={s.icon_svg}
                         onChange={(e) => updateShortcut(key, { icon_svg: e.target.value })}
@@ -357,26 +420,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
                         aria-label={`${d.label} shortcut custom SVG`}
                         className="glass-field font-mono w-full min-w-0"
                       />
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {COLOR_SWATCHES.map((sw) => (
-                          <button
-                            key={sw.value || 'none'}
-                            type="button"
-                            onClick={() => updateShortcut(key, { icon_color: sw.value })}
-                            className={`shrink-0 w-6 h-6 rounded-md border transition-transform ${(s.icon_color || '') === sw.value ? 'border-white scale-105' : 'border-white/10 hover:border-white/30'}`}
-                            style={{ backgroundColor: sw.value || 'transparent' }}
-                            title={sw.label || 'Default colour'}
-                          />
-                        ))}
-                        <input
-                          type="color"
-                          value={/^#[0-9a-fA-F]{6}$/.test(s.icon_color || '') ? (s.icon_color as string) : d.icon_color}
-                          onChange={(e) => updateShortcut(key, { icon_color: e.target.value })}
-                          className="w-6 h-6 rounded-md border border-white/10 cursor-pointer bg-transparent p-0"
-                          title="Custom colour"
-                        />
-                      </div>
-                    </div>
+                    </GlassModal>
                   </div>
                   {key === 'files' && (
                     <>
