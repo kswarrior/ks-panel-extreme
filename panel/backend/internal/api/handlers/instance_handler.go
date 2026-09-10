@@ -575,8 +575,9 @@ func normalizeInstanceConfigForStore(cfg map[string]any) map[string]any {
 
 // UpdateInstanceHandler persists admin edits to an instance's config.
 //
-// URL: PUT /api/instances/{id}  (gated like start/stop: INSTANCES_EDIT or
-// the MANAGE_INSTANCES umbrella).
+// URL: PUT /api/instances/{id}  (gated: INSTANCES_EDIT or
+// the MANAGE_INSTANCES umbrella; power operations like start/stop use
+// INSTANCES_CONTROL instead).
 //
 // Flow:
 //  1. Decode {config}, load the row → 404 on miss.
