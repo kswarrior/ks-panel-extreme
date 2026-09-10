@@ -1,18 +1,19 @@
-// IconColorPicker — shared icon + accent-colour picker with live card preview.
+// IconColorPicker — shared icon + accent-colour picker with live preview.
+//
+// Instance-form icon system, shared everywhere: the form only shows a
+// compact row (live preview tile + name + small "Icon" button); the full
+// editor (preset gallery, colour swatches + custom colour, custom SVG
+// textarea) opens as a sub-page modal (Mods → Install Mod pattern).
 //
 // Used by TemplateForm (General), Instance Page Studio (Settings),
-// Application Studio/Edit (General) and Theme Studio so every entity gets
-// the same UX the Nodes / Instances forms already have:
-//   - left: live preview tile tinted with the chosen colour
-//   - icon preset gallery (inner-SVG markup, lucide style)
-//   - colour swatches + custom colour (native picker + #rrggbb input)
-//   - custom SVG textarea (full <svg> or inner markup, sanitised on render)
+// Application Studio/Edit (General), StackForm/Detail and Theme Studio.
 //
 // Colours are #rrggbb hex; empty == theme default. Icons are raw SVG inner
 // markup (e.g. `<path .../>`) or a full `<svg>…</svg>` block — both render
 // through sanitizeSvgIcon so pasted markup can never execute script.
 
 import React, { useMemo, useState } from 'react';
+import GlassModal from '@/shared/components/ui/Modal';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 
