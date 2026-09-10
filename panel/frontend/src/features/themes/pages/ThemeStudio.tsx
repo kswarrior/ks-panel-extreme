@@ -448,13 +448,9 @@ const ThemeStudio: React.FC = () => {
           />
         </div>
         {/* Content column — NO outer card here (node pattern): every tab
-            section renders its own section card (ks-form-card blocks), so a
-            wrapper would nest a card inside a card. */}
+            section renders its own section card (ks-form-card blocks), and
+            sections load straight in the body so the page itself scrolls. */}
         <div className="space-y-4 min-w-0">
-          {/* Fixed-height options box — every studio control scrolls inside
-              (same pattern as the API-key permission list) so the page
-              itself never stretches on small laptops. */}
-          <div className="max-h-[70vh] overflow-y-auto pr-1 space-y-4">
             {tab === 'theme' && (
               <ThemeTab
                 name={name}
@@ -486,7 +482,6 @@ const ThemeStudio: React.FC = () => {
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
             {tab === 'market' && <MarketTab />}
             {tab === 'history' && <HistoryTab />}
-          </div>
         </div>
       </div>
     </div>

@@ -10,6 +10,7 @@ import type {
   SystemSnapshot,
   DatabaseInfo,
   UpdateInfoResponse,
+  PanelUpdateAutoState,
   UpdateCheckResponse,
   UpdateApplyResponse,
   ReinstallResponse,
@@ -1311,6 +1312,26 @@ export async function getReinstallScript(): Promise<string> {
 // and rolls back on failure. Returns immediately while the script runs detached.
 export async function reinstallBackground(): Promise<ReinstallBackgroundResponse> {
   const res = await client.post<ReinstallBackgroundResponse>('/api/system/reinstall-background');
+  return res.data;
+}
+
+// ---- Panel auto-update checks (System → Panel tab) ---------------------
+// When enabled, the panel re-fetches version.json every interval_min minutes
+// in the background — even if nobody opens the System page — and persists
+// the last outcome so the Panel tab can render "last checked …" without a
+// live network fetch. Both endpoints sit under MANAGE_PANEL_UPDATE.
+
+// getUpdateAutoConfig returns the auto-check toggle + interval and the last
+// background (or manual) check result. Pure read, safe to poll.
+export async function getUpdateAutoConfig(): Promise<PanelUpdateAutoState> {
+  const res = await client.get<PanelUpdateAutoState>('/api/system/update-auto');
+  return res.data;
+}
+
+// updateUpdateAutoConfig persists the toggle + recheck interval (5–43200
+// minutes). Every mutation is audit-logged server-side.
+export async function updateUpdateAutoConfig(enabled: boolean, interval_min: number): Promise<PanelUpdateAutoState> {
+  const res = await client.put<PanelUpdateAutoState>('/api/system/update-auto', { enabled, interval_min });
   return res.data;
 }
 

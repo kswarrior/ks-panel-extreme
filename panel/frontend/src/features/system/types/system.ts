@@ -158,6 +158,25 @@ export interface UpdateInfoResponse {
   binary_path: string;
   last_check_at?: string | null;
   last_remote_version?: string | null;
+  // Background auto-update checks (GET/PUT /api/system/update-auto).
+  // Optional so an older panel binary (pre-auto-check) still renders the
+  // Panel tab — the UI falls back to disabled/360min in that case.
+  auto?: PanelUpdateAutoState;
+}
+
+// PanelUpdateAutoState mirrors the backend panelUpdateAutoResponse JSON.
+// When `enabled`, the panel re-fetches version.json every `interval_min`
+// minutes in the background — even if nobody opens the System page — and
+// persists the last outcome here for the Panel tab to render.
+export interface PanelUpdateAutoState {
+  enabled: boolean;
+  interval_min: number;
+  last_check_at?: string | null;
+  last_remote_version?: string | null;
+  last_available?: boolean | null;
+  last_error?: string | null;
+  last_local_version?: string | null;
+  next_check_at?: string | null;
 }
 
 // RemoteVersionManifest mirrors the JSON shape served at version_url. Field
