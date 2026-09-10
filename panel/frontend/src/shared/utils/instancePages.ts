@@ -197,7 +197,7 @@ export function isPageAllowed(slug: string, spec: Record<string, any> | null | u
 }
 
 // PageContent describes custom content rendered by CustomPageView.
-type PageContentType = 'html' | 'markdown' | 'blocks';
+type PageContentType = 'html' | 'markdown' | 'blocks' | 'react';
 export interface PageContent {
   type: PageContentType;
   /** for type=html: raw HTML string. */
@@ -206,6 +206,10 @@ export interface PageContent {
   markdown?: string;
   /** for type=blocks: JSON-encoded array of BlockRow (visual studio). */
   blocks?: string;
+  /** for type=react: validated bundle body executed with (sdk, React). */
+  bundle?: string;
+  /** for type=react: optional page CSS. */
+  bundleCss?: string;
   /** Persisted executable actions authored with this page (parsed from the
    *  spec row's `actions`). Empty when the page defines none. */
   actions?: import('@/features/instance-pages/types/instancePage').PageActionDef[];
@@ -290,7 +294,9 @@ function hasAnyContent(p: any): boolean {
     (typeof p.content_type === 'string' && p.content_type !== '') ||
     (typeof p.content_html === 'string' && p.content_html.trim() !== '') ||
     (typeof p.content_markdown === 'string' && p.content_markdown.trim() !== '') ||
-    (typeof p.content_blocks === 'string' && p.content_blocks.trim() !== '')
+    (typeof p.content_blocks === 'string' && p.content_blocks.trim() !== '') ||
+    (typeof p.bundle_js === 'string' && p.bundle_js.trim() !== '') ||
+    (typeof p.source_tsx === 'string' && p.source_tsx.trim() !== '')
   );
 }
 
@@ -316,17 +322,24 @@ function findPageRow(slug: string, spec: Record<string, any> | null | undefined)
 // Supports components as either JSON string or inline array (React-like reusable
 // blocks that load on main page and propagate to sub-pages).
 function pagePayloadFromRow(p: any): PageContent {
-  const type: PageContentType = ['html', 'markdown', 'blocks'].includes(p.content_type)
+  const type: PageContentType = ['html', 'markdown', 'blocks', 'react'].includes(p.content_type)
     ? p.content_type
     // No explicit content_type: infer from whichever field carries data.
     : p.content_html ? 'html'
     : p.content_blocks ? 'blocks'
+    : p.bundle_js || p.source_tsx ? 'react'
     : 'markdown';
   return {
     type,
     html: typeof p.content_html === 'string' ? p.content_html : undefined,
     markdown: typeof p.content_markdown === 'string' ? p.content_markdown : undefined,
     blocks: typeof p.content_blocks === 'string' ? p.content_blocks : undefined,
+    // React renderer prefers the built bundle; the author source is the
+    // honest fallback (build output equals source in v1).
+    bundle: typeof p.bundle_js === 'string' && p.bundle_js.trim() !== ''
+      ? p.bundle_js
+      : typeof p.source_tsx === 'string' && p.source_tsx.trim() !== '' ? p.source_tsx : undefined,
+    bundleCss: typeof p.bundle_css === 'string' ? p.bundle_css : undefined,
     actions: parseSpecActions(p.actions),
     components: parseSpecComponents(p.components),
     configure: parseSpecConfigure(p.configure),

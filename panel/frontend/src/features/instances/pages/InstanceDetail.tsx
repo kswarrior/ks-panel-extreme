@@ -1393,7 +1393,7 @@ export const InstanceDynamicPage: React.FC = () => {
   const label = getPageLabel(effectiveSlug, spec) ?? (effectiveSlug === '.' ? 'Home' : effectiveSlug);
 
   const content = getPageContent(effectiveSlug, spec);
-  if (!content || (!content.html && !content.markdown && !content.blocks)) {
+  if (!content || (!content.html && !content.markdown && !content.blocks && !content.bundle)) {
     return (
       <div className="glass-card rounded-xl text-center text-gray-400">
         <p className="text-sm">This page (<code className="text-gray-300">/{slug}</code>) has no content.</p>

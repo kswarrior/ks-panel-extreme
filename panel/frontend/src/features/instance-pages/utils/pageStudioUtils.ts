@@ -434,6 +434,12 @@ ${STATIC_SDK_STUB}
       .replace(/\n/g, '<br>');
     return `${head('body { line-height: 1.6; }')}${html}</body></html>`;
   }
+  // React pages execute with the live KSPageSDK against a bound instance —
+  // the static stub cannot provide hooks state or panel APIs, so the static
+  // preview says so honestly instead of rendering a broken half-page.
+  if (contentType === 'react') {
+    return `${head()}<div class="ks-card"><p style="font-size:13px">React preview needs a bound instance.</p><p class="ks-muted" style="font-size:12px">Pick a test instance above for the live preview, or click Build to validate the source.</p></div></body></html>`;
+  }
   let blocksJson = '[]';
   try {
     blocksJson = JSON.stringify(JSON.parse(safeContent || '[]'), null, 2);
