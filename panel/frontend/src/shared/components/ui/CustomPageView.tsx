@@ -991,7 +991,16 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
 (function(){
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function cardUnit(key,title,innerHtml){return '<div class="ks-card" data-ks-key="'+esc(key)+'"><h3 style="margin:0 0 .5rem;font-size:.95rem;color:var(--ks-heading)">'+esc(title)+'</h3>'+innerHtml+'</div>';}
+  var ksOrigDesc=Object.getOwnPropertyDescriptor(Element.prototype,'innerHTML');
+  var ksOrigGet=ksOrigDesc&&ksOrigDesc.get?ksOrigDesc.get:function(){return this.__ksHtml||'';};
+  var ksOrigSet=ksOrigDesc&&ksOrigDesc.set?ksOrigDesc.set:function(v){this.__ksHtml=String(v);};
+  var ksPatchGuard={};
+  function ksRawGet(n){try{return ksOrigGet.call(n);}catch(e){return n.innerHTML;}}
+  function ksRawSet(n,v){try{ksOrigSet.call(n,String(v));}catch(e){try{n.innerHTML=String(v);}catch(e2){}}}
   function ksPatch(targetId, newHtml){
+    if(ksPatchGuard[targetId]) return;
+    ksPatchGuard[targetId]=true;
+    try{
     var root=document.getElementById(targetId);
     if(!root) return;
     var tmp=document.createElement('div'); tmp.innerHTML=newHtml;
