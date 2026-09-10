@@ -53,6 +53,11 @@ type instancePageDTO struct {
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
+	// SourceTSX is the author React JS source for content_type == "react"
+	// (React.createElement, no JSX in v1). "" == non-React page.
+	SourceTSX string `json:"source_tsx"`
+	// BundleCSS is optional page CSS for content_type == "react".
+	BundleCSS string `json:"bundle_css"`
 	IconSVG         string `json:"icon_svg"`
 	// IconColor is an optional #rrggbb accent tinting the tile (060).
 	IconColor string `json:"icon_color"`
@@ -91,6 +96,55 @@ var validContentTypes = map[string]bool{
 	"html":     true,
 	"markdown": true,
 	"blocks":   true,
+	"react":    true,
+}
+
+// React build budgets + status values (migration 075). Source is author JS
+// (React.createElement, no JSX in v1); the build validates and stores it as
+// the bundle so the renderer can execute it with the panel React runtime.
+const (
+	maxInstancePageReactSourceBytes = 512 * 1024
+	maxInstancePageBundleBytes      = 1024 * 1024
+	maxInstancePageBuildLogBytes    = 64 * 1024
+)
+
+var validBuildStatuses = map[string]bool{
+	"":         true,
+	"building": true,
+	"ok":       true,
+	"error":    true,
+}
+
+// reactImportAllowRe matches the only import sources a React page may pull:
+// react, react-dom and the KSPageSDK shim the renderer provides. Anything
+// else (relative paths, URLs, other packages) is rejected at build.
+var reactImportAllowRe = regexp.MustCompile(`(?m)^\s*import\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]`)
+
+// validateReactSource checks author React JS without executing it: size,
+// import allow-list and a deny-list of host-escape primitives (eval,
+// Function constructor, raw fetch/XHR, cookie/localStorage access). The
+// page must use KSPageSDK.fetchPanel/storage instead so calls stay scoped.
+func validateReactSource(src string) error {
+	if len(src) > maxInstancePageReactSourceBytes {
+		return newErrString("source_tsx too large (max 512KB)")
+	}
+	lower := strings.ToLower(src)
+	for _, denied := range []string{"eval(", "new function", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
+		if strings.Contains(lower, denied) {
+			return newErrString("source_tsx uses a forbidden primitive: " + denied)
+		}
+	}
+	// Raw fetch() would leave the sandbox scope — pages must use KSPageSDK.fetchPanel.
+	if regexp.MustCompile(`(?m)(^|[^a-zA-Z0-9_.$])fetch\s*\(`).MatchString(src) {
+		return newErrString("source_tsx must use KSPageSDK.fetchPanel instead of fetch()")
+	}
+	for _, m := range reactImportAllowRe.FindAllStringSubmatch(src, -1) {
+		mod := strings.TrimSpace(m[1])
+		if mod != "react" && mod != "react-dom" && !strings.HasPrefix(mod, "react-dom/") && mod != "KSPageSDK" && mod != "./sdk" {
+			return newErrString("source_tsx imports a forbidden module: " + mod)
+		}
+	}
+	return nil
 }
 
 // Page provenance sources for the library badges: "studio" (own pages incl.
@@ -485,7 +539,21 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 		return req, newErrString("kind must be \"custom\" (built-in pages were converted to custom library pages)")
 	}
 	if req.ContentType != "" && !validContentTypes[req.ContentType] {
-		return req, newErrString("content_type must be one of: html, markdown, blocks")
+		return req, newErrString("content_type must be one of: html, markdown, blocks, react")
+	}
+	if len(req.SourceTSX) > maxInstancePageReactSourceBytes {
+		return req, newErrString("source_tsx too large (max 512KB)")
+	}
+	if req.SourceTSX != "" {
+		if err := validateReactSource(req.SourceTSX); err != nil {
+			return req, err
+		}
+	}
+	if len(req.BundleCSS) > maxInstancePageContentBytes {
+		return req, newErrString("bundle_css too large (max 1MB)")
+	}
+	if req.ContentType == "react" && strings.TrimSpace(req.SourceTSX) == "" {
+		return req, newErrString("source_tsx is required for react pages")
 	}
 	if req.Actions != "" {
 		if len(req.Actions) > maxInstancePageActionsBytes {

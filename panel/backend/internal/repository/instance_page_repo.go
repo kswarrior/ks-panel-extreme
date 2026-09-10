@@ -201,8 +201,22 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 // by the build endpoint, not by Update — Update preserves them so a plain
 // Studio save never clobbers a good build. Use UpdateBuild to write them.
 func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
-	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, icon_svg = ?, icon_color = ?, actions = ?, sub_pages = ?, components = ?, configure = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion, id)
+	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, source_tsx = ?, icon_svg = ?, icon_color = ?, actions = ?, sub_pages = ?, components = ?, configure = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.SourceTSX, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("instance page not found")
+	}
+	return nil
+}
+
+// UpdateBuild writes the build-owned columns after POST /:id/build.
+// SourceTSX is NOT touched here — it stays the author input that Update owns.
+func (r *InstancePageRepository) UpdateBuild(id int64, bundleJS, bundleCSS, buildStatus, buildLog string) error {
+	res, err := r.db.Exec(`UPDATE instance_pages SET bundle_js = ?, bundle_css = ?, build_status = ?, build_log = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		bundleJS, bundleCSS, buildStatus, buildLog, id)
 	if err != nil {
 		return err
 	}
