@@ -8,10 +8,11 @@
 -- and refresh last_seen_at; the admin Verify button actively dials the
 -- app's /health (probe) like ProbeNodeHandler does for edges.
 --
---   remote_address    host:port or bare host of the stack app
---                     ("" = same-host loopback via proxy_port).
---   remote_use_tls    https:// when dialing remote_address.
---   remote_skip_verify skip TLS verify for self-signed remotes.
+--   remote_address    VARCHAR(255) DEFAULT '' — host:port or bare host of
+--                                              the stack app ("" = same-host
+--                                              loopback via proxy_port).
+--   remote_use_tls    0/1 — https:// when dialing remote_address.
+--   remote_skip_verify 0/1 — skip TLS verify for self-signed remotes.
 --   token_hash        SHA-256 hex of the pairing token ("" = never minted).
 --   token_prefix      first 8 chars shown in the UI for recognition.
 --   token_plain       raw token kept for the config-snippet view (mirrors
@@ -19,6 +20,8 @@
 --   status            'up' | 'down' from heartbeat freshness.
 --   last_seen_at      UTC timestamp of the last heartbeat (NULL = never).
 --
+-- VARCHAR (not TEXT) with a string DEFAULT keeps the file MySQL-safe up
+-- front (mirrors 072_stack_proxy.sql). token_plain is TEXT like nodes 008.
 -- Uniqueness of remote_address is NOT enforced: two stacks may share a
 -- host (different ports/paths), same as two nodes may share a name.
 
