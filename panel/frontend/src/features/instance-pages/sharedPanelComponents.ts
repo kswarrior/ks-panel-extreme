@@ -99,17 +99,7 @@ export const SHARED_PANEL_COMPONENTS: SharedPanelComponent[] = [
 
 const SHARED_MAP = new Map(SHARED_PANEL_COMPONENTS.map((c) => [c.name, c]));
 
-/** True when name is a panel-shared component key. */
-export function isSharedPanelComponent(name: string): boolean {
-  return SHARED_MAP.has(name);
-}
-
 /** Resolve a shared key to its HTML (empty string when unknown). */
 export function getSharedPanelComponentContent(name: string): string {
   return SHARED_MAP.get(name)?.content ?? '';
-}
-
-/** Resolve a shared key to its full def (for preview/tooltips). */
-export function getSharedPanelComponent(name: string): SharedPanelComponent | undefined {
-  return SHARED_MAP.get(name);
 }
