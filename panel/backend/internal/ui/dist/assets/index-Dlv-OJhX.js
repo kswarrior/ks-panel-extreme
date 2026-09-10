@@ -1752,14 +1752,18 @@ setTimeout(function(){
   try{
     var r=document.getElementById('root');
     var c=document.getElementById('content');
-    var hasSkeleton=function(el){return el && el.innerHTML && el.innerHTML.indexOf('ks-skeleton')!==-1;};
-    if(hasSkeleton(r)){
+    // Element query (not innerHTML substring): the theme <style> block in
+    // body textually contains "ks-skeleton" (CSS rules), which made the old
+    // substring check misfire on pages without #root/#content (terminal) and
+    // append a bogus "still showing loading placeholders" card on every load.
+    var hasSkeletonEl=function(scope){try{return !!(scope&&scope.querySelector&&scope.querySelector('.ks-skeleton,.ks-skeleton-bar,.ks-skeleton-avatar,.ks-skeleton-card,.ks-skeleton-table'));}catch(e){return false;}};
+    if(r && hasSkeletonEl(r)){
       r.innerHTML='<div class="ks-card" style="border:1px solid var(--ks-bad-line, rgba(239,68,68,0.3))"><p style="color:var(--ks-bad,#fca5a5);font-size:13px;margin:0 0 6px;font-weight:600">Page did not load — fallback</p><p class="ks-muted" style="font-size:12px;margin:0">The page was still showing its loading skeleton after 3s. This usually means the SDK or data fetch failed. Try refreshing the instance page. If this persists, check that the instance is running and the edge is online.</p></div>';
     }
-    if(hasSkeleton(c)){
+    if(c && hasSkeletonEl(c)){
       c.innerHTML='<p class="ks-bad" style="font-size:12px;padding:12px;background:var(--ks-bad-wash);border:1px solid var(--ks-bad-line);border-radius:6px">Failed to load content — please refresh or check instance status.</p>';
     }
-    if(!r && !c && document.body.innerHTML.indexOf('ks-skeleton')!==-1){
+    if(!r && !c && hasSkeletonEl(document)){
       var b=document.createElement('div');
       b.className='ks-card';
       b.style.cssText='margin:12px;border:1px solid var(--ks-bad-line)';
