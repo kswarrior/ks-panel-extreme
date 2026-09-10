@@ -19,6 +19,7 @@ import (
 	"github.com/example/kspanel/internal/modengine"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -1331,10 +1332,11 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse the template's spec to extract env[] rules and install[] steps.
+	// Parse the template's spec (canonical YAML, legacy JSON accepted) to
+	// extract env[] rules and install[] steps.
 	var tmplSpec map[string]any
 	if tmpl.Spec != "" {
-		_ = json.Unmarshal([]byte(tmpl.Spec), &tmplSpec)
+		tmplSpec, _ = specyaml.Parse(tmpl.Spec)
 	}
 	if tmplSpec == nil {
 		tmplSpec = map[string]any{}
@@ -1567,10 +1569,12 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build the config the edge driver will consume.
+	// Build the config the edge driver will consume. The template spec is
+	// canonical YAML (legacy JSON accepted); the stored instance config
+	// stays JSON.
 	var cfg map[string]any
 	if tmpl.Spec != "" {
-		_ = json.Unmarshal([]byte(tmpl.Spec), &cfg)
+		cfg, _ = specyaml.Parse(tmpl.Spec)
 	}
 	if cfg == nil {
 		cfg = map[string]any{}
@@ -3109,7 +3113,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 		var specEnv struct {
 			Env []map[string]any `json:"env"`
 		}
-		if err := json.Unmarshal([]byte(tmpl.Spec), &specEnv); err == nil && len(specEnv.Env) > 0 {
+		if err := specyaml.Unmarshal(tmpl.Spec, &specEnv); err == nil && len(specEnv.Env) > 0 {
 			scopes := make(map[string][]string, len(specEnv.Env))
 			for _, e := range specEnv.Env {
 				name := getString(e, "name")
