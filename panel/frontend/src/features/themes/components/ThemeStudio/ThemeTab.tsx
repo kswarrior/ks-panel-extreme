@@ -29,6 +29,20 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
 }) => {
   return (
     <div className="space-y-4">
+      <div className="ks-form-card rounded-lg space-y-3">
+        <Label
+          label="Card icon & colour"
+          hint="Shown on the Themes grid (same tile as nodes / instances)."
+        />
+        <IconColorPicker
+          icon={icon}
+          color={color}
+          onIconChange={onIconChange}
+          onColorChange={onColorChange}
+          previewName={name || 'Theme'}
+        />
+      </div>
+
       <div className="ks-form-card rounded-lg space-y-4">
         <Label label="Theme" hint="Name and note shown on the Themes grid. The name is required to save." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -45,20 +59,6 @@ export const ThemeTab: React.FC<ThemeTabProps> = ({
             placeholder="A short note about this theme."
           />
         </div>
-      </div>
-
-      <div className="ks-form-card rounded-lg space-y-3">
-        <Label
-          label="Card icon & colour"
-          hint="Shown on the Themes grid (same tile as nodes / instances)."
-        />
-        <IconColorPicker
-          icon={icon}
-          color={color}
-          onIconChange={onIconChange}
-          onColorChange={onColorChange}
-          previewName={name || 'Theme'}
-        />
       </div>
     </div>
   );
