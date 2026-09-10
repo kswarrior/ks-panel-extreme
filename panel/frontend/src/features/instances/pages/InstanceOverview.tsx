@@ -695,7 +695,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               Changes the display name shown on cards and titles. The container name (
               <span className="ks-mono">{instance.name}</span>) on the edge never changes.
             </p>
-            {canControl ? (
+            {canEdit ? (
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   value={rename}
@@ -722,7 +722,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           )}
 
           {/* Advanced config — replaces the old pill's "Edit advanced config" entry. */}
-          {canControl && controls.allow_edit_advanced && (
+          {canEdit && controls.allow_edit_advanced && (
             <div className="ks-card">
               <h3 className="text-sm font-semibold text-white">Advanced config</h3>
               <p className="text-xs text-gray-500 mt-1 mb-3">
@@ -746,9 +746,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
               Destructive actions. Reinstall wipes the workload and redeploys it from the
               stored spec; destroy removes it from the edge and the panel.
             </p>
-            {canControl ? (
+            {canControl || canDelete ? (
               <div className="flex flex-col sm:flex-row gap-2">
-                {controls.allow_reinstall && (
+                {controls.allow_reinstall && canControl && (
                 <button
                   type="button"
                   onClick={() => void onReinstall()}
@@ -758,7 +758,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
                   {reinstallBusy ? 'Reinstalling…' : 'Reinstall'}
                 </button>
                 )}
-                {controls.allow_destroy && (
+                {controls.allow_destroy && canDelete && (
                 <button
                   type="button"
                   onClick={() => void onDelete()}
@@ -770,7 +770,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-gray-500">You need instance edit permission to reinstall or destroy.</p>
+              <p className="text-xs text-gray-500">You need instance control permission to reinstall, or delete permission to destroy.</p>
             )}
           </div>
           )}

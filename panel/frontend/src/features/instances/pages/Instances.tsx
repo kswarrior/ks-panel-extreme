@@ -64,8 +64,8 @@ const Instances: React.FC = () => {
   const permissions = useAuthStore((s) => s.permissions);
 
   // Permission resolution — derives from the canonical Instances area so
-  // granular keys (INSTANCES_VIEW / CREATE / EDIT / DELETE / OWN / ALL)
-  // are honoured without hard-coding umbrella checks.
+  // granular keys (INSTANCES_VIEW / CREATE / EDIT / CONTROL / DELETE /
+  // OWN / ALL) are honoured without hard-coding umbrella checks.
   const instancesArea = useMemo(
     () => PERMISSION_AREAS.find((a) => a.label === 'Instances')!,
     [],
@@ -80,8 +80,11 @@ const Instances: React.FC = () => {
   const canCreate = useMemo(() => hasAreaAccess(permissions, instancesArea, 'CREATE'), [permissions, instancesArea]);
   const canEdit = useMemo(() => hasAreaAccess(permissions, instancesArea, 'EDIT'), [permissions, instancesArea]);
   const canDelete = useMemo(() => hasAreaAccess(permissions, instancesArea, 'DELETE'), [permissions, instancesArea]);
-  const canControl = useMemo(() => isPrivileged || canEdit, [isPrivileged, canEdit]);
-  const canSuspend = isPrivileged;
+  // CONTROL covers power/lifecycle (start / stop / restart / suspend).
+  // EDIT no longer implies control — an edit-only role sees Edit but no
+  // power buttons.
+  const canControl = useMemo(() => hasAreaAccess(permissions, instancesArea, 'CONTROL'), [permissions, instancesArea]);
+  const canSuspend = useMemo(() => hasAreaAccess(permissions, instancesArea, 'CONTROL'), [permissions, instancesArea]);
 
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -301,7 +304,7 @@ const Instances: React.FC = () => {
   }, [instances]);
 
   const hasActiveFilters = kindFilter !== 'all' || statusFilter !== 'all' || search.trim() !== '';
-  const showActions = isPrivileged || canControl || canDelete;
+  const showActions = isPrivileged || canEdit || canControl || canDelete;
   const showOwner = isPrivileged;
 
   return (

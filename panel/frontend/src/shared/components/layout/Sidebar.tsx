@@ -325,7 +325,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
         if (hasPermissionAny(permissions, ...instKeys)) return true;
       }
       // also allow granular INSTANCES_* directly
-      if (hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_VIEW, PermissionKey.INSTANCES_CREATE, PermissionKey.INSTANCES_EDIT, PermissionKey.INSTANCES_DELETE)) return true;
+      if (hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_VIEW, PermissionKey.INSTANCES_CREATE, PermissionKey.INSTANCES_EDIT, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_DELETE)) return true;
     }
     // Themes: MANAGE_THEMES umbrella also handled above, but also allow bare theme sub-caps
     // (already covered by area lookup). For safety, allow any theme key explicitly.
