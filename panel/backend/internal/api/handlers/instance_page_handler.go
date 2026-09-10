@@ -23,6 +23,7 @@ import (
 	"github.com/example/kspanel/internal/pagelib"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -1146,11 +1147,11 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		specStr := t.Spec
-		if specStr == "" {
-			specStr = "{}"
+		if strings.TrimSpace(specStr) == "" {
+			specStr = "{}\n"
 		}
-		var spec map[string]any
-		if jerr := json.Unmarshal([]byte(specStr), &spec); jerr != nil || spec == nil {
+		spec, _ := specyaml.Parse(specStr)
+		if spec == nil {
 			spec = map[string]any{}
 		}
 
@@ -1285,7 +1286,7 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		spec["pages"] = out
 
-		newSpec, merr := json.Marshal(spec)
+		newSpec, merr := specyaml.Marshal(spec)
 		if merr != nil {
 			skipped = append(skipped, tid)
 			continue

@@ -18,6 +18,7 @@ import (
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -430,8 +431,8 @@ func validateAutomationUpsert(con *sql.DB, instanceID int64, req automationUpser
 		var spec struct {
 			Actions []templateActionSpec `json:"actions"`
 		}
-		if err := json.Unmarshal([]byte(tmpl.Spec), &spec); err != nil {
-			return "", http.StatusInternalServerError, "template spec is not valid JSON"
+		if err := specyaml.Unmarshal(tmpl.Spec, &spec); err != nil {
+			return "", http.StatusInternalServerError, "template spec is not valid YAML/JSON"
 		}
 		valid := map[string]bool{}
 		for i := range spec.Actions {

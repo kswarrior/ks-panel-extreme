@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/example/kspanel/internal/specyaml"
 )
 
 // Template is a reusable deploy blueprint (PufferPanel-style). The panel
