@@ -1,10 +1,9 @@
-package repository
+package specyaml
 
 import (
 	"database/sql"
+	"log"
 	"strings"
-
-	"github.com/example/kspanel/internal/specyaml"
 )
 
 // MigrateTemplateSpecsToYAML rewrites every templates.spec row that still
@@ -14,8 +13,12 @@ import (
 //
 // Rows that are already YAML, empty, or unparseable are left untouched
 // (unparseable rows are skipped, never deleted). It returns the number of
-// rows rewritten. Placeholders follow template_repo.go convention (bare
-// `?`, same as every other query in this table's repository).
+// rows rewritten. Placeholders are bare `?`, matching the template
+// repository's convention on every engine.
+//
+// Callers should treat an error as advisory (log it, keep booting): old
+// rows parse identically either way, so a failed rewrite must never wedge
+// panel startup.
 func MigrateTemplateSpecsToYAML(db *sql.DB) (int, error) {
 	rows, err := db.Query(`SELECT id, spec FROM templates`)
 	if err != nil {
@@ -37,11 +40,12 @@ func MigrateTemplateSpecsToYAML(db *sql.DB) (int, error) {
 		if spec.Valid {
 			s = spec.String
 		}
-		if strings.TrimSpace(s) == "" || !specyaml.IsJSON(s) {
+		if strings.TrimSpace(s) == "" || !IsJSON(s) {
 			continue
 		}
-		normalised, nerr := specyaml.NormalizeToYAML(s)
+		normalised, nerr := NormalizeToYAML(s)
 		if nerr != nil {
+			log.Printf("template spec YAML migration: skipping id %d (unparseable, left as-is): %v", id, nerr)
 			continue
 		}
 		if normalised == s {
@@ -59,6 +63,9 @@ func MigrateTemplateSpecsToYAML(db *sql.DB) (int, error) {
 			return converted, uerr
 		}
 		converted++
+	}
+	if converted > 0 {
+		log.Printf("template spec YAML migration: converted %d row(s) from JSON to YAML", converted)
 	}
 	return converted, nil
 }

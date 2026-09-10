@@ -124,6 +124,10 @@ func runImportTemplate(cmd *cobra.Command, args []string) error {
 		print.Fail("seed", err.Error())
 		return fmt.Errorf("seed core data: %w", err)
 	}
+	// Canonicalize any legacy JSON template specs to YAML (best-effort).
+	if _, merr := specyaml.MigrateTemplateSpecsToYAML(con); merr != nil {
+		print.Fail("migrate", fmt.Sprintf("template spec YAML migration skipped: %v", merr))
+	}
 	print.OK("ready", "schema present")
 
 	repo := repository.NewTemplateRepository(con)

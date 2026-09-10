@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/specyaml"
 )
 
 //go:embed all:migrations
@@ -1937,6 +1938,12 @@ func EnsureSchemaAndSeed(d Dialect, db *sql.DB) error {
 	}
 	if err := SeedDefaultApplications(d, db); err != nil {
 		return fmt.Errorf("seed default applications: %w", err)
+	}
+	// Canonicalize legacy JSON template specs to YAML (best-effort: old
+	// rows parse identically either way, so a failed rewrite logs and
+	// keeps booting instead of wedging startup).
+	if _, merr := specyaml.MigrateTemplateSpecsToYAML(db); merr != nil {
+		log.Printf("template spec YAML migration skipped: %v", merr)
 	}
 	return nil
 }
