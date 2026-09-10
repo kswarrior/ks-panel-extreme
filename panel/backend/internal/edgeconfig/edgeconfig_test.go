@@ -39,7 +39,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestDecodeRejectsGarbage(t *testing.T) {
-	if _, err := Decode([]byte("panel_url: [unclosed\n")); err == nil {
-		t.Fatal("expected error for malformed YAML")
+	if _, err := Decode([]byte("panel_url = [unclosed\n")); err == nil {
+		t.Fatal("expected error for malformed TOML")
 	}
 }

@@ -1078,7 +1078,7 @@ type setupLocalResponse struct {
 // SetupLocalNodeHandler installs and launches a ksedge edge directly on the
 // panel host for a localhost-mode node. It is the one-click equivalent of the
 // bootstrap snippet the manual flow prints: download ksedge into a per-node
-// directory, write the panel-generated config.yaml, and start `./ksedge
+// directory, write the panel-generated config.toml, and start `./ksedge
 // launch` detached so the edge survives the HTTP request. The freshly started
 // edge then pushes heartbeats to the panel with the node token, which flips
 // the card green on its own.

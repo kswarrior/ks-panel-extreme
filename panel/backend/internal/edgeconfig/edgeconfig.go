@@ -1,4 +1,4 @@
-// Package edgeconfig owns the ksedge config.yaml file format shared by the
+// Package edgeconfig owns the ksedge config.toml file format shared by the
 // panel-side writers: the admin "Create & setup" handler and the
 // setup:localnode CLI. Both must emit byte-compatible files for the edge's
 // config.Load, so all encoding lives here instead of drifting across
@@ -6,28 +6,29 @@
 package edgeconfig
 
 import (
+	"bytes"
 	"fmt"
 
-	"gopkg.in/yaml.v3"
+	"github.com/BurntSushi/toml"
 )
 
-// Encode serializes an edge config map to config.yaml bytes. Keys sort
-// alphabetically (yaml.v3 map order) — deterministic, and order is
-// insignificant to the YAML decoder on the edge.
+// Encode serializes an edge config map to config.toml bytes. Keys sort
+// alphabetically (toml encoder map order) — deterministic, and order is
+// insignificant to the TOML decoder on the edge.
 func Encode(cfg map[string]any) ([]byte, error) {
-	raw, err := yaml.Marshal(cfg)
-	if err != nil {
+	var buf bytes.Buffer
+	if err := toml.NewEncoder(&buf).Encode(cfg); err != nil {
 		return nil, fmt.Errorf("encode edge config: %w", err)
 	}
-	return raw, nil
+	return buf.Bytes(), nil
 }
 
-// Decode parses config.yaml bytes back into a generic map. Used by the
+// Decode parses config.toml bytes back into a generic map. Used by the
 // setup:localnode port-fallback path, which rewrites panel_url in a file
 // the installer itself just wrote.
 func Decode(data []byte) (map[string]any, error) {
 	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := toml.Decode(string(data), &cfg); err != nil {
 		return nil, fmt.Errorf("decode edge config: %w", err)
 	}
 	return cfg, nil

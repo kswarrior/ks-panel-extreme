@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/example/kspanel/internal/pagelib"
@@ -71,10 +72,19 @@ func TestDecodeInstancePageBytesAcceptsYAMLAndLegacyJSON(t *testing.T) {
 	if err := decodeInstancePageBytes([]byte(jsonDoc), &fromJSON); err != nil {
 		t.Fatalf("JSON decode failed: %v", err)
 	}
-	if fromYAML.Name != "demo" || fromYAML.ContentHTML != "<div>hi</div>\n" {
+	if fromYAML.Name != "Demo" || fromYAML.Slug != "demo" || fromYAML.ContentHTML != "<div>hi</div>\n" {
 		t.Errorf("unexpected YAML request: %+v", fromYAML)
 	}
-	if fromYAML.Actions != fromJSON.Actions {
+	var yamlActions, jsonActions []map[string]any
+	if err := json.Unmarshal([]byte(fromYAML.Actions), &yamlActions); err != nil {
+		t.Fatalf("YAML actions not a JSON array: %v", err)
+	}
+	if err := json.Unmarshal([]byte(fromJSON.Actions), &jsonActions); err != nil {
+		t.Fatalf("JSON actions not a JSON array: %v", err)
+	}
+	if len(yamlActions) != 1 || len(jsonActions) != 1 ||
+		yamlActions[0]["name"] != "ping" || jsonActions[0]["name"] != "ping" ||
+		yamlActions[0]["command"] != "echo pong" || jsonActions[0]["command"] != "echo pong" {
 		t.Errorf("encoding mismatch:\nYAML %s\nJSON %s", fromYAML.Actions, fromJSON.Actions)
 	}
 }
