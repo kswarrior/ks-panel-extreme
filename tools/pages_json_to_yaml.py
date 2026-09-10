@@ -41,11 +41,37 @@ class Literal(str):
     """A string that PyYAML always emits as a `|` literal block."""
 
 
-def _literal_representer(dumper, data):
-    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+class LiteralStrip(Literal):
+    """Literal block with `-` chomping (no trailing newline)."""
 
 
-yaml.add_representer(Literal, _literal_representer, Dumper=yaml.SafeDumper)
+class LiteralKeep(Literal):
+    """Literal block with `+` chomping (keep all trailing newlines)."""
+
+
+def _literal_representer(style):
+    def _rep(dumper, data):
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+    return _rep
+
+
+yaml.add_representer(Literal, _literal_representer("|"), Dumper=yaml.SafeDumper)
+yaml.add_representer(
+    LiteralStrip, _literal_representer("|-"), Dumper=yaml.SafeDumper
+)
+yaml.add_representer(
+    LiteralKeep, _literal_representer("|+"), Dumper=yaml.SafeDumper
+)
+
+
+def as_literal(value: str):
+    """Wrap a multiline string so a YAML round-trip preserves it byte-exact."""
+    if value.endswith("\n\n"):
+        return LiteralKeep(value)
+    if value.endswith("\n"):
+        return Literal(value)
+    return LiteralStrip(value)
 
 
 def to_yaml_doc(src: dict) -> dict:
@@ -68,9 +94,27 @@ def to_yaml_doc(src: dict) -> dict:
         if value == "" or value is None:
             continue  # drop empty content_* variants and unset optionals
         if isinstance(value, str) and "\n" in value:
-            value = Literal(value)
+            value = as_literal(value)
         doc[key] = value
     return doc
+
+
+def semantic(doc: dict) -> str:
+    """Canonical form for round-trip comparison: stringified lists are
+    parsed first, so JSON escape style (\\u2014 vs literal) can't mismatch."""
+    out: dict = {}
+    for key, value in doc.items():
+        if (
+            key in STRINGIFIED_LIST_FIELDS
+            and isinstance(value, str)
+            and value.strip().startswith("[")
+        ):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        out[key] = value
+    return json.dumps(out, sort_keys=True, ensure_ascii=False)
 
 
 def to_json_doc(doc: dict) -> dict:
@@ -122,9 +166,8 @@ def main(argv: list[str]) -> int:
             for k, v in src.items()
             if not (v == "" or v is None or (isinstance(v, str) and v.strip() == "[]"))
         }
-        # Compare with JSON canonicalisation (key order / spacing agnostic).
-        norm = lambda d: json.dumps(d, sort_keys=True, ensure_ascii=False)  # noqa: E731
-        if norm(back) != norm(src_lean):
+        # Compare semantically (escape-style agnostic).
+        if semantic(back) != semantic(src_lean):
             print(f"ROUND-TRIP MISMATCH: {path.name}", file=sys.stderr)
             failed += 1
             continue

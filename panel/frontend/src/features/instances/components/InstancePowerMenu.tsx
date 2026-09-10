@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
-import { resolveInstanceControls, shortcutLabel, shortcutSlug } from '../utils/instanceControls';
+import { resolveInstanceControls } from '../utils/instanceControls';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -54,9 +54,7 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 // InstancePowerMenu — power controls for an instance as menu sections
 // (no pill chrome). Rendered at the TOP of the floating instance menu:
 // a Start / Stop / Restart / Kill button row first (with a divider line
-// below it, mirroring the line below Actions), then the self-sufficient
-// Files / Terminal / Ports / Automation / Env shortcut row (horizontally scrollable, always
-// clickable — no library import needed), then the template Actions
+// below it when template Actions follow), then the template Actions
 // selector below it: a bordered `name | chevron` row where clicking the
 // name runs/stops the shown action and clicking the SVG chevron (resting
 // `<`-style, rotating down) drops down every action. Action rows are
@@ -69,8 +67,6 @@ function actionPhase(isActive: boolean, outcome: 'ok' | 'err' | undefined): Acti
 const InstancePowerMenu: React.FC = () => {
   const { id } = useParams();
   const instanceId = Number(id);
-  const navigate = useNavigate();
-  const location = useLocation();
   const { instance, loading, reload } = useInstance(instanceId);
 
   const [busy, setBusy] = useState<'start' | 'stop' | 'restart' | 'kill' | null>(null);
@@ -150,23 +146,6 @@ const InstancePowerMenu: React.FC = () => {
   const canStop = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_STOP);
   const canRestart = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_RESTART);
   const canKill = hasPermissionAny(permissions, PermissionKey.MANAGE_INSTANCES, PermissionKey.INSTANCES_CONTROL, PermissionKey.INSTANCES_KILL);
-
-  // Quick shortcuts (Files / Terminal / Ports / Automation / Env) — pure builtins surfaced
-  // directly above the template Actions so operators can jump without
-  // closing the menu. Slug / label / icon come from
-  // instance_controls.shortcuts (template author or per-instance override).
-  // Always clickable — no library import needed. Only Ports gates on
-  // permission (its editor is permission-gated).
-  const filesSlug = shortcutSlug(controls, 'files');
-  const terminalSlug = shortcutSlug(controls, 'terminal');
-  const portsSlug = shortcutSlug(controls, 'ports');
-  const automationSlug = shortcutSlug(controls, 'automation');
-  const envSlug = shortcutSlug(controls, 'env');
-  const canEditPorts = hasPermissionAny(
-    permissions,
-    PermissionKey.INSTANCES_EDIT,
-    PermissionKey.MANAGE_INSTANCES,
-  );
 
   if (!canControl || !Number.isFinite(instanceId)) return null;
 
