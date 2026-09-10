@@ -2,8 +2,6 @@ import React, { useCallback, useState, useMemo } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
-import IconColorPicker from '@/shared/components/ui/IconColorPicker';
-import { CustomPageStudio } from '@/features/templates/components/TemplateFormComponents';
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
 import { parseSubPages, parsePageActions, parsePageComponents, parsePageConfigure } from '@/features/instance-pages/types/instancePage';
@@ -34,18 +32,11 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   monoCls,
   addBtn,
 }) => {
-  const normSlug = (v: string) => v.toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').replace(/-+/g, '-');
-
   const alreadyAddedSlugs = useMemo(
     () => new Set(pages.map((p) => p.slug)),
     [pages],
   );
 
-  // Index of the page currently being edited in-place. When non-null, the
-  // card expands to show a sub-form with the editable fields (Path, Name,
-  // Icon SVG, plus the CustomPageStudio for custom pages). Clicking Save
-  // collapses it again. Mirrors the editor UX from the rest of the panel.
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [configureIdx, setConfigureIdx] = useState<number | null>(null);
 
   // ---- Add pages modal ------------------------------------------------------
@@ -211,8 +202,8 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
         <div className="space-y-3">
           {pages.map((p, i) => {
             const defLabel = p.slug === '.' ? 'Home' : p.slug;
-            const isEditing = editingIdx === i;
             const iconSvg = p.icon_svg || '';
+            const hasConfigure = (p.configure?.length ?? 0) > 0;
             return (
               <div
                 key={p.slug + ':' + i}
@@ -289,46 +280,36 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                     </code>
                   </div>
 
-                  {/* Configure button — shown when the page defines configure vars (Studio Configure tab). */}
-                  {(p.configure?.length ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setConfigureIdx(i)}
-                      className="px-2.5 py-1 text-xs font-medium border border-sky-700/40 bg-sky-900/20 text-sky-300 rounded hover:bg-sky-800/30 shrink-0"
-                      title="Configure page variables"
-                    >
-                      Configure
-                    </button>
-                  )}
-                  {/* 3-dot menu: Edit / Remove. Edit opens an inline
-                      sub-form (see below); Remove drops the page. */}
+                  {/* 3-dot menu: Configure (when the page defines configure
+                      vars in the Studio Configure tab) / Remove. */}
                   <CardMenu
                     ariaLabel={`Actions for page ${p.label || defLabel}`}
                     items={[
-                      {
-                        key: 'edit',
-                        label: isEditing ? 'Close editor' : 'Edit',
-                        tone: 'default',
-                        icon: (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
-                        ),
-                      },
+                      ...(hasConfigure
+                        ? [
+                            {
+                              key: 'configure',
+                              label: 'Configure',
+                              tone: 'default' as const,
+                              icon: (
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" /></svg>
+                              ),
+                            },
+                          ]
+                        : []),
                       {
                         key: 'remove',
                         label: 'Remove',
-                        tone: 'danger',
+                        tone: 'danger' as const,
                         icon: (
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                         ),
                       },
                     ]}
                     onSelect={(key) => {
-                      if (key === 'edit') {
-                        setEditingIdx(isEditing ? null : i);
+                      if (key === 'configure') {
+                        setConfigureIdx(i);
                       } else if (key === 'remove') {
-                        if (editingIdx !== null && editingIdx >= i) {
-                          setEditingIdx(null);
-                        }
                         if (configureIdx !== null && configureIdx >= i) {
                           setConfigureIdx(null);
                         }
@@ -337,60 +318,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
                     }}
                   />
                 </div>
-
-                {isEditing && (
-                  <div className="px-3 pb-3 pt-1 border-t border-white/5 space-y-3 bg-black/20">
-                    <IconColorPicker
-                      icon={p.icon_svg || ''}
-                      color={(p as any).icon_color || ''}
-                      onIconChange={(v) => onPageUpdate(i, { icon_svg: v })}
-                      onColorChange={(v) => onPageUpdate(i, { icon_color: v } as any)}
-                      previewName={p.label || p.slug}
-                    />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className={labelCls}>Path (/path)</label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-gray-500 text-sm">/</span>
-                          <input
-                            value={p.slug === '.' ? '' : p.slug}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              onPageUpdate(i, { slug: v === '' ? '.' : normSlug(v) });
-                            }}
-                            placeholder="my-page (empty = home)"
-                            className={monoCls + ' flex-1'}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className={labelCls}>Name</label>
-                        <input
-                          value={p.label}
-                          onChange={(e) => onPageUpdate(i, { label: e.target.value })}
-                          placeholder={defLabel}
-                          className={glassFieldClass}
-                        />
-                      </div>
-                    </div>
-                    <CustomPageStudio
-                      page={{
-                        content_type: p.content_type,
-                        content_blocks: p.content_blocks,
-                        content_html: p.content_html,
-                        content_markdown: p.content_markdown,
-                      } as { content_type?: string; content_blocks?: string; content_html?: string; content_markdown?: string }}
-                      onChange={(patch: Partial<{ content_type: string; content_blocks: string; content_html: string; content_markdown: string }>) =>
-                        onPageUpdate(i, {
-                          content_type: patch.content_type as PageOverride['content_type'],
-                          content_blocks: patch.content_blocks,
-                          content_html: patch.content_html,
-                          content_markdown: patch.content_markdown,
-                        })
-                      }
-                    />
-                  </div>
-                )}
               </div>
             );
           })}
