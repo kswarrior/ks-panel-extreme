@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { createCustomPageSDK, pageNavigateTarget, type InstanceContext } from '@/shared/lib/customPageSdk';
+import { buildPageWsUrl, createCustomPageSDK, pageNavigateTarget, type InstanceContext } from '@/shared/lib/customPageSdk';
 import { confirmDialog } from '@/shared/stores/confirmStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
@@ -894,11 +894,12 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
   };
 
   // WebSocket proxy: session cookies never leave the host origin, so the
-  // sandboxed page asks the parent to open /api/instances/<id>/terminal and
-  // relays frames. Exposes a minimal WebSocket-compatible surface.
+  // sandboxed page asks the parent to open one of its own instance's three
+  // bridges (/terminal, /workflow, /startup) and relays frames. Exposes a
+  // minimal WebSocket-compatible surface.
   var wsSeq = 0;
   var sockets = Object.create(null);
-  sdk.connectWS = function(protocols) {
+  sdk.connectWS = function(protocols, endpoint, params) {
     var wsId = 'ws' + (++wsSeq);
     var reqId = 'r' + wsId;
     var handlers = { onopen: null, onmessage: null, onclose: null, onerror: null };
@@ -928,7 +929,7 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     }
     messageHandlers[wsId] = { open: onEvent('open'), message: onEvent('message'), close: onEvent('close'), error: onEvent('error') };
 
-    window.parent.postMessage({ type: 'ks-ws-open', reqId: reqId, protocols: protocols || null }, '*');
+    window.parent.postMessage({ type: 'ks-ws-open', reqId: reqId, protocols: protocols || null, endpoint: endpoint || 'terminal', params: params || {} }, '*');
     return sock;
   };
 
@@ -1747,7 +1748,16 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         // the host origin, so the iframe asks us to open the socket. ---
         case 'ks-ws-open': {
           const wsId = `ws${++wsSeq.current}`;
-          const url = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/instances/${bridgeInstanceId}/terminal`;
+          // Endpoint + params arrive from the sandboxed page: the shared
+          // buildPageWsUrl allow-lists the bridge (terminal/workflow/
+          // startup) and normalises terminal/timeout, so a page can only
+          // dial its own instance's three bridges — never another URL.
+          const wsMsg = data as { reqId?: unknown; protocols?: unknown; endpoint?: unknown; params?: unknown };
+          const wsParams = (wsMsg.params && typeof wsMsg.params === 'object' ? wsMsg.params : {}) as { terminal?: unknown; timeout?: unknown };
+          const url = buildPageWsUrl(window.location.host, window.location.protocol, bridgeInstanceId, wsMsg.endpoint, {
+            terminal: typeof wsParams.terminal === 'string' ? wsParams.terminal : '',
+            timeout: typeof wsParams.timeout === 'string' || typeof wsParams.timeout === 'number' ? wsParams.timeout : '',
+          });
           // Subprotocols arrive from the sandboxed page via postMessage: accept
           // a single string or an array (the iframe shim forwards whatever the
           // author passed). Fail closed per entry — keep only non-empty RFC
