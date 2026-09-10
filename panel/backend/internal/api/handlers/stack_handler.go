@@ -40,6 +40,16 @@ type stackResponse struct {
 	// /<root>/* (migration 072). 0/"" = proxy off.
 	ProxyPort    int    `json:"proxy_port"`
 	ProxyRootURL string `json:"proxy_root_url,omitempty"`
+	// Node-style remote pairing (migration 076): dial address of the stack
+	// app on another host ("" = same-host loopback), TLS flags, token
+	// prefix label, heartbeat status. The raw token is returned only at
+	// create/rotate time, never in this shape (mirrors nodes).
+	RemoteAddress    string `json:"remote_address,omitempty"`
+	RemoteUseTLS     bool   `json:"remote_use_tls"`
+	RemoteSkipVerify bool   `json:"remote_skip_verify"`
+	TokenPrefix      string `json:"token_prefix,omitempty"`
+	Status           string `json:"status"`
+	LastSeenAt       string `json:"last_seen_at,omitempty"`
 	OwnerName   string          `json:"owner_name,omitempty"`
 	Source      string          `json:"source"`
 	SourceURL   string          `json:"source_url,omitempty"`
@@ -88,12 +98,20 @@ func toStackResponse(repo *repository.StackRepository, s *models.Stack) stackRes
 		Active:      s.Active,
 		ProxyPort:   s.ProxyPort,
 		ProxyRootURL: s.ProxyRootURL,
+		RemoteAddress:    s.RemoteAddress,
+		RemoteUseTLS:     s.RemoteUseTLS,
+		RemoteSkipVerify: s.RemoteSkipVerify,
+		TokenPrefix:      s.TokenPrefix,
+		Status:           s.Status,
 		OwnerName:   s.OwnerName,
 		Source:      source,
 		SourceURL:   s.SourceURL,
 		PackageSize: s.PackageSize,
 		CreatedAt:   isoString(s.CreatedAt),
 		UpdatedAt:   isoString(s.UpdatedAt),
+	}
+	if s.LastSeenAt != nil {
+		resp.LastSeenAt = isoString(*s.LastSeenAt)
 	}
 	perms, _ := repo.ListStackPermissions(s.ID)
 	pending := 0
@@ -324,7 +342,7 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	for _, p := range in.PermissionsRequested {
 		reqs = append(reqs, repository.StackPermissionReq{Capability: p.Capability, AccessLevel: p.AccessLevel})
 	}
-	s, err := repo.CreateStack(repository.CreateStackInput{
+	s, token, err := repo.CreateStack(repository.CreateStackInput{
 		Name: in.Name, Slug: in.Slug, Category: in.Category, Version: in.Version,
 		Description: in.Description, Icon: in.Icon, Color: in.Color,
 		Runtime: in.Runtime, Entrypoint: in.Entrypoint,
@@ -354,7 +372,15 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 		TargetLabel: in.Name,
 		Message:     fmt.Sprintf("uploaded stack %q (slug=%s, source=%s, runtime=%s, %s/%s)", in.Name, in.Slug, source, in.Runtime, in.PageStyle, in.ThemeMode),
 	})
-	writeJSONStatus(w, http.StatusCreated, toStackResponse(repo, s))
+	// The pairing token is returned exactly once here (mirrors the node
+	// create flow) — the operator pastes it into the stack app's config
+	// so the app can heartbeat WITHOUT any manual API key.
+	resp := toStackResponse(repo, s)
+	writeJSONStatus(w, http.StatusCreated, map[string]any{
+		"stack": resp,
+		"id":    resp.ID,
+		"token": token,
+	})
 }
 
 // installStackFromURLDTO is the POST /api/stacks/url body.
