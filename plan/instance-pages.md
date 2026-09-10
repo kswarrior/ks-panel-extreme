@@ -48,6 +48,17 @@ New file only + thin wiring, no edits to `modengine/`:
 
 ## Verify (`loop.md` CHECKLIST V)
 
-- `go build ./... && go test ./...`, frontend `build+typecheck+lint`, migration compat x3.
+- `go build ./... && go test ./...`, frontend `build+typecheck+lint`, migration compat x3 DBs
 - Live: Studio write TSX -> Build ok -> link to template -> deploy -> open `/instances/:id/<slug>` works, theme switch no reload, `runAction/fetchPanel/WS` work, bad import rejected with log.
 - Security pass: XSS (bundle can't escape iframe), IDOR (bundle of instance A can't fetch B), oversize/infinite-loop rejected.
+
+## V1 shipped notes (2026-09-10, migration 075)
+
+- No JSX in v1: author JS with `React.createElement`, entry `function Page() { … }` + `return Page;`.
+  Build validates (import allow-list `react/react-dom/KSPageSDK`, deny `eval/fetch/XHR/cookie/storage`) and stores
+  source as the bundle (`bundle_js == source_tsx`); a real JSX transform is the v2 upgrade.
+- Host-rendered (like markdown/blocks), not iframe-isolated: authors hold `MANAGE_INSTANCE_PAGES`
+  (same trust as template actions). `ReactModuleView` memoizes component identity on bundle+sdk
+  fingerprint so hooks state survives theme switches — the HTML `srcDoc`-reload problem is gone.
+- Sub-pages stay `html|markdown|blocks` (react rejected in `validateSubPages`).
+- Marketplace/resync carry source but never bundles (bundles are build-owned); re-link after build to ship.

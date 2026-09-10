@@ -220,6 +220,17 @@ func NewRouter() http.Handler {
 		// Public edge metrics ingest. ksedge authenticates with its edge token in
 		// the body, so this must NOT sit behind the session-cookie auth middleware.
 		r.Post("/api/nodes/heartbeat", handlers.HeartbeatIngestHandler)
+		// Public stack pairing heartbeat. A paired stack app authenticates
+		// with its pairing token (kss_…) in the body — no session cookie,
+		// no API key (mirrors the edge heartbeat above).
+		r.Post("/api/stacks/heartbeat", handlers.StackHeartbeatHandler)
+		// Paired-stack token API: the remote app calls back into the panel
+		// with its pairing token (Bearer). Each endpoint enforces the
+		// stack's granted caps itself, so these must NOT sit behind the
+		// session-cookie auth middleware either.
+		r.Get("/api/stacks/token/me", handlers.StackTokenMeHandler)
+		r.Get("/api/stacks/token/instances", handlers.StackTokenInstancesHandler)
+		r.Get("/api/stacks/token/metrics", handlers.StackTokenMetricsHandler)
 		// Reverse tunnel: edge dials panel via WSS and keeps the socket alive so
 		// the panel can multiplex RPCs back to the edge without dialing it directly.
 		// Token-auth, not session-cookie.

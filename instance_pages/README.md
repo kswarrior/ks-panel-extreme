@@ -26,7 +26,7 @@ Each instance page is defined as a JSON file with the following structure:
   "kind": "custom",
   "category": "documentation",
   "description": "Page description",
-  "content_type": "html|markdown|blocks",
+  "content_type": "html|markdown|blocks|react",
   "content_html": "<div>HTML content</div>",
   "content_markdown": "# Markdown content",
   "content_blocks": "[{\"type\": \"heading\", \"value\": \"Title\"}]",
@@ -43,10 +43,11 @@ Each instance page is defined as a JSON file with the following structure:
 - `kind` (optional): Only "custom" is accepted — the legacy "builtin" kind was removed (migration 046)
 - `category` (optional): Grouping tag (e.g., "docs", "reference", "guides")
 - `description` (optional): Page description
-- `content_type` (required): "html", "markdown", or "blocks"
+- `content_type` (required): "html", "markdown", "blocks", or "react"
 - `content_html` (required if content_type=html): HTML content
 - `content_markdown` (required if content_type=markdown): Markdown content
 - `content_blocks` (required if content_type=blocks): JSON array of block objects
+- `source_tsx` (required if content_type=react): author React JS source (`function Page() { … }` + `return Page;`, `React.createElement`, no JSX in v1); click **Build** in the Studio to validate it into the executable bundle (`bundle_js`)
 - `icon_svg` (optional): Raw SVG inner markup for custom icon
 - `actions` (optional): JSON array of saved executable actions (`{name, type, command/path/content, args, env, timeout, description}`). Pages execute ONLY these via `KSPageSDK.runAction(name)`; an action may opt in to caller-supplied arguments with `"open_args": true` — shell commands then substitute the validated runtime args into a `{{args}}` placeholder in the stored command.
 - `sub_pages` / `pages` (optional): JSON array of nested sub-page definitions (`{path, name, content_type, content_*}`) reachable at `<slug>/<path>`
