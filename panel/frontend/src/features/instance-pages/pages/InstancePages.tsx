@@ -643,13 +643,13 @@ const InstancePages: React.FC = () => {
         {addTab === 'file' && (
           <>
             <p className="text-xs text-gray-400">
-              Choose an instance page definition file (<code className="text-gray-300">.json</code>). The panel validates it and adds it to the library.
+              Choose an instance page definition file (<code className="text-gray-300">.yaml</code> or legacy <code className="text-gray-300">.json</code>). The panel validates it and adds it to the library.
             </p>
             <label className="block mt-2">
               <span className="text-xs text-gray-400">Page file</span>
               <input
                 type="file"
-                accept=".json,application/json"
+                accept=".yaml,.yml,.json,application/yaml,application/json"
                 onChange={(e) => { const f = e.target.files?.[0] || null; setImportFile(f); setImportError(''); }}
                 className="block w-full mt-1 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200"
               />

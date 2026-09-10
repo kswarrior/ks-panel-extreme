@@ -1211,27 +1211,35 @@ sync_pagelib() {
     else
         log_warn "marketplace.json not found in $src"
     fi
-    # Copy all page JSON files into library/pages for embedding.
-    # Canonical source is instance_pages/pages/*.json; top-level *.json files
-    # are still accepted as a legacy override.
+    # Copy all page files into library/pages for embedding.
+    # Canonical source is instance_pages/pages/*.yaml (human-friendly
+    # authoring format); legacy *.json files are still accepted as an
+    # override so operator libraries keep embedding.
     local copied=0
     if [[ -d "$src/pages" ]]; then
-        for f in "$src/pages"/*.json; do
+        for f in "$src/pages"/*.yaml "$src/pages"/*.yml "$src/pages"/*.json; do
             [[ -e "$f" ]] || continue
             base="$(basename "$f")"
             [[ "$base" == "marketplace.json" ]] && continue
+            # Canonical YAML wins: never let a stale legacy JSON shadow it.
+            stem="${base%.*}"
+            if [[ -f "$dst/pages/$stem.yaml" || -f "$dst/pages/$stem.yml" ]]; then
+                log_warn "Skipping legacy $base (canonical YAML already embedded)"
+                continue
+            fi
             cp -- "$f" "$dst/pages/" || die "failed to copy pages/$base"
             copied=$((copied+1))
         done
     else
         log_warn "instance_pages/pages missing — no canonical page library to embed"
     fi
-    for f in "$src"/*.json; do
+    for f in "$src"/*.yaml "$src"/*.yml "$src"/*.json; do
         [[ -e "$f" ]] || continue
         base="$(basename "$f")"
         [[ "$base" == "marketplace.json" ]] && continue
         # Legacy top-level override: only fills gaps, never overwrites pages/.
-        if [[ -f "$dst/pages/$base" ]]; then
+        stem="${base%.*}"
+        if [[ -f "$dst/pages/$base" || -f "$dst/pages/$stem.yaml" || -f "$dst/pages/$stem.yml" || -f "$dst/pages/$stem.json" ]]; then
             log_warn "Skipping duplicate top-level $base (already copied from pages/)"
             continue
         fi
