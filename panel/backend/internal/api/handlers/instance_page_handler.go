@@ -324,6 +324,9 @@ func validateSubPages(raw string) error {
 		if s.Name == "" {
 			return newErrString("sub-page name is required")
 		}
+		if s.ContentType == "react" {
+			return newErrString("sub-pages do not support react in v1 (use html, markdown or blocks)")
+		}
 		if s.ContentType != "" && !validContentTypes[s.ContentType] {
 			return newErrString("sub-page content_type must be one of: html, markdown, blocks")
 		}

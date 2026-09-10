@@ -164,10 +164,16 @@ export function specToEditor(spec: string): EditorState {
         label: String(p.label ?? p.slug ?? ''),
         icon_svg: String(p.icon_svg ?? ''),
         kind: 'custom',
-        content_type: (['html', 'markdown', 'blocks'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
+        content_type: (['html', 'markdown', 'blocks', 'react'].includes(p.content_type) ? p.content_type : 'markdown') as PageOverride['content_type'],
         content_html: typeof p.content_html === 'string' ? p.content_html : '',
         content_markdown: typeof p.content_markdown === 'string' ? p.content_markdown : '',
         content_blocks: typeof p.content_blocks === 'string' ? p.content_blocks : '',
+        // React snapshot: keep source + built bundle so form round-trips
+        // never strip a linked React page back to markdown.
+        ...(typeof p.source_tsx === 'string' && p.source_tsx !== '' ? { source_tsx: p.source_tsx } : {}),
+        ...(typeof p.bundle_js === 'string' && p.bundle_js !== '' ? { bundle_js: p.bundle_js } : {}),
+        ...(typeof p.bundle_css === 'string' && p.bundle_css !== '' ? { bundle_css: p.bundle_css } : {}),
+        ...(typeof p.build_status === 'string' && p.build_status !== '' ? { build_status: p.build_status } : {}),
         // Saved actions survive the round-trip (inline array or legacy
         // JSON-encoded string) — dropping them broke every action button.
         ...(parsePageActions(
@@ -394,6 +400,10 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       if (p.content_html) out.content_html = p.content_html;
       if (p.content_markdown) out.content_markdown = p.content_markdown;
       if (p.content_blocks) out.content_blocks = p.content_blocks;
+      if (p.source_tsx) out.source_tsx = p.source_tsx;
+      if (p.bundle_js) out.bundle_js = p.bundle_js;
+      if (p.bundle_css) out.bundle_css = p.bundle_css;
+      if (p.build_status) out.build_status = p.build_status;
       // Saved actions are part of the row — persist them or the runtime
       // allow-list ends up empty and every action 403s on the instance.
       if (p.actions && p.actions.length > 0) out.actions = p.actions;

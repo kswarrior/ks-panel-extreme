@@ -332,10 +332,18 @@ export interface PageOverride {
   icon_color?: string;
   original_slug?: string;
   kind?: 'custom' | 'builtin';
-  content_type?: 'html' | 'markdown' | 'blocks';
+  content_type?: 'html' | 'markdown' | 'blocks' | 'react';
   content_html?: string;
   content_markdown?: string;
   content_blocks?: string;
+  /** Author React JS source (content_type == 'react'). Snapshot of the library row. */
+  source_tsx?: string;
+  /** Validated React bundle (content_type == 'react'). Snapshot of the library row. */
+  bundle_js?: string;
+  /** Optional React page CSS. Snapshot of the library row. */
+  bundle_css?: string;
+  /** Build status snapshot ('ok' when the linked build was good). */
+  build_status?: string;
   /** Saved executable actions copied from the Instance Pages library row.
    *  The runtime allow-list (ExecuteCustomPageActionHandler) matches against
    *  THIS array — dropping it makes every action button on the page fail

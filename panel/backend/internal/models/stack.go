@@ -3,6 +3,7 @@ package models
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -164,6 +165,108 @@ func IsReservedStackProxyRoot(root string) bool {
 		}
 	}
 	return false
+}
+
+// StackTokenPrefix brands the stack pairing token so it is
+// distinguishable from an edge token (kse_…) and an API key (ksk_…).
+// The stack app operator pastes this into the app's config file.
+const StackTokenPrefix = "kss_"
+
+// ValidStackRemoteAddress reports whether addr is an acceptable node-style
+// dial address for a remote stack app: host:port, bare host/hostname, or
+// "" (same-host loopback — never validated here, the caller treats empty
+// as "use proxy_port"). It mirrors the node address rules: no scheme,
+// no whitespace, numeric ports 1..65535, bracketed IPv6 supported.
+func ValidStackRemoteAddress(addr string) bool {
+	addr = strings.TrimSpace(addr)
+	if addr == "" {
+		return true
+	}
+	if strings.HasPrefix(addr, "http://") || strings.HasPrefix(addr, "https://") {
+		return false
+	}
+	if strings.ContainsAny(addr, " \t\r\n") {
+		return false
+	}
+	if strings.HasPrefix(addr, "[") {
+		end := strings.Index(addr, "]")
+		if end == -1 {
+			return false
+		}
+		rest := addr[end+1:]
+		if rest == "" {
+			return true
+		}
+		if !strings.HasPrefix(rest, ":") || rest[1:] == "" {
+			return false
+		}
+		return validStackPortStr(rest[1:])
+	}
+	if strings.Count(addr, ":") > 1 {
+		return true // bare IPv6 literal, no port to validate
+	}
+	if idx := strings.LastIndex(addr, ":"); idx >= 0 {
+		if strings.TrimSpace(addr[:idx]) == "" || strings.TrimSpace(addr[idx+1:]) == "" {
+			return false
+		}
+		return validStackPortStr(strings.TrimSpace(addr[idx+1:]))
+	}
+	return true
+}
+
+func validStackPortStr(p string) bool {
+	if len(p) == 0 || len(p) > 5 {
+		return false
+	}
+	n := 0
+	for i := 0; i < len(p); i++ {
+		if p[i] < '0' || p[i] > '9' {
+			return false
+		}
+		n = n*10 + int(p[i]-'0')
+	}
+	return n >= 1 && n <= 65535
+}
+
+// IsRemoteStack reports whether the stack app lives on another host
+// (RemoteAddress set) versus same-host loopback (ProxyPort only).
+func (s *Stack) IsRemoteStack() bool {
+	return s != nil && strings.TrimSpace(s.RemoteAddress) != ""
+}
+
+// StackDialTarget returns the scheme + authority the panel dials for
+// probe/proxy: remote_address when set, else 127.0.0.1:proxyPort.
+func (s *Stack) StackDialTarget() (scheme, addr string) {
+	if s.IsRemoteStack() {
+		scheme = "http"
+		if s.RemoteUseTLS {
+			scheme = "https"
+		}
+		return scheme, strings.TrimSpace(s.RemoteAddress)
+	}
+	return "http", "127.0.0.1:" + stackItoa(s.ProxyPort)
+}
+
+func stackItoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	var b [20]byte
+	pos := len(b)
+	for n > 0 {
+		pos--
+		b[pos] = byte('0' + n%10)
+		n /= 10
+	}
+	if neg {
+		pos--
+		b[pos] = '-'
+	}
+	return string(b[pos:])
 }
 
 // StackPermission is one capability a stack declared it needs. Activation is
