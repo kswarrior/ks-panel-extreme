@@ -481,13 +481,11 @@ const Themes: React.FC = () => {
                 <p className="text-xs text-gray-400 leading-relaxed line-clamp-2">{t.description}</p>
               )}
 
-              <p className="text-[11px] text-gray-500 leading-relaxed">
-                {scopes.length > 0 ? (
-                  <>Used on: {scopes.map(scopeLabel).join(' · ')}</>
-                ) : (
-                  <>Not assigned — use Apply to… to paint a page or area.</>
-                )}
-              </p>
+              {scopes.length > 0 && (
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  Used on: {scopes.map(scopeLabel).join(' · ')}
+                </p>
+              )}
 
               <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
                 <span className="text-[11px] text-gray-500 truncate">

@@ -39,15 +39,83 @@ export interface PageConfigureVar {
 }
 
 export interface PageContent {
-  type: 'html' | 'markdown' | 'blocks';
+  type: 'html' | 'markdown' | 'blocks' | 'react';
   html?: string;
   markdown?: string;
   blocks?: string;
+  /** Validated React bundle body for type == 'react'. Executed once per
+   *  bundle (see ReactModuleView) with (sdk, React) in scope; must return
+   *  the root component (`return Page;`). */
+  bundle?: string;
+  /** Optional page CSS for type == 'react', scoped under .ks-react-page. */
+  bundleCss?: string;
   actions?: any[];
   components?: PageComponentDef[];
   configure?: PageConfigureVar[];
   config?: Record<string, string>;
 }
+
+// ReactModuleErrorBoundary keeps one throwing React page from blanking the
+// whole instance panel (same role as the ErrorBoundary around CustomPageView
+// in InstanceDetail).
+class ReactModuleErrorBoundary extends React.Component<{ resetKey: string; children: React.ReactNode }, { error: string | null }> {
+  constructor(props: { resetKey: string; children: React.ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(e: unknown): { error: string | null } {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+  render(): React.ReactNode {
+    if (this.state.error) {
+      return (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This React page threw an error.</p>
+          <p className="text-xs text-gray-500 mt-1 font-mono break-words">{this.state.error.slice(0, 300)}</p>
+          <p className="text-xs text-gray-500 mt-1">Fix the source in the Instance Page Studio and rebuild.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ReactModuleView renders a type == 'react' page in the HOST origin (like
+// markdown/blocks — authors hold MANAGE_INSTANCE_PAGES, same trust as
+// template actions; server validates the bundle at save + build).
+// Unlike sandboxed HTML iframes it keeps useState across parent re-renders:
+// the factory executes ONCE per bundle string, so component identity (and
+// hooks state) survives theme switches and panel refreshes that rebuild
+// iframe srcDoc from scratch.
+const ReactModuleView: React.FC<{
+  bundle: string;
+  bundleCss?: string;
+  sdk: ReturnType<typeof createCustomPageSDK>;
+  resetKey: string;
+}> = ({ bundle, bundleCss, sdk, resetKey }) => {
+  const PageComp = useMemo(() => {
+    const factory = new Function('sdk', 'React', `"use strict";\n${bundle}`);
+    const out = factory(sdk, React);
+    if (typeof out === 'function') return out as React.ComponentType;
+    const el = out as React.ReactElement;
+    const Static: React.FC = () => el;
+    return Static;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle]);
+  return (
+    <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}`}>
+      <div className="ks-react-page animate-fade-in">
+        {bundleCss && bundleCss.trim() !== '' ? <style>{`.ks-react-page { ${bundleCss} }`}</style> : null}
+        {React.createElement(PageComp as React.ComponentType)}
+      </div>
+    </ReactModuleErrorBoundary>
+  );
+};
 
 // Theme-aware inline styles for stat tones — every stat card follows the
 // active theme (accent.* tokens) via CSS variables so instance pages are
