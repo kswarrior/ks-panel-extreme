@@ -1,5 +1,5 @@
 {
-  "version": "2.0",
+  "version": "3.0",
   "updated": "2026-09-10",
   "pages": [
     {
@@ -13,7 +13,7 @@
         "automation",
         "jobs"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/automation.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/automation.yaml",
       "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1\"/>",
       "preview_image": ""
     },
@@ -28,7 +28,7 @@
         "networking",
         "ports"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/ports.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/ports.yaml",
       "icon_svg": "<rect x=\"2\" y=\"7\" width=\"20\" height=\"8\" rx=\"2\"/><path d=\"M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2\"/><path d=\"M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2\"/>",
       "preview_image": ""
     },
@@ -43,7 +43,7 @@
         "configuration",
         "env"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/env.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/env.yaml",
       "icon_svg": "<path d=\"M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1\"/><path d=\"M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1\"/>",
       "preview_image": ""
     },
@@ -58,7 +58,7 @@
         "files",
         "sftp"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/files.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/files.yaml",
       "icon_svg": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z\"/>",
       "preview_image": ""
     },
@@ -73,7 +73,7 @@
         "console",
         "terminal"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.yaml",
       "icon_svg": "<polyline points=\"4 17 10 11 4 5\"/><line x1=\"12\" y1=\"19\" x2=\"20\" y2=\"19\"/>",
       "preview_image": ""
     },
@@ -87,7 +87,7 @@
       "tags": [
         "minecraft"
       ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-properties.json",
+      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/minecraft-properties.yaml",
       "icon_svg": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z\"/>",
       "preview_image": ""
     }

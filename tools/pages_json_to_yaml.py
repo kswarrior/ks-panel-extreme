@@ -59,6 +59,18 @@ def as_literal(value: str) -> Literal:
     return Literal(value)
 
 
+def _literals(node):
+    """Recursively wrap every multiline string so nested structures
+    (e.g. sub_pages[].content_html) also emit as `|` literal blocks."""
+    if isinstance(node, dict):
+        return {k: _literals(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_literals(v) for v in node]
+    if isinstance(node, str) and "\n" in node:
+        return as_literal(node)
+    return node
+
+
 def to_yaml_doc(src: dict) -> dict:
     """Map a parsed library *.json object to its YAML-authoring form."""
     doc: dict = {}
@@ -74,7 +86,7 @@ def to_yaml_doc(src: dict) -> dict:
                 continue
             if decoded == []:
                 continue
-            doc[key] = decoded
+            doc[key] = _literals(decoded)
             continue
         if value == "" or value is None:
             continue  # drop empty content_* variants and unset optionals
