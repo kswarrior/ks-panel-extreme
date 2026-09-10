@@ -138,8 +138,7 @@ const InstancePowerMenu: React.FC = () => {
   const canControl = hasPermissionAny(
     permissions,
     PermissionKey.MANAGE_INSTANCES,
-    PermissionKey.INSTANCES_ALL,
-    PermissionKey.INSTANCES_EDIT,
+    PermissionKey.INSTANCES_CONTROL,
   );
 
   // Quick shortcuts (Files / Terminal / Ports / Automation / Env) — pure builtins surfaced

@@ -159,8 +159,19 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const canControl = hasPermissionAny(
     permissions,
     PermissionKey.MANAGE_INSTANCES,
-    PermissionKey.INSTANCES_ALL,
+    PermissionKey.INSTANCES_CONTROL,
+  );
+  // EDIT covers config-only mutations (rename, advanced config editor).
+  // DELETE covers destroy. CONTROL covers power/lifecycle (reinstall).
+  const canEdit = hasPermissionAny(
+    permissions,
+    PermissionKey.MANAGE_INSTANCES,
     PermissionKey.INSTANCES_EDIT,
+  );
+  const canDelete = hasPermissionAny(
+    permissions,
+    PermissionKey.MANAGE_INSTANCES,
+    PermissionKey.INSTANCES_DELETE,
   );
   // Page-action visibility reuses existing keys only — no new permission
   // keys. Template / node links need their area keys; everything mutating
@@ -321,7 +332,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const diskPct = last?.diskPct ?? 0;
 
   const onRename = async () => {
-    if (!canControl || !controls.allow_rename || renameBusy) return;
+    if (!canEdit || !controls.allow_rename || renameBusy) return;
     setRenameBusy(true);
     setRenameMsg('');
     try {
@@ -362,7 +373,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   };
 
   const onDelete = async () => {
-    if (!canControl || !controls.allow_destroy || deleteBusy) return;
+    if (!canDelete || !controls.allow_destroy || deleteBusy) return;
     const ok = await confirm({
       title: 'Destroy instance',
       message: `Destroy "${displayName}"? This runs driver destroy on the edge and removes the row.`,
