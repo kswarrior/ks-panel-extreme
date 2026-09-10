@@ -134,6 +134,12 @@ const StackDetail: React.FC = () => {
       setGrants(init);
       setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
       setProxyRoot(s.proxy_root_url || '');
+      setRemoteAddress(s.remote_address || '');
+      setRemoteUseTls(!!s.remote_use_tls);
+      setRemoteSkipVerify(!!s.remote_skip_verify);
+      setPairing(null);
+      setPairingOpen(false);
+      setProbeResult(null);
     } catch (e) {
       setError(extractStackApiError(e, 'Failed to load stack.'));
     } finally {
@@ -411,11 +417,22 @@ const StackDetail: React.FC = () => {
       setError('Proxy root URL must be lowercase letters, digits and hyphens (max 32).');
       return;
     }
-    if ((root && port === 0) || (!root && port !== 0)) {
+    const addr = remoteAddress.trim();
+    if (addr) {
+      if (/\s/.test(addr) || /^https?:\/\//i.test(addr)) {
+        setError('Remote address must be host:port or bare host, without a scheme or spaces.');
+        return;
+      }
+      if (!root) {
+        setError('A remote stack needs a proxy root URL to float at /<root>/.');
+        return;
+      }
+    } else if ((root && port === 0) || (!root && port !== 0)) {
       setError('Proxy port and root URL must be set together (or both empty to disable).');
       return;
     }
     setProxySaving(true);
+    setError('');
     try {
       const s = await updateStack(stack.id, {
         name: stack.name,
@@ -427,14 +444,79 @@ const StackDetail: React.FC = () => {
         spec: stack.spec || {},
         proxyPort: port,
         proxyRootUrl: root,
+        remoteAddress: addr,
+        remoteUseTls: remoteUseTls,
+        remoteSkipVerify: remoteSkipVerify,
       });
       setStack(s);
       setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
       setProxyRoot(s.proxy_root_url || '');
+      setRemoteAddress(s.remote_address || '');
+      setRemoteUseTls(!!s.remote_use_tls);
+      setRemoteSkipVerify(!!s.remote_skip_verify);
+      flashNotice('Connection saved.');
     } catch (e) {
       setError(extractStackApiError(e, 'Failed to save proxy.'));
     } finally {
       setProxySaving(false);
+    }
+  };
+
+  // Verify actively dials the stack app's /health (node-style probe).
+  const verify = async () => {
+    if (!stack) return;
+    setProbing(true);
+    setError('');
+    try {
+      const res = await probeStack(stack.id);
+      setProbeResult(res);
+      flashNotice(res.reachable === 'yes' ? 'Stack app is reachable.' : `Stack app unreachable${res.note ? ` — ${res.note}` : ''}.`);
+    } catch (e) {
+      setError(extractStackApiError(e, 'Verify failed.'));
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  // ShowPairing fetches the app config snippet (panel_url + token + slug).
+  // The token is displayed only here and never stored client-side.
+  const showPairing = async () => {
+    if (!stack) return;
+    setPairingLoading(true);
+    setError('');
+    try {
+      const p = await getStackPairing(stack.id);
+      setPairing(p);
+      setPairingOpen(true);
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to load pairing snippet.'));
+    } finally {
+      setPairingLoading(false);
+    }
+  };
+
+  // Rotate reissues the pairing token (the old one stops working at once)
+  // and opens the snippet so the operator can paste the new token.
+  const rotate = async () => {
+    if (!stack) return;
+    const ok = await confirm({
+      title: `Rotate pairing token?`,
+      message: 'The current token stops working immediately. The stack app must be updated with the new token.',
+      confirmLabel: 'Rotate',
+      tone: 'warning',
+    });
+    if (!ok) return;
+    setRotating(true);
+    setError('');
+    try {
+      await rotateStackToken(stack.id);
+      await load();
+      await showPairing();
+      flashNotice('New pairing token issued — update the stack app config.');
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to rotate token.'));
+    } finally {
+      setRotating(false);
     }
   };
 
@@ -456,6 +538,9 @@ const StackDetail: React.FC = () => {
     setEditSaving(true);
     setEditError('');
     try {
+      // Forward the current connection fields: the backend overwrites the
+      // whole row, so omitting them would silently clear the proxy/remote
+      // mount on every name edit.
       await updateStack(stack.id, {
         name: editName.trim(),
         category: editCategory,
@@ -463,6 +548,11 @@ const StackDetail: React.FC = () => {
         description: editDesc,
         icon: editIcon,
         color: editColor,
+        proxyPort: proxyPort.trim() === '' ? 0 : Number(proxyPort),
+        proxyRootUrl: proxyRoot.trim().toLowerCase(),
+        remoteAddress: remoteAddress.trim(),
+        remoteUseTls: remoteUseTls,
+        remoteSkipVerify: remoteSkipVerify,
       });
       setEditOpen(false);
       await load();
@@ -780,13 +870,14 @@ const StackDetail: React.FC = () => {
         <h2 className="text-sm font-medium text-gray-200 mb-1">App proxy</h2>
         <p className="text-xs text-gray-500 mb-3">
           Float an externally-run Go app (a complete program you run yourself, e.g. a dashboard on{' '}
-          <code className="font-mono">127.0.0.1:6600</code>) at <code className="font-mono">/&lt;root&gt;/</code> behind
+          <code className="font-mono">127.0.0.1:6600</code> or another host like{' '}
+          <code className="font-mono">10.0.0.9:7700</code>) at <code className="font-mono">/&lt;root&gt;/</code> behind
           the panel session — no API key needed, the app sees you via <code className="font-mono">X-Panel-User-*</code> headers.
           Works while the stack is active.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
           <label className="block">
-            <span className="text-xs text-gray-400">Loopback port (empty = off)</span>
+            <span className="text-xs text-gray-400">Loopback port (empty = off, optional for remote)</span>
             <input
               value={proxyPort}
               onChange={(e) => setProxyPort(e.target.value.replace(/[^0-9]/g, '').slice(0, 5))}
@@ -809,10 +900,36 @@ const StackDetail: React.FC = () => {
               />
             </div>
           </label>
+          <label className="block sm:col-span-2">
+            <span className="text-xs text-gray-400">Remote address — another host, node-style (empty = same host via loopback port)</span>
+            <input
+              value={remoteAddress}
+              onChange={(e) => setRemoteAddress(e.target.value)}
+              placeholder="10.0.0.9:7700"
+              spellCheck={false}
+              autoComplete="off"
+              className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
+            />
+          </label>
         </div>
+        {remoteAddress.trim() ? (
+          <div className="flex gap-4 mt-2 max-w-lg">
+            <label className="flex items-center gap-2 text-xs text-gray-300">
+              <input type="checkbox" checked={remoteUseTls} onChange={(e) => setRemoteUseTls(e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              Use TLS (https)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-300">
+              <input type="checkbox" checked={remoteSkipVerify} onChange={(e) => setRemoteSkipVerify(e.target.checked)} className="w-4 h-4 accent-emerald-500" />
+              Skip TLS verify (self-signed)
+            </label>
+          </div>
+        ) : null}
         <div className="flex gap-2 mt-3 flex-wrap">
           <button type="button" onClick={() => void saveProxy()} disabled={proxySaving} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
-            {proxySaving ? 'Saving…' : 'Save proxy'}
+            {proxySaving ? 'Saving…' : 'Save connection'}
+          </button>
+          <button type="button" onClick={() => void verify()} disabled={probing} className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 disabled:opacity-50">
+            {probing ? 'Verifying…' : 'Verify'}
           </button>
           {appUrl ? (
             <a href={appUrl} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white">
@@ -820,6 +937,50 @@ const StackDetail: React.FC = () => {
             </a>
           ) : null}
         </div>
+        {probeResult ? (
+          <p className={`mt-2 text-xs font-mono ${probeResult.reachable === 'yes' ? 'text-emerald-300' : 'text-red-300'}`}>
+            {probeResult.reachable === 'yes' ? '● reachable' : `● unreachable${probeResult.note ? ` — ${probeResult.note}` : ''}`}
+          </p>
+        ) : null}
+      </GlassCard>
+
+      <GlassCard>
+        <div className="flex items-center gap-2 mb-1">
+          <h2 className="text-sm font-medium text-gray-200">Remote pairing (node-style)</h2>
+          <span className={`text-[11px] px-2 py-0.5 rounded-full border font-mono ${stack.status === 'up' ? 'bg-emerald-900/40 text-emerald-200 border-emerald-700/50' : 'bg-white/5 text-gray-400 border-white/10'}`}>
+            {stack.status === 'up' ? '● up' : '○ down'}
+          </span>
+          {stack.token_prefix ? (
+            <span className="text-[11px] px-2 py-0.5 rounded-full border font-mono bg-white/5 text-gray-400 border-white/10" title="Pairing token prefix">
+              {stack.token_prefix}…
+            </span>
+          ) : null}
+        </div>
+        <p className="text-xs text-gray-500 mb-3">
+          The stack app connects with a pairing token — no API key to create. It heartbeats{' '}
+          <code className="font-mono">POST /api/stacks/heartbeat</code> with the token
+          {stack.last_seen_at ? <> (last seen {relativeTime(stack.last_seen_at)})</> : ' (never connected yet)'}; Verify dials its{' '}
+          <code className="font-mono">/health</code> like the node probe. With the granted capabilities it may call the token API
+          (<code className="font-mono">/api/stacks/token/me|instances|metrics</code>).
+        </p>
+        <div className="flex gap-2 flex-wrap">
+          <button type="button" onClick={() => void showPairing()} disabled={pairingLoading} className="text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50">
+            {pairingLoading ? 'Loading…' : pairingOpen ? 'Reload pairing snippet' : 'Show pairing snippet'}
+          </button>
+          <button type="button" onClick={() => void rotate()} disabled={rotating} className="text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 disabled:opacity-50">
+            {rotating ? 'Rotating…' : 'Rotate token'}
+          </button>
+        </div>
+        {pairingOpen && pairing ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-wide text-gray-500">App config — paste into the stack app</span>
+              <button onClick={() => void copy(pairing.config, 'pairing')} className="ml-auto px-2.5 py-1 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">{copied === 'pairing' ? 'Copied!' : 'Copy config'}</button>
+            </div>
+            <pre className="rounded-lg border border-white/5 bg-black/30 p-3 text-[11px] font-mono text-gray-200 whitespace-pre-wrap break-all">{pairing.config}</pre>
+            <p className="text-[11px] text-amber-300/80">Treat the token like a password — rotating invalidates the old one immediately.</p>
+          </div>
+        ) : null}
       </GlassCard>
 
       <GlassCard>

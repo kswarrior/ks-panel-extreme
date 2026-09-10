@@ -27,6 +27,10 @@ func TestValidateReactSourceRejectsHostEscapes(t *testing.T) {
 		`localStorage.getItem("k")`,
 		`require("fs")`,
 		`import x from "axios"`,
+		// Even react itself: the renderer injects sdk + React, and new
+		// Function cannot parse module syntax at all.
+		`import React from "react"`,
+		`export default Page`,
 	} {
 		if err := validateReactSource(src); err == nil {
 			t.Fatalf("expected rejection for %q", src)

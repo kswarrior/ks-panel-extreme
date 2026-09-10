@@ -115,18 +115,23 @@ var validBuildStatuses = map[string]bool{
 	"error":    true,
 }
 
-// reactImportAllowRe matches the only import sources a React page may pull:
-// react, react-dom and the KSPageSDK shim the renderer provides. Anything
-// else (relative paths, URLs, other packages) is rejected at build.
-var reactImportAllowRe = regexp.MustCompile(`(?m)^\s*import\s+(?:[^'"]+\s+from\s+)?['"]([^'"]+)['"]`)
+// reactImportRe matches any ES import/export statement. The renderer
+// executes the bundle via new Function with (sdk, React) already in scope,
+// which cannot parse module syntax — so v1 forbids imports/exports outright
+// instead of maintaining an allow-list that could never execute.
+var reactImportRe = regexp.MustCompile(`(?m)^\s*(import|export)\b`)
 
 // validateReactSource checks author React JS without executing it: size,
-// import allow-list and a deny-list of host-escape primitives (eval,
-// Function constructor, raw fetch/XHR, cookie/localStorage access). The
-// page must use KSPageSDK.fetchPanel/storage instead so calls stay scoped.
+// no module syntax (see reactImportRe) and a deny-list of host-escape
+// primitives (eval, Function constructor, raw fetch/XHR, cookie/localStorage
+// access). The page must use sdk.fetchPanel/storage instead so calls stay
+// scoped.
 func validateReactSource(src string) error {
 	if len(src) > maxInstancePageReactSourceBytes {
 		return newErrString("source_tsx too large (max 512KB)")
+	}
+	if reactImportRe.MatchString(src) {
+		return newErrString("source_tsx must not use import/export (React and sdk are already in scope)")
 	}
 	lower := strings.ToLower(src)
 	for _, denied := range []string{"eval(", "new function", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
@@ -134,15 +139,9 @@ func validateReactSource(src string) error {
 			return newErrString("source_tsx uses a forbidden primitive: " + denied)
 		}
 	}
-	// Raw fetch() would leave the sandbox scope — pages must use KSPageSDK.fetchPanel.
+	// Raw fetch() would leave the sandbox scope — pages must use sdk.fetchPanel.
 	if regexp.MustCompile(`(?m)(^|[^a-zA-Z0-9_.$])fetch\s*\(`).MatchString(src) {
-		return newErrString("source_tsx must use KSPageSDK.fetchPanel instead of fetch()")
-	}
-	for _, m := range reactImportAllowRe.FindAllStringSubmatch(src, -1) {
-		mod := strings.TrimSpace(m[1])
-		if mod != "react" && mod != "react-dom" && !strings.HasPrefix(mod, "react-dom/") && mod != "KSPageSDK" && mod != "./sdk" {
-			return newErrString("source_tsx imports a forbidden module: " + mod)
-		}
+		return newErrString("source_tsx must use sdk.fetchPanel instead of fetch()")
 	}
 	return nil
 }
