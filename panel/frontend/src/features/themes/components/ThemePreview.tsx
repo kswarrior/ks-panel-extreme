@@ -42,12 +42,12 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
       className={`relative overflow-hidden rounded-lg border border-white/10 ${className}`}
       style={{
         height: 128,
-        backgroundColor: theme.background.color,
+        backgroundColor: str(bg.color, 'transparent'),
         backgroundImage:
-          theme.background.type === 'image' && theme.background.image_url
-            ? `url(${theme.background.image_url})`
-            : theme.background.type === 'gradient'
-              ? (theme.background.gradient || undefined)
+          bg.type === 'image' && str(bg.image_url, '')
+            ? `url(${bg.image_url})`
+            : bg.type === 'gradient'
+              ? (str(bg.gradient, '') || undefined)
               : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -59,15 +59,15 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
         style={{
           position: 'absolute', top: 0, left: 0, bottom: 0,
           width: sidebarW, opacity: 0.95,
-          background: theme.sidebar.background,
-          borderColor: theme.sidebar.border_color,
+          background: str(sb.background, 'transparent'),
+          borderColor: str(sb.border_color, 'transparent'),
           borderWidth: 0, borderRightWidth: 1, borderStyle: 'solid',
         }}
       >
         {[0, 1, 2].map((i) => (
           <div key={i} style={{
             height: 3, margin: '6px 3px',
-            background: i === 0 ? theme.sidebar.active_background : theme.sidebar.text_color,
+            background: i === 0 ? str(sb.active_background, 'transparent') : str(sb.text_color, 'transparent'),
             opacity: i === 0 ? 1 : 0.5,
           }} />
         ))}
@@ -76,22 +76,22 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
       {/* mini header */}
       <div style={{
         position: 'absolute', top: 0, left: sidebarW, right: 0, height: 14,
-        background: theme.header.background,
-        borderColor: theme.header.border_color,
+        background: str(hd.background, 'transparent'),
+        borderColor: str(hd.border_color, 'transparent'),
         borderBottomWidth: 1, borderStyle: 'solid',
       }}>
         {/* mini loading bar — mirrors Header.tsx (fill sweeps at 70%) so the
             Header tab's bar color / track / thickness / edge show in the tile. */}
-        {(theme.header as any)?.loading_bar_enabled !== false && (
+        {hd?.loading_bar_enabled !== false && (
           <div
             style={{
               position: 'absolute', left: 0, right: 0,
-              ...((theme.header as any)?.loading_bar_position === 'top' ? { top: 0 } : { bottom: 0 }),
-              height: Math.max(1, Math.min(4, (theme.header as any)?.loading_bar_height ?? 2)),
-              backgroundColor: (theme.header as any)?.loading_bar_background ?? 'transparent',
+              ...(hd?.loading_bar_position === 'top' ? { top: 0 } : { bottom: 0 }),
+              height: Math.max(1, Math.min(4, num(hd?.loading_bar_height, 2))),
+              backgroundColor: str(hd?.loading_bar_background, 'transparent'),
             }}
           >
-            <div style={{ width: '70%', height: '100%', backgroundColor: (theme.header as any)?.loading_bar_color ?? '#ffffff' }} />
+            <div style={{ width: '70%', height: '100%', backgroundColor: str(hd?.loading_bar_color, '#ffffff') }} />
           </div>
         )}
       </div>
@@ -101,27 +101,27 @@ const ThemePreview: React.FC<{ theme: Theme; className?: string }> = ({ theme, c
         {[0, 1].map((i) => (
           <div key={i} style={{
             flex: 1, height: 64,
-            background: theme.card.background,
-            borderColor: theme.card.border_color,
-            borderWidth: theme.card.border_width, borderStyle: 'solid',
-            borderRadius: Math.min(theme.card.border_radius, 8),
-            boxShadow: theme.card.shadow,
+            background: str(cd.background, 'transparent'),
+            borderColor: str(cd.border_color, 'transparent'),
+            borderWidth: num(cd.border_width, 1), borderStyle: 'solid',
+            borderRadius: Math.min(num(cd.border_radius, 8), 8),
+            boxShadow: str(cd.shadow, 'none'),
           }}>
-            <div style={{ height: 4, margin: '5px 5px', background: halfHex(theme.card.text_color) }} />
-            <div style={{ height: 4, margin: '4px 5px', width: '70%', background: halfHex(theme.accent.primary), opacity: 0.45 }} />
-            <div style={{ height: 10, margin: '5px 5px', width: '40%', background: theme.button.background, borderRadius: Math.min(theme.button.border_radius, 4) }} />
+            <div style={{ height: 4, margin: '5px 5px', background: halfHex(cd.text_color) }} />
+            <div style={{ height: 4, margin: '4px 5px', width: '70%', background: halfHex(ac.primary), opacity: 0.45 }} />
+            <div style={{ height: 10, margin: '5px 5px', width: '40%', background: str(bt.background, 'transparent'), borderRadius: Math.min(num(bt.border_radius, 4), 4) }} />
           </div>
         ))}
       </div>
 
       {/* media-marker badge for image/video/gradient */}
-      {(theme.background.type === 'image' || theme.background.type === 'video' || theme.background.type === 'gradient') && (
+      {(bg.type === 'image' || bg.type === 'video' || bg.type === 'gradient') && (
         <span style={{
           position: 'absolute', right: 4, top: 18, fontSize: 7,
           padding: '1px 4px', borderRadius: 3,
           background: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)',
         }}>
-          {str(theme.background.type, '').toUpperCase()}
+          {str(bg.type, '').toUpperCase()}
         </span>
       )}
     </div>
