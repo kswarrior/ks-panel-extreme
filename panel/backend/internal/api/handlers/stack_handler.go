@@ -557,18 +557,20 @@ func UpdateStackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Same-host stacks still need port+root together; remote stacks are
 	// dialled at their address so the loopback port is optional — but a
-	// remote stack still needs the root to float at /<root>/.
+	// remote stack still needs the root to float at /<root>/. A loopback
+	// port or remote address without a root is allowed only as the
+	// upstream of the dedicated serve port (no /<root> mount then).
 	if remoteAddr == "" {
 		if proxyRoot != "" && dto.ProxyPort == 0 {
 			http.Error(w, "proxy root URL requires a proxy port (1-65535)", http.StatusBadRequest)
 			return
 		}
-		if dto.ProxyPort != 0 && proxyRoot == "" {
-			http.Error(w, "proxy port requires a proxy root URL", http.StatusBadRequest)
+		if dto.ProxyPort != 0 && proxyRoot == "" && dto.ServePort == 0 {
+			http.Error(w, "proxy port requires a proxy root URL (or a serve port to feed)", http.StatusBadRequest)
 			return
 		}
-	} else if proxyRoot == "" {
-		http.Error(w, "a remote stack needs a proxy root URL to float at /<root>/", http.StatusBadRequest)
+	} else if proxyRoot == "" && dto.ServePort == 0 {
+		http.Error(w, "a remote stack needs a proxy root URL to float at /<root>/ (or a serve port to feed)", http.StatusBadRequest)
 		return
 	}
 	if taken, terr := repo.ProxyRootTaken(proxyRoot, id); terr != nil {

@@ -725,16 +725,17 @@ func (r *StackRepository) UpdateStack(id int64, in UpdateStackInput) (*models.St
 	}
 	// Proxy mount requirements depend on locality: a remote stack is
 	// dialled at its address so the loopback port is optional; a
-	// same-host stack still needs port+root together.
+	// same-host stack still needs port+root together — unless the port
+	// feeds the dedicated serve port (upstream-only, no /<root> mount).
 	if remoteAddr == "" {
 		if in.ProxyRootURL != "" && in.ProxyPort == 0 {
 			return nil, fmt.Errorf("proxy root URL requires a proxy port (1-65535)")
 		}
-		if in.ProxyPort != 0 && in.ProxyRootURL == "" {
-			return nil, fmt.Errorf("proxy port requires a proxy root URL")
+		if in.ProxyPort != 0 && in.ProxyRootURL == "" && in.ServePort == 0 {
+			return nil, fmt.Errorf("proxy port requires a proxy root URL (or a serve port to feed)")
 		}
-	} else if in.ProxyRootURL == "" {
-		return nil, fmt.Errorf("a remote stack needs a proxy root URL to float at /<root>/")
+	} else if in.ProxyRootURL == "" && in.ServePort == 0 {
+		return nil, fmt.Errorf("a remote stack needs a proxy root URL to float at /<root>/ (or a serve port to feed)")
 	}
 	taken, err := r.ProxyRootTaken(in.ProxyRootURL, id)
 	if err != nil {
