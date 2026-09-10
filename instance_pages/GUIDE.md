@@ -312,7 +312,7 @@ Supported subset:
 * `{{component:name}}` resolved first (`resolveComponentTokens`)
 * Links sanitized via `safeUrl` (`CustomPageView.tsx:58`): only `https:` `http:` `mailto:` or relative → else `#`. Images need `html` type (use `data:` URI there via `safeImgSrc`).
 
-Full example shipped as `instance_pages/pages/markdown-docs.json:8` — includes headings, lists, tables, code fences, blockquotes. Minimal:
+Full example: author the equivalent as YAML (`content_markdown: |` literal block) — headings, lists, tables, code fences, blockquotes. Minimal stored shape:
 
 ```markdown
 # My Service
@@ -341,7 +341,7 @@ interface BlockRow {
 }
 ```
 
-Edit visually in Studio → **Main page** → Visual/JSON toggle (`PageStudioBlocksEditor.tsx:19`). See §6 for full catalog. Shipped as `instance_pages/pages/complete-example.json:10`.
+Edit visually in Studio → **Main page** → Visual/JSON toggle (`PageStudioBlocksEditor.tsx:19`). See §6 for full catalog. In YAML library files `content_blocks` is a native list.
 
 ---
 
@@ -888,7 +888,26 @@ Client helpers: `panel/frontend/src/shared/api/admin.ts` exports `listInstancePa
 
 ## 18) Complete Working Examples (Copy-Paste Ready)
 
-### 18.1 Minimal Hello (Markdown) → `pages/hello.json`
+### 18.1 Minimal Hello (Markdown) → `pages/hello.yaml`
+
+```yaml
+name: Hello
+slug: hello
+kind: custom
+category: documentation
+description: Minimal working page
+content_type: markdown
+content_markdown: |
+  # Hello
+
+  This is a **working** page.
+
+  - Uses `markdown` content_type
+  - Add actions + SDK later
+icon_svg: <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+```
+
+(Stored JSON shape: same keys, `content_markdown` as a JSON string.)
 
 ```json
 {

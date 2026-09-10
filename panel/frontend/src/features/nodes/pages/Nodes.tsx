@@ -651,7 +651,7 @@ const AdminNodes: React.FC = () => {
         {tokenInfo?.configJson && (
           <div className="mt-4">
             <p className="text-sm text-gray-300 mb-2">
-              Place this <code className="text-white">config.yaml</code> next to the ksedge binary on the edge host and run{' '}
+              Place this <code className="text-white">config.toml</code> next to the ksedge binary on the edge host and run{' '}
               <code className="text-white">./ksedge launch</code>. The token above is already wired in.
             </p>
             <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto max-h-64 overflow-y-auto">
@@ -664,15 +664,15 @@ const AdminNodes: React.FC = () => {
                 }}
                 className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black text-sm px-3 py-1.5 rounded hover:bg-gray-200"
               >
-                Copy config.yaml
+                Copy config.toml
               </button>
               <button
                 onClick={() => {
-                  const blob = new Blob([tokenInfo.configJson || ''], { type: 'application/yaml' });
+                  const blob = new Blob([tokenInfo.configJson || ''], { type: 'application/toml' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = 'config.yaml';
+                  a.download = 'config.toml';
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);

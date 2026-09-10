@@ -3,6 +3,7 @@ module github.com/example/ksedge
 go 1.22
 
 require (
+	github.com/BurntSushi/toml v1.4.0
 	github.com/creack/pty v1.1.24
 	github.com/gorilla/websocket v1.5.3
 	github.com/pkg/sftp v1.13.6

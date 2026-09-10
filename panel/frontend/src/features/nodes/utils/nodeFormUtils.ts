@@ -17,24 +17,24 @@ export function buildEdgeConfig(
   // yields true even when the edge itself is plain http.
   const upstreamTls = origin.trim().toLowerCase().startsWith('https');
   void useTls;
-  // Flat scalar schema only — emit YAML directly (no dep): plain `key: value`
-  // lines, strings double-quoted via JSON.stringify (valid YAML for this
-  // value domain). Key order matches the edge's config.Load.
-  const lines: string[] = ['# ksedge edge config (YAML) — place next to the ksedge binary'];
+  // Flat scalar schema only — emit TOML directly (no dep): `key = value`
+  // lines, strings double-quoted via JSON.stringify (valid TOML basic
+  // strings for this value domain). Key order matches the edge's config.Load.
+  const lines: string[] = ['# ksedge edge config (TOML) — place next to the ksedge binary'];
   const str = (v: unknown): string => JSON.stringify(String(v ?? ''));
-  lines.push(`uuid: ${str('auto-generated-by-panel')}`);
-  lines.push(`name: ${str(name)}`);
-  lines.push(`panel_url: ${str(origin)}`);
-  lines.push(`token: ${str(token)}`);
-  lines.push(`listen_port: ${Number(port) || 4040}`);
-  lines.push(`heartbeat_interval: 60`);
-  lines.push(`use_tls_upstream: ${upstreamTls ? 'true' : 'false'}`);
-  lines.push(`skip_verify: ${Boolean(form.skip_tls_verify) ? 'true' : 'false'}`);
+  lines.push(`uuid = ${str('auto-generated-by-panel')}`);
+  lines.push(`name = ${str(name)}`);
+  lines.push(`panel_url = ${str(origin)}`);
+  lines.push(`token = ${str(token)}`);
+  lines.push(`listen_port = ${Number(port) || 4040}`);
+  lines.push(`heartbeat_interval = 60`);
+  lines.push(`use_tls_upstream = ${upstreamTls ? 'true' : 'false'}`);
+  lines.push(`skip_verify = ${Boolean(form.skip_tls_verify) ? 'true' : 'false'}`);
   const instancesDir = form.instances_dir.trim();
   if (instancesDir) {
-    lines.push(`instances_dir: ${str(instancesDir)}`);
+    lines.push(`instances_dir = ${str(instancesDir)}`);
   }
-  lines.push(`connection_mode: ${str(m)}`);
+  lines.push(`connection_mode = ${str(m)}`);
   return lines.join('\n') + '\n';
 }
 
@@ -47,7 +47,7 @@ export function buildBootstrapCmd(form: Form, token: string, port: string): stri
 cd '${qdir}'
 curl -L -o ksedge '${KSEDGE_URL}'
 chmod +x ksedge
-cat > config.yaml <<'EOF'
+cat > config.toml <<'EOF'
 ${buildEdgeConfig(form.name, form.use_tls, token, port, form)}
 EOF
 ./ksedge launch &`;
