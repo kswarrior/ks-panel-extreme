@@ -706,6 +706,16 @@ const Router: React.FC = () => (
         }
       />
       <Route
+        path="/applications/studio"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.MANAGE_APPLICATIONS}>
+              <ApplicationStudio />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/applications/new"
         element={
           <RequireAuth>

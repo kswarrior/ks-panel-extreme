@@ -15,23 +15,17 @@ import {
   setApplicationGrants,
   activateApplication,
   deactivateApplication,
-  createApplication,
-  updateApplicationEnv,
   type GrantDecision,
   type ApplicationActivateConflict,
 } from '@/features/applications/api/applications';
 import { extractApiErrorMessage } from '@/features/mods/api/mods';
 import {
   Application,
-  ApplicationPermission,
-  ApplicationPermissionReq,
   appCapabilityMeta,
   appCategoryMeta,
   appRuntimeMeta,
-  ApplicationConfigField,
 } from '@/features/applications/types/application';
 import { useConfirm } from '@/shared/stores/confirmStore';
-import ApplicationStudioTab from '@/features/applications/components/ApplicationStudioTab';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -113,70 +107,6 @@ const Applications: React.FC = () => {
 
   // run modal — one-shot execution with target + env selection
   const [runApp, setRunApp] = useState<Application | null>(null);
-
-  // studio form state (used by Studio tab in upload modal)
-  const [studioTab, setStudioTab] = useState<'general' | 'permission' | 'configure' | 'script'>('general');
-  const [studioForm, setStudioForm] = useState({
-    general: {
-      name: '',
-      note: '',
-      version: '1.0.0',
-      runtime: 'nodejs',
-      mainFile: '',
-      command: '',
-      icon: '',
-      color: '',
-    },
-    permission: [] as {capability: string; access_level: string; granted: boolean}[],
-    configure: {} as Record<string, string>,
-    script: {
-      files: [] as {path: string; content: string}[],
-    },
-  });
-
-  const handleStudioSave = async () => {
-    const { general, permission, configure, script } = studioForm;
-    // Report through uploadError (rendered inside the modal) — the page-level
-    // error banner is hidden behind the open modal and would never be seen.
-    if (!general.name.trim()) { setUploadError('Name is required.'); return; }
-    if (general.color && !/^#[0-9a-fA-F]{6}$/.test(general.color.trim())) { setUploadError('Colour must be a #rrggbb hex value (or empty).'); return; }
-    const mainFile = general.mainFile.trim() ||
-      (general.runtime !== 'custom' && script.files.length > 0 ? script.files[0].path : '');
-    const entrypoint = general.runtime === 'custom' ? general.command.trim() : mainFile;
-    try {
-      const newApp = await createApplication({
-        name: general.name,
-        slug: general.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
-        category: 'custom',
-        version: general.version,
-        description: general.note,
-        icon: general.icon.trim(),
-        color: general.color.trim().toUpperCase(),
-        runtime: general.runtime,
-        entrypoint,
-        config_schema: [],
-        files: script.files.filter((f) => f.path.trim() && f.content !== undefined),
-        permissionsRequested: permission.map(p => ({ capability: p.capability, access_level: p.access_level })),
-      });
-      // 2. Update env if any
-      if (Object.keys(configure).length > 0) {
-        await updateApplicationEnv(newApp.id, configure);
-      }
-      // 3. Refresh list
-      await load();
-      setUploadOpen(false);
-      setStudioTab('general');
-      // Reset form
-      setStudioForm({
-        general: { name: '', note: '', version: '1.0.0', runtime: 'nodejs', mainFile: '', command: '', icon: '', color: '' },
-        permission: [],
-        configure: {},
-        script: { files: [] },
-      });
-    } catch (e: any) {
-      setUploadError(e?.response?.data || 'Failed to save application');
-    }
-  };
 
   const load = useCallback(async () => {
     setLoading(true);

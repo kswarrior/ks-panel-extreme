@@ -208,6 +208,7 @@ export const AREAS: AreaEntry[] = [
       adminPage('admin.mods.schedules', 'Mods · Schedules', 'mods/schedules'),
       adminPage('admin.mod.detail', 'Mod · Detail', 'mod/:id'),
       adminPage('admin.applications', 'Applications', 'applications'),
+      adminPage('admin.applications.studio', 'Application Studio', 'applications/studio'),
       adminPage('admin.applications.new', 'Application · Create', 'applications/new'),
       adminPage('admin.applications.edit', 'Application · Edit', 'applications/:id/edit'),
       adminPage('admin.applications.configure', 'Application · Configure', 'applications/:id/configure'),
