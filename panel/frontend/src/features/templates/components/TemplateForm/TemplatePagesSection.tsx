@@ -200,7 +200,10 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
           {pages.map((p, i) => {
             const defLabel = p.slug === '.' ? 'Home' : p.slug;
             const iconSvg = p.icon_svg || '';
-            const hasConfigure = (p.configure?.length ?? 0) > 0;
+            // Show Configure when the page defines vars OR still carries
+            // stored values (e.g. a var was removed in the Studio — the
+            // operator needs the modal to inspect/clear orphans).
+            const hasConfigure = (p.configure?.length ?? 0) > 0 || Object.keys(p.config ?? {}).length > 0;
             return (
               <div
                 key={p.slug + ':' + i}
