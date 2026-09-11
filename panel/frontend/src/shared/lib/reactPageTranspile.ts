@@ -435,6 +435,79 @@ function matchBrace(src: string, openIdx: number): number {
 
 const NUMERIC_LITERAL_RE = /^[+-]?(?:0[xX][\da-fA-F]+|0[oO][0-7]+|0[bB][01]+|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
 
+// stripCommentsKeepStrings removes // and /* */ comments but keeps strings
+// (and newlines) verbatim — for parsing declarations whose values may be
+// string literals (`enum E { A = 'x' }`).
+function stripCommentsKeepStrings(s: string): string {
+  let out = '';
+  let i = 0;
+  const n = s.length;
+  let st: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  while (i < n) {
+    const c = s[i];
+    if (st === 'code') {
+      if (c === '/' && s[i + 1] === '/') {
+        st = 'line';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && s[i + 1] === '*') {
+        st = 'block';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        st = 'sq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        st = 'dq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        st = 'tpl';
+        out += c;
+        i++;
+        continue;
+      }
+      out += c;
+      i++;
+      continue;
+    }
+    if (st === 'line') {
+      if (c === '\n') {
+        st = 'code';
+        out += '\n';
+      }
+      i++;
+      continue;
+    }
+    if (st === 'block') {
+      if (c === '*' && s[i + 1] === '/') {
+        st = 'code';
+        i += 2;
+        continue;
+      }
+      if (c === '\n') out += '\n';
+      i++;
+      continue;
+    }
+    out += c;
+    if (c === '\\') {
+      out += s[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    if ((st === 'sq' && c === "'") || (st === 'dq' && c === '"') || (st === 'tpl' && c === '`')) st = 'code';
+    i++;
+  }
+  return out;
+}
+
 // takeDeclPrefix walks back from a keyword position over same-line/gap
 // whitespace and collects `export`/`const`/`declare` prefix words (for
 // `export const enum E`, `declare namespace N`). Stops at anything else.
@@ -483,21 +556,21 @@ function emitEnum(name: string, inner: string, mark: () => void): string {
   let autoOk = true;
   for (const { from, to } of ranges) {
     const raw = inner.slice(from, to);
-    // Cleaned copy (comments blanked) for parsing; the ORIGINAL slice below
-    // supplies the verbatim initializer.
-    const clean = blankStringsAndComments(raw).trim();
+    // Parse on the comment-stripped copy (strings intact — initializers may
+    // be string literals); the ORIGINAL slice below supplies the verbatim
+    // initializer.
+    const clean = stripCommentsKeepStrings(raw).trim();
     if (clean === '') continue;
     const mm = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:=\s*([\s\S]+))?$/.exec(clean);
     if (!mm) throw new Error(`invalid enum member: ${clean.slice(0, 40)} — expected Name or Name = value`);
     const key = mm[1];
     // Verbatim initializer: everything after the first `=` in the original
-    // slice (comments inside strings survive; trailing `// note` comments
-    // are blanked to spaces by the trim check below).
+    // slice, comments removed (a trailing `// note` must not eat the line).
     let init = '';
     if (mm[2] !== undefined) {
       const eqAt = raw.search(/=/);
-      const cand = raw.slice(eqAt + 1).trim();
-      if (blankStringsAndComments(cand).trim() !== '') init = cand;
+      const cand = stripCommentsKeepStrings(raw.slice(eqAt + 1)).trim();
+      if (cand !== '') init = cand;
     }
     if (init === '') {
       if (!autoOk) {
@@ -507,8 +580,8 @@ function emitEnum(name: string, inner: string, mark: () => void): string {
       }
       lines.push(`${name}[${JSON.stringify(key)}] = ${counter}; ${name}[${counter}] = ${JSON.stringify(key)};`);
       counter++;
-    } else if (NUMERIC_LITERAL_RE.test(blankStringsAndComments(init).trim())) {
-      const v = Number(blankStringsAndComments(init).trim());
+    } else if (NUMERIC_LITERAL_RE.test(init)) {
+      const v = Number(init);
       lines.push(`${name}[${JSON.stringify(key)}] = (${init}); ${name}[${v}] = ${JSON.stringify(key)};`);
       counter = v + 1;
       autoOk = true;
