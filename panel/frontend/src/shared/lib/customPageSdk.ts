@@ -86,6 +86,13 @@ export interface FileEntry {
   mode?: string;
 }
 
+export type ChartSeriesPoint = { label: string; value: number };
+export type ChartSeries = number[] | ChartSeriesPoint[];
+export interface ChartOptions {
+  kind?: 'bars' | 'line';
+  color?: string;
+}
+
 export interface CustomPageAPI {
   // Instance context
   instance: InstanceContext;
@@ -165,6 +172,37 @@ export interface CustomPageAPI {
   formatBytes: (n: number) => string;
   timeAgo: (ts: number | string) => string;
   debounce: <T extends (...args: any[]) => void>(fn: T, ms?: number) => (...args: Parameters<T>) => void;
+
+  // ==================== ALLOWLISTED LIBS (pure, additive) ===============
+  // Dependency-free chart + markdown so pages stop hand-rolling canvas
+  // charts/parsers. No `import` needed, no permissions, no network.
+  /**
+   * Draw a theme-aware canvas bars/line chart inside `el` (a canvas child
+   * is appended; labels paint via fillText only, never innerHTML).
+   * Resolves `--ks-*` tokens via getComputedStyle with the same fallbacks
+   * the shipped pages use. Returns a cleanup fn (removes the resize
+   * listener + canvas).
+   * @example
+   * const el = document.getElementById('load-chart');
+   * if (el) {
+   *   const cleanup = sdk.chart(el, [0.4, 0.7, 0.5], { kind: 'bars' });
+   *   // call cleanup() on unmount to remove listeners + canvas
+   * }
+   */
+  chart: (el: HTMLElement, series: ChartSeries, opts?: ChartOptions) => () => void;
+  /**
+   * Render the safe markdown subset (headings, bold/italic/code/links,
+   * lists, `---`) to an HTML string. Same escaping + safeUrl rules as
+   * `renderMarkdown` in CustomPageView.tsx (see renderSdkMarkdown mirror
+   * note there); hostile markup (`<script>`, `javascript:` URLs) is inert.
+   * @example
+   * const html = sdk.markdown('# Title\n\nHello **world**');
+   * const box = document.getElementById('notes');
+   * if (box) {
+   *   box.innerHTML = html; // safe: escaped + allow-listed URLs only
+   * }
+   */
+  markdown: (md: string) => string;
   
   // ==================== EVENT SYSTEM ====================
   on: (event: string, callback: (data: any) => void) => () => void;
