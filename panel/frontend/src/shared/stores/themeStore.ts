@@ -2351,21 +2351,23 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
    toggle button itself is slimmed inline (see PILL_TOGGLE_COLLAPSED_PX);
    these rules are the CSS fallback + shell-side slimming. */
 .ks-card.ks-pill-anim.ks-actions-pill.ks-pill-collapsed,
-.ks-card.ks-pill-anim.ks-form-actions-pill.ks-pill-collapsed {
+.ks-card.ks-pill-anim.ks-form-actions-pill.ks-pill-collapsed,
+.ks-card.ks-pill-anim.ks-tabs-pill.ks-pill-collapsed {
   padding-left: 4px !important;
   padding-right: 4px !important;
 }
 .ks-actions-pill.ks-pill-collapsed .ks-pill-toggle,
-.ks-form-actions-pill.ks-pill-collapsed .ks-pill-toggle {
+.ks-form-actions-pill.ks-pill-collapsed .ks-pill-toggle,
+.ks-tabs-pill.ks-pill-collapsed .ks-pill-toggle {
   padding-left: 4px !important;
   padding-right: 4px !important;
 }
-/* Chevron toggle ("<" / ">") never changes color — hover, hold (active)
-   and click (focus) all keep the same Pill text color + inactive
-   background as the resting state. The (0,3,0) selectors beat the generic
-   .ks-tab:hover rule (0,2,0) so the Tabs tab's hover colors can't leak in.
-   Scoped to the icon-only Actions / Form-Actions toggles; the Tabs pill
-   toggle keeps its hover feedback. */
+/* Chevron toggle ("<" / ">" / "^" / "v") never changes color — hover,
+   hold (active) and click (focus) all keep the same Pill text color +
+   inactive background as the resting state. The (0,3,0) selectors beat
+   the generic .ks-tab:hover rule (0,2,0) so the Tabs tab's hover colors
+   can't leak in. Scoped to the icon-only pill toggles; the tab ROW
+   buttons inside the pills keep their hover feedback. */
 .ks-actions-pill .ks-pill-toggle:hover,
 .ks-actions-pill .ks-pill-toggle:active,
 .ks-actions-pill .ks-pill-toggle:focus,
@@ -2373,7 +2375,11 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 .ks-form-actions-pill .ks-pill-toggle:hover,
 .ks-form-actions-pill .ks-pill-toggle:active,
 .ks-form-actions-pill .ks-pill-toggle:focus,
-.ks-form-actions-pill .ks-pill-toggle:focus-visible {
+.ks-form-actions-pill .ks-pill-toggle:focus-visible,
+.ks-tabs-pill .ks-pill-toggle:hover,
+.ks-tabs-pill .ks-pill-toggle:active,
+.ks-tabs-pill .ks-pill-toggle:focus,
+.ks-tabs-pill .ks-pill-toggle:focus-visible {
   background: var(--ks-tab-inactive-bg) !important;
   color: var(--ks-pill-text) !important;
 }
@@ -2383,12 +2389,14 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
    while .ks-pill-content's max-width still slides over 300ms. Duration
    follows the Pill tab so all three stay in sync. */
 .ks-card.ks-pill-anim.ks-actions-pill,
-.ks-card.ks-pill-anim.ks-form-actions-pill {
+.ks-card.ks-pill-anim.ks-form-actions-pill,
+.ks-card.ks-pill-anim.ks-tabs-pill {
   transition-property: transform, opacity, padding-left, padding-right !important;
   transition-duration: var(--ks-pill-anim-duration, 300ms) !important;
 }
 .ks-actions-pill .ks-pill-toggle,
-.ks-form-actions-pill .ks-pill-toggle {
+.ks-form-actions-pill .ks-pill-toggle,
+.ks-tabs-pill .ks-pill-toggle {
   transition-property: background-color, color, padding-left, padding-right !important;
   transition-duration: var(--ks-pill-anim-duration, 300ms) !important;
 }

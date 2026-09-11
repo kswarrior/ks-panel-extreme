@@ -225,7 +225,7 @@ export const TemplateTabs = <T extends string>({ tab, onChange, tabs }: { tab: T
           ))}
         </nav>
       </GlassCard>
-      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+      {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
           system as the actions pill (PageTabsPill). Labels stay on a
           single line (whitespace-nowrap) so "Env Variables" / "Spec Preview"
           never wrap to two lines and stretch the bar height — the row scrolls

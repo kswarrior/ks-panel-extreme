@@ -92,7 +92,7 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
           })}
         </nav>
       </GlassCard>
-      {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+      {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
           system as the actions pill (PageTabsPill). No spacer here: the
           caller renders its own. */}
       <PageTabsPill ariaLabel="Page studio sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label}>

@@ -57,7 +57,7 @@ export const FormTabsDesktop: React.FC<FormTabsProps> = ({ tabs, value, onChange
 };
 
 // FormTabsMobile renders the phone bottom bar as a PageTabsPill (fixed +
-// `>` / `<` toggle + auto-off, same system as the actions pill) + the spacer
+// `^` / `v` toggle, same collapse system as the actions pill) + the spacer
 // that reserves scroll room so the bar never covers trailing content. Render
 // inside <FormPage> (bar) — the spacer may live inside or just after the
 // form; fixed positioning makes the bar location irrelevant.

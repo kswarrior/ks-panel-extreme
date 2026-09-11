@@ -187,9 +187,9 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
           <button
             type="button"
             onClick={toggle}
-            aria-label={isOff ? `Show tabs${activeLabel ? ` — ${activeLabel}` : ''}` : `Hide tabs${activeLabel ? ` — ${activeLabel}` : ''}`}
+            aria-label={isOff ? `Show tabs${activeLabel ? ` — ${activeLabel}` : ''}` : `Hide tabs — ${resolvedPageLabel}`}
             aria-expanded={open}
-            title={isOff ? `Show tabs${activeLabel ? ` (currently: ${activeLabel})` : ''}` : 'Hide tabs'}
+            title={isOff ? `Show tabs${activeLabel ? ` (currently: ${activeLabel})` : ''}` : `Hide tabs — ${resolvedPageLabel}`}
             style={
               isOff
                 ? ({ ...PILL_TAB_STYLE, '--ks-tab-px': PILL_TOGGLE_COLLAPSED_PX } as React.CSSProperties)

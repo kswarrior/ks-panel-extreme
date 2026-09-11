@@ -734,7 +734,7 @@ const ApiKeyForm: React.FC = () => {
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
-        {/* Phone tabs — bottom pill with the same `>` / `<` toggle + auto-off
+        {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
             system as the actions pill (PageTabsPill). */}
         <PageTabsPill ariaLabel="API key form sections" spacer={false} activeLabel={APIKEY_TABS.find((t) => t.id === tab)?.label}>
           {APIKEY_TABS.map((t) => (
