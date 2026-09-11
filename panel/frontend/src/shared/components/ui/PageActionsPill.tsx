@@ -11,9 +11,12 @@ export const PILL_TAB_STYLE = {
   '--ks-tab-font': 'var(--ks-pill-tab-font, 13px)',
 } as React.CSSProperties;
 
-// Idle delay before the pill slides back in after hiding. The Pill tab's
-// auto_show_delay overrides this per theme (see PageActionsPill below).
-export const PILL_SHOW_DELAY = 2500;
+// Slim chevron-only geometry for the collapsed ("<") state: just the icon
+// plus a little breathing room on each side. Height is untouched (same
+// --ks-tab-py + icon + shell vertical padding), only the width shrinks so
+// the off pill reads as a slim rectangle instead of a near-square.
+export const PILL_TOGGLE_COLLAPSED_PX = '4px';
+export const PILL_SHELL_COLLAPSED_PX = '4px';
 
 // useAutoHidePill hides a fixed action cluster while the page scrolls or
 // is clicked elsewhere, then reveals it again after `delay` ms idle.
