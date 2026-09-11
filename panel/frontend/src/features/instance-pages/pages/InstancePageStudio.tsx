@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   getInstancePage,
@@ -20,6 +20,8 @@ import { parseConfig } from '@/shared/hooks/useInstance';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { PageContent } from '@/shared/components/ui/CustomPageView';
 import type { PageStudioTabId } from '@/features/instance-pages/types/pageStudio';
@@ -163,34 +165,71 @@ const InstancePageStudio: React.FC = () => {
   // Preview / test target
   const [instances, setInstances] = useState<Instance[]>([]);
   const [previewInstanceId, setPreviewInstanceId] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const isBuiltin = page.kind === 'builtin';
 
+  // Session edit history over the page document + row collections
+  // (preview/test UI, build output flags stay out — build results land in
+  // `page` via handleBuild and are harmlessly captured as ordinary edits).
+  const snapshot = JSON.stringify({ page, actions, components, configure, subs });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setPage(s.page);
+    setActions(s.actions);
+    setComponents(s.components);
+    setConfigure(s.configure);
+    setSubs(s.subs);
+  });
+  const { suspend: histSuspend } = hist;
+
   // Load page (edit mode) + instances for preview/test.
-  useEffect(() => {
-    let cancelled = false;
-    listInstances().then((list) => { if (!cancelled) setInstances(list); }).catch(() => { /* preview picker just stays empty */ });
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const list = await listInstances();
+      setInstances(list);
+    } catch {
+      // preview picker just stays empty
+    }
     if (!isEdit || pageId == null) {
       setLoading(false);
-      return () => { cancelled = true; };
+      return;
     }
-    getInstancePage(pageId)
-      .then((found) => {
-        if (cancelled) return;
-        setPage({ ...found });
-        setActions(defsToActions(found.actions));
-        setSubs(subRowsFromJSON(found.sub_pages));
-        setComponents(compRowsFromJSON(found.components));
-        setConfigure(configureRowsFromJSON((found as any).configure));
-      })
-      .catch((e: any) => {
-        if (!cancelled) setError(getErrorMessage(e, 'Failed to load page'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [pageId, isEdit]);
+    try {
+      const found = await getInstancePage(pageId);
+      setPage({ ...found });
+      setActions(defsToActions(found.actions));
+      setSubs(subRowsFromJSON(found.sub_pages));
+      setComponents(compRowsFromJSON(found.components));
+      setConfigure(configureRowsFromJSON((found as any).configure));
+    } catch (e: any) {
+      setError(getErrorMessage(e, 'Failed to load page'));
+    } finally {
+      setLoading(false);
+    }
+  }, [pageId, isEdit, histSuspend]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank page.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!isEdit) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (!isEdit) setLoading(false);
@@ -557,6 +596,7 @@ const InstancePageStudio: React.FC = () => {
       } else {
         await createInstancePage(payload as unknown as CreateInstancePagePayload);
       }
+      hist.commit();
       navigate('/instance-pages');
     } catch (e: any) {
       setError(getErrorMessage(e, 'Save failed'));
@@ -710,9 +750,10 @@ const InstancePageStudio: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
-          Footer Save removed; everything lives here. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+          fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/instance-pages')}
