@@ -16,6 +16,10 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Sessions — Security page tab: session lifetime / idle timeout /
@@ -38,24 +42,53 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
   const [lifetimeMin, setLifetimeMin] = useState(initialConfig?.session_lifetime_minutes ?? 480);
   const [idleMinutes, setIdleMinutes] = useState(initialConfig?.session_idle_timeout_minutes ?? 1440);
   const [maxPerUser, setMaxPerUser] = useState(initialConfig?.session_max_per_user ?? 0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [status, setStatus] = useState<SecurityStatusResponse | null>(null);
   const [sessions, setSessions] = useState<SecuritySessionEntry[] | null>(null);
   const [listError, setListError] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // Session edit history over the policy fields only — the live session
+  // list (revocations apply immediately) stays out of undo.
+  const snapshot = JSON.stringify({ lifetimeMin, idleMinutes, maxPerUser });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setLifetimeMin(s.lifetimeMin);
+    setIdleMinutes(s.idleMinutes);
+    setMaxPerUser(s.maxPerUser);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const applyConfig = (cfg: SecurityConfig) => {
+    histSuspend();
+    setLifetimeMin(cfg.session_lifetime_minutes);
+    setIdleMinutes(cfg.session_idle_timeout_minutes);
+    setMaxPerUser(cfg.session_max_per_user);
+  };
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refreshConfig = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setConfigError('');
+    try {
+      applyConfig(await securityGetConfig());
+    } catch (e: any) {
+      setConfigError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to refresh session config');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     if (initialConfig) {
-      setLifetimeMin(initialConfig.session_lifetime_minutes);
-      setIdleMinutes(initialConfig.session_idle_timeout_minutes);
-      setMaxPerUser(initialConfig.session_max_per_user);
+      applyConfig(initialConfig);
       setConfigLoading(false);
     } else {
       securityGetConfig()
         .then((cfg) => {
-          setLifetimeMin(cfg.session_lifetime_minutes);
-          setIdleMinutes(cfg.session_idle_timeout_minutes);
-          setMaxPerUser(cfg.session_max_per_user);
+          applyConfig(cfg);
         })
         .catch((e: any) =>
           setConfigError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to load session config'),
@@ -63,6 +96,7 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
         .finally(() => setConfigLoading(false));
     }
     securityGetStatus().then(setStatus).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConfig]);
 
   const loadSessions = useCallback(async () => {
@@ -128,9 +162,11 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
         session_max_per_user: maxPerUser < 0 ? 0 : Math.floor(maxPerUser),
       };
       const saved = await securityUpdateConfig(cfg);
+      hist.suspend();
       setLifetimeMin(saved.session_lifetime_minutes);
       setIdleMinutes(saved.session_idle_timeout_minutes);
       setMaxPerUser(saved.session_max_per_user);
+      hist.commit();
       setConfigSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
@@ -214,16 +250,27 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
         {configError && <p className="text-sm text-red-400">{configError}</p>}
         {configSuccess && <p className="text-sm text-green-400">{configSuccess}</p>}
 
-        <div className="flex justify-end">
+        <PageFormActionsPill>
+          <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
+          <button
+            type="button"
+            onClick={() => hist.revert()}
+            disabled={!hist.isDirty || configSaving}
+            title="Discard unsaved edits"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
           <button
             type="submit"
             disabled={configSaving}
-            className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
             {configSaving ? 'Saving…' : 'Save'}
           </button>
-        </div>
+        </PageFormActionsPill>
       </form>
 
       {/* Cookie security status */}

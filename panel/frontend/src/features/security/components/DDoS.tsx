@@ -119,17 +119,11 @@ const DDoS: React.FC<DDoSProps> = ({
 
   useEffect(() => {
     if (initialConfig) {
-      setDdosAutoStopEnabled(initialConfig.ddos_auto_stop_enabled);
-      setDdosStopMinutes(initialConfig.ddos_stop_minutes);
-      setDdosMaxStopCount(initialConfig.ddos_max_stop_count);
-      setDdosMode(initialConfig.ddos_mode);
-      setDdosAltPort(initialConfig.ddos_alt_port);
-      setDdosGlobalHits(initialConfig.ddos_global_trigger_hits);
-      setDdosGlobalWindow(initialConfig.ddos_global_trigger_window);
-      setGlobalRpmLimit(initialConfig.global_rpm_limit);
+      applyConfig(initialConfig);
       setConfigLoading(false);
       return;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConfig]);
 
   const loadSnapshot = useCallback(async () => {
@@ -150,20 +144,13 @@ const DDoS: React.FC<DDoSProps> = ({
     setConfigLoading(true);
     setConfigError('');
     try {
-      const cfg = await securityGetConfig();
-      setDdosAutoStopEnabled(cfg.ddos_auto_stop_enabled);
-      setDdosStopMinutes(cfg.ddos_stop_minutes);
-      setDdosMaxStopCount(cfg.ddos_max_stop_count);
-      setDdosMode(cfg.ddos_mode);
-      setDdosAltPort(cfg.ddos_alt_port);
-      setDdosGlobalHits(cfg.ddos_global_trigger_hits);
-      setDdosGlobalWindow(cfg.ddos_global_trigger_window);
-      setGlobalRpmLimit(cfg.global_rpm_limit);
+      applyConfig(await securityGetConfig());
     } catch (e: any) {
       setConfigError(e?.response?.data || 'Failed to load DDoS config');
     } finally {
       setConfigLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConfig]);
 
   const toggleAttack = useCallback(async (next: boolean) => {
@@ -221,7 +208,9 @@ const DDoS: React.FC<DDoSProps> = ({
         session_max_per_user: base?.session_max_per_user ?? 0,
       };
       const saved = await securityUpdateConfig(cfg);
-      // Sync to what the server persisted (handles clamping).
+      // Sync to what the server persisted (handles clamping) — suspended
+      // so the echo rebaselines instead of pushing an undo step.
+      hist.suspend();
       setDdosAutoStopEnabled(saved.ddos_auto_stop_enabled);
       setDdosStopMinutes(saved.ddos_stop_minutes);
       setDdosMaxStopCount(saved.ddos_max_stop_count);
@@ -230,6 +219,7 @@ const DDoS: React.FC<DDoSProps> = ({
       setDdosGlobalHits(saved.ddos_global_trigger_hits);
       setDdosGlobalWindow(saved.ddos_global_trigger_window);
       setGlobalRpmLimit(saved.global_rpm_limit);
+      hist.commit();
       const s = await securitySnapshot();
       setSnap(s);
       setUnderAttack(s.under_attack);
@@ -512,16 +502,27 @@ const DDoS: React.FC<DDoSProps> = ({
             {configError && <p className="text-sm text-red-400">{configError}</p>}
             {configSuccess && <p className="text-sm text-green-400">{configSuccess}</p>}
 
-            <div className="flex justify-end">
+            <PageFormActionsPill>
+              <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
+              <button
+                type="button"
+                onClick={() => hist.revert()}
+                disabled={!hist.isDirty || configSaving}
+                title="Discard unsaved edits"
+                className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+                style={PILL_TAB_STYLE}
+              >
+                Cancel
+              </button>
               <button
                 type="submit"
                 disabled={configSaving}
-                className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+                className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+                style={PILL_TAB_STYLE}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
                 {configSaving ? 'Saving…' : 'Save'}
               </button>
-            </div>
+            </PageFormActionsPill>
           </>
         )}
       </form>

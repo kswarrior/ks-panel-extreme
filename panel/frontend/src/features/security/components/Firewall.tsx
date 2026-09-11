@@ -4,6 +4,10 @@ import type { SecurityConfig, SecurityStatusResponse } from '@/features/security
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 
 interface FirewallProps {
   initialConfig?: SecurityConfig | null;
@@ -59,36 +63,65 @@ const Firewall: React.FC<FirewallProps> = ({
   const [blockSuspicious, setBlockSuspicious] = useState(initialConfig?.block_suspicious_paths ?? false);
   const [allowedMethods, setAllowedMethods] = useState(initialConfig?.allowed_http_methods ?? '');
   const [maxBodyMb, setMaxBodyMb] = useState(initialConfig?.max_body_size_mb ?? 10);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [status, setStatus] = useState<SecurityStatusResponse | null>(null);
   const [statusError, setStatusError] = useState('');
 
+  // Session edit history over the config fields only.
+  const snapshot = JSON.stringify({ fwReqPerMin, fwWindowSec, allowText, denyText, blockUnknownUa, blockSuspicious, allowedMethods, maxBodyMb });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setFwReqPerMin(s.fwReqPerMin);
+    setFwWindowSec(s.fwWindowSec);
+    setAllowText(s.allowText);
+    setDenyText(s.denyText);
+    setBlockUnknownUa(s.blockUnknownUa);
+    setBlockSuspicious(s.blockSuspicious);
+    setAllowedMethods(s.allowedMethods);
+    setMaxBodyMb(s.maxBodyMb);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const applyConfig = (cfg: SecurityConfig) => {
+    histSuspend();
+    setFwReqPerMin(cfg.requests_per_minute_limit);
+    setFwWindowSec(cfg.window_seconds_limit);
+    setAllowText(listToText(cfg.ip_allowlist));
+    setDenyText(listToText(cfg.ip_denylist));
+    setBlockUnknownUa(cfg.block_unknown_ua);
+    setBlockSuspicious(cfg.block_suspicious_paths);
+    setAllowedMethods(cfg.allowed_http_methods ?? '');
+    setMaxBodyMb(cfg.max_body_size_mb);
+  };
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refreshConfig = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setConfigError('');
+    try {
+      applyConfig(await securityGetConfig());
+    } catch (e: any) {
+      setConfigError(e?.response?.data || 'Failed to refresh firewall config');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     if (initialConfig) {
-      setFwReqPerMin(initialConfig.requests_per_minute_limit);
-      setFwWindowSec(initialConfig.window_seconds_limit);
-      setAllowText(listToText(initialConfig.ip_allowlist));
-      setDenyText(listToText(initialConfig.ip_denylist));
-      setBlockUnknownUa(initialConfig.block_unknown_ua);
-      setBlockSuspicious(initialConfig.block_suspicious_paths);
-      setAllowedMethods(initialConfig.allowed_http_methods ?? '');
-      setMaxBodyMb(initialConfig.max_body_size_mb);
+      applyConfig(initialConfig);
       setConfigLoading(false);
       return;
     }
     securityGetConfig()
       .then((cfg) => {
-        setFwReqPerMin(cfg.requests_per_minute_limit);
-        setFwWindowSec(cfg.window_seconds_limit);
-        setAllowText(listToText(cfg.ip_allowlist));
-        setDenyText(listToText(cfg.ip_denylist));
-        setBlockUnknownUa(cfg.block_unknown_ua);
-        setBlockSuspicious(cfg.block_suspicious_paths);
-        setAllowedMethods(cfg.allowed_http_methods);
-        setMaxBodyMb(cfg.max_body_size_mb);
+        applyConfig(cfg);
       })
       .catch((e: any) => setConfigError(e?.response?.data || 'Failed to load firewall config'))
       .finally(() => setConfigLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialConfig]);
 
   useEffect(() => {
@@ -152,7 +185,9 @@ const Firewall: React.FC<FirewallProps> = ({
       };
       const saved = await securityUpdateConfig(cfg);
       // Sync local state to what the server actually persisted (handles
-      // clamping / normalization the backend applied).
+      // clamping / normalization the backend applied) — suspended so the
+      // echo rebaselines instead of pushing an undo step.
+      hist.suspend();
       setFwReqPerMin(saved.requests_per_minute_limit);
       setFwWindowSec(saved.window_seconds_limit);
       setAllowText(listToText(saved.ip_allowlist));
@@ -161,6 +196,7 @@ const Firewall: React.FC<FirewallProps> = ({
       setBlockSuspicious(saved.block_suspicious_paths);
       setAllowedMethods(saved.allowed_http_methods ?? '');
       setMaxBodyMb(saved.max_body_size_mb);
+      hist.commit();
       setConfigSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
@@ -325,16 +361,27 @@ const Firewall: React.FC<FirewallProps> = ({
         {configError && <p className="text-sm text-red-400">{configError}</p>}
         {configSuccess && <p className="text-sm text-green-400">{configSuccess}</p>}
 
-        <div className="flex justify-end">
+        <PageFormActionsPill>
+          <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
+          <button
+            type="button"
+            onClick={() => hist.revert()}
+            disabled={!hist.isDirty || configSaving}
+            title="Discard unsaved edits"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
           <button
             type="submit"
             disabled={configSaving}
-            className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
             {configSaving ? 'Saving…' : 'Save'}
           </button>
-        </div>
+        </PageFormActionsPill>
       </form>
     </div>
   );
