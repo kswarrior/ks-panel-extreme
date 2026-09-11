@@ -304,9 +304,13 @@ const ThemeStudio: React.FC = () => {
 
   useEffect(() => {
     if (draft) {
+      // Canonical sync from a (new) draft id — rebaselines silently so the
+      // open-studio values never appear as an undo step.
+      histSuspend();
       setName(draft.name === 'Default' ? 'My Theme' : draft.name);
       setDescription(draft.description || '');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft?.id]);
 
   useEffect(() => {
@@ -320,12 +324,18 @@ const ThemeStudio: React.FC = () => {
   useEffect(() => {
     const d = useThemeStore.getState().draft;
     if (!d || !d.id) return;
-    if (globalThemes.some((t) => t.id === d.id) && canManageGlobal) {
-      setSaveScope('global');
-    } else if (themes.some((t) => t.id === d.id)) {
-      setSaveScope('local');
+    const next =
+      globalThemes.some((t) => t.id === d.id) && canManageGlobal ? 'global'
+      : themes.some((t) => t.id === d.id) ? 'local'
+      : null;
+    // Canonical sync only — suspend right before the setter so an
+    // unchanged scope never arms a stale suspend flag.
+    if (next && next !== saveScope) {
+      histSuspend();
+      setSaveScope(next);
     }
-  }, [draft?.id, globalThemes, themes, canManageGlobal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft?.id, globalThemes, themes, canManageGlobal, saveScope]);
 
   if (!draft) {
     return (
@@ -407,9 +417,11 @@ const ThemeStudio: React.FC = () => {
           </select>
         )}
       </PageActionsPill>
-      {/* Bottom-right form pill — Cancel / Save / Create always visible by
-          default (auto-off opt-in via the Pill tab). */}
+      {/* Bottom-right form pill — undo / redo / refresh / Cancel + Save.
+          Refresh reverts to the opened theme (the canonical baseline);
+          Cancel discards the draft and goes back to Themes. */}
       <PageFormActionsPill spacer={false}>
+        <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
         <button
           type="button"
           onClick={cancel}
