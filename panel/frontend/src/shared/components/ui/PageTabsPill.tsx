@@ -2,16 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { resolveHeaderCrumb } from '@/shared/components/layout/Header';
-import { PILL_TAB_STYLE } from './PageActionsPill';
+import { PILL_TAB_STYLE, PILL_TOGGLE_COLLAPSED_PX } from './PageActionsPill';
 
 interface PageTabsPillProps {
   children: React.ReactNode;
   ariaLabel: string;
-  // Label of the currently active tab (e.g. "Background"). Shown inside the
-  // CLOSED pill next to the tabs glyph so the pill is self-describing —
-  // the operator can see at a glance which section it holds. While OPEN the
-  // toggle shows the page name from the header instead (so the selected tab
-  // never appears twice).
+  // Label of the currently active tab (e.g. "Background"). The toggle is
+  // icon-only, so this is used for the toggle's aria-label / title only —
+  // screen readers and tooltips still announce which section is active.
+  // While open, pageLabel (or the header crumb) is announced instead.
   activeLabel?: string;
   // Explicit page name for the OPEN toggle. Defaults to the header crumb
   // for the current route (e.g. "Database", "Nodes / New Node").
@@ -28,12 +27,9 @@ interface PageTabsPillProps {
 
 // PageTabsPill renders the phone tab bar used by every panel form (nodes /
 // templates / themes / roles / api-keys / instance-pages …) as a manual
-// upward dropdown:
-//   - closed: pill shows `[tabs glyph] ActiveLabel <` (self-describing)
-//   - open: toggle shows `[tabs glyph] PageName ^` (the header's page name,
-//     normal glass look — never the white selected look, so the selected tab
-//     is never shown twice) + the tabs open UPWARD above the toggle, one tab
-//     per line, with the selected row keeping its white active highlight
+// upward dropdown with an icon-only toggle, mirroring the Actions pill:
+//   - closed: pill shows just `^` (same slim rectangle geometry)
+//   - open: the tab rows glide open above + the toggle shows `v`
 //   - width: shrink-to-content by default, or a fixed pixel width — both
 //     from the Theme Studio's Pill tab (Menu width)
 //   - manual-only: starts CLOSED on page open, scroll / outside-click /
@@ -111,8 +107,13 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
     };
   }, []);
 
-  // Upward menu motion honors the Pill tab's animation setting.
-  const menuTransition = animation === 'none' ? 'none' : undefined;
+  // Upward menu motion honors the Pill tab's animation setting, mirroring
+  // the Actions pill: slide rises + fades, fade only, scale + fade, none.
+  const hiddenTransform =
+    animation === 'fade' ? 'none'
+    : animation === 'scale' ? 'scale(0.95)'
+    : animation === 'none' ? 'none'
+    : 'translateY(8px)';
   const isFixedWidth = menuWidthMode === 'fixed';
   // Shell width: closed always shrink-wraps; open shrink hugs the longest
   // tab row (viewport-clamped, NO minimum — a min-width is what stretched
@@ -140,48 +141,66 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
           // toggle, and the flex nav with justify-start hugs it
           // bottom-left. Open shrink hugs the longest tab label; open
           // fixed spans the themed pixel width (clamped to viewport).
-          className={`ks-card ks-pill-anim ks-tabs-pill rounded-md flex flex-col items-stretch shadow-lg shadow-black/40 opacity-100 ${isOff || !isFixedWidth ? 'w-fit' : 'w-full'} ${className}`}
+          className={`ks-card ks-pill-anim ks-tabs-pill rounded-md flex flex-col items-stretch shadow-lg shadow-black/40 opacity-100 ${isOff || !isFixedWidth ? 'w-fit' : 'w-full'} ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
           style={shellStyle}
         >
-          {open && (
-            <div
-              role="tablist"
-              aria-label={ariaLabel}
-              onClick={(e) => {
-                // Picking a tab collapses back to `ActiveLabel <`.
-                if ((e.target as HTMLElement).closest('button')) close();
-              }}
-              // Plain rows: the callers' ks-tab-active (white) highlight stays
-              // on the selected row; the toggle below is a plain ks-tab so
-              // it never takes the white selected look.
-              className="ks-pill-content flex flex-col gap-1 w-full min-w-0 max-h-[50vh] overflow-y-auto pb-1 mb-1 border-b border-white/10 transition-all duration-300 ease-in-out [&>button]:w-full [&>button]:flex-none [&>button]:justify-start [&>button]:text-left"
-              style={{ transition: menuTransition }}
-              data-open="true"
-            >
-              {children}
-            </div>
-          )}
+          <div
+            role="tablist"
+            aria-label={ariaLabel}
+            onClick={(e) => {
+              // Picking a tab collapses back to `^`.
+              if ((e.target as HTMLElement).closest('button')) close();
+            }}
+            // Always mounted so open/close glides like the Actions pill
+            // (max-height + fade + rise) instead of snapping in/out.
+            // Plain rows: the callers' ks-tab-active (white) highlight stays
+            // on the selected row; the toggle below is a plain ks-tab so
+            // it never takes the white selected look.
+            className={`ks-pill-content flex flex-col gap-1 w-full min-w-0 max-h-[50vh] overflow-y-auto transition-all duration-300 ease-in-out [&>button]:w-full [&>button]:flex-none [&>button]:justify-start [&>button]:text-left ${isOff ? '' : 'pb-1 mb-1 border-b border-white/10'}`}
+            style={
+              isOff
+                ? {
+                    maxHeight: 0,
+                    opacity: 0,
+                    transform: hiddenTransform,
+                    transformOrigin: animation === 'scale' ? 'center bottom' : undefined,
+                    transition: animation === 'none' ? 'none' : undefined,
+                    pointerEvents: 'none' as const,
+                    visibility: 'hidden' as const,
+                    overflow: 'hidden' as const,
+                    paddingTop: 0,
+                    paddingBottom: 0,
+                    marginTop: 0,
+                    marginBottom: 0,
+                  }
+                : {
+                    opacity: 1,
+                    transform: 'none',
+                    transition: animation === 'none' ? 'none' : undefined,
+                  }
+            }
+            aria-hidden={isOff}
+            data-open={open}
+          >
+            {children}
+          </div>
           <button
             type="button"
             onClick={toggle}
-            aria-label={isOff ? `Show tabs${activeLabel ? ` — ${activeLabel}` : ''}` : `Hide tabs — ${resolvedPageLabel}`}
+            aria-label={isOff ? `Show tabs${activeLabel ? ` — ${activeLabel}` : ''}` : `Hide tabs${activeLabel ? ` — ${activeLabel}` : ''}`}
             aria-expanded={open}
-            title={isOff ? `Show tabs${activeLabel ? ` (currently: ${activeLabel})` : ''}` : `Hide tabs — ${resolvedPageLabel}`}
-            style={PILL_TAB_STYLE}
-            className="ks-tab ks-pill-toggle inline-flex items-center gap-1.5 shrink-0 w-full justify-between"
+            title={isOff ? `Show tabs${activeLabel ? ` (currently: ${activeLabel})` : ''}` : 'Hide tabs'}
+            style={
+              isOff
+                ? ({ ...PILL_TAB_STYLE, '--ks-tab-px': PILL_TOGGLE_COLLAPSED_PX } as React.CSSProperties)
+                : PILL_TAB_STYLE
+            }
+            className="ks-tab ks-pill-toggle inline-flex items-center justify-center shrink-0 w-full"
           >
-            <span className="inline-flex items-center gap-1.5 min-w-0">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-              {/* Open state caps the page-name width (definite max-width, so
-                  a long "Parent / Current" name truncates with ellipsis
-                  instead of stretching the shrink-wrap shell wider than the
-                  longest tab row). Closed shows the full active label. */}
-              <span className={`whitespace-nowrap leading-none text-sm truncate ${isOff ? '' : 'max-w-48'}`}>{isOff ? (activeLabel ?? 'Tabs') : resolvedPageLabel}</span>
-            </span>
             {isOff ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
-            ) : (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="18 15 12 9 6 15" /></svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0" aria-hidden="true"><polyline points="6 9 12 15 18 15" /></svg>
             )}
           </button>
         </div>
