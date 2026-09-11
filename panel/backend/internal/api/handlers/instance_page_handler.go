@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -2451,7 +2452,143 @@ var validActionTypes = map[string]bool{
 	"extract":    true,
 }
 
-// minActionTimeout / maxActionTimeout bound the edge round-trip so neither a// negative nor an absurd client-supplied timeout can disable the HTTP client
+// Action field budgets (mirror the edge page-action executor caps so a saved
+// definition that passes validation can never fail the edge's own gate).
+const (
+	maxPageActionPathLen = 4096
+	maxPageActionNames   = 1000
+	maxPageActionNameLen = 1024
+)
+
+var validPageActionModeRe = regexp.MustCompile(`^[0-7]{3,4}$`)
+
+// validPageActionPath mirrors the edge validActionPath gate: non-empty,
+// bounded, no NUL bytes. Container paths are legitimately absolute (like
+// the read_file/write_file/list_files siblings, which enforce no host
+// jail), so there is deliberately no isDangerousPath check here — that jail
+// guards edge-HOST paths, and inventing a second jail for container paths
+// is out of scope.
+func validPageActionPath(p string) bool {
+	if p == "" || len(p) > maxPageActionPathLen {
+		return false
+	}
+	return !strings.ContainsRune(p, 0)
+}
+
+// validPageActionMode mirrors the edge validActionMode gate (strict octal
+// charset plus the <= 0o777 setuid/setgid/sticky-bit cap).
+func validPageActionMode(mode string) bool {
+	if !validPageActionModeRe.MatchString(mode) {
+		return false
+	}
+	v, err := strconv.ParseUint(mode, 8, 32)
+	if err != nil || v > 0o777 {
+		return false
+	}
+	return true
+}
+
+// validPageActionArchiveName mirrors the edge sanitizeArchiveName jail:
+// names stay inside the source dir (no empties, no absolute escapes, no ..
+// segments).
+func validPageActionArchiveName(n string) bool {
+	n = strings.TrimSpace(n)
+	if n == "" || n == "." || n == "/" || len(n) > maxPageActionNameLen {
+		return false
+	}
+	c := path.Clean("/" + n)
+	if c == "/" {
+		return false
+	}
+	rel := strings.TrimPrefix(c, "/")
+	if rel == "" || rel == ".." || strings.HasPrefix(rel, "../") {
+		return false
+	}
+	return true
+}
+
+func isPageActionZip(n string) bool { return strings.HasSuffix(strings.ToLower(n), ".zip") }
+func isPageActionTarGz(n string) bool {
+	l := strings.ToLower(n)
+	return strings.HasSuffix(l, ".tar.gz") || strings.HasSuffix(l, ".tgz")
+}
+
+// validatePageActions checks the persisted actions JSON shape: an array of
+// action objects with known types. Pre-existing types stay permissive
+// (name/type only) so older pages keep loading; the new edge action types
+// (stat/chmod/archive/extract) carry strict required-field gates so a bad
+// definition fails at save time instead of at execution.
+func validatePageActions(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal([]byte(raw), &arr); err != nil {
+		return newErrString("actions must be a JSON array")
+	}
+	for i, def := range arr {
+		name, _ := def["name"].(string)
+		if strings.TrimSpace(name) == "" {
+			return newErrString(fmt.Sprintf("actions[%d]: name is required", i))
+		}
+		typ, _ := def["type"].(string)
+		if !validActionTypes[typ] {
+			return newErrString(fmt.Sprintf("actions[%d]: unknown action type %q", i, typ))
+		}
+		actionPath, _ := def["path"].(string)
+		switch typ {
+		case "stat":
+			if !validPageActionPath(actionPath) {
+				return newErrString(fmt.Sprintf("actions[%d]: stat requires a path", i))
+			}
+		case "chmod":
+			if !validPageActionPath(actionPath) {
+				return newErrString(fmt.Sprintf("actions[%d]: chmod requires a path", i))
+			}
+			mode, _ := def["mode"].(string)
+			if !validPageActionMode(mode) {
+				return newErrString(fmt.Sprintf("actions[%d]: chmod requires mode 000-777", i))
+			}
+		case "archive":
+			if !validPageActionPath(actionPath) {
+				return newErrString(fmt.Sprintf("actions[%d]: archive requires a path", i))
+			}
+			dest, _ := def["dest"].(string)
+			if !validPageActionPath(dest) || (!isPageActionZip(dest) && !isPageActionTarGz(dest)) {
+				return newErrString(fmt.Sprintf("actions[%d]: archive requires dest ending with .zip or .tar.gz", i))
+			}
+			if rawNames, present := def["names"]; present && rawNames != nil {
+				namesAny, ok := rawNames.([]any)
+				if !ok {
+					return newErrString(fmt.Sprintf("actions[%d]: archive names must be an array of strings", i))
+				}
+				if len(namesAny) > maxPageActionNames {
+					return newErrString(fmt.Sprintf("actions[%d]: too many archive entries (max %d)", i, maxPageActionNames))
+				}
+				for _, n := range namesAny {
+					s, isStr := n.(string)
+					if !isStr || !validPageActionArchiveName(s) {
+						return newErrString(fmt.Sprintf("actions[%d]: invalid archive entry %q", i, s))
+					}
+				}
+			}
+		case "extract":
+			if !validPageActionPath(actionPath) || (!isPageActionZip(actionPath) && !isPageActionTarGz(actionPath)) {
+				return newErrString(fmt.Sprintf("actions[%d]: extract requires path ending with .zip or .tar.gz", i))
+			}
+			if rawDest, present := def["dest"]; present && rawDest != nil && rawDest != "" {
+				dest, isStr := rawDest.(string)
+				if !isStr || !validPageActionPath(dest) {
+					return newErrString(fmt.Sprintf("actions[%d]: invalid extract dest", i))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// minActionTimeout / maxActionTimeout bound the edge round-trip so neither a
+// negative nor an absurd client-supplied timeout can disable the HTTP client
 // deadline or wedge a panel worker for minutes.
 const (
 	minActionTimeout = 1
@@ -2488,16 +2625,19 @@ func actionNumberField(def map[string]any, key string) int {
 
 // savedActionMatches reports whether the incoming request payload is exactly
 // one of the page's saved actions. Comparison covers every EXECUTABLE field
-// (type/command/path/content/args/env); cosmetic fields (name, description,
-// timeout) are ignored. This is the server-side trust boundary: the browser
-// never picks what runs, it only names a stored action.
+// (type/command/path/content/args/env/mode/names/dest); cosmetic fields
+// (name, description, timeout) are ignored. This is the server-side trust
+// boundary: the browser never picks what runs, it only names a stored
+// action.
 //
 // Argument policy: by default the request's args must equal the stored args
 // element-for-element. A saved action may opt in to caller-supplied
 // arguments with `"open_args": true` — the request's args must then START
 // with the stored prefix and may append up to maxOpenActionArgs extra
 // values, which resolveExecPayload validates before anything is executed.
-func savedActionMatches(def map[string]any, typ, command, path, content string, args []string, env map[string]string) bool {
+// The names list is always exact-matched (it is not part of the open_args
+// flow — file ops never accept runtime extras).
+func savedActionMatches(def map[string]any, typ, command, path, content string, args []string, env map[string]string, mode string, names []string, dest string) bool {
 	if actionStringField(def, "type") != typ {
 		return false
 	}
@@ -2505,6 +2645,20 @@ func savedActionMatches(def map[string]any, typ, command, path, content string, 
 		actionStringField(def, "path") != path ||
 		actionStringField(def, "content") != content {
 		return false
+	}
+	if actionStringField(def, "mode") != mode ||
+		actionStringField(def, "dest") != dest {
+		return false
+	}
+	if defNamesAny, present := def["names"].([]any); present || len(names) > 0 {
+		if len(defNamesAny) != len(names) {
+			return false
+		}
+		for i, a := range defNamesAny {
+			if s, _ := a.(string); s != names[i] {
+				return false
+			}
+		}
 	}
 	// args: JSON decodes to []any — every element must be a string. The
 	// stored sequence is a mandatory PREFIX; extras only pass when the def
@@ -2538,22 +2692,34 @@ func savedActionMatches(def map[string]any, typ, command, path, content string, 
 
 // savedActionExecFields extracts the executable fields from a matched saved
 // action. ok=false when the stored definition is malformed (unknown type or
-// non-string command/args/env values) — such rows fail closed instead of
-// being partially forwarded to the edge.
-func savedActionExecFields(def map[string]any) (typ, command, path, content string, args []string, env map[string]string, timeout int, ok bool) {
+// non-string command/args/env/mode/names/dest values) — such rows fail
+// closed instead of being partially forwarded to the edge.
+func savedActionExecFields(def map[string]any) (typ, command, path, content string, args []string, env map[string]string, mode string, names []string, dest string, timeout int, ok bool) {
 	typ = actionStringField(def, "type")
 	if !validActionTypes[typ] {
-		return "", "", "", "", nil, nil, 0, false
+		return "", "", "", "", nil, nil, "", nil, "", 0, false
 	}
 	command = actionStringField(def, "command")
 	path = actionStringField(def, "path")
 	content = actionStringField(def, "content")
+	mode = actionStringField(def, "mode")
+	dest = actionStringField(def, "dest")
+	if defNamesAny, present := def["names"].([]any); present && len(defNamesAny) > 0 {
+		names = make([]string, 0, len(defNamesAny))
+		for _, a := range defNamesAny {
+			s, isStr := a.(string)
+			if !isStr {
+				return "", "", "", "", nil, nil, "", nil, "", 0, false
+			}
+			names = append(names, s)
+		}
+	}
 	if defArgsAny, present := def["args"].([]any); present && len(defArgsAny) > 0 {
 		args = make([]string, 0, len(defArgsAny))
 		for _, a := range defArgsAny {
 			s, isStr := a.(string)
 			if !isStr {
-				return "", "", "", "", nil, nil, 0, false
+				return "", "", "", "", nil, nil, "", nil, "", 0, false
 			}
 			args = append(args, s)
 		}
@@ -2563,12 +2729,12 @@ func savedActionExecFields(def map[string]any) (typ, command, path, content stri
 		for k, v := range defEnv {
 			s, isStr := v.(string)
 			if !isStr {
-				return "", "", "", "", nil, nil, 0, false
+				return "", "", "", "", nil, nil, "", nil, "", 0, false
 			}
 			env[k] = s
 		}
 	}
-	return typ, command, path, content, args, env, actionNumberField(def, "timeout"), true
+	return typ, command, path, content, args, env, mode, names, dest, actionNumberField(def, "timeout"), true
 }
 
 // maxOpenActionArgs caps how many caller-supplied values an open_args action

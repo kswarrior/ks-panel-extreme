@@ -25,7 +25,7 @@ import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
-import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
+import { HeartbeatIcon, ResourceBar } from '../components/NodesComponents';
 import RollingUpdateModal from '../components/RollingUpdateModal';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
@@ -430,27 +430,10 @@ const AdminNodes: React.FC = () => {
           {filteredNodes.map((n) => {
             const resolved = resolveState(n);
             const st = STATE_STYLES[resolved] || STATE_STYLES.down;
-            const isProbing = probingId === n.id;
-            const probeNote = probeNotes[n.id];
-            const probeReachable = n.probe_reachable === true;
-            const probeUnreachable = n.probe_reachable === false;
-            const nameMismatch = !!n.probe_seen_name && n.probe_seen_name !== n.name;
-            const upPct = n.uptime_pct || 0;
             const country = n.location_country ? countryByCode(n.location_country) : undefined;
-            const isLts = (n as any).is_lts as boolean | undefined;
             const ramLabel = formatBytesPair(n.ram_used, n.ram_total);
             const diskLabel = formatBytesPair(n.disk_used, n.disk_total);
-            const ramPct = n.ram_total > 0 ? (n.ram_used / n.ram_total) * 100 : 0;
             const cpuPct = Number.isFinite(n.cpu_percent) ? n.cpu_percent : 0;
-            const diskPct = n.disk_total > 0 ? (n.disk_used / n.disk_total) * 100 : 0;
-            const upColor = tileTint('success');
-            const downColor = tileTint('danger');
-            const warnColor = tileTint('warning');
-            const isUp = resolved === 'up';
-            const isDown = resolved === 'down';
-            const monitor = buildMonitor(n, hbMap);
-            const upCount = monitor.filter((s) => s === 'up').length;
-            const upPctDisplay = (upCount / monitor.length) * 100;
             return (
             <article
               id={`ks-node-${n.id}`}
@@ -459,7 +442,6 @@ const AdminNodes: React.FC = () => {
             >
               <CardMediaLayer />
               <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-              <div className="p-3 flex flex-col gap-3">
                 <header className="flex items-start gap-3 min-w-0">
                   <CardIconTile
                     icon={n.icon || ''}
@@ -467,109 +449,52 @@ const AdminNodes: React.FC = () => {
                     fallback={<HeartbeatIcon state={resolved} />}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5" title={n.name}>
-                      <span className="truncate">{n.name}</span>
-                      {n.location_node && (
-                        <span
-                          className="text-[10px] text-gray-400 font-normal truncate max-w-[8rem]"
-                          title={`Site label: ${n.location_node}`}
-                        >
-                          {`{${n.location_node}}`}
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-[11px] text-gray-500 truncate font-mono mt-0.5">
-                      <span className={n.use_tls ? 'text-emerald-400' : 'text-gray-500'}>{n.use_tls ? 'https' : 'http'}</span>
-                      {'://'}{n.address}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      {country && (
-                        <span
-                          className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border border-white/10 bg-white/[0.05] text-gray-200"
-                          title={`${country.name} (${country.code})`}
-                        >
-                          <span className="leading-none">{country.flag}</span>
-                          <span className="font-mono">{country.code}</span>
-                        </span>
-                      )}
-                      {n.category && (
-                        <span
-                          className="inline-flex items-center text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border border-white/10 bg-white/[0.04] text-gray-300"
-                          title={`Category: ${n.category}`}
-                        >
-                          {n.category}
-                        </span>
-                      )}
-                      {isLts !== undefined && (
-                        <span
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold tracking-wide px-1.5 py-0.5 rounded-md border ${
-                            isLts
-                              ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300'
-                              : 'bg-red-500/15 border-red-400/40 text-red-300'
-                          }`}
-                          title={isLts ? 'Long-term support release' : 'Non-LTS / rolling release'}
-                        >
-                          LTS
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="text-sm font-semibold text-white truncate leading-tight" title={n.name}>{n.name}</h3>
+                    {(() => {
+                      const sub = [n.category, country?.code, n.location_node].filter(Boolean).join(' · ');
+                      return sub ? (
+                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{sub}</p>
+                      ) : null;
+                    })()}
+                    {n.notes && (
+                      <p className="text-xs text-gray-400 truncate">{n.notes}</p>
+                    )}
                   </div>
-
-                  <div className="shrink-0" title="Drivers: docker / kvm / multipass / lxd">
-                    <DriverRing node={n} />
+                  <div className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${st.badge}`}>
+                    {st.label}
                   </div>
                 </header>
 
-                <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 space-y-2">
-                <div className="flex flex-wrap gap-1.5 text-xs">
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title={`RAM: ${ramLabel}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
-                    {formatPercent(ramPct)}
+                {/* Address row — a single monospace line like the template image row. */}
+                <p className="text-[11px] text-gray-500 font-mono truncate bg-black/20 border border-white/5 rounded px-2 py-1" title={`${n.use_tls ? 'https' : 'http'}://${n.address}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3 inline mr-1 -mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /> </svg>
+                  <span className={n.use_tls ? 'text-emerald-400' : 'text-gray-500'}>{n.use_tls ? 'https' : 'http'}</span>
+                  {'://'}{n.address}
+                </p>
+
+                {/* Resource usage — SVG + Text + Value like template limits. */}
+                <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-300">
+                  <span className="inline-flex items-center gap-1" title={`RAM: ${ramLabel}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-emerald-300"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
+                    <span className="text-gray-400">RAM</span>
+                    <span className="text-emerald-300">{ramLabel}</span>
                   </span>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title={`CPU: ${formatPercent(cpuPct)}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="5" y="5" width="14" height="14" rx="2" /><rect x="9" y="9" width="6" height="6" rx="0.5" /><path d="M2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3" /> </svg>
-                    {formatPercent(cpuPct)}
+                  <span className="inline-flex items-center gap-1" title={`CPU: ${formatPercent(cpuPct)}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-sky-300"><rect x="5" y="5" width="14" height="14" rx="2" /><rect x="9" y="9" width="6" height="6" rx="0.5" /><path d="M2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3" /> </svg>
+                    <span className="text-gray-400">CPU</span>
+                    <span className="text-sky-300">{formatPercent(cpuPct)}</span>
                   </span>
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title={`DISK: ${diskLabel}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /> </svg>
-                    {formatPercent(diskPct)}
+                  <span className="inline-flex items-center gap-1" title={`Disk: ${diskLabel}`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-amber-300"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /> </svg>
+                    <span className="text-gray-400">Disk</span>
+                    <span className="text-amber-300">{diskLabel}</span>
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 font-mono text-[11px]">
-                  <span className="text-[10px] uppercase tracking-wide text-gray-500 shrink-0">Uptime 24h</span>
-                  <div className="flex items-end gap-[2px] h-3 flex-1 min-w-0" aria-label="uptime monitor">
-                    {monitor.map((s, i) => (
-                      <div
-                        key={i}
-                        title={s === 'up' ? 'up' : 'down'}
-                        className={`flex-1 rounded-[2px] transition-colors ${s === 'up' ? '' : 'bg-red-700/70'}`}
-                        style={s === 'up' ? { height: '100%', background: `linear-gradient(to top, ${withAlpha(upColor, 0.7)}, ${upColor})` } : { height: '55%' }}
-                      />
-                    ))}
-                  </div>
-                  <span className={`font-semibold shrink-0 ${isUp ? '' : isDown ? 'text-red-300' : resolved === 'pending' ? 'text-sky-300' : 'text-amber-300'}`} style={isUp ? { color: upColor } : undefined}>
-                    {upPctDisplay.toFixed(1)}%
+                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-gray-500 truncate">
+                    {versionMap[n.id] ? <>V {versionMap[n.id]}</> : <>id {n.id}</>}
                   </span>
-                </div>
-                </div>
-
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                    {versionMap[n.id] && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 font-mono shrink-0"
-                        title={`Edge version: ${versionMap[n.id]}`}
-                      >
-                        V {versionMap[n.id]}
-                      </span>
-                    )}
-                    {n.notes && (
-                      <span className="text-[11px] text-gray-500 truncate flex-1 min-w-0" title={n.notes}>
-                        {n.notes}
-                      </span>
-                    )}
-                  </div>
                   <Link
                     to={`/node/${n.id}`}
                     className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline shrink-0"
@@ -577,7 +502,6 @@ const AdminNodes: React.FC = () => {
                     View details →
                   </Link>
                 </footer>
-              </div>
             </article>
             );
           })}
