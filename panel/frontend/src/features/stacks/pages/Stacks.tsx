@@ -326,33 +326,9 @@ const Stacks: React.FC = () => {
           onRetry={() => void load()}
         />
       )}
-      {loading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : filtered.length === 0 && stacks.length > 0 ? (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No stacks match your filters.</div>
-      ) : stacks.length === 0 && !error ? (
-        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
-          <div className="flex flex-col items-center gap-4">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-20 h-20 text-gray-400"
-              aria-hidden="true"
-            >
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-            <p className="text-lg font-medium text-gray-300">No stacks yet</p>
-            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
-          </div>
-        </div>
-      ) : (
+      {loading && <SkeletonGrid count={6} />}
+
+      {!loading && filtered.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-stacks-grid">
           {filtered.map((s) => {
             const src = stackSourceMeta(s.source);
@@ -438,6 +414,33 @@ const Stacks: React.FC = () => {
               </article>
             );
           })}
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && stacks.length > 0 && !error && (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No stacks match your filters.</div>
+      )}
+      {!loading && stacks.length === 0 && !error && (
+        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-gray-400"
+              aria-hidden="true"
+            >
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            <p className="text-lg font-medium text-gray-300">No stacks yet</p>
+            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
+          </div>
         </div>
       )}
 

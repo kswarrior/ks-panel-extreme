@@ -468,27 +468,297 @@ function stripAsCastsAndGenerics(src: string, mark: () => void): string {
 }
 
 function stripAnnotations(src: string, mark: () => void): string {
-  // Safe, common shapes only (boundary-anchored, nesting-aware):
-  //   (name: Type, other: Type2 = d)   → (name, other = d)
-  //   const x: Type = ... / let f: (...) => ... =
-  //   function f(...): Ret { / ): Ret =>
-  let s = src;
-  // Return annotations: `): Type {` and `): Type =>`.
-  s = s.replace(/\)\s*:\s*[A-Za-z_$][A-Za-z0-9_$.<>\[\],\s|&?]*?(\s*[{=])/g, (m, tail) => {
-    mark();
-    return `)${tail as string}`;
-  });
-  // Param / declaration annotations. Repeat until fixpoint (multiple params).
-  const annRe = /([(,{;]\s*(?:const\s+|let\s+|var\s+)?\s*[A-Za-z_$][A-Za-z0-9_$?]*)(\?\s*)?:\s*[A-Za-z_$][A-Za-z0-9_$.<>\[\],\s|&?'"-]*?(?=[,)=;{])/g;
-  for (let pass = 0; pass < 4; pass++) {
-    const next = s.replace(annRe, (_m, head) => {
+  // Scanner-based (regex can't balance `{...}` object types like
+  // `props: { points: LoadPoint[] }`). Strips `: Type` in param / let /
+  // return positions only; ternaries, object literals, labels and `case:`
+  // are guarded so plain JS is never mangled.
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  let round = 0;
+  let square = 0;
+  let curly = 0;
+  const prevNonSpace = (): string => {
+    for (let k = out.length - 1; k >= 0; k--) {
+      const c = out[k];
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r') continue;
+      return c;
+    }
+    return '';
+  };
+  const lineStart = (): string => {
+    const k = out.lastIndexOf('\n');
+    return out.slice(k + 1).trimStart();
+  };
+  while (i < n) {
+    const c = src[i];
+    if (state === 'code') {
+      if (c === '/' && src[i + 1] === '/') {
+        state = 'line';
+        out += '//';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        state = 'block';
+        out += '/*';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = 'sq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        state = 'dq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        state = 'tpl';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '(') {
+        round++;
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === ')') {
+        round = Math.max(0, round - 1);
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '[') {
+        square++;
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === ']') {
+        square = Math.max(0, square - 1);
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '{') {
+        curly++;
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '}') {
+        curly = Math.max(0, curly - 1);
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === ':' && curly === 0 && square === 0 && src[i + 1] !== ':') {
+        const prev = prevNonSpace();
+        const isBindingEnd =
+          /[A-Za-z0-9_$\])]/.test(prev) || prev === '?' || prev === '"' || prev === "'";
+        if (!isBindingEnd) {
+          out += c;
+          i++;
+          continue;
+        }
+        // Guards: ternary (`a ? b : c`), case/default labels, loop labels.
+        const ls = lineStart();
+        if (/^(case|default)\b/.test(ls)) {
+          out += c;
+          i++;
+          continue;
+        }
+        let j = i + 1;
+        while (j < n && (src[j] === ' ' || src[j] === '\t' || src[j] === '\n' || src[j] === '\r')) j++;
+        const restWord = /^[A-Za-z_]+/.exec(src.slice(j, j + 16));
+        if (/^[A-Za-z_$][A-Za-z0-9_$]*\s*:$/.test(ls + ' ') && restWord && /^(for|while|switch|do)$/.test(restWord[0])) {
+          out += c; // `label: for...`
+          i++;
+          continue;
+        }
+        // Same-line `?` before this colon at equal nesting → ternary.
+        if (looksLikeTernary(src, i)) {
+          out += c;
+          i++;
+          continue;
+        }
+        if (j >= n || !/[A-Za-z_{(['"<|!?]/.test(src[j])) {
+          out += c;
+          i++;
+          continue;
+        }
+        // Consume the type with balanced ()[]{}<> + strings.
+        let k = j;
+        let r = 0;
+        let s = 0;
+        let cu = 0;
+        let a = 0;
+        let st: 'code' | 'sq' | 'dq' | 'tpl' = 'code';
+        let end = -1;
+        while (k < n) {
+          const t = src[k];
+          if (st === 'code') {
+            if (t === "'" || t === '"' || t === '`') {
+              st = t === "'" ? 'sq' : t === '"' ? 'dq' : 'tpl';
+              k++;
+              continue;
+            }
+            if (t === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(src[k - 1] ?? '')) {
+              a++;
+              k++;
+              continue;
+            }
+            if (t === '>' && a > 0 && src[k + 1] !== '=') {
+              a--;
+              k++;
+              continue;
+            }
+            if (t === '=' && src[k + 1] === '>') {
+              if (r === 0 && s === 0 && cu === 0 && a === 0) {
+                end = k; // `=>` — return-type position, keep the arrow.
+                break;
+              }
+              k += 2;
+              continue;
+            }
+            if (t === '(' || t === '[' || t === '{') {
+              if (t === '(') r++;
+              else if (t === '[') s++;
+              else cu++;
+              k++;
+              continue;
+            }
+            if (t === ')' || t === ']' || t === '}') {
+              if (r === 0 && s === 0 && cu === 0) {
+                end = k; // terminator at depth 0.
+                break;
+              }
+              if (t === ')') r--;
+              else if (t === ']') s--;
+              else cu--;
+              k++;
+              continue;
+            }
+            if ((t === ',' || t === ';' || t === '=') && r === 0 && s === 0 && cu === 0 && a === 0) {
+              end = k;
+              break;
+            }
+            // A `{` opening a function body ends a return type.
+            if (t === '{' && r === 0 && s === 0 && cu === 0 && a === 0) {
+              end = k;
+              break;
+            }
+            k++;
+            continue;
+          }
+          if (t === '\\') {
+            k += 2;
+            continue;
+          }
+          if ((st === 'sq' && t === "'") || (st === 'dq' && t === '"') || (st === 'tpl' && t === '`')) st = 'code';
+          k++;
+        }
+        if (end === -1 || end <= j) {
+          out += c;
+          i++;
+          continue;
+        }
+        // Drop a `?` optional marker left dangling (`(x?: T)` → `(x)`).
+        if (prev === '?') out = out.slice(0, -1);
         mark();
-        return head as string;
-      },
-    );
-    if (next === s) break;
-    s = next;
+        i = end;
+        continue;
+      }
+      out += c;
+      i++;
+      continue;
+    }
+    if (state === 'line') {
+      out += c;
+      if (c === '\n') state = 'code';
+      i++;
+      continue;
+    }
+    if (state === 'block') {
+      out += c;
+      if (c === '*' && src[i + 1] === '/') {
+        out += '/';
+        i += 2;
+        state = 'code';
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (state === 'sq' || state === 'dq') {
+      const q = state === 'sq' ? "'" : '"';
+      out += c;
+      if (c === '\\') {
+        out += src[i + 1] ?? '';
+        i += 2;
+        continue;
+      }
+      if (c === q) state = 'code';
+      i++;
+      continue;
+    }
+    out += c;
+    if (c === '\\') {
+      out += src[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    if (c === '`') state = 'code';
+    i++;
   }
+  return out;
+}
+
+// looksLikeTernary reports whether the `:` at pos is the else-branch of a
+// `? :` on the same nesting level (scans back to a line/statement boundary).
+function looksLikeTernary(src: string, pos: number): boolean {
+  let round = 0;
+  let square = 0;
+  let curly = 0;
+  for (let k = pos - 1; k >= 0; k--) {
+    const c = src[k];
+    if (c === '\n' || c === ';') return false;
+    if (c === ')' || c === ']' || c === '}') {
+      if (c === ')') round++;
+      else if (c === ']') square++;
+      else curly++;
+      continue;
+    }
+    if (c === '(' || c === '[' || c === '{') {
+      if (c === '(') {
+        if (round === 0) return false; // start of a call/params — no ternary.
+        round--;
+      } else if (c === '[') {
+        if (square === 0) return false;
+        square--;
+      } else {
+        if (curly === 0) return false;
+        curly--;
+      }
+      continue;
+    }
+    if (c === '?' && round === 0 && square === 0 && curly === 0) {
+      // `?.` optional chaining is not a ternary.
+      if (src[k + 1] === '.' || (k > 0 && /[A-Za-z0-9_$]/.test(src[k - 1]) && src[k + 1] === '?')) continue;
+      return true;
+    }
+    if (c === ':' && round === 0 && square === 0 && curly === 0) return false;
+  }
+  return false;
+}
   return s;
 }
 
