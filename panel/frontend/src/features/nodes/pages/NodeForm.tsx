@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createNode, updateNode, listNodes, probeNode, setupLocalNode, listNodeWssChannels } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, ProbeResult, SetupLocalResult } from '@/shared/types/node';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
@@ -131,6 +133,19 @@ const NodeForm: React.FC = () => {
     { key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true },
   ]);
   const [wssSeq, setWssSeq] = useState(1);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the form + WSS rows (fleet list, tab and
+  // icon/colour dropdown mirrors stay out — the mirrors write through to
+  // form.icon / form.color, which IS tracked).
+  const snapshot = JSON.stringify({ form, wssChannels, wssSeq });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setForm(s.form);
+    setWssChannels(s.wssChannels);
+    setWssSeq(s.wssSeq);
+  });
+  const { suspend: histSuspend } = hist;
 
   // addWssChannel appends a blank row (top-right Add button in the WSS box).
   const addWssChannel = () => {
@@ -169,107 +184,123 @@ const NodeForm: React.FC = () => {
     });
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        // Fetched in both modes: the duplicate-pair pre-check needs the
-        // existing fleet even when creating a fresh node.
-        const nodes = await listNodes();
-        if (!cancelled) setAllNodes(nodes);
-        if (editing) {
-          const n = nodes.find((x) => x.id === Number(id));
-          if (n) {
-            const stored = (n as any).connection_mode as ConnectionMode | undefined;
-            let connectionMode: ConnectionMode = stored || 'direct';
-            let port = '4040';
-            let address = n.address || '';
-            // Back-compat: legacy rows without connection_mode infer from address.
-            if (!stored) {
-              const isLocal = n.address.startsWith('127.0.0.1:') || n.address.startsWith('localhost:');
-              if (isLocal) {
-                connectionMode = 'local_port';
-                port = n.address.split(':').pop() || '4040';
-                address = '';
-              } else if (n.address === 'tunnel' || n.address === '') {
-                connectionMode = 'reverse_tunnel';
-                address = '';
-              }
-            } else if (isLocalMode(connectionMode)) {
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      // Fetched in both modes: the duplicate-pair pre-check needs the
+      // existing fleet even when creating a fresh node.
+      const nodes = await listNodes();
+      setAllNodes(nodes);
+      if (editing) {
+        const n = nodes.find((x) => x.id === Number(id));
+        if (n) {
+          const stored = (n as any).connection_mode as ConnectionMode | undefined;
+          let connectionMode: ConnectionMode = stored || 'direct';
+          let port = '4040';
+          let address = n.address || '';
+          // Back-compat: legacy rows without connection_mode infer from address.
+          if (!stored) {
+            const isLocal = n.address.startsWith('127.0.0.1:') || n.address.startsWith('localhost:');
+            if (isLocal) {
+              connectionMode = 'local_port';
               port = n.address.split(':').pop() || '4040';
               address = '';
-            } else if (connectionMode === 'reverse_tunnel') {
+            } else if (n.address === 'tunnel' || n.address === '') {
+              connectionMode = 'reverse_tunnel';
               address = '';
-              port = '4040';
-            } else if (connectionMode === 'both') {
-              // Remote dual keeps a real address (never the tunnel sentinel).
-              if (address === 'tunnel') address = '';
-              port = '4040';
             }
-            setForm({
-              name: n.name,
-              connection_mode: connectionMode,
-              port: port || '4040',
-              address: address,
-              use_tls: n.use_tls,
-              health_enabled: n.health_enabled !== false,
-              health_interval: String(n.health_interval || 60),
-              health_timeout: String(n.health_timeout || 4),
-              health_retries: String(n.health_retries || 3),
-              skip_tls_verify: !!n.skip_tls_verify,
-              notes: n.notes || '',
-              install_dir: n.install_dir || './localnode/',
-              allowed_kinds: n.allowed_kinds || '',
-              alloc_mem_mib: String(n.alloc_mem_mib || 0),
-              mem_overcommit_pct: String(n.mem_overcommit_pct || 0),
-              alloc_disk_mib: String(n.alloc_disk_mib || 0),
-              disk_overcommit_pct: String(n.disk_overcommit_pct || 0),
-              instances_dir: n.instances_dir || '/var/lib/kspanel/instances',
-              category: n.category || '',
-              location_country: n.location_country || '',
-              location_node: n.location_node || '',
-              icon: n.icon || '',
-              color: n.color || '',
-            });
-            // Load the WSS box rows for tunnel-capable modes.
-            try {
-              const rows = await listNodeWssChannels(Number(id));
-              if (!cancelled) {
-                if (rows.length > 0) {
-                  setWssChannels(rows.map((r) => ({
-                    key: `saved-${r.id}`,
-                    id: r.id,
-                    name: r.name,
-                    task: (r.task as WssTask) || 'all',
-                    transport: (r.transport as WssTransport) || 'auto',
-                    fallback: r.fallback !== false,
-                  })));
-                  setWssSeq(rows.length);
-                } else if (isTunnelMode(connectionMode)) {
-                  // Tunnel mode with no saved rows: keep the pre-added
-                  // catch-all so the box is never empty.
-                  setWssChannels([{ key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true }]);
-                  setWssSeq(1);
-                } else {
-                  setWssChannels([]);
-                }
-              }
-            } catch {
-              // Channels table may predate migration 062 on first rollout —
-              // keep the local default instead of failing the whole form.
-            }
-          } else {
-            setError('Node not found');
+          } else if (isLocalMode(connectionMode)) {
+            port = n.address.split(':').pop() || '4040';
+            address = '';
+          } else if (connectionMode === 'reverse_tunnel') {
+            address = '';
+            port = '4040';
+          } else if (connectionMode === 'both') {
+            // Remote dual keeps a real address (never the tunnel sentinel).
+            if (address === 'tunnel') address = '';
+            port = '4040';
           }
+          setForm({
+            name: n.name,
+            connection_mode: connectionMode,
+            port: port || '4040',
+            address: address,
+            use_tls: n.use_tls,
+            health_enabled: n.health_enabled !== false,
+            health_interval: String(n.health_interval || 60),
+            health_timeout: String(n.health_timeout || 4),
+            health_retries: String(n.health_retries || 3),
+            skip_tls_verify: !!n.skip_tls_verify,
+            notes: n.notes || '',
+            install_dir: n.install_dir || './localnode/',
+            allowed_kinds: n.allowed_kinds || '',
+            alloc_mem_mib: String(n.alloc_mem_mib || 0),
+            mem_overcommit_pct: String(n.mem_overcommit_pct || 0),
+            alloc_disk_mib: String(n.alloc_disk_mib || 0),
+            disk_overcommit_pct: String(n.disk_overcommit_pct || 0),
+            instances_dir: n.instances_dir || '/var/lib/kspanel/instances',
+            category: n.category || '',
+            location_country: n.location_country || '',
+            location_node: n.location_node || '',
+            icon: n.icon || '',
+            color: n.color || '',
+          });
+          // Load the WSS box rows for tunnel-capable modes.
+          try {
+            const rows = await listNodeWssChannels(Number(id));
+            if (rows.length > 0) {
+              setWssChannels(rows.map((r) => ({
+                key: `saved-${r.id}`,
+                id: r.id,
+                name: r.name,
+                task: (r.task as WssTask) || 'all',
+                transport: (r.transport as WssTransport) || 'auto',
+                fallback: r.fallback !== false,
+              })));
+              setWssSeq(rows.length);
+            } else if (isTunnelMode(connectionMode)) {
+              // Tunnel mode with no saved rows: keep the pre-added
+              // catch-all so the box is never empty.
+              setWssChannels([{ key: 'temp-0', name: 'wss-1', task: 'all', transport: 'auto', fallback: true }]);
+              setWssSeq(1);
+            } else {
+              setWssChannels([]);
+            }
+          } catch {
+            // Channels table may predate migration 062 on first rollout —
+            // keep the local default instead of failing the whole form.
+          }
+        } else {
+          setError('Node not found');
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load node');
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load node');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const effectiveAddress = useMemo(() => {
     if (isLocalMode(form.connection_mode)) return `127.0.0.1:${form.port || '4040'}`;
@@ -502,6 +533,7 @@ const NodeForm: React.FC = () => {
           use_tls: form.use_tls,
           ...advancedPayload(),
         });
+        hist.commit();
         navigate('/nodes');
       } else {
         const useTLS = form.use_tls;
@@ -511,6 +543,7 @@ const NodeForm: React.FC = () => {
           use_tls: useTLS,
           ...advancedPayload(),
         });
+        hist.commit();
         setProbing(true);
         let probeRes: ProbeResult | null = null;
         try {
@@ -588,6 +621,7 @@ const NodeForm: React.FC = () => {
           with !important, so Tailwind px/py classes alone can never win —
           overriding the var value scoped to this pill does. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/nodes')}

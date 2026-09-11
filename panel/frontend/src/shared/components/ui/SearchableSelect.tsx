@@ -33,11 +33,15 @@ interface SearchableSelectProps<T extends string | number> {
   // Optional label shown at the top of the drop-down list (e.g.
   // "Templates" / "Nodes").
   groupLabel?: string;
+  // Optional type glyph shown before the search magnifier (e.g. the exact
+  // sidebar SVG for Users / Templates / Nodes). The search icon itself is
+  // always rendered — this is an extra affordance, not a replacement.
+  leadingIcon?: React.ReactNode;
 }
 
 export function SearchableSelect<T extends string | number>({
   options, value, onChange, placeholder = 'Search…', emptyMessage = 'No matches',
-  renderRow, groupLabel,
+  renderRow, groupLabel, leadingIcon,
 }: SearchableSelectProps<T>) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -100,10 +104,15 @@ export function SearchableSelect<T extends string | number>({
       <div
         className={`flex items-center gap-2 bg-black/30 border rounded-md px-3 py-1.5 transition-colors ${open ? 'border-white/40' : 'border-white/10 hover:border-white/30'}`}
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-500 shrink-0">
+        {leadingIcon && (
+          <span className="shrink-0 text-gray-400 flex items-center [&>svg]:w-4 [&>svg]:h-4 [&>svg]:block" aria-hidden="true">
+            {leadingIcon}
+          </span>
+        )}
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-500 shrink-0" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-3.5-3.5" />
-         </svg>
+          </svg>
         {selected && !open ? (
           <button
             type="button"

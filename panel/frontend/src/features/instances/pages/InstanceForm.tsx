@@ -8,6 +8,7 @@ import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
+import { Icons as SidebarIcons } from '@/shared/components/layout/Sidebar';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { parseEnvOptions, checkboxChecked, checkboxValues } from '@/features/templates/types/templateForm';
@@ -396,54 +397,53 @@ const InstanceForm: React.FC = () => {
         <GlassCard variant="form" className="">
             <div className="mb-1">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-300">General</h3>
-              <p className="text-xs text-gray-500">Name, owner, node and template — everything the deployment runs on.</p>
+              <p className="text-xs text-gray-500">Icon, names, owner, node and template — everything the deployment runs on.</p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="relative shrink-0" title="Icon preview">
-                <span
-                  className="w-12 h-12 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10"
-                  style={color ? { color } : undefined}
-                  aria-hidden="true"
-                >
-                  {icon ? (
-                    <span
-                      className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
-                      dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
-                    />
-                  ) : selectedTemplate ? (
-                    <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
-                  )}
-                </span>
+            {/* Row 1 — [ icon ] { display name } on one line */}
+            <div className="flex items-end gap-3">
+              <div className="shrink-0">
+                <span className={labelCls}>Icon</span>
                 <button
                   type="button"
                   onClick={() => setIconModalOpen(true)}
                   title="Edit icon & colour"
                   aria-label="Edit icon & colour"
-                  className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 hover:bg-neutral-700 text-gray-200 transition-colors"
+                  className="relative block w-12 h-12 rounded-lg border bg-white/[0.05] border-white/10 hover:border-white/30 transition-colors"
+                  style={color ? { color } : undefined}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  <span className="w-full h-full flex items-center justify-center" aria-hidden="true">
+                    {icon ? (
+                      <span
+                        className="w-6 h-6 block [&>svg]:w-6 [&>svg]:h-6 [&>svg]:block"
+                        dangerouslySetInnerHTML={{ __html: icon.replace(/<svg /, '<svg width="24" height="24" ') }}
+                      />
+                    ) : selectedTemplate ? (
+                      <KindIcon kind={kindKey(selectedTemplate.kind)} className="w-6 h-6" />
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></svg>
+                    )}
+                  </span>
+                  <span className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-neutral-800 text-gray-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                  </span>
                 </button>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm text-gray-200 font-medium truncate">{(displayName.trim() || name.trim()) || 'New instance'}</p>
-                <p className="text-xs text-gray-500 truncate">Icon &amp; colour shown on the instance card</p>
+                <label className={labelCls}>Display name <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
+                <input
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className={glassFieldClass}
+                  placeholder={(displayName.trim() || name.trim()) || 'New instance'}
+                />
+                <p className="text-xs text-gray-500 truncate mt-1.5">Icon &amp; colour shown on the instance card</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIconModalOpen(true)}
-                title="Edit icon & colour"
-                className="ks-ghost-btn shrink-0 px-2.5 py-1.5 rounded-md text-xs border border-white/10 bg-white/5 text-white hover:bg-white/10 inline-flex items-center gap-1.5"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21" /></svg>
-                Icon
-              </button>
             </div>
 
+            {/* Row 2 — Name + Owner aligned on one line */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+              <div className="min-w-0">
                 <label className={labelCls}>Instance name</label>
                 <input
                   value={name}
@@ -454,19 +454,11 @@ const InstanceForm: React.FC = () => {
                   autoFocus
                 />
               </div>
-              <div>
-                <label className={labelCls}>Display name <span className="text-xs text-gray-500 font-normal">(optional)</span></label>
-                <input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className={glassFieldClass}
-                  placeholder="Human-readable label shown in the UI"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className={labelCls}>Owner</label>
+              <div className="min-w-0">
+                <label className={`${labelCls} flex items-center gap-1.5`}>
+                  <span className="text-gray-400 inline-flex [&>svg]:w-3.5 [&>svg]:h-3.5" aria-hidden="true">{SidebarIcons.Users}</span>
+                  Owner
+                </label>
                 {users.length === 0 ? (
                   <GlassCard className="text-center text-gray-400 text-sm">No users available.</GlassCard>
                 ) : (
@@ -478,6 +470,7 @@ const InstanceForm: React.FC = () => {
                     emptyMessage="No owners match"
                     renderRow={renderOwnerRow}
                     groupLabel="Users"
+                    leadingIcon={SidebarIcons.Users}
                   />
                 )}
                 {selectedOwner && (
@@ -486,13 +479,18 @@ const InstanceForm: React.FC = () => {
                   </p>
                 )}
               </div>
+            </div>
             </GlassCard>
             <GlassCard variant="form">
+            {/* Row 3 — Template + Node aligned on one line, image preview below */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Template</h4>
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
+                      <span className="text-gray-400 inline-flex [&>svg]:w-3.5 [&>svg]:h-3.5" aria-hidden="true">{SidebarIcons.Templates}</span>
+                      Template
+                    </h4>
                     <p className="text-xs text-gray-500">Pick the blueprint that defines this instance.</p>
                   </div>
                   <span className="text-xs text-gray-500 shrink-0">{templates.length} available</span>
@@ -508,6 +506,7 @@ const InstanceForm: React.FC = () => {
                     emptyMessage="No templates match"
                     renderRow={renderTemplateRow}
                     groupLabel="Templates"
+                    leadingIcon={SidebarIcons.Templates}
                   />
                 )}
                 {selectedTemplate && (
@@ -525,7 +524,10 @@ const InstanceForm: React.FC = () => {
               <div className="min-w-0">
                 <div className="flex items-center justify-between gap-3 mb-2">
                   <div className="min-w-0">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400">Node</h4>
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 flex items-center gap-1.5">
+                      <span className="text-gray-400 inline-flex [&>svg]:w-3.5 [&>svg]:h-3.5" aria-hidden="true">{SidebarIcons.Nodes}</span>
+                      Node
+                    </h4>
                     <p className="text-xs text-gray-500 truncate">Where the instance runs — the node must advertise this template's driver.</p>
                   </div>
                   <span className="text-xs text-gray-500 shrink-0">{nodes.length} available</span>
@@ -541,6 +543,7 @@ const InstanceForm: React.FC = () => {
                     emptyMessage="No nodes match"
                     renderRow={renderNodeRow}
                     groupLabel="Nodes"
+                    leadingIcon={SidebarIcons.Nodes}
                   />
                 )}
                 {selectedNode && (
