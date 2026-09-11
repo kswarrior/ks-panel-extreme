@@ -264,7 +264,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
             // behavior (frozen hover color, gliding collapse padding)
             // without its surface paint (that needs .ks-card too, kept off
             // so the draft values below stay live).
-            className="ks-tabs-pill flex flex-col items-stretch shadow-lg shadow-black/40 w-fit"
+            className="ks-tabs-pill flex flex-col items-stretch shadow-lg shadow-black/40 w-auto"
             style={{
               background: p.background,
               borderColor: p.border_color,

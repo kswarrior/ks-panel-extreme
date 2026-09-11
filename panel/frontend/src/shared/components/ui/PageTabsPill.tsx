@@ -135,13 +135,11 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
       >
         <div
           ref={ref}
-          // NOTE: closed always uses w-fit (NOT w-auto) — a block div with
-          // w-auto fills the full row, which left the collapsed bar
-          // stretched wide. w-fit shrink-wraps the shell to just the
-          // toggle, and the flex nav with justify-start hugs it
+          // NOTE: non-full widths use w-auto — the outer nav is flex with
+          // justify-start, so the shell (a flex item) hugs its content
           // bottom-left. Open shrink hugs the longest tab label; open
           // fixed spans the themed pixel width (clamped to viewport).
-          className={`ks-card ks-pill-anim ks-tabs-pill rounded-md flex flex-col items-stretch shadow-lg shadow-black/40 opacity-100 ${isOff || !isFixedWidth ? 'w-fit' : 'w-full'} ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
+          className={`ks-card ks-pill-anim ks-tabs-pill rounded-md flex flex-col items-stretch shadow-lg shadow-black/40 opacity-100 ${isOff || !isFixedWidth ? 'w-auto' : 'w-full'} ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
           style={shellStyle}
         >
           <div
