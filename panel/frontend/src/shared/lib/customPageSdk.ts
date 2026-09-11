@@ -453,7 +453,7 @@ export function renderSdkChart(el: HTMLElement, series: ChartSeries, opts?: Char
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const base = (opts?.color || '').trim() || sdkCssVar(host, '--ks-info', '#38bdf8');
+    const base = String(opts?.color || '').trim() || sdkCssVar(host, '--ks-info', '#38bdf8');
     const grid = sdkCssVar(host, '--ks-card-border', 'rgba(255,255,255,0.10)');
     const muted = sdkCssVar(host, '--ks-muted', '#9ca3af');
     if (pts.length === 0) {
@@ -558,15 +558,25 @@ export function renderSdkMarkdown(md: string): string {
     listType = null;
   };
   const inline = (text: string): string => {
-    // Input is escaped FIRST so hostile markup is inert before any
-    // markdown replacement inserts the only raw tags we ever emit.
-    const s = sdkMdEscape(text)
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, t: string, u: string) =>
-        `<a href="${sdkMdEscape(sdkMdSafeUrl(u))}" target="_blank" rel="noreferrer">${t}</a>`);
-    return s;
+    // Tokenizer mirrors renderMarkdown's inline() alternation exactly
+    // (**bold** | *italic* | `code` | [text](url)); each captured span is
+    // escaped INDIVIDUALLY so link URLs are safeUrl-checked + escaped once
+    // (escaping the whole line first would double-escape `&` in query
+    // strings). Only the tags below are ever emitted raw.
+    const parts: string[] = [];
+    const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      parts.push(sdkMdEscape(text.slice(last, m.index)));
+      if (m[2] !== undefined) parts.push(`<strong>${sdkMdEscape(m[2])}</strong>`);
+      else if (m[3] !== undefined) parts.push(`<em>${sdkMdEscape(m[3])}</em>`);
+      else if (m[4] !== undefined) parts.push(`<code>${sdkMdEscape(m[4])}</code>`);
+      else parts.push(`<a href="${sdkMdEscape(sdkMdSafeUrl(m[6]))}" target="_blank" rel="noreferrer">${sdkMdEscape(m[5])}</a>`);
+      last = m.index + m[0].length;
+    }
+    parts.push(sdkMdEscape(text.slice(last)));
+    return parts.join('');
   };
   for (const line of lines) {
     const trimmed = line.trim();
