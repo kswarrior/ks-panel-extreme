@@ -2478,7 +2478,7 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 
 /* ------------------------------------------------------------------
    Theme Studio → Count. Modern glass pill replacing the old
-   `N of M shown` gray text on list pages. Painted from the Count tab
+   N of M shown gray text on list pages. Painted from the Count tab
    vars so one tab restyles every list counter panel-wide.
    ------------------------------------------------------------------ */
 .ks-count-badge {

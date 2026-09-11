@@ -418,6 +418,102 @@ input:-internal-autofill-selected:focus {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
 }
 
+/* List count badge — modern glass pill replacing the old `N of M shown`
+   gray text. Structural fallback so the pill reads correctly on first
+   paint before the theme stylesheet loads; the Theme Studio → Count tab
+   owns the full paint via vars (see themeStore buildSectionRules) which
+   wins by source order + !important. Plain CSS (no @apply) for the same
+   reason as .glass-dropdown above. */
+.ks-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ks-count-gap, 8px);
+  background-color: var(--ks-count-bg, rgba(255, 255, 255, 0.04));
+  border: var(--ks-count-border-width, 1px) solid var(--ks-count-border, rgba(255, 255, 255, 0.10));
+  border-radius: var(--ks-count-radius, 9999px);
+  padding: var(--ks-count-py, 6px) var(--ks-count-px, 12px);
+  box-shadow: var(--ks-count-shadow, 0 4px 16px rgba(0, 0, 0, 0.35));
+  backdrop-filter: blur(var(--ks-count-blur, 12px));
+  -webkit-backdrop-filter: blur(var(--ks-count-blur, 12px));
+  color: var(--ks-count-text, #e5e7eb);
+  font-size: var(--ks-count-font, 12px);
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  width: fit-content;
+  max-width: 100%;
+}
+.ks-count-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ks-count-accent, #38bdf8);
+  flex-shrink: 0;
+}
+.ks-count-icon svg {
+  width: var(--ks-count-icon-size, 14px);
+  height: var(--ks-count-icon-size, 14px);
+}
+.ks-count-numbers {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.ks-count-strong {
+  color: var(--ks-count-number, #ffffff);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ks-count-of {
+  color: var(--ks-count-text, #e5e7eb);
+  opacity: 0.6;
+  font-weight: 400;
+  font-size: 0.92em;
+}
+.ks-count-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  background: var(--ks-count-muted, rgba(255, 255, 255, 0.35));
+  flex-shrink: 0;
+}
+.ks-count-label {
+  color: var(--ks-count-text, #e5e7eb);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ks-count-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--ks-count-accent-bg, rgba(56, 189, 248, 0.14));
+  color: var(--ks-count-accent-text, #bae6fd);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 0.92em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ks-count-filter-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--ks-count-accent, #38bdf8);
+  box-shadow: 0 0 8px var(--ks-count-accent, #38bdf8);
+  flex-shrink: 0;
+}
+.ks-count-extra {
+  color: var(--ks-count-text, #e5e7eb);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* dvh-safe reset so the layout hits the dynamic viewport unit on
  * mobile (avoids the iOS Safari URL bar jump). Setting this on
  * html/body means every `h-dvh` / `min-h-dvh` consumer starts on a
