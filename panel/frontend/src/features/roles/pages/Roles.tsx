@@ -6,7 +6,8 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
-import GlassCard from '@/shared/components/ui/Card';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 
@@ -31,10 +32,19 @@ const getRoleIconSvg = (icon?: string) => {
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
+  // Glass-style modifier + video media layer mirror Nodes/Tickets so the
+  // Theme Studio Card tab (glass style, video background, list-card
+  // variant tokens) restyles role cards like every other list card.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'perms' | 'color' | 'icon'>('all');
   const PAGE_SIZE_KEY = 'ks.roles.pageSize';
   const readPageSize = (): number => {
     if (typeof window === 'undefined') return 25;
@@ -104,18 +114,23 @@ const filterRef = useRef<HTMLDivElement | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return roles;
-    return roles.filter(
-      (r) =>
+    return roles.filter((r) => {
+      if (typeFilter === 'perms' && (r.permissions || []).length === 0) return false;
+      if (typeFilter === 'color' && !(r.color || '').trim()) return false;
+      if (typeFilter === 'icon' && !(r.icon || '').trim()) return false;
+      if (!q) return true;
+      return (
         r.name.toLowerCase().includes(q) ||
         (r.display_name || '').toLowerCase().includes(q) ||
-        (r.description || '').toLowerCase().includes(q),
-    );
-  }, [roles, search]);
+        (r.description || '').toLowerCase().includes(q)
+      );
+    });
+  }, [roles, search, typeFilter]);
 
   const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
 
-  const resetFilters = () => { setSearch(''); };
+  const resetFilters = () => { setSearch(''); setTypeFilter('all'); };
+  const hasActiveFilter = search.trim() !== '' || typeFilter !== 'all';
 
 return (
     <div>
@@ -142,7 +157,7 @@ return (
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
               </svg>
-              {filterOpen && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+              {typeFilter !== 'all' && <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ks-accent-info, #38bdf8)' }} />}
             </button>
 
             {filterOpen && (
@@ -151,10 +166,15 @@ return (
                   <div className="p-3 space-y-3">
                     <div>
                       <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Filter by</label>
-                      <select className="w-full glass-field">
+                      <select
+                        value={typeFilter}
+                        onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+                        className="w-full glass-field"
+                      >
                         <option value="all">All roles</option>
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                        <option value="perms">With permissions</option>
+                        <option value="color">With color</option>
+                        <option value="icon">With icon</option>
                       </select>
                     </div>
                     <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
@@ -244,13 +264,26 @@ return (
 
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          {search && (
-            <span className="text-xs text-gray-500">{visible.length} of {filtered.length} shown</span>
+          {hasActiveFilter ? (
+            <span style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} className="text-xs">{visible.length} of {filtered.length} shown</span>
+          ) : (
+            <span style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} className="text-xs">
+              {roleStats.total} role{roleStats.total === 1 ? '' : 's'}
+              {roleStats.withPerms > 0 && <> · {roleStats.withPerms} with permissions</>}
+            </span>
           )}
         </div>
+        {hasActiveFilter && (
+          <button type="button" onClick={resetFilters} aria-label="Reset filters" className="p-1.5 rounded-md ks-ghost-btn" title="Reset filters">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <polyline points="1 4 1 10 7 10" />
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {error && roles.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {error && roles.length > 0 && <p className="mb-3 text-sm" style={{ color: 'var(--ks-accent-danger, #f87171)' }}>{error}</p>}
       {!loading && error && roles.length === 0 && (
         <ErrorState
           variant="error"
@@ -269,8 +302,15 @@ return (
             const perms = r.permissions || [];
             const label = r.display_name?.trim() || r.name;
             return (
-              <article key={r.id} id={`ks-role-${r.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <article key={r.id} id={`ks-role-${r.id}`} className={`ks-card ks-list-card group relative glass-card ${glassModifier} rounded-xl flex flex-col gap-3 transition-colors`}>
+                <CardMediaLayer />
+                {/* Top hairline follows the heading token so it stays visible
+                    on light and dark themes (a fixed white/30 wash disappears
+                    on light fills). */}
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
                 <header className="flex items-start gap-3 min-w-0">
                   <CardIconTile
                     icon={getRoleIconSvg(r.icon) || ''}
@@ -282,28 +322,71 @@ return (
                     )}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight">{label}</h3>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{label !== r.name ? r.name : `id ${r.id}`}</p>
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{label}</h3>
+                    <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{label !== r.name ? r.name : `id ${r.id}`}</p>
                   </div>
+                  {r.color && r.color.trim() !== '' && (
+                    <span
+                      className="shrink-0 mt-1 w-3 h-3 rounded-full border"
+                      style={{ backgroundColor: r.color, borderColor: 'var(--ks-card-border)' }}
+                      title={r.color}
+                    />
+                  )}
                 </header>
 
-                <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
-                  <p className="text-xs text-gray-400 line-clamp-2">
-                    {r.description || <span className="italic text-gray-500">No description</span>}
+                {/* Inset description well — border + wash derive from the card
+                    tokens (not a fixed black/20) so it recesses on any fill,
+                    including light themes where black/20 looks inverted. */}
+                <div
+                  className="rounded-lg border px-3 py-2"
+                  style={{
+                    borderColor: 'var(--ks-card-border)',
+                    background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                  }}
+                >
+                  <p className="text-xs line-clamp-2" style={{ color: 'var(--ks-text-body)' }}>
+                    {r.description || <span className="italic" style={{ opacity: 0.55 }}>No description</span>}
                   </p>
                 </div>
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {perms.length} permission{perms.length === 1 ? '' : 's'}
                   </span>
                   <div className="flex items-center gap-1">
-                    <Link to={`/role/${r.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                    <Link to={`/role/${r.id}`} className="text-[11px] hover:underline hover:opacity-80" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                   </div>
                 </footer>
               </article>
             );
           })}
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && roles.length > 0 && !error && (
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
+          No roles match your filters.
+          <div className="mt-2 flex justify-center">
+            <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+      {!loading && roles.length === 0 && !error && (
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
+          No roles yet.
+          <div className="mt-3 flex justify-center">
+            <button onClick={() => navigate('/roles/new')} className="ks-primary-btn px-4 py-2 rounded text-sm">
+              New Role
+            </button>
+          </div>
         </div>
       )}
     </div>
