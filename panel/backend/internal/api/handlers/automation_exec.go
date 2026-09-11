@@ -11,6 +11,7 @@ import (
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 )
 
 // automation_exec.go owns the per-kind execution of automation jobs. Shell
@@ -67,8 +68,9 @@ func automationKindAllowed(configJSON, kind string) bool {
 	if key == "" {
 		key = "allow_shell"
 	}
-	var root map[string]any
-	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	root, err := specyaml.Parse(configJSON)
+	if err != nil {
 		return true
 	}
 	ic, _ := root["instance_controls"].(map[string]any)
@@ -94,8 +96,9 @@ const DefaultAutomationMaxTimeoutSec = 1800
 // ceiling; the value is clamped to 1..1800 so a hostile template can't
 // force a zero/negative budget or an overflow-scale edge dial.
 func automationMaxTimeoutSec(configJSON string) int {
-	var root map[string]any
-	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	root, err := specyaml.Parse(configJSON)
+	if err != nil {
 		return DefaultAutomationMaxTimeoutSec
 	}
 	ic, _ := root["instance_controls"].(map[string]any)
@@ -136,8 +139,9 @@ func automationMaxTimeoutSec(configJSON string) int {
 // garbled or <=0 yields 0 (caller decides the default); positive values
 // are clamped to 1..cap so a hostile template can't force absurd budgets.
 func automationNumberField(configJSON, key string, cap int) int {
-	var root map[string]any
-	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	root, err := specyaml.Parse(configJSON)
+	if err != nil {
 		return 0
 	}
 	ic, _ := root["instance_controls"].(map[string]any)

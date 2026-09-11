@@ -184,8 +184,9 @@ func automationCustomSlug(configJSON string) string {
 	if configJSON == "" {
 		return "automation"
 	}
-	var root map[string]any
-	if err := json.Unmarshal([]byte(configJSON), &root); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	root, err := specyaml.Parse(configJSON)
+	if err != nil {
 		return "automation"
 	}
 	ic, _ := root["instance_controls"].(map[string]any)

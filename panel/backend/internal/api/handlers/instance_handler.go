@@ -1981,8 +1981,9 @@ func instanceControlsAllow(configJSON, key string) bool {
 	if s == "" {
 		return true
 	}
-	var cfg map[string]any
-	if err := json.Unmarshal([]byte(s), &cfg); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	cfg, err := specyaml.Parse(s)
+	if err != nil {
 		return true
 	}
 	raw, ok := cfg["instance_controls"]
