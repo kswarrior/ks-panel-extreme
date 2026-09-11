@@ -2377,6 +2377,28 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   background: var(--ks-tab-inactive-bg) !important;
   color: var(--ks-pill-text) !important;
 }
+/* Smooth collapse: the slim-geometry swap (shell side padding 6px <-> 4px,
+   toggle --ks-tab-px theme <-> 4px) animates with the content instead of
+   snapping — without this the shell jumps ~16px at the toggle instant
+   while .ks-pill-content's max-width still slides over 300ms. Duration
+   follows the Pill tab so all three stay in sync. */
+.ks-card.ks-pill-anim.ks-actions-pill,
+.ks-card.ks-pill-anim.ks-form-actions-pill {
+  transition-property: transform, opacity, padding-left, padding-right !important;
+  transition-duration: var(--ks-pill-anim-duration, 300ms) !important;
+}
+.ks-actions-pill .ks-pill-toggle,
+.ks-form-actions-pill .ks-pill-toggle {
+  transition-property: background-color, color, padding-left, padding-right !important;
+  transition-duration: var(--ks-pill-anim-duration, 300ms) !important;
+}
+/* Animation "none" (Pill tab) kills the padding glide too, so instant
+   mode is fully instant — content is already frozen inline by the
+   components, this covers the shell + toggle CSS above. */
+.ks-card.ks-pill-anim.ks-pill-instant,
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-toggle {
+  transition: none !important;
+}
 /* Collapsing content: gap + duration follow the Pill tab. The motion
    itself (slide/fade/scale) is applied inline by PageActionsPill /
    PageTabsPill. */
