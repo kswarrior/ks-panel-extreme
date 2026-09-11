@@ -689,6 +689,13 @@ func NewRouter() http.Handler {
 			// "/local", "/import" etc. are not captured as {id}.
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/execute-action", handlers.ExecuteCustomPageActionHandler)
 			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Post("/execute-module-action", handlers.ExecuteModulePageActionHandler)
+			// Per-page server KV store (migration 078): same VIEW_INSTANCES
+			// gate as execute-action; each handler additionally enforces the
+			// findSpecPageRow family check, so a page only touches its own
+			// keys on instances where it is enabled.
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Get("/kv", handlers.ListPageKVHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Put("/kv", handlers.UpsertPageKVHandler)
+			r.With(requireAnyPermission(permissions.ViewInstancesKey, permissions.ManageInstancesKey, permissions.InstancesViewKey, permissions.InstancesOwnKey, permissions.InstancesAllKey)).Delete("/kv", handlers.DeletePageKVHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import", handlers.ImportInstancePageHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionCreate)).Post("/import/url", handlers.ImportInstancePageFromURLHandler)
 			r.With(requireUmbrellaOrAction(instancePagesG, permissions.ActionView)).Get("/marketplace", handlers.GetMarketplacePagesHandler)

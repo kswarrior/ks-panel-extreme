@@ -2294,6 +2294,9 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content    string            `json:"content"`
 		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
+		Mode       string            `json:"mode"`
+		Names      []string          `json:"names"`
+		Dest       string            `json:"dest"`
 		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2389,7 +2392,7 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// command. Mirrors ExecuteCustomPageActionHandler.
 	var matched map[string]any
 	for _, def := range row.actions {
-		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env, req.Mode, req.Names, req.Dest) {
 			matched = def
 			break
 		}
@@ -2398,7 +2401,7 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "action is not defined on this page", http.StatusForbidden)
 		return
 	}
-	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	execType, execCommand, execPath, execContent, execArgs, execEnv, execMode, execNames, execDest, defTimeout, ok := savedActionExecFields(matched)
 	if !ok {
 		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
 		return
@@ -2424,6 +2427,9 @@ func ExecutePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content: execContent,
 		Args:    execArgs,
 		Env:     execEnv,
+		Mode:    execMode,
+		Names:   execNames,
+		Dest:    execDest,
 		Timeout: timeout,
 	})
 	if err != nil {
@@ -2829,7 +2835,7 @@ func resolveExecPayload(def map[string]any, typ, command string, defArgs []strin
 			out = append(out, shellQuoteArg(e))
 		}
 		return command, out, nil
-	default: // read_file / write_file / list_files
+	default: // read_file / write_file / list_files / stat / chmod / archive / extract
 		if len(extras) > 0 {
 			return "", nil, newErrString("action does not accept runtime arguments")
 		}
@@ -2862,6 +2868,9 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content    string            `json:"content"`
 		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
+		Mode       string            `json:"mode"`
+		Names      []string          `json:"names"`
+		Dest       string            `json:"dest"`
 		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2939,7 +2948,7 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// definition, never from the request body.
 	var matched map[string]any
 	for _, def := range row.actions {
-		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env, req.Mode, req.Names, req.Dest) {
 			matched = def
 			break
 		}
@@ -2948,7 +2957,7 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "action is not defined on this page", http.StatusForbidden)
 		return
 	}
-	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	execType, execCommand, execPath, execContent, execArgs, execEnv, execMode, execNames, execDest, defTimeout, ok := savedActionExecFields(matched)
 	if !ok {
 		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
 		return
@@ -2978,6 +2987,9 @@ func ExecuteCustomPageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content: execContent,
 		Args:    execArgs,
 		Env:     execEnv,
+		Mode:    execMode,
+		Names:   execNames,
+		Dest:    execDest,
 		Timeout: timeout,
 	})
 	if err != nil {
@@ -3014,6 +3026,9 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content    string            `json:"content"`
 		Args       []string          `json:"args"`
 		Env        map[string]string `json:"env"`
+		Mode       string            `json:"mode"`
+		Names      []string          `json:"names"`
+		Dest       string            `json:"dest"`
 		Timeout    int               `json:"timeout"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -3108,7 +3123,7 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 	// ExecuteCustomPageActionHandler.
 	var matched map[string]any
 	for _, def := range findSpecModuleActions(instance.Config, moduleID) {
-		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env) {
+		if savedActionMatches(def, req.Type, req.Command, req.Path, req.Content, req.Args, req.Env, req.Mode, req.Names, req.Dest) {
 			matched = def
 			break
 		}
@@ -3117,7 +3132,7 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "action is not defined on this page", http.StatusForbidden)
 		return
 	}
-	execType, execCommand, execPath, execContent, execArgs, execEnv, defTimeout, ok := savedActionExecFields(matched)
+	execType, execCommand, execPath, execContent, execArgs, execEnv, execMode, execNames, execDest, defTimeout, ok := savedActionExecFields(matched)
 	if !ok {
 		http.Error(w, "saved action definition is invalid", http.StatusForbidden)
 		return
@@ -3148,6 +3163,9 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 		Content:  execContent,
 		Args:     execArgs,
 		Env:      execEnv,
+		Mode:     execMode,
+		Names:    execNames,
+		Dest:     execDest,
 		Timeout:  timeout,
 	})
 	if err != nil {
