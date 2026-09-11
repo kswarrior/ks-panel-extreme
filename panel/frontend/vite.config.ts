@@ -36,6 +36,11 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          // Item 5 (Monaco): own lazy chunk so the Studio React section is
+          // the ONLY route that downloads it. No vite-plugin-monaco-editor:
+          // workers are bundled natively via `?worker` imports in
+          // MonacoReactEditor.tsx (same-origin assets, offline-safe, no CDN).
+          if (id.includes('/node_modules/monaco-editor/')) return 'monaco';
           if (id.includes('@xterm')) return 'xterm';
           if (id.includes('react-router')) return 'router';
           // Group all react/react-dom/scheduler under one chunk to avoid

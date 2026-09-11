@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -279,8 +282,7 @@ func executeListFiles(ctx context.Context, drv drivers.Driver, name, path string
 	return Output{OK: true, Data: files}
 }
 
-func executeDockerCmd(ctx context.Context, drv drivers.Driver, name, command string, args []string) Output {
-	if drv.Name() != "docker" {
+func executeDockerCmd(ctx context.Context, drv drivers.Driver, name, command string, args []string) Output {	if drv.Name() != "docker" {
 		return Output{OK: false, Error: "docker commands only available on docker driver"}
 	}
 	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("docker %s %s", shellQuote(command), shellQuoteArgs(args))}

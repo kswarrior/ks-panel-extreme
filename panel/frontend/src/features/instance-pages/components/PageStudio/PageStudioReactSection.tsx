@@ -11,6 +11,26 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { diagnoseReactPageSource } from '@/shared/lib/reactPageTranspile';
 
+// Monaco is lazy so the heavy editor chunk loads only when the Studio React
+// section opens — the rest of the panel never pays the item-5 bundle cost.
+const MonacoReactEditor = React.lazy(() => import('./MonacoReactEditor'));
+
+// Belt-and-braces: the Monaco chunk is a LOCAL bundled asset (never CDN),
+// but if it ever fails to load, fall back to the exact old textarea so the
+// Studio stays usable with the same value/onChange contract.
+class MonacoErrorBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  render(): React.ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 export interface ReactModuleFile {
   name: string;
   content: string;
@@ -275,14 +295,37 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
           </button>
         </span>
       </label>
-      <textarea
-        value={editorValue}
-        onChange={(e) => handleEditorChange(e.target.value)}
-        className={`${glassFieldClass} font-mono text-sm`}
-        style={{ minHeight: '420px', width: '100%' }}
-        spellCheck={false}
-        placeholder={effectiveModule ? `// ${effectiveModule.name} — export helpers/components, e.g.\nexport function helper() { return 42; }` : STARTER}
-      />
+      <React.Suspense
+        fallback={
+          <div
+            className="rounded-md border border-white/10 bg-black/30 text-xs text-gray-400 flex items-center justify-center"
+            style={{ height: '420px', width: '100%' }}
+          >
+            Loading editor…
+          </div>
+        }
+      >
+        <MonacoErrorBoundary
+          fallback={
+            <textarea
+              value={editorValue}
+              onChange={(e) => handleEditorChange(e.target.value)}
+              className={`${glassFieldClass} font-mono text-sm`}
+              style={{ minHeight: '420px', width: '100%' }}
+              spellCheck={false}
+              placeholder={effectiveModule ? `// ${effectiveModule.name} — export helpers/components, e.g.\nexport function helper() { return 42; }` : STARTER}
+            />
+          }
+        >
+          <MonacoReactEditor
+            key={effectiveActive}
+            value={editorValue}
+            onChange={handleEditorChange}
+            fileKey={effectiveActive}
+            ariaLabel={effectiveModule ? `File ${effectiveModule.name} (TypeScript)` : 'Page source (TypeScript, index)'}
+          />
+        </MonacoErrorBoundary>
+      </React.Suspense>
       {diags.length > 0 && (
         <div className="mt-2 rounded-lg border border-amber-700/50 bg-amber-900/30 p-3" role="status" aria-label="React warnings">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
