@@ -2714,6 +2714,9 @@ interface ThemeState {
   editDraft: (seed: Theme) => void;
   patchDraft: (section: ThemeKey, patch: Record<string, any>) => void;
   patchDraftMeta: (patch: Partial<Pick<Theme, 'name' | 'description' | 'icon' | 'color'>>) => void;
+  // replaceDraft swaps the whole draft (form-history undo/redo) and
+  // repaints the live preview exactly like patchDraft does.
+  replaceDraft: (draft: Theme) => void;
   saveDraft: (asNew: boolean) => Theme;
   discardDraft: () => void;
   reapply: () => void;
@@ -3103,6 +3106,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     const d = get().draft;
     if (!d) return;
     set({ draft: { ...d, ...patch } });
+  },
+
+  replaceDraft: (draft) => {
+    set({ draft });
+    applyTheme(draft, { preview: true });
   },
 
   saveDraft: (asNew) => {
