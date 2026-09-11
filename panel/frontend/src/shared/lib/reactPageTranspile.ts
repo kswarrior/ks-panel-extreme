@@ -433,79 +433,6 @@ function matchBrace(src: string, openIdx: number): number {
   return -1;
 }
 
-// splitTopLevel splits on `sep` at bracket depth 0 (strings/comments aware).
-function splitTopLevel(s: string, sep: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let angle = 0;
-  let start = 0;
-  let i = 0;
-  const n = s.length;
-  let st: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
-  while (i < n) {
-    const c = s[i];
-    if (st === 'code') {
-      if (c === '/' && s[i + 1] === '/') {
-        st = 'line';
-        i += 2;
-        continue;
-      }
-      if (c === '/' && s[i + 1] === '*') {
-        st = 'block';
-        i += 2;
-        continue;
-      }
-      if (c === "'") {
-        st = 'sq';
-        i++;
-        continue;
-      }
-      if (c === '"') {
-        st = 'dq';
-        i++;
-        continue;
-      }
-      if (c === '`') {
-        st = 'tpl';
-        i++;
-        continue;
-      }
-      if (c === '(' || c === '[' || c === '{') depth++;
-      else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
-      else if (c === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(s[i - 1] ?? '')) angle++;
-      else if (c === '>' && angle > 0) angle--;
-      else if (c === sep && depth === 0 && angle === 0) {
-        parts.push(s.slice(start, i));
-        start = i + 1;
-      }
-      i++;
-      continue;
-    }
-    if (st === 'line') {
-      if (c === '\n') st = 'code';
-      i++;
-      continue;
-    }
-    if (st === 'block') {
-      if (c === '*' && s[i + 1] === '/') {
-        st = 'code';
-        i += 2;
-        continue;
-      }
-      i++;
-      continue;
-    }
-    if (c === '\\') {
-      i += 2;
-      continue;
-    }
-    if ((st === 'sq' && c === "'") || (st === 'dq' && c === '"') || (st === 'tpl' && c === '`')) st = 'code';
-    i++;
-  }
-  parts.push(s.slice(start));
-  return parts;
-}
-
 const NUMERIC_LITERAL_RE = /^[+-]?(?:0[xX][\da-fA-F]+|0[oO][0-7]+|0[bB][01]+|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
 
 // takeDeclPrefix walks back from a keyword position over same-line/gap
@@ -533,15 +460,19 @@ function emitEnum(name: string, inner: string, mark: () => void): string {
   const blanked = blankStringsAndComments(inner);
   const ranges: Array<{ from: number; to: number }> = [];
   {
-    // Reuse splitTopLevel on the blanked text for boundaries, then slice
-    // the ORIGINAL so initializers stay verbatim.
+    // Boundaries from the blanked text (comments/strings neutralized);
+    // ORIGINAL slices below stay verbatim. Length-preserving blanking keeps
+    // indices aligned.
     let depth = 0;
+    let angle = 0;
     let start = 0;
     for (let i = 0; i <= blanked.length; i++) {
       const c = blanked[i] ?? '';
       if (c === '(' || c === '[' || c === '{') depth++;
       else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
-      if ((c === ',' || i === blanked.length) && depth === 0) {
+      else if (c === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(blanked[i - 1] ?? '')) angle++;
+      else if (c === '>' && angle > 0) angle--;
+      if ((c === ',' || i === blanked.length) && depth === 0 && angle === 0) {
         ranges.push({ from: start, to: i });
         start = i + 1;
       }
@@ -552,19 +483,21 @@ function emitEnum(name: string, inner: string, mark: () => void): string {
   let autoOk = true;
   for (const { from, to } of ranges) {
     const raw = inner.slice(from, to);
+    // Cleaned copy (comments blanked) for parsing; the ORIGINAL slice below
+    // supplies the verbatim initializer.
     const clean = blankStringsAndComments(raw).trim();
     if (clean === '') continue;
     const mm = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:=\s*([\s\S]+))?$/.exec(clean);
     if (!mm) throw new Error(`invalid enum member: ${clean.slice(0, 40)} — expected Name or Name = value`);
     const key = mm[1];
-    // Recover the verbatim initializer from the original slice.
+    // Verbatim initializer: everything after the first `=` in the original
+    // slice (comments inside strings survive; trailing `// note` comments
+    // are blanked to spaces by the trim check below).
     let init = '';
     if (mm[2] !== undefined) {
       const eqAt = raw.search(/=/);
-      init = blankStringsAndComments(raw.slice(eqAt + 1)).trim() === '' ? '' : raw.slice(eqAt + 1).trim();
-      // Strip a trailing line comment the blanker turned to spaces (already
-      // spaces) — trim suffices since blanking preserves layout.
-      init = blankStringsAndComments(init).trim() === '' ? '' : init;
+      const cand = raw.slice(eqAt + 1).trim();
+      if (blankStringsAndComments(cand).trim() !== '') init = cand;
     }
     if (init === '') {
       if (!autoOk) {
@@ -613,10 +546,8 @@ function collectNamespaceExports(body: string, nsName: string): { body: string; 
       );
     }
     if (kind === 'interface' || kind === 'type') {
-      // Types vanish in later passes; just drop the keyword here.
-      out += '';
-      i += 6 + m[0].length - m[1].length + (m[0].length - kind.length - (m[0].match(/^\s+/)?.[0].length ?? 0));
-      // Simpler: advance past `export` + whitespace only.
+      // Types vanish in later passes; just drop the `export` keyword here.
+      i += 6;
       return true;
     }
     // Value declaration: parse its bound name, drop `export `.
