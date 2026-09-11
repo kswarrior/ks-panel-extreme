@@ -109,7 +109,7 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
       </div>
       <p className="text-xs text-gray-500">
         Near-real React (hooks via <code>React.useState/useEffect</code>, state survives re-renders). Write{' '}
-        <code>JSX</code> + light <code>TS</code> (<code>type/interface</code>, <code>: Type</code>, <code>as Type</code>,{' '}
+        <code>JSX</code> + light <code>TS</code> (<code>type/interface/enum/namespace</code>, <code>: Type</code>, <code>as Type</code>,{' '}
         <code>{'<T>'}</code>) or plain <code>React.createElement</code> — all transpile in the renderer. Define{' '}
         <code>function Page()</code> (closes over <code>sdk</code> + <code>React</code>) and end with{' '}
         <code>return Page;</code>. <code>{`import { useState } from 'react'`}</code> is allowed; other packages are not — use{' '}
