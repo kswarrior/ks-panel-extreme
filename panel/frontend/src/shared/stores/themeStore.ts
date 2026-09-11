@@ -2360,6 +2360,23 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   padding-left: 4px !important;
   padding-right: 4px !important;
 }
+/* Chevron toggle ("<" / ">") never changes color — hover, hold (active)
+   and click (focus) all keep the same Pill text color + inactive
+   background as the resting state. The (0,3,0) selectors beat the generic
+   .ks-tab:hover rule (0,2,0) so the Tabs tab's hover colors can't leak in.
+   Scoped to the icon-only Actions / Form-Actions toggles; the Tabs pill
+   toggle keeps its hover feedback. */
+.ks-actions-pill .ks-pill-toggle:hover,
+.ks-actions-pill .ks-pill-toggle:active,
+.ks-actions-pill .ks-pill-toggle:focus,
+.ks-actions-pill .ks-pill-toggle:focus-visible,
+.ks-form-actions-pill .ks-pill-toggle:hover,
+.ks-form-actions-pill .ks-pill-toggle:active,
+.ks-form-actions-pill .ks-pill-toggle:focus,
+.ks-form-actions-pill .ks-pill-toggle:focus-visible {
+  background: var(--ks-tab-inactive-bg) !important;
+  color: var(--ks-pill-text) !important;
+}
 /* Collapsing content: gap + duration follow the Pill tab. The motion
    itself (slide/fade/scale) is applied inline by PageActionsPill /
    PageTabsPill. */
