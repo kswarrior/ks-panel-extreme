@@ -4,6 +4,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import {
