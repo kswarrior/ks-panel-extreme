@@ -231,12 +231,10 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
               ))}
             </div>
             <span
-              className="ks-tab inline-flex items-center justify-center shrink-0"
+              className="ks-tab ks-pill-toggle inline-flex items-center justify-center shrink-0"
               style={{
                 ['--ks-tab-px' as any]: previewOff ? '4px' : `${p.tab_padding_x}px`,
                 ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
-                transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
-                transitionDuration: `${p.animation_duration}ms`,
                 color: p.text_color,
               }}
               aria-hidden="true"
