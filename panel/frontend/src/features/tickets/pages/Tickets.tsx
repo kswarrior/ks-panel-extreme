@@ -265,10 +265,13 @@ const Tickets: React.FC = () => {
               <article
                 id={`ks-ticket-${t.id}`}
                 key={t.id}
-                className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors ${glassModifier} ${isUrgent ? 'ring-1 ring-red-500/20' : ''}`}
+                className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier} ${isUrgent ? 'ring-1 ring-red-500/20' : ''}`}
               >
                 <CardMediaLayer />
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
                 <header className="flex items-start gap-3 min-w-0 p-3 pb-0">
                   <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border ${isUrgent ? 'bg-red-500/10 border-red-500/30 text-red-300' : 'bg-white/[0.05] border-white/10 text-gray-300'}`} aria-hidden="true">
                     <CategoryIcon category={t.category} />
@@ -279,29 +282,38 @@ const Tickets: React.FC = () => {
                       <TicketStatusBadge status={t.status} />
                       <TicketPriorityBadge priority={t.priority} />
                     </div>
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight mt-1.5" title={t.subject}>{t.subject}</h3>
-                    <p className="text-[11px] text-gray-500 truncate">
-                      <span className="text-gray-400">{t.category}</span>
-                      {t.creator_name && <> • by <span className="text-gray-300">{t.creator_name}</span></>}
+                    <h3 className="text-sm font-semibold truncate leading-tight mt-1.5" style={{ color: 'var(--ks-text-heading)' }} title={t.subject}>{t.subject}</h3>
+                    <p className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
+                      <span style={{ color: 'var(--ks-text-body)' }}>{t.category}</span>
+                      {t.creator_name && <> • by <span style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>{t.creator_name}</span></>}
                       {t.assignee_name ? <> • → <span className="text-violet-300">{t.assignee_name}</span></> : <span className="text-amber-300/70"> • unassigned</span>}
                     </p>
                   </div>
                 </header>
 
                 {t.description && (
-                  <p className="px-3 text-xs text-gray-400 line-clamp-2 leading-relaxed" title={t.description}>{t.description}</p>
+                  <p className="px-3 text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--ks-text-body)' }} title={t.description}>{t.description}</p>
                 )}
 
                 {tags.length > 0 && (
                   <div className="px-3 flex flex-wrap gap-1">
                     {tags.slice(0, 4).map((tag) => (
-                      <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/10 text-gray-300">#{tag}</span>
+                      <span
+                        key={tag}
+                        className="text-[10px] px-1.5 py-0.5 rounded border"
+                        style={{
+                          borderColor: 'var(--ks-card-border)',
+                          background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                          color: 'var(--ks-text-heading)',
+                          opacity: 0.85,
+                        }}
+                      >#{tag}</span>
                     ))}
-                    {tags.length > 4 && <span className="text-[10px] text-gray-500">+{tags.length - 4}</span>}
+                    {tags.length > 4 && <span className="text-[10px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>+{tags.length - 4}</span>}
                   </div>
                 )}
 
-                <div className="px-3 flex items-center gap-2 text-[11px] text-gray-500 flex-wrap">
+                <div className="px-3 flex items-center gap-2 text-[11px] flex-wrap" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                   <span className="inline-flex items-center gap-1">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} className="w-3 h-3"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
                     {t.comment_count} repl{t.comment_count === 1 ? 'y' : 'ies'}
@@ -316,8 +328,11 @@ const Tickets: React.FC = () => {
                   )}
                 </div>
 
-                <footer className="mt-auto pt-2.5 mx-3 border-t border-white/[0.06] flex items-center justify-between gap-2 pb-3">
-                  <Link to={`/tickets/${t.id}`} className="text-[11px] text-gray-400 hover:text-white transition-colors">View details →</Link>
+                <footer
+                  className="mt-auto pt-2.5 mx-3 border-t flex items-center justify-between gap-2 pb-3"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <Link to={`/tickets/${t.id}`} className="text-[11px] hover:underline hover:opacity-80 transition-colors" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                   <div className="flex items-center gap-1">
                     <Link to={`/tickets/${t.id}/chat`} className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-sky-500/10 border border-sky-500/20 text-sky-300 hover:bg-sky-500/15 hover:text-sky-200">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-3 h-3"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
@@ -340,7 +355,7 @@ const Tickets: React.FC = () => {
       )}
 
       {!loading && filtered.length === 0 && hasActiveFilter && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
           No tickets match your filters.
           <div className="mt-2 flex justify-center">
             <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
@@ -356,8 +371,8 @@ const Tickets: React.FC = () => {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="w-20 h-20 text-gray-500" aria-hidden="true">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M10 13H8M16 17H8M13 17h.01" /><path d="M2 9a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" opacity={0.3} />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No tickets yet</p>
-            <p className="text-sm text-gray-500 text-center max-w-sm">Create your first support ticket — our crew will pick it up fast.</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No tickets yet</p>
+            <p className="text-sm text-center max-w-sm" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>Create your first support ticket — our crew will pick it up fast.</p>
             <button onClick={() => navigate('/tickets/new')} className="ks-primary-btn mt-2 inline-flex items-center gap-2 bg-white text-black text-sm px-4 py-2 rounded-full hover:bg-gray-200">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               New Ticket

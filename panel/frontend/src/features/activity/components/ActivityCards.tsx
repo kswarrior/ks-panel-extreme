@@ -1,5 +1,7 @@
 import React from 'react';
 import type { ActivityLog, ActivityCategory } from '@/features/activity/types/activity';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 // ActivityCards renders the audit timeline cards. It's shared by the
 // standalone Activity page and the Dashboard's "Recent activity" strip so
@@ -191,13 +193,25 @@ interface ActivityCardsProps {
 }
 
 const ActivityCards: React.FC<ActivityCardsProps> = ({ rows }) => {
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle activity cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   return (
     <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-activitycards-grid">
       {rows.map((r) => {
         const style = CATEGORY_STYLES[r.category as ActivityCategory] || CATEGORY_STYLES.system;
         const verb = friendlyVerb(r.action);
         return (
-          <article key={r.id} id={`ks-activity-${r.id}`} className="ks-card ks-list-card glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+          <article key={r.id} id={`ks-activity-${r.id}`} className={`ks-card ks-list-card glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+            <CardMediaLayer />
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-px"
+              style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+            />
             <header className="flex items-start gap-3 min-w-0">
               <div
                 className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-base font-semibold text-white border border-white/10"
