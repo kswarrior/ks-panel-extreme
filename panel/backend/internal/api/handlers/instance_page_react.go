@@ -15,10 +15,11 @@ import (
 )
 
 // BuildInstancePageHandler validates the Studio React source and stores it as
-// the executable bundle (v1: no JSX transform — author JS with
-// React.createElement; the renderer executes it with the panel React
-// runtime). The bundle columns stay build-owned so plain saves never clobber
-// a good build; see repository.UpdateBuild.
+// the executable bundle (near-real: JSX + light TS + react-only imports are
+// accepted and transpiled at render time by reactPageTranspile.ts; the
+// renderer executes it with the panel React runtime). The bundle columns
+// stay build-owned so plain saves never clobber a good build; see
+// repository.UpdateBuild.
 type buildInstancePageReq struct {
 	SourceTSX string `json:"source_tsx"`
 	BundleCSS string `json:"bundle_css"`

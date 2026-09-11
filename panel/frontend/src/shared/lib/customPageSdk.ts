@@ -649,6 +649,87 @@ export function createCustomPageSDK(
   function modal(options: { title: string; content: string; buttons?: Array<{ label: string; action: () => void; variant?: 'primary' | 'secondary' | 'danger' }> }) {
     window.dispatchEvent(new CustomEvent('ks-modal', { detail: options }));
   }
+
+  // --- Near-real pure helpers (no scope, no network) ---
+  function downloadText(filename: string, text: string, mime?: string) {
+    const name = String(filename || 'download.txt').split('/').pop() || 'download.txt';
+    const blob = new Blob([String(text ?? '')], { type: mime || 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      try {
+        document.body.removeChild(a);
+      } catch { /* already removed */ }
+      URL.revokeObjectURL(url);
+    }, 100);
+  }
+
+  async function copyText(text: string): Promise<void> {
+    const v = String(text ?? '');
+    try {
+      await navigator.clipboard.writeText(v);
+      return;
+    } catch { /* clipboard API unavailable — fall back below */ }
+    const ta = document.createElement('textarea');
+    ta.value = v;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+    } finally {
+      try {
+        document.body.removeChild(ta);
+      } catch { /* already removed */ }
+    }
+  }
+
+  function formatBytes(n: number): string {
+    const v = Number(n);
+    if (!Number.isFinite(v) || v < 0) return '—';
+    if (v < 1024) return `${Math.floor(v)} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let f = v / 1024;
+    let u = 0;
+    while (f >= 1024 && u < units.length - 1) {
+      f /= 1024;
+      u++;
+    }
+    return `${f >= 100 ? Math.round(f) : Math.round(f * 10) / 10} ${units[u]}`;
+  }
+
+  function timeAgo(ts: number | string): string {
+    const t = typeof ts === 'string' ? Date.parse(ts) : Number(ts);
+    if (!Number.isFinite(t)) return '—';
+    const ms = t > 1e12 ? t : t * 1000;
+    const s = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    if (d < 30) return `${d}d ago`;
+    return new Date(ms).toLocaleDateString();
+  }
+
+  function debounce<T extends (...args: any[]) => void>(fn: T, ms = 250): (...args: Parameters<T>) => void {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return (...args: Parameters<T>) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        fn(...args);
+      }, Math.max(0, ms));
+    };
+  }
   
   // --- Subscription helper ---
   function subscribe(action: PageAction, callback: (result: ActionResult) => void, intervalMs = 5000) {
@@ -717,6 +798,11 @@ export function createCustomPageSDK(
     confirm: (msg) => confirmDialog({ title: 'Please confirm', message: msg }),
     prompt: (msg, def = '') => Promise.resolve(window.prompt(msg, def)),
     modal,
+    downloadText,
+    copyText,
+    formatBytes,
+    timeAgo,
+    debounce,
     
     // Events
     on,

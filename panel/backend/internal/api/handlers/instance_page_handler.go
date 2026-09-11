@@ -100,9 +100,10 @@ var validContentTypes = map[string]bool{
 	"react":    true,
 }
 
-// React build budgets + status values (migration 075). Source is author JS
-// (React.createElement, no JSX in v1); the build validates and stores it as
-// the bundle so the renderer can execute it with the panel React runtime.
+// React build budgets + status values (migration 075). Source is author JS/JSX
+// (JSX + light TS + react-only imports accepted; the renderer transpiles in
+// memory); the build validates and stores it as the bundle so the renderer
+// can execute it with the panel React runtime.
 const (
 	maxInstancePageReactSourceBytes = 512 * 1024
 	maxInstancePageBundleBytes      = 1024 * 1024

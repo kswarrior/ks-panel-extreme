@@ -1,10 +1,11 @@
 // PageStudioReactSection — "React" editor + Build button
 //
 // React pages are stateful (hooks, no full refresh) unlike sandboxed HTML:
-// the author writes JS with React.createElement (no JSX in v1) and clicks
-// Build to validate it into the executable bundle (POST /:id/build).
-// The live renderer executes the bundle with the panel React runtime and
-// the real KSPageSDK; static preview needs a bound instance.
+// the author writes JSX/TS (or plain React.createElement) and clicks Build
+// to validate it into the executable bundle (POST /:id/build).
+// The live renderer transpiles JSX/light-TS in-memory and executes it with
+// the panel React runtime and the real KSPageSDK; static preview needs a
+// bound instance.
 
 import React from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
@@ -23,15 +24,39 @@ export interface PageStudioReactSectionProps {
   sectionCls: string;
 }
 
-const STARTER = `function Page() {
-  const el = React.createElement;
-  const status = el('span', { className: 'ks-badge' }, sdk.instance.status);
-  const run = function() { sdk.runAction('ping'); };
-  return el('div', { className: 'ks-page' },
-    el('div', { className: 'ks-card' },
-      el('h2', null, sdk.instance.name),
-      el('div', { className: 'ks-row' }, status),
-      el('button', { className: 'ks-btn ks-btn-blue', onClick: run }, 'Ping')));
+const STARTER = `import { useState } from 'react';
+
+type Props = { title?: string };
+
+function Stat(props: { label: string; value: string }) {
+  return (
+    <div className="ks-card" style={{ padding: 12 }}>
+      <div className="ks-muted" style={{ fontSize: 11 }}>{props.label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700 }}>{props.value}</div>
+    </div>
+  );
+}
+
+function Page() {
+  const [count, setCount] = useState<number>(0);
+  const run = async () => {
+    const r = await sdk.runAction('ping');
+    if (r && (r as { ok?: boolean }).ok === false) sdk.toast((r as { error?: string }).error || 'failed', 'error');
+    else setCount((c: number) => c + 1);
+  };
+  return (
+    <div className="ks-page">
+      <div className="ks-card">
+        <h2>{sdk.instance.name}</h2>
+        <div className="ks-row">
+          <span className="ks-badge">{sdk.instance.status}</span>
+          <span className="ks-badge">runs: {count}</span>
+        </div>
+        <button className="ks-btn ks-btn-blue" onClick={run}>Ping</button>
+      </div>
+      <Stat label="Instance" value={sdk.instance.kind} />
+    </div>
+  );
 }
 return Page;`;
 
@@ -83,10 +108,13 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
         </div>
       </div>
       <p className="text-xs text-gray-500">
-        Stateful React (hooks via <code>React.useState/useEffect</code>, no full refresh). Plain JS with{' '}
-        <code>React.createElement</code> — no JSX in v1. Define <code>function Page()</code> (closes over{' '}
-        <code>sdk</code> + <code>React</code>) and end with <code>return Page;</code>. Use{' '}
-        <code>sdk.runAction/fetchPanel</code> — never <code>fetch()</code>, <code>eval</code> or browser storage directly.
+        Near-real React (hooks via <code>React.useState/useEffect</code>, state survives re-renders). Write{' '}
+        <code>JSX</code> + light <code>TS</code> (<code>type/interface</code>, <code>: Type</code>, <code>as Type</code>,{' '}
+        <code>{'<T>'}</code>) or plain <code>React.createElement</code> — all transpile in the renderer. Define{' '}
+        <code>function Page()</code> (closes over <code>sdk</code> + <code>React</code>) and end with{' '}
+        <code>return Page;</code>. <code>{`import { useState } from 'react'`}</code> is allowed; other packages are not — use{' '}
+        <code>sdk.runAction/fetchPanel/storage/downloadText/copyText/formatBytes/timeAgo</code> — never <code>fetch()</code>,{' '}
+        <code>eval</code> or browser storage directly. Tailwind + <code>ks-*</code> theme classes work (host origin).
       </p>
       <label className="block text-xs text-gray-400 mt-3 mb-2">
         Page source (JS)
