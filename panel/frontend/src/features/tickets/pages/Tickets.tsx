@@ -5,6 +5,7 @@ import type { Ticket, TicketStats } from '../types/ticket';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import ListCount from '@/shared/components/ui/ListCount';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -238,9 +239,13 @@ const Tickets: React.FC = () => {
           </button>
       </PageActionsPill>
 
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500">{filtered.length} of {total} shown</p>
-        {stats && <p className="text-xs text-gray-500">{stats.total} total • {stats.unassigned} unassigned • {stats.mine} mine</p>}
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <ListCount
+          shown={filtered.length}
+          total={total}
+          label="ticket"
+          extra={stats ? <>{stats.total} total • {stats.unassigned} unassigned • {stats.mine} mine</> : undefined}
+        />
       </div>
 
       {error && tickets.length > 0 && <p className="text-red-400 mb-3">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}

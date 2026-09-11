@@ -21,6 +21,7 @@ import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
@@ -430,8 +431,8 @@ const Templates: React.FC = () => {
           </button>
       </PageActionsPill>
 
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500">{filtered.length} of {templates.length} shown</p>
+      <div className="flex items-center justify-between mb-3">
+        <ListCount shown={filtered.length} total={templates.length} label="template" />
       </div>
 
       {error && templates.length > 0 && <p className="text-red-400 mb-3">{error}</p>}

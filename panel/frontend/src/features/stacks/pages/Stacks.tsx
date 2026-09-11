@@ -4,6 +4,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import ListCount from '@/shared/components/ui/ListCount';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
@@ -321,8 +322,13 @@ const Stacks: React.FC = () => {
         </button>
       </PageActionsPill>
 
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-gray-500">{filtered.length} of {stacks.length} shown · {stats.active} active · {stats.pending} pending grants</p>
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filtered.length}
+          total={stacks.length}
+          label="stack"
+          extra={<>{stats.active} active · {stats.pending} pending grants</>}
+        />
       </div>
 
       {error && stacks.length > 0 && <p className="text-xs text-red-300 mb-2">{error}</p>}

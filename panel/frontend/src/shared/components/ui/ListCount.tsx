@@ -1,4 +1,5 @@
 import React from 'react';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 interface ListCountProps {
   /** Number of items currently visible (after search/filter). */
@@ -37,6 +38,15 @@ export const ListCount: React.FC<ListCountProps> = ({
   const noun = label
     ? `${label}${total === 1 ? '' : 's'}`
     : '';
+  // Theme Studio → Count tab can hide the icon globally. The per-page
+  // `icon` prop is an additional opt-out (defaults to true).
+  let themeShowIcon = true;
+  try {
+    themeShowIcon = (useThemeStore((s) => (s.active() as any)?.count?.show_icon) as unknown as boolean | undefined) ?? true;
+  } catch {
+    themeShowIcon = true;
+  }
+  const showIcon = icon && themeShowIcon;
 
   return (
     <div
@@ -45,7 +55,7 @@ export const ListCount: React.FC<ListCountProps> = ({
       aria-live="polite"
       aria-label={`${shown} of ${total}${noun ? ` ${noun}` : ''} shown${filtered ? ', filtered' : ''}`}
     >
-      {icon && (
+      {showIcon && (
         <span className="ks-count-icon" aria-hidden="true">
           <svg
             xmlns="http://www.w3.org/2000/svg"
