@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listNodes, listTemplates, listUsers, listRoles, deployInstance } from '@/shared/api/admin';
 import type { DeployRequest } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
@@ -37,7 +39,7 @@ const InstanceForm: React.FC = () => {
     displayName, setDisplayName,
     icon, setIcon,
     color, setColor,
-    editor,
+    editor, setEditor,
     envValues,
     setEnvValues,
     imageKey, setImageKey,
@@ -52,25 +54,46 @@ const InstanceForm: React.FC = () => {
     tab, setTab,
   } = useDeployForm();
 
+  // Session edit history over the deploy fields (option lists, tab and the
+  // derived diff baseline stay out). Deploy is create-only: no server
+  // state to reload, so Refresh reverts to the blank form. History is
+  // per-view: switching to the Advance route remounts with a fresh stack.
+  const snapshot = JSON.stringify({ templateId, nodeId, ownerId, name, displayName, icon, color, editor, envValues, imageKey });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setTemplateId(s.templateId);
+    setNodeId(s.nodeId);
+    setOwnerId(s.ownerId);
+    setName(s.name);
+    setDisplayName(s.displayName);
+    setIcon(s.icon);
+    setColor(s.color);
+    setEditor(s.editor);
+    setEnvValues(s.envValues);
+    setImageKey(s.imageKey);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const [ns, ts, us, rs] = await Promise.all([listNodes(), listTemplates(), listUsers(), listRoles()]);
+      setNodes(ns);
+      setTemplates(ts);
+      setUsers(us);
+      setRoles(rs);
+      setOwnerId(us[0]?.id || 0);
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [setNodes, setTemplates, setUsers, setRoles, setOwnerId, setError, setLoading, histSuspend]);
+
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [ns, ts, us, rs] = await Promise.all([listNodes(), listTemplates(), listUsers(), listRoles()]);
-        if (cancelled) return;
-        setNodes(ns);
-        setTemplates(ts);
-        setUsers(us);
-        setRoles(rs);
-        setOwnerId(us[0]?.id || 0);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [setNodes, setTemplates, setUsers, setRoles, setOwnerId, setError, setLoading]);
+    void load();
+  }, [load]);
 
   const selectTemplate = (tid: number) => {
     setTemplateId(tid);
@@ -241,6 +264,7 @@ const InstanceForm: React.FC = () => {
     };
     try {
       const created = await deployInstance(payload);
+      hist.commit();
       // Jump straight to the new instance's home page: while status is
       // "creating"/"installing" it renders the live install banner
       // (per-step transcript), so the operator watches the install log
@@ -335,9 +359,11 @@ const InstanceForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
-          Footer Deploy removed; everything lives here. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Deploy;
+          fixed, auto-hide on scroll (node pattern). Refresh reverts to the
+          blank deploy form (create-only, no server state to reload). */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
           <button
             type="button"
             onClick={() => navigate('/instances')}
