@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -493,6 +494,547 @@ func validateReactSource(src string) error {
 	return nil
 }
 
+// maxReactPageModules caps the Files list per page (mirrors the FE
+// MAX_REACT_PAGE_MODULES; the 512KiB components budget is the real backstop).
+const maxReactPageModules = 20
+
+// maxReactModuleDepth bounds graph DFS so a 500-deep chain fails closed.
+const maxReactModuleDepth = 100
+
+var reactModuleSegmentRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]*$`)
+var reactModuleNameRe = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
+var reactModuleExtRe = regexp.MustCompile(`\.(js|jsx|ts|tsx|mjs|cjs)$`)
+
+// normalizeReactImportSpecifier resolves a relative import against the
+// importer's directory and jails it to the page root. Mirrors the FE
+// normalizeModuleSpecifier exactly (same order, same verdicts): './' or
+// '../' prefix required, '\'/'%'/'?'/'#' rejected, '..' past root rejected.
+func normalizeReactImportSpecifier(spec, importerDir string) (string, error) {
+	if spec == "react" {
+		return "react", nil
+	}
+	if strings.Contains(spec, "\\") {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' must use '/' separators (found '\\') — use './name' instead")
+	}
+	if strings.Contains(spec, "%") {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' must not contain URL-encoded characters ('%') — use './name' instead")
+	}
+	if strings.Contains(spec, "?") || strings.Contains(spec, "#") {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' must not contain '?' or '#' — use './name' instead")
+	}
+	if !strings.HasPrefix(spec, "./") && !strings.HasPrefix(spec, "../") {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' is not allowed — only relative './...'/'../...' staying inside the page root and 'react' are allowed; React and sdk are already in scope")
+	}
+	if strings.Contains(spec, "//") {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' contains an empty path segment ('//') — use './name' instead")
+	}
+	var stack []string
+	if importerDir != "" {
+		stack = strings.Split(importerDir, "/")
+	}
+	for _, seg := range strings.Split(spec, "/") {
+		switch {
+		case seg == "":
+			return "", newErrString("import '" + truncateReactSpec(spec) + "' contains an empty path segment — use './name' instead")
+		case seg == ".":
+			continue
+		case seg == "..":
+			if len(stack) == 0 {
+				return "", newErrString("import '" + truncateReactSpec(spec) + "' escapes the page root (.. beyond root) — keep files at the page root and import with './name'")
+			}
+			stack = stack[:len(stack)-1]
+		default:
+			if !reactModuleSegmentRe.MatchString(seg) {
+				return "", newErrString("import '" + truncateReactSpec(spec) + "' has an unsupported path segment '" + seg + "' — use letters, numbers, '_', '-' or '.'")
+			}
+			stack = append(stack, seg)
+		}
+	}
+	if len(stack) == 0 {
+		return "", newErrString("import '" + truncateReactSpec(spec) + "' points at the page root — import a file (e.g. './util') instead")
+	}
+	return strings.Join(stack, "/"), nil
+}
+
+func truncateReactSpec(s string) string {
+	if len(s) > 80 {
+		return s[:80]
+	}
+	return s
+}
+
+func stripReactModuleExt(p string) string {
+	return reactModuleExtRe.ReplaceAllString(p, "")
+}
+
+// reactModulesFromComponents extracts Files modules (components type
+// module: {name, content}) from a persisted components JSON string.
+// Corrupt payloads degrade to an empty map (fail-open for parse, the graph
+// check then reports missing modules instead of blocking the UI).
+func reactModulesFromComponents(raw string) map[string]string {
+	out := map[string]string{}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return out
+	}
+	var arr []instancePageComponent
+	if err := json.Unmarshal([]byte(trimmed), &arr); err != nil {
+		return out
+	}
+	for _, c := range arr {
+		if c.Type != "module" || c.Name == "" {
+			continue
+		}
+		if _, dup := out[c.Name]; !dup {
+			out[c.Name] = c.Content
+		}
+	}
+	return out
+}
+
+// validateReactModules mirrors the FE bundleVirtualModules graph checks
+// (jail, missing listing available names, cycles naming the cycle, unknown
+// exports, count/depth/oversize budgets) without transpiling. Module bodies
+// additionally pass validateReactSource (same deny-list as the entry;
+// `export default` + local `export {}` lists are module-only and masked
+// first — the entry keeps rejecting them).
+func validateReactModules(entry string, modules map[string]string) error {
+	if len(modules) > maxReactPageModules {
+		return newErrString(fmt.Sprintf("too many modules (%d, max %d) — merge small helpers into fewer files", len(modules), maxReactPageModules))
+	}
+	byKey := map[string]string{}
+	origName := map[string]string{}
+	for name, content := range modules {
+		if len(name) == 0 || len(name) > 64 || !reactModuleNameRe.MatchString(name) {
+			return newErrString("module name '" + name + "' is not allowed — keep files at the page root (start with a letter, number or underscore; letters, numbers, '_' or '-' only; max 64 chars)")
+		}
+		norm := stripReactModuleExt(name)
+		if prev, dup := origName[norm]; dup {
+			return newErrString("duplicate module '" + norm + "' ('" + prev + "' vs '" + name + "') — Files names must be unique ignoring extensions")
+		}
+		origName[norm] = name
+		byKey[norm] = content
+	}
+	avail := make([]string, 0, len(byKey))
+	for k := range byKey {
+		avail = append(avail, k)
+	}
+	sort.Strings(avail)
+	availMsg := "(no modules)"
+	if len(avail) > 0 {
+		availMsg = strings.Join(avail, ", ")
+	}
+	// Per-file import deps (entry key "index" at root; flat Files => dir "").
+	deps := map[string][]string{}
+	addDeps := func(key, src string) error {
+		seen := map[string]bool{}
+		for _, spec := range collectReactImportSpecs(src) {
+			if spec == "react" {
+				continue
+			}
+			norm, err := normalizeReactImportSpecifier(spec, "")
+			if err != nil {
+				return err
+			}
+			norm = stripReactModuleExt(norm)
+			if _, ok := byKey[norm]; !ok {
+				who := "index"
+				if key != "index" {
+					who = "'" + origName[key] + "'"
+				}
+				return newErrString("unknown module '" + truncateReactSpec(spec) + "' (imported by " + who + ") — available modules: " + availMsg + " — add a Files entry or fix the path")
+			}
+			if !seen[norm] {
+				seen[norm] = true
+				deps[key] = append(deps[key], norm)
+			}
+		}
+		if _, ok := deps[key]; !ok {
+			deps[key] = nil
+		}
+		return nil
+	}
+	if err := addDeps("index", entry); err != nil {
+		return err
+	}
+	for k, content := range byKey {
+		if err := addDeps(k, content); err != nil {
+			return err
+		}
+	}
+	// Reachable from the entry only — unused Files never ship.
+	reachable := map[string]bool{"index": true}
+	stack := []string{"index"}
+	for guard := 0; len(stack) > 0; guard++ {
+		if guard > maxReactModuleDepth*20 {
+			return newErrString(fmt.Sprintf("module graph too large — check for runaway imports (max %d modules)", maxReactPageModules))
+		}
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		for _, d := range deps[cur] {
+			if !reachable[d] {
+				reachable[d] = true
+				stack = append(stack, d)
+			}
+		}
+	}
+	// Depth guard (iterative parent walk, mirrors the FE check).
+	for k := range reachable {
+		if k == "index" {
+			continue
+		}
+		depth, cur, seen := 0, k, map[string]bool{}
+		for cur != "index" {
+			if seen[cur] {
+				break
+			}
+			seen[cur] = true
+			parent := ""
+			for cand, ds := range deps {
+				if !reachable[cand] {
+					continue
+				}
+				for _, d := range ds {
+					if d == cur {
+						parent = cand
+						break
+					}
+				}
+				if parent != "" {
+					break
+				}
+			}
+			if parent == "" {
+				break
+			}
+			cur = parent
+			depth++
+			if depth > maxReactModuleDepth {
+				return newErrString(fmt.Sprintf("module graph too deep (>%d) — flatten the import chain", maxReactModuleDepth))
+			}
+		}
+	}
+	// Cycle detection (iterative DFS) naming the cycle.
+	state := map[string]int{}
+	var path []string
+	var visit func(start string) error
+	visit = func(start string) error {
+		type frame struct {
+			key string
+			idx int
+		}
+		work := []frame{{key: start}}
+		for len(work) > 0 {
+			top := &work[len(work)-1]
+			if state[top.key] == 0 {
+				state[top.key] = 1
+				path = append(path, top.key)
+			}
+			var ds []string
+			for _, d := range deps[top.key] {
+				if reachable[d] {
+					ds = append(ds, d)
+				}
+			}
+			if top.idx < len(ds) {
+				next := ds[top.idx]
+				top.idx++
+				if state[next] == 1 {
+					cyc := append(append([]string{}, path[indexOfReactPath(path, next):]...), next)
+					for i, k := range cyc {
+						if k == "index" {
+							cyc[i] = "index"
+						} else {
+							cyc[i] = "'" + origName[k] + "'"
+						}
+					}
+					return newErrString("circular import detected: " + strings.Join(cyc, " -> ") + " — break the cycle by moving shared code into a leaf module")
+				}
+				if state[next] == 0 {
+					work = append(work, frame{key: next})
+				}
+				continue
+			}
+			state[top.key] = 2
+			path = path[:len(path)-1]
+			work = work[:len(work)-1]
+		}
+		return nil
+	}
+	if err := visit("index"); err != nil {
+		return err
+	}
+	// Combined budget over reachable files (mirrors the FE combined check).
+	total := len(entry)
+	for k := range reachable {
+		if k == "index" {
+			continue
+		}
+		total += len(byKey[k])
+	}
+	if total > maxInstancePageReactSourceBytes {
+		n := 0
+		for k := range reachable {
+			if k != "index" {
+				n++
+			}
+		}
+		return newErrString(fmt.Sprintf("combined page source too large (%d bytes including %d module(s), max %d) — split the page or shrink modules (components budget is 512KiB total)", total, n, maxInstancePageReactSourceBytes))
+	}
+	// Module bodies pass the same deny-list as the entry. Module-only
+	// syntax (`export default`, local `export {}`) is masked first so the
+	// shared gate doesn't false-positive on it.
+	for k, content := range byKey {
+		if !reachable[k] {
+			continue
+		}
+		masked := reactModuleDefaultRe.ReplaceAllString(content, " ")
+		lines := strings.Split(masked, "\n")
+		for i, ln := range lines {
+			if reactExportListRe.MatchString(ln) && !strings.Contains(blankReactStringsAndComments(ln), "from") {
+				lines[i] = "// (bundled export list)"
+			}
+		}
+		if err := validateReactSource(strings.Join(lines, "\n")); err != nil {
+			return newErrString("module '" + origName[k] + "': " + err.Error())
+		}
+		// Unknown named/default imports fail closed with available exports.
+		exports := collectReactModuleExports(content)
+		for _, imp := range collectReactImportDetails(content) {
+			if imp.spec == "react" || imp.kind == "odd" || imp.kind == "side" {
+				continue
+			}
+			norm, err := normalizeReactImportSpecifier(imp.spec, "")
+			if err != nil {
+				return err
+			}
+			dep := stripReactModuleExt(norm)
+			var target reactModuleExports
+			if dep == k {
+				target = exports
+			} else if e, ok2 := moduleExportsCache(byKey, dep); ok2 {
+				target = e
+			} else {
+				continue // missing already reported above.
+			}
+			depLabel := "'" + origName[dep] + "'"
+			if imp.kind == "namespace" {
+				continue
+			}
+			if imp.kind == "default" || imp.kind == "mixed" {
+				if !target.hasDefault {
+					availE := "(no value exports)"
+					if len(target.values) > 0 {
+						sorted := append([]string{}, target.values...)
+						sort.Strings(sorted)
+						availE = strings.Join(sorted, ", ")
+					}
+					return newErrString("module " + depLabel + " has no default export — available: " + availE + " — add 'export default ...' or use a named import")
+				}
+			}
+			for _, nn := range imp.named {
+				if containsReactStr(target.types, nn.imported) && !containsReactStr(target.values, nn.imported) {
+					return newErrString("module " + depLabel + " export '" + nn.imported + "' is a type (interface/type) and cannot be imported as a value — import a function, const or component instead")
+				}
+				if !containsReactStr(target.values, nn.imported) {
+					availE := "(no value exports)"
+					if len(target.values) > 0 {
+						sorted := append([]string{}, target.values...)
+						sort.Strings(sorted)
+						availE = strings.Join(sorted, ", ")
+					}
+					return newErrString("module " + depLabel + " has no export '" + nn.imported + "' — available: " + availE)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func indexOfReactPath(path []string, key string) int {
+	for i, k := range path {
+		if k == key {
+			return i
+		}
+	}
+	return 0
+}
+
+func containsReactStr(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+type reactModuleExports struct {
+	values     []string
+	types      []string
+	hasDefault bool
+}
+
+type reactImportDetail struct {
+	spec      string
+	kind      string // side, default, named, mixed, namespace, odd
+	defaultNm string
+	namespace string
+	named     []reactNamedBinding
+}
+
+type reactNamedBinding struct {
+	imported string
+	local    string
+}
+
+var reactIdentRe = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
+
+// collectReactImportSpecs returns single-line import specifiers in real code
+// (comment-aware; mirrors the FE collectFileImports gate).
+func collectReactImportSpecs(src string) []string {
+	var out []string
+	for _, line := range strings.Split(src, "\n") {
+		if !reactImportLineRe.MatchString(blankReactStringsAndComments(line)) {
+			continue
+		}
+		if m := reactSideImportRe.FindStringSubmatch(line); m != nil {
+			out = append(out, m[1])
+			continue
+		}
+		if m := reactFromImportRe.FindStringSubmatch(line); m != nil {
+			out = append(out, m[2])
+		}
+	}
+	return out
+}
+
+var reactImportLineRe = regexp.MustCompile(`^\s*import\b`)
+var reactSideImportRe = regexp.MustCompile(`^\s*import\s+['"]([^'"]+)['"]\s*;?\s*$`)
+var reactFromImportRe = regexp.MustCompile(`^\s*import\s+(.+?)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$`)
+
+// collectReactImportDetails parses single-line imports into clause shapes
+// (mirrors the FE parseImportClause).
+func collectReactImportDetails(src string) []reactImportDetail {
+	var out []reactImportDetail
+	for _, line := range strings.Split(src, "\n") {
+		if !reactImportLineRe.MatchString(blankReactStringsAndComments(line)) {
+			continue
+		}
+		if m := reactSideImportRe.FindStringSubmatch(line); m != nil {
+			out = append(out, reactImportDetail{spec: m[1], kind: "side"})
+			continue
+		}
+		m := reactFromImportRe.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		d := parseReactImportClause(m[1])
+		d.spec = m[2]
+		out = append(out, d)
+	}
+	return out
+}
+
+func parseReactImportClause(clause string) reactImportDetail {
+	c := strings.TrimSpace(clause)
+	if m := regexp.MustCompile(`^\*\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$`).FindStringSubmatch(c); m != nil {
+		return reactImportDetail{kind: "namespace", namespace: m[1]}
+	}
+	if strings.HasPrefix(c, "{") {
+		if named, ok := parseReactNamedList(c); ok {
+			return reactImportDetail{kind: "named", named: named}
+		}
+		return reactImportDetail{kind: "odd"}
+	}
+	if i := strings.Index(c, "{"); i != -1 {
+		defPart := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(c[:i]), ","))
+		if named, ok := parseReactNamedList(c[i:]); ok && reactIdentRe.MatchString(defPart) {
+			return reactImportDetail{kind: "mixed", defaultNm: defPart, named: named}
+		}
+		return reactImportDetail{kind: "odd"}
+	}
+	if reactIdentRe.MatchString(c) {
+		return reactImportDetail{kind: "default", defaultNm: c}
+	}
+	return reactImportDetail{kind: "odd"}
+}
+
+func parseReactNamedList(brace string) ([]reactNamedBinding, bool) {
+	m := regexp.MustCompile(`^\{([^}]*)\}$`).FindStringSubmatch(strings.TrimSpace(brace))
+	if m == nil {
+		return nil, false
+	}
+	var out []reactNamedBinding
+	for _, part := range strings.Split(m[1], ",") {
+		s := strings.TrimSpace(part)
+		if s == "" {
+			continue
+		}
+		if am := regexp.MustCompile(`^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$`).FindStringSubmatch(s); am != nil {
+			out = append(out, reactNamedBinding{imported: am[1], local: am[2]})
+			continue
+		}
+		if reactIdentRe.MatchString(s) {
+			out = append(out, reactNamedBinding{imported: s, local: s})
+			continue
+		}
+		return nil, false
+	}
+	return out, true
+}
+
+// collectReactModuleExports scans a module for value/type export names
+// (mirrors the FE collectModuleExports).
+func collectReactModuleExports(src string) reactModuleExports {
+	var out reactModuleExports
+	declRe := regexp.MustCompile(`^export\s+(?:async\s+function\s+|function\s+|class\s+|enum\s+|namespace\s+)([A-Za-z_$][A-Za-z0-9_$]*)`)
+	varRe := regexp.MustCompile(`^export\s+(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	typeRe := regexp.MustCompile(`^export\s+(interface|type)\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	listRe := regexp.MustCompile(`^export\s*\{([^}]*)\}\s*;?\s*$`)
+	for _, line := range strings.Split(src, "\n") {
+		t := strings.TrimSpace(blankReactStringsAndComments(line))
+		if regexp.MustCompile(`^export\s+default\b`).MatchString(t) {
+			out.hasDefault = true
+			continue
+		}
+		if m := declRe.FindStringSubmatch(t); m != nil {
+			out.values = append(out.values, m[1])
+			continue
+		}
+		if m := varRe.FindStringSubmatch(t); m != nil {
+			out.values = append(out.values, m[1])
+			continue
+		}
+		if m := typeRe.FindStringSubmatch(t); m != nil {
+			out.types = append(out.types, m[2])
+			continue
+		}
+		if m := listRe.FindStringSubmatch(t); m != nil && !strings.Contains(t, "from") {
+			for _, part := range strings.Split(m[1], ",") {
+				s := strings.TrimSpace(part)
+				if s == "" {
+					continue
+				}
+				if am := regexp.MustCompile(`^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$`).FindStringSubmatch(s); am != nil {
+					out.values = append(out.values, am[2])
+				} else if reactIdentRe.MatchString(s) {
+					out.values = append(out.values, s)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func moduleExportsCache(byKey map[string]string, dep string) (reactModuleExports, bool) {
+	content, ok := byKey[dep]
+	if !ok {
+		return reactModuleExports{}, false
+	}
+	return collectReactModuleExports(content), true
+}
+
 // Page provenance sources for the library badges: "studio" (own pages incl.
 // Studio/file/URL creates), "market" (fresh marketplace import, unmodified),
 // "edited" (market import later modified in the Studio). "" == "studio".
@@ -615,6 +1157,11 @@ var validComponentTypes = map[string]bool{
 	// (no source copy); the panel frontend supplies the HTML from its
 	// shared registry at render time.
 	"shared": true,
+	// "module" is a virtual React file: {name, content} inlined by the
+	// renderer at transpile time (`import ... from './name'`). Zero
+	// migration — it reuses the components column and its 512KiB budget.
+	// Excluded from {{component:name}} substitution (not HTML).
+	"module": true,
 }
 
 // validComponentName reports whether s is a safe component name for
@@ -752,7 +1299,7 @@ func validateComponentsJSON(raw string) error {
 		}
 		seen[c.Name] = true
 		if c.Type != "" && !validComponentTypes[c.Type] {
-			return newErrString("component type must be one of: html, markdown, block, shared")
+			return newErrString("component type must be one of: html, markdown, block, shared, module")
 		}
 		if c.Type == "shared" && c.Shared != "" && !validComponentName(c.Shared) {
 			return newErrString("shared component reference must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes (max 64 chars)")
@@ -959,6 +1506,31 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 	}
 	if err := validateComponentsJSON(req.Components); err != nil {
 		return req, err
+	}
+	// Virtual modules (item 2): the entry + sub-page sources may import
+	// './name' from Files (components type module). The graph check runs on
+	// the save gate so missing/circular imports fail before Build.
+	if req.SourceTSX != "" || req.SubPages != "" {
+		mods := reactModulesFromComponents(req.Components)
+		if len(mods) > 0 || hasReactRelativeImport(req.SourceTSX) {
+			if err := validateReactModules(req.SourceTSX, mods); err != nil {
+				return req, err
+			}
+		}
+		if strings.TrimSpace(req.SubPages) != "" {
+			var subs []instancePageSubPage
+			if jerr := json.Unmarshal([]byte(req.SubPages), &subs); jerr == nil {
+				mods := reactModulesFromComponents(req.Components)
+				for _, s := range subs {
+					if strings.TrimSpace(s.SourceTSX) == "" {
+						continue
+					}
+					if err := validateReactModules(s.SourceTSX, mods); err != nil {
+						return req, newErrString(fmt.Sprintf("sub-page %q: %s", s.Path, err.Error()))
+					}
+				}
+			}
+		}
 	}
 	if err := validateConfigureJSON(req.Configure); err != nil {
 		return req, err
