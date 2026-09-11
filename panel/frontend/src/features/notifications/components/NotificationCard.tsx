@@ -58,7 +58,7 @@ const NotificationCard: React.FC<{
   });
 
   return (
-    <article className={`ks-card ks-list-card group relative flex flex-col gap-3 p-4 rounded-xl border transition-all duration-200 hover:shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${glassModifier} ${unread ? 'glass-card border-sky-400/25 bg-sky-500/[0.04] hover:border-sky-300/30' : 'glass-card hover:border-white/20'}`}>
+    <article className={`ks-card ks-list-card group relative flex flex-col gap-3 p-4 rounded-xl border transition-all duration-200 hover:shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${glassModifier} ${unread ? 'glass-card border-sky-400/25 bg-sky-500/[0.04] hover:border-sky-300/30' : 'glass-card'}`}>
       <CardMediaLayer />
       {unread && <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-1 bg-sky-400 rounded-l-xl" aria-hidden="true" />}
       <div
