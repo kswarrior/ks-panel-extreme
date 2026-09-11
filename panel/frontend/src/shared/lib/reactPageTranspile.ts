@@ -2081,6 +2081,518 @@ function emitNode(node: JSXNode): string {
   return `React.createElement(${tag}, ${node.props}${kids})`;
 }
 
+// ---- virtual modules (multi-file pages) ----
+
+// MAX_REACT_PAGE_MODULES caps the Files list per page. The components column
+// budget (512KiB total) is the real backstop — this cap just keeps the graph
+// small enough to sort inline. No storage change: modules ride as components
+// rows with type 'module' ({name, content}).
+export const MAX_REACT_PAGE_MODULES = 20;
+// MAX_MODULE_GRAPH_DEPTH bounds DFS so a 500-deep chain fails closed with a
+// clear message instead of a stack overflow.
+const MAX_MODULE_GRAPH_DEPTH = 100;
+const MODULE_EXT_RE = /\.(js|jsx|ts|tsx|mjs|cjs)$/;
+const MODULE_NAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/;
+const MODULE_SEGMENT_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
+
+// stripModuleExt drops a trailing code extension so './util.js' and './util'
+// resolve to the same Files entry ('util').
+function stripModuleExt(p: string): string {
+  return p.replace(MODULE_EXT_RE, '');
+}
+
+function dirOfModuleKey(key: string): string {
+  const i = key.lastIndexOf('/');
+  return i === -1 ? '' : key.slice(0, i);
+}
+
+function sanitizeModuleKey(key: string): string {
+  const s = key.replace(/[^A-Za-z0-9_$]/g, '_');
+  return /^[0-9]/.test(s) ? `_${s}` : s;
+}
+
+// normalizeModuleSpecifier resolves a relative import against the importer's
+// directory and jails it to the page root. Throws a page-author-actionable
+// error for non-relative/absolute specifiers, escapes, and bad characters.
+// Mirrors the Go jail in validateReactSource exactly (same order, same
+// verdicts): './' or '../' prefix required, '\'/'%'/'?'/'#' rejected, '..'
+// past root rejected.
+export function normalizeModuleSpecifier(spec: string, importerDir: string): string {
+  if (spec === 'react') return 'react';
+  if (spec.includes('\\')) {
+    throw new Error(`import '${spec.slice(0, 80)}' must use '/' separators (found '\\') — use './name' instead`);
+  }
+  if (spec.includes('%')) {
+    throw new Error(`import '${spec.slice(0, 80)}' must not contain URL-encoded characters ('%') — use './name' instead`);
+  }
+  if (spec.includes('?') || spec.includes('#')) {
+    throw new Error(`import '${spec.slice(0, 80)}' must not contain '?' or '#' — use './name' instead`);
+  }
+  if (!spec.startsWith('./') && !spec.startsWith('../')) {
+    throw new Error(
+      `import '${spec.slice(0, 80)}' is not allowed — only relative './...'/'../...' staying inside the page root and 'react' are allowed; React and sdk are already in scope`,
+    );
+  }
+  if (spec.includes('//')) {
+    throw new Error(`import '${spec.slice(0, 80)}' contains an empty path segment ('//') — use './name' instead`);
+  }
+  const stack: string[] = importerDir ? importerDir.split('/') : [];
+  for (const seg of spec.split('/')) {
+    if (seg === '' || seg === '.') {
+      if (seg === '') {
+        throw new Error(`import '${spec.slice(0, 80)}' contains an empty path segment — use './name' instead`);
+      }
+      continue;
+    }
+    if (seg === '..') {
+      if (stack.length === 0) {
+        throw new Error(`import '${spec.slice(0, 80)}' escapes the page root (.. beyond root) — keep files at the page root and import with './name'`);
+      }
+      stack.pop();
+      continue;
+    }
+    if (!MODULE_SEGMENT_RE.test(seg)) {
+      throw new Error(`import '${spec.slice(0, 80)}' has an unsupported path segment '${seg.slice(0, 40)}' — use letters, numbers, '_', '-' or '.'`);
+    }
+  }
+  if (stack.length === 0) {
+    throw new Error(`import '${spec.slice(0, 80)}' points at the page root — import a file (e.g. './util') instead`);
+  }
+  return stack.join('/');
+}
+
+function validateModuleName(name: string): void {
+  if (name.length === 0 || name.length > 64 || !MODULE_NAME_RE.test(name)) {
+    throw new Error(
+      `module name '${name.slice(0, 64)}' is not allowed — keep files at the page root (start with a letter, number or underscore; letters, numbers, '_' or '-' only; max 64 chars)`,
+    );
+  }
+}
+
+interface ParsedImport {
+  spec: string;
+  kind: 'side' | 'default' | 'named' | 'mixed' | 'namespace' | 'odd';
+  defaultName?: string;
+  namespace?: string;
+  named?: Array<{ imported: string; local: string }>;
+}
+
+// collectFileImports finds single-line import statements in real code
+// (strings/comments skipped via blankStringsAndComments, same gate the
+// react-import pass uses). Multiline imports are left for the later pass,
+// which rejects them fail-closed — same as single-file pages.
+function collectFileImports(src: string): ParsedImport[] {
+  const out: ParsedImport[] = [];
+  for (const line of src.split('\n')) {
+    if (!/^\s*import\b/.test(blankStringsAndComments(line))) continue;
+    let m = line.match(/^\s*import\s+['"]([^'"]+)['"]\s*;?\s*$/);
+    if (m) {
+      out.push({ spec: m[1], kind: 'side' });
+      continue;
+    }
+    m = line.match(/^\s*import\s+(.+?)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/);
+    if (!m) continue; // odd/multiline shape — later pass rejects it.
+    out.push({ ...parseImportClause(m[1]), spec: m[2] });
+  }
+  return out;
+}
+
+function parseImportClause(clause: string): Omit<ParsedImport, 'spec'> {
+  const c = clause.trim();
+  const ns = c.match(/^\*\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+  if (ns) return { kind: 'namespace', namespace: ns[1] };
+  const ident = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+  if (c.startsWith('{')) {
+    const named = parseNamedList(c);
+    return named ? { kind: 'named', named } : { kind: 'odd' };
+  }
+  const braceAt = c.indexOf('{');
+  if (braceAt !== -1) {
+    const defPart = c.slice(0, braceAt).trim().replace(/,$/, '').trim();
+    const named = parseNamedList(c.slice(braceAt));
+    if (named && ident.test(defPart)) return { kind: 'mixed', defaultName: defPart, named };
+    return { kind: 'odd' };
+  }
+  if (ident.test(c)) return { kind: 'default', defaultName: c };
+  return { kind: 'odd' };
+}
+
+function parseNamedList(brace: string): Array<{ imported: string; local: string }> | null {
+  const m = brace.trim().match(/^\{([^}]*)\}$/);
+  if (!m) return null;
+  const out: Array<{ imported: string; local: string }> = [];
+  for (const part of m[1].split(',')) {
+    const s = part.trim();
+    if (!s) continue;
+    const am = s.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+    if (am) {
+      out.push({ imported: am[1], local: am[2] });
+      continue;
+    }
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)) {
+      out.push({ imported: s, local: s });
+      continue;
+    }
+    return null;
+  }
+  return out;
+}
+
+// collectModuleExports scans a module for its exported value names (for
+// `import * as ns` + unknown-export checks) and type-only names (which
+// cannot be imported as values — they vanish in the TS strip). Line-based
+// like the import pass; strings/comments skipped via blankStringsAndComments.
+function collectModuleExports(src: string): { values: string[]; types: string[]; hasDefault: boolean } {
+  const values: string[] = [];
+  const types: string[] = [];
+  let hasDefault = false;
+  for (const line of src.split('\n')) {
+    const blanked = blankStringsAndComments(line);
+    const t = blanked.trim();
+    if (/^export\s+default\b/.test(t)) {
+      hasDefault = true;
+      continue;
+    }
+    let m = t.match(/^export\s+(?:async\s+function\s+|function\s+|class\s+|enum\s+|namespace\s+)([A-Za-z_$][A-Za-z0-9_$]*)/);
+    if (m) {
+      values.push(m[1]);
+      continue;
+    }
+    m = t.match(/^export\s+(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
+    if (m) {
+      values.push(m[1]);
+      continue;
+    }
+    m = t.match(/^export\s+(interface|type)\s+([A-Za-z_$][A-Za-z0-9_$]*)/);
+    if (m) {
+      types.push(m[2]);
+      continue;
+    }
+    m = t.match(/^export\s*\{([^}]*)\}\s*;?\s*$/);
+    if (m && !/\bfrom\b/.test(t)) {
+      for (const part of m[1].split(',')) {
+        const s = part.trim();
+        if (!s) continue;
+        const am = s.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+        if (am) values.push(am[2]);
+        else if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)) values.push(s);
+      }
+    }
+  }
+  return { values, types, hasDefault };
+}
+
+// bundleVirtualModules inlines reachable relative modules in dependency order
+// before the entry body and rewrites the satisfied import lines to const
+// bindings. React imports are merged into one header (deduped — two modules
+// importing {useState} must not emit duplicate consts). Throws
+// page-author-actionable errors for escapes, bare/absolute specifiers,
+// missing modules (listing available names), cycles (naming the cycle),
+// unknown exports, oversize bundles and over-deep graphs.
+function bundleVirtualModules(entrySrc: string, modules: Record<string, string>): string {
+  const keys = Object.keys(modules);
+  if (keys.length > MAX_REACT_PAGE_MODULES) {
+    throw new Error(`too many modules (${keys.length}, max ${MAX_REACT_PAGE_MODULES}) — merge small helpers into fewer files`);
+  }
+  // Normalized lookup: Files live at the page root ('util'), imports may
+  // carry an extension ('./util.js'). Both sides strip it for the match.
+  const byKey = new Map<string, { name: string; content: string }>();
+  for (const k of keys) {
+    validateModuleName(k);
+    const norm = stripModuleExt(k);
+    const prev = byKey.get(norm);
+    if (prev) {
+      throw new Error(`duplicate module '${norm}' ('${prev.name}' vs '${k}') — Files names must be unique ignoring extensions`);
+    }
+    byKey.set(norm, { name: k, content: modules[k] ?? '' });
+  }
+  const available = [...byKey.keys()].sort();
+  const bodies = new Map<string, string>();
+  bodies.set('index', entrySrc);
+  for (const [, v] of byKey) bodies.set(v.name, v.content);
+
+  // Dependency graph over normalized keys ('index' == entry at root).
+  const deps = new Map<string, string[]>();
+  const resolveOne = (spec: string, importer: string, importerDir: string): string | null => {
+    if (spec === 'react') return null;
+    const norm = stripModuleExt(normalizeModuleSpecifier(spec, importerDir));
+    if (!byKey.has(norm)) {
+      const who = importer === 'index' ? 'index' : `'${importer}'`;
+      const avail = available.length ? available.join(', ') : '(no modules)';
+      throw new Error(`unknown module '${spec.slice(0, 80)}' (imported by ${who}) — available modules: ${avail} — add a Files entry or fix the path`);
+    }
+    return norm;
+  };
+  const allFiles: Array<{ key: string; dir: string; src: string }> = [
+    { key: 'index', dir: '', src: entrySrc },
+    ...[...byKey].map(([norm, v]) => ({ key: norm, dir: dirOfModuleKey(norm), src: v.content })),
+  ];
+  for (const f of allFiles) {
+    const list: string[] = [];
+    for (const imp of collectFileImports(f.src)) {
+      if (imp.kind === 'odd') continue; // later pass rejects the shape.
+      // Bare/absolute/escaping specifiers throw here (fail-closed, parity
+      // with the Go validator).
+      const dep = resolveOne(imp.spec, f.key === 'index' ? 'index' : (byKey.get(f.key)?.name ?? f.key), f.dir);
+      if (dep !== null && !list.includes(dep)) list.push(dep);
+    }
+    deps.set(f.key, list);
+  }
+
+  // Reachable from the entry only — unused Files never ship, so old pages
+  // with stray modules stay byte-identical.
+  const reachable = new Set<string>(['index']);
+  const stack = ['index'];
+  let guard = 0;
+  while (stack.length) {
+    if (++guard > MAX_MODULE_GRAPH_DEPTH * 20) {
+      throw new Error(`module graph too large — check for runaway imports (max ${MAX_REACT_PAGE_MODULES} modules)`);
+    }
+    const cur = stack.pop()!;
+    for (const d of deps.get(cur) ?? []) {
+      if (!reachable.has(d)) {
+        reachable.add(d);
+        stack.push(d);
+      }
+    }
+  }
+
+  // Depth guard: a 500-deep chain fails closed instead of overflowing.
+  {
+    const depthOf = (start: string): number => {
+      let depth = 0;
+      let cur = start;
+      const seen = new Set<string>();
+      while (cur !== 'index') {
+        if (seen.has(cur)) break;
+        seen.add(cur);
+        // Walk one parent chain (first importer found).
+        let parent: string | null = null;
+        for (const [k, ds] of deps) {
+          if (reachable.has(k) && ds.includes(cur)) {
+            parent = k;
+            break;
+          }
+        }
+        if (!parent) break;
+        cur = parent;
+        if (++depth > MAX_MODULE_GRAPH_DEPTH) break;
+      }
+      return depth;
+    };
+    for (const k of reachable) {
+      if (k !== 'index' && depthOf(k) > MAX_MODULE_GRAPH_DEPTH) {
+        throw new Error(`module graph too deep (>${MAX_MODULE_GRAPH_DEPTH}) — flatten the import chain`);
+      }
+    }
+  }
+
+  // Topological order (dependencies first) with cycle detection naming the
+  // cycle. Iterative DFS so deep (but legal) chains don't recurse.
+  const order: string[] = [];
+  const state = new Map<string, number>(); // 0 unvisited, 1 in-stack, 2 done
+  const path: string[] = [];
+  const visit = (start: string) => {
+    const work: Array<{ key: string; i: number }> = [{ key: start, i: 0 }];
+    while (work.length) {
+      const top = work[work.length - 1];
+      const st = state.get(top.key) ?? 0;
+      if (st === 0) {
+        state.set(top.key, 1);
+        path.push(top.key);
+      }
+      const ds = (deps.get(top.key) ?? []).filter((d) => reachable.has(d));
+      if (top.i < ds.length) {
+        const next = ds[top.i++];
+        const ns = state.get(next) ?? 0;
+        if (ns === 1) {
+          const cyc = [...path.slice(path.indexOf(next)), next].map((k) =>
+            k === 'index' ? 'index' : `'${byKey.get(k)?.name ?? k}'`,
+          );
+          throw new Error(`circular import detected: ${cyc.join(' -> ')} — break the cycle by moving shared code into a leaf module`);
+        }
+        if (ns === 0) work.push({ key: next, i: 0 });
+        continue;
+      }
+      state.set(top.key, 2);
+      path.pop();
+      if (top.key !== 'index') order.push(top.key);
+      work.pop();
+    }
+  };
+  visit('index');
+
+  // Per-module export tables for `import * as ns` + unknown-export checks.
+  const exportOf = new Map<string, { values: string[]; types: string[]; hasDefault: boolean }>();
+  for (const k of order) {
+    exportOf.set(k, collectModuleExports(byKey.get(k)!.content));
+  }
+
+  // Merged react header (deduped across entry + modules).
+  const reactNamed = new Map<string, string>(); // local -> imported
+  const reactNs = new Map<string, boolean>();
+  let reactSide = false;
+  const scanReact = (src: string) => {
+    for (const line of src.split('\n')) {
+      if (!/^\s*import\b/.test(blankStringsAndComments(line))) continue;
+      if (/^\s*import\s+['"]react['"]\s*;?\s*$/.test(line)) {
+        reactSide = true;
+        continue;
+      }
+      const m = line.match(/^\s*import\s+(.+?)\s+from\s+['"]react['"]\s*;?\s*$/);
+      if (!m) continue;
+      const clause = m[1].trim();
+      const ns = clause.match(/^\*\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+      if (ns) {
+        reactNs.set(ns[1], true);
+        continue;
+      }
+      const parts = clause.match(/^([A-Za-z_$][A-Za-z0-9_$]*)?\s*,?\s*(\{[^}]*\})?$/);
+      if (!parts) continue;
+      if (parts[2]) {
+        for (const p of parts[2].slice(1, -1).split(',')) {
+          const s = p.trim();
+          if (!s) continue;
+          const am = s.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s+as\s+([A-Za-z_$][A-Za-z0-9_$]*)$/);
+          if (am) {
+            if (!reactNamed.has(am[2])) reactNamed.set(am[2], am[1]);
+          } else if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(s)) {
+            if (!reactNamed.has(s)) reactNamed.set(s, s);
+          }
+        }
+      }
+    }
+  };
+  scanReact(entrySrc);
+  for (const k of order) scanReact(byKey.get(k)!.content);
+
+  // Rewrite one file: relative imports -> const bindings/comments, react
+  // imports -> dropped (merged header covers them), export default ->
+  // per-module default binding, local export lists -> dropped.
+  const rewriteFile = (src: string, selfKey: string, selfDir: string): string => {
+    const defBinding = `__ks_default_${sanitizeModuleKey(selfKey === 'index' ? 'index' : (byKey.get(selfKey)?.name ?? selfKey))}`;
+    const lines = src.split('\n');
+    const out: string[] = [];
+    for (const line of lines) {
+      const blanked = blankStringsAndComments(line);
+      // Module default export -> default binding (entry keeps fail-closed:
+      // `export default` there is still rejected by the later pass).
+      if (selfKey !== 'index' && /^\s*export\s+default\b/.test(blanked)) {
+        out.push(line.replace(/export\s+default/, `const ${defBinding} =`));
+        continue;
+      }
+      // Local export list in a module -> dropped (names are top-level after
+      // concatenation). Re-exports stay for the later pass to reject.
+      if (selfKey !== 'index' && /^\s*export\s*\{[^}]*\}\s*;?\s*$/.test(blanked) && !/\bfrom\b/.test(blanked)) {
+        out.push('// (bundled export list: names are top-level after inlining)');
+        continue;
+      }
+      if (!/^\s*import\b/.test(blanked)) {
+        out.push(line);
+        continue;
+      }
+      // React imports -> dropped here, merged header covers them.
+      if (/^\s*import\s+['"]react['"]\s*;?\s*$/.test(line)) continue;
+      {
+        const m = line.match(/^\s*import\s+(.+?)\s+from\s+['"]react['"]\s*;?\s*$/);
+        if (m) continue;
+      }
+      const mSide = line.match(/^\s*import\s+['"]([^'"]+)['"]\s*;?\s*$/);
+      if (mSide) {
+        const spec = mSide[1];
+        if (spec === 'react') continue;
+        // Relative side-effect import: module already inlined above.
+        // resolveOne throws for bare/absolute/escape/missing (parity).
+        resolveOne(spec, selfKey === 'index' ? 'index' : (byKey.get(selfKey)?.name ?? selfKey), selfDir);
+        out.push(`// (bundled import '${spec.slice(0, 60)}')`);
+        continue;
+      }
+      const mFrom = line.match(/^\s*import\s+(.+?)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/);
+      if (!mFrom) {
+        out.push(line); // odd shape — later pass rejects it.
+        continue;
+      }
+      const clause = parseImportClause(mFrom[1]);
+      const spec = mFrom[2];
+      if (spec === 'react' || clause.kind === 'odd') {
+        out.push(line);
+        continue;
+      }
+      const dep = resolveOne(spec, selfKey === 'index' ? 'index' : (byKey.get(selfKey)?.name ?? selfKey), selfDir)!;
+      const exp = exportOf.get(dep) ?? { values: [], types: [], hasDefault: false };
+      const depLabel = `'${byKey.get(dep)?.name ?? dep}'`;
+      const bindings: string[] = [];
+      const checkNamed = (items: Array<{ imported: string; local: string }>) => {
+        for (const { imported, local } of items) {
+          if (exp.types.includes(imported) && !exp.values.includes(imported)) {
+            throw new Error(`module ${depLabel} export '${imported}' is a type (interface/type) and cannot be imported as a value — import a function, const or component instead`);
+          }
+          if (!exp.values.includes(imported) && imported !== 'default') {
+            const avail = exp.values.length ? exp.values.slice().sort().join(', ') : '(no value exports)';
+            throw new Error(`module ${depLabel} has no export '${imported}' — available: ${avail}`);
+          }
+          if (local !== imported) bindings.push(`const ${local} = ${imported};`);
+        }
+      };
+      if (clause.kind === 'namespace') {
+        const parts = exp.values.map((v) => `${v}: ${v}`);
+        if (exp.hasDefault) parts.push(`default: ${`__ks_default_${sanitizeModuleKey(byKey.get(dep)!.name)}`}`);
+        bindings.push(`const ${clause.namespace} = { ${parts.join(', ')} };`);
+      } else if (clause.kind === 'default') {
+        if (!exp.hasDefault) {
+          const avail = exp.values.length ? exp.values.slice().sort().join(', ') : '(no value exports)';
+          throw new Error(`module ${depLabel} has no default export (imported by ${selfKey === 'index' ? 'index' : `'${byKey.get(selfKey)?.name ?? selfKey}'`}) — available: ${avail} — add 'export default ...' or use a named import`);
+        }
+        bindings.push(`const ${clause.defaultName} = __ks_default_${sanitizeModuleKey(byKey.get(dep)!.name)};`);
+      } else if (clause.kind === 'named' && clause.named) {
+        checkNamed(clause.named);
+      } else if (clause.kind === 'mixed' && clause.named && clause.defaultName) {
+        if (!exp.hasDefault) {
+          const avail = exp.values.length ? exp.values.slice().sort().join(', ') : '(no value exports)';
+          throw new Error(`module ${depLabel} has no default export — available: ${avail} — add 'export default ...' or use a named import`);
+        }
+        bindings.push(`const ${clause.defaultName} = __ks_default_${sanitizeModuleKey(byKey.get(dep)!.name)};`);
+        checkNamed(clause.named);
+      } else {
+        out.push(line);
+        continue;
+      }
+      out.push(`// (bundled import from '${spec.slice(0, 60)}')`);
+      for (const b of bindings) out.push(b);
+    }
+    return out.join('\n');
+  };
+
+  const chunks: string[] = [];
+  if (reactSide || reactNamed.size > 0 || reactNs.size > 0) {
+    chunks.push('// (bundled react imports: runtime already in scope)');
+    if (reactSide) chunks.push('// (dropped side-effect import of react: runtime already in scope)');
+    for (const alias of [...reactNs.keys()].sort()) chunks.push(`const ${alias} = React;`);
+    if (reactNamed.size > 0) {
+      const inner = [...reactNamed.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+        .map(([local, imported]) => (local === imported ? local : `${imported}: ${local}`))
+        .join(', ');
+      chunks.push(`const {${inner}} = React;`);
+    }
+  }
+  for (const k of order) {
+    const v = byKey.get(k)!;
+    chunks.push(`// ---- module: ${v.name} (bundled) ----`);
+    chunks.push(rewriteFile(v.content, k, dirOfModuleKey(k)));
+  }
+  chunks.push('// ---- entry (index) ----');
+  chunks.push(rewriteFile(entrySrc, 'index', ''));
+
+  const combined = chunks.join('\n');
+  if (combined.length > 512 * 1024) {
+    throw new Error(
+      `combined page source too large (${combined.length} bytes including ${order.length} module(s), max 524288) — split the page or shrink modules (components budget is 512KiB total)`,
+    );
+  }
+  return combined;
+}
+
 // transpileReactPageSource is the single entry point for the renderer (and
 // Studio live-check): react imports → JSX → light TS strip → executable JS.
 //
@@ -2090,8 +2602,17 @@ function emitNode(node: JSXNode): string {
 // JSX parsing untouched (they sit in plain code or `{expr}` holes, which the
 // JSX pass carries through verbatim), and quoted text is string-skipped by
 // every TS pass.
-export function transpileReactPageSource(src: string): { code: string; hadJSX: boolean; hadTS: boolean; hadImport: boolean } {
-  const rw = rewriteReactImports(src);
+export function transpileReactPageSource(
+  src: string,
+  modules?: Record<string, string>,
+): { code: string; hadJSX: boolean; hadTS: boolean; hadImport: boolean } {
+  // Optional second arg (default {}): old single-file call sites keep
+  // working and stay byte-identical (fast path below skips bundling when no
+  // reachable relative import exists).
+  const table = modules ?? {};
+  const needsBundle = collectFileImports(src).some((i) => i.spec !== 'react');
+  const entry = needsBundle ? bundleVirtualModules(src, table) : src;
+  const rw = rewriteReactImports(entry);
   const jsx = transpileJSX(rw.code);
   const ts = stripLightTS(jsx.code);
   return { code: ts.code, hadJSX: jsx.hadJSX, hadTS: ts.hadTS, hadImport: rw.hadImport };
