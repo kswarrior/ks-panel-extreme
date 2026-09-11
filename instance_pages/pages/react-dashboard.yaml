@@ -1,0 +1,140 @@
+# React Dashboard — near-real instance page (JSX + light TS authoring).
+# Proves the Plan-A upgrade: JSX, TS affordances, react-only import,
+# multi-component single file, tabs, polling, canvas chart (no npm libs),
+# sdk helpers (formatBytes/timeAgo/downloadText/copyText). Edit this file.
+name: React Dashboard
+slug: react-dashboard
+kind: custom
+category: dashboards
+description: 'Near-real React demo: JSX + TS, tabs, live polling, canvas chart and export. Uses only saved actions + sdk helpers.'
+content_type: react
+source_tsx: |
+  import { useState, useEffect, useRef } from 'react';
+
+  type TabId = 'overview' | 'system';
+
+  interface LoadPoint {
+    t: number;
+    v: number;
+  }
+
+  function BarChart(props: { points: LoadPoint[] }) {
+    const ref = useRef<HTMLCanvasElement | null>(null);
+    useEffect(() => {
+      const cv = ref.current;
+      if (!cv) return;
+      const ctx = cv.getContext('2d');
+      if (!ctx) return;
+      const W = (cv.width = cv.offsetWidth * 2);
+      const H = (cv.height = 160);
+      ctx.clearRect(0, 0, W, H);
+      const pts = props.points.slice(-40);
+      const max = Math.max(1, ...pts.map((p) => p.v));
+      const bw = W / Math.max(1, pts.length);
+      pts.forEach((p, i) => {
+        const h = Math.max(4, (p.v / max) * (H - 20));
+        ctx.fillStyle = i === pts.length - 1 ? '#38bdf8' : 'rgba(56,189,248,0.45)';
+        ctx.fillRect(i * bw + 2, H - h, bw - 4, h);
+      });
+    }, [props.points]);
+    return <canvas ref={ref} style={{ width: '100%', height: 80 }} />;
+  }
+
+  function Page() {
+    const [tab, setTab] = useState<TabId>('overview');
+    const [status, setStatus] = useState<string>('loading…');
+    const [points, setPoints] = useState<LoadPoint[]>([]);
+    const [updated, setUpdated] = useState<number>(0);
+    const [err, setErr] = useState<string>('');
+
+    async function refresh(): Promise<void> {
+      try {
+        const [a, b] = await Promise.all([
+          sdk.runAction('get_status'),
+          sdk.runAction('get_load'),
+        ]);
+        const out = String((a as { stdout?: string }).stdout || (a as { data?: unknown }).data || '').slice(0, 2000);
+        const loadRaw = String((b as { stdout?: string }).stdout || '0');
+        const n = parseFloat(loadRaw.trim().split(/\s+/)[0] || '0') || 0;
+        setStatus(out || 'ok');
+        setPoints((p: LoadPoint[]) => [...p.slice(-59), { t: Date.now(), v: n }].slice(-60));
+        setUpdated(Date.now());
+        setErr('');
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    useEffect(() => {
+      let stop = false;
+      refresh();
+      const id = setInterval(() => {
+        if (!stop) refresh();
+      }, 5000);
+      return () => {
+        stop = true;
+        clearInterval(id);
+      };
+    }, []);
+
+    function exportStatus(): void {
+      sdk.downloadText(`status-${sdk.instance.name}.txt`, status, 'text/plain;charset=utf-8');
+      sdk.toast('Exported', 'success');
+    }
+
+    return (
+      <div className="ks-page">
+        <div className="ks-row" style={{ marginBottom: 10 }}>
+          {(['overview', 'system'] as TabId[]).map((t: TabId) => (
+            <button
+              key={t}
+              className={'ks-tab' + (tab === t ? ' ks-tab-active' : '')}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ))}
+          <span className="ks-muted" style={{ marginLeft: 'auto', fontSize: 11 }}>
+            {updated ? `updated ${sdk.timeAgo(updated)}` : '…'}
+          </span>
+        </div>
+        {err ? <div className="ks-card" style={{ color: 'var(--ks-bad)' }}>{err}</div> : null}
+        {tab === 'overview' ? (
+          <div className="ks-card">
+            <h3>{sdk.instance.name}</h3>
+            <div className="ks-row">
+              <span className="ks-badge">{sdk.instance.status}</span>
+              <span className="ks-badge">{sdk.instance.kind}</span>
+              <span className="ks-badge">{points.length} samples</span>
+            </div>
+            <BarChart points={points} />
+            <div className="ks-row" style={{ marginTop: 8 }}>
+              <button className="ks-btn ks-btn-blue ks-btn-sm" onClick={refresh}>Refresh</button>
+              <button className="ks-btn ks-btn-sm" onClick={exportStatus}>Export</button>
+              <button className="ks-btn ks-btn-sm" onClick={() => sdk.copyText(status)}>Copy</button>
+            </div>
+          </div>
+        ) : (
+          <div className="ks-card">
+            <h3>System</h3>
+            <pre className="ks-mono" style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{status}</pre>
+            <div className="ks-muted" style={{ fontSize: 11 }}>page: {sdk.pageSlug}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return Page;
+bundle_css: '.ks-react-page .ks-tab { margin-right: 6px; }'
+icon_svg: <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>
+actions:
+- description: OS release / uname for the demo overview tab.
+  name: get_status
+  command: '{ echo "# uname"; uname -a; echo "# os-release"; cat /etc/os-release 2>/dev/null; } 2>&1'
+  timeout: 20
+  type: shell
+- description: 1m load average for the demo chart.
+  name: get_load
+  command: cat /proc/loadavg 2>/dev/null || echo "0.00 0.00 0.00"
+  timeout: 10
+  type: shell
