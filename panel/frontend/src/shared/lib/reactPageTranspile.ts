@@ -2715,6 +2715,7 @@ const SDK_API_ALLOWLIST = [
   'updateIdentity',
   'uploadFile',
   'uploadFromUrl',
+  'useHashRoute',
   'writeFile',
 ] satisfies Array<keyof CustomPageAPI>;
 
