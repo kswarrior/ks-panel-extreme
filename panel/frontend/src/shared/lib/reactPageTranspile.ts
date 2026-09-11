@@ -1301,12 +1301,19 @@ function emitNode(node: JSXNode): string {
 }
 
 // transpileReactPageSource is the single entry point for the renderer (and
-// Studio live-check): react imports → light TS strip → JSX → executable JS.
+// Studio live-check): react imports → JSX → light TS strip → executable JS.
+//
+// ORDER MATTERS: JSX runs BEFORE TS-stripping so element text lands inside
+// quoted strings first — otherwise a text colon like `page: {x}` looks like
+// a TS annotation and the stripper eats the markup. TS affordances survive
+// JSX parsing untouched (they sit in plain code or `{expr}` holes, which the
+// JSX pass carries through verbatim), and quoted text is string-skipped by
+// every TS pass.
 export function transpileReactPageSource(src: string): { code: string; hadJSX: boolean; hadTS: boolean; hadImport: boolean } {
   const rw = rewriteReactImports(src);
-  const ts = stripLightTS(rw.code);
-  const jsx = transpileJSX(ts.code);
-  return { code: jsx.code, hadJSX: jsx.hadJSX, hadTS: ts.hadTS, hadImport: rw.hadImport };
+  const jsx = transpileJSX(rw.code);
+  const ts = stripLightTS(jsx.code);
+  return { code: ts.code, hadJSX: jsx.hadJSX, hadTS: ts.hadTS, hadImport: rw.hadImport };
 }
 
 export default transpileReactPageSource;
