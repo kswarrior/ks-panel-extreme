@@ -19,7 +19,7 @@ func TestSavedActionMatchesExactArgs(t *testing.T) {
 	}
 	// Without open_args even a benign extra argument must be rejected: the
 	// browser may never widen a stored command.
-	if savedActionMatches(def, "shell", "df -h", "", "", []string{"-x", "extra"}, nil) {
+	if savedActionMatches(def, "shell", "df -h", "", "", []string{"-x", "extra"}, nil, "", nil, "") {
 		t.Fatal("extra args must not match without open_args")
 	}
 }
@@ -30,13 +30,13 @@ func TestSavedActionMatchesOpenArgsPrefix(t *testing.T) {
 		"command":   "docker stop {{args}}",
 		"open_args": true,
 	}
-	if !savedActionMatches(def, "shell", "docker stop {{args}}", "", "", []string{"web-1"}, nil) {
+	if !savedActionMatches(def, "shell", "docker stop {{args}}", "", "", []string{"web-1"}, nil, "", nil, "") {
 		t.Fatal("open_args action must match with runtime args")
 	}
-	if !savedActionMatches(def, "shell", "docker stop {{args}}", "", "", nil, nil) {
+	if !savedActionMatches(def, "shell", "docker stop {{args}}", "", "", nil, nil, "", nil, "") {
 		t.Fatal("open_args action must also match with zero runtime args")
 	}
-	if savedActionMatches(def, "shell", "docker start {{args}}", "", "", []string{"web-1"}, nil) {
+	if savedActionMatches(def, "shell", "docker start {{args}}", "", "", []string{"web-1"}, nil, "", nil, "") {
 		t.Fatal("stored command is the trust anchor — a different command must not match")
 	}
 }

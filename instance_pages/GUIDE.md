@@ -722,6 +722,12 @@ sdk.storage.delete(key: string): Promise<void>
 sdk.storage.clear(): Promise<void>
 sdk.storage.keys(): Promise<string[]>
 
+// — Server KV store (panel DB page_kv, per instance+page family; see §11.5) —
+sdk.kv.get(key: string): Promise<string|null>
+sdk.kv.set(key: string, value: string): Promise<void>
+sdk.kv.delete(key: string): Promise<void>
+sdk.kv.keys(): Promise<string[]>
+
 // — WebSocket (raw terminal PTY) —
 sdk.connectWS(protocols?: string[]): WebSocket
 //   host: direct wss://host/api/instances/<id>/terminal ; iframe: parent proxies ks-ws-* frames
@@ -805,6 +811,45 @@ sdk.navigate(`/instances/${sdk.instance.id}/${sdk.pageSlug}#tab=system`);
 
 Live example: `instance_pages/pages/react-dashboard.yaml` (`Overview` /
 `System` tabs; polling, `sdk.chart` and export behavior unchanged).
+
+### 11.5 Server KV store (`sdk.kv`)
+
+`sdk.storage` is `localStorage` in the operator's current browser only —
+per-`ks_page_<instanceId>_` prefix, page-agnostic, gone on a new device.
+`sdk.kv` persists small page state server-side in the panel DB (`page_kv`,
+migration `078_page_kv.sql`), keyed by `(instance_id, page_slug, k)`, so it
+survives browsers/profiles and is shared by every operator who can view the
+page on that instance. Same Promise shape as `sdk.storage`:
+
+```ts
+sdk.kv.get(key: string): Promise<string | null>  // null when absent
+sdk.kv.set(key: string, value: string): Promise<void>
+sdk.kv.delete(key: string): Promise<void>        // idempotent, like storage.delete
+sdk.kv.keys(): Promise<string[]>                 // sorted keys of THIS page
+```
+
+```js
+await KSPageSDK.kv.set('theme', 'dark');
+const v = await KSPageSDK.kv.get('theme'); // 'dark' on any browser/profile
+```
+
+* **Scoping** — every call stamps `instance_id` + `page_slug`; the server
+resolves the slug with `findSpecPageRow(parseSpecRows(instance.Config),
+pageSlug)` (`instance_page_guard.go`), the same gate as `POST
+/api/instance-pages/execute-action` (needs `VIEW_INSTANCES` + the page
+family enabled on that instance). A list scoped to instance B can never see
+A's rows (IDOR-closed by the `(instance_id, page_slug)` key prefix).
+* **pageSlug derivation rule** — never hardcode the slug: the SDK stamps
+`sdk.pageSlug` verbatim (the effective slug, e.g. `files/edit` on a
+sub-page). Sub-pages share the parent family (the parent row carries the
+keys), exactly like the execute-action allow-list. A page without a slug
+(Studio static preview) fails closed server-side.
+* **Quotas** (enforced server-side): ≤100 keys per page, key
+`^[A-Za-z0-9_.-]{1,128}$`, value ≤64KiB (bytes). Writes past the quota,
+bad-charset keys and oversized values fail with a thrown `Error`.
+* **Not a secrets store** — values sit in the clear in `page_kv` and are
+returned to anyone with page access. Never put tokens/passwords here; use
+the secrets vault (`sdk.setSecret`).
 
 ---
 
