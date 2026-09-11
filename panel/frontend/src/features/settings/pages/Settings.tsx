@@ -569,36 +569,37 @@ const Settings: React.FC = () => {
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         {success && <p className="text-sm text-green-400">{success}</p>}
-
-        {/* Bottom-right form pill — undo / redo / refresh / discard / save,
-            shared system with every panel form. Discard reverts to the last
-            saved values without a round-trip; Refresh reloads them from the
-            server (never resets to defaults). */}
-        <PageFormActionsPill>
-          <PillHistoryControls hist={hist} onRefresh={refresh} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => hist.revert()}
-            disabled={!hist.isDirty || saving}
-            title="Discard unsaved edits"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
-            style={PILL_TAB_STYLE}
-          >
-            <span className="inline-flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /> </svg>
-              {saving ? 'Saving…' : 'Save'}
-            </span>
-          </button>
-        </PageFormActionsPill>
       </form>
+
+      {/* Bottom-right form pill — rendered OUTSIDE the glass-card form (like
+          InstanceForm) so `position: fixed` docks to the viewport bottom.
+          Ancestor backdrop-filter/transform would otherwise trap it inside
+          the card. Save submits via form="settings-form". */}
+      <PageFormActionsPill>
+        <PillHistoryControls hist={hist} onRefresh={refresh} refreshing={refreshing} />
+        <button
+          type="button"
+          onClick={() => hist.revert()}
+          disabled={!hist.isDirty || saving}
+          title="Discard unsaved edits"
+          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+          style={PILL_TAB_STYLE}
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          form="settings-form"
+          disabled={saving}
+          className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+          style={PILL_TAB_STYLE}
+        >
+          <span className="inline-flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /> </svg>
+            {saving ? 'Saving…' : 'Save'}
+          </span>
+        </button>
+      </PageFormActionsPill>
 
       {/* ---- Logo sub-page (node-form Icon & colour pattern) ---- */}
       <GlassModal
