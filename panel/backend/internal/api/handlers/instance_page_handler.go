@@ -799,9 +799,11 @@ func validateReactModules(entry string, modules map[string]string) error {
 		if err := validateReactSource(strings.Join(lines, "\n")); err != nil {
 			return newErrString("module '" + origName[k] + "': " + err.Error())
 		}
-		// Unknown named/default imports fail closed with available exports.
-		exports := collectReactModuleExports(content)
-		for _, imp := range collectReactImportDetails(content) {
+		// Unknown named/default imports fail closed with available exports —
+	// checked for the entry AND every reachable module (mirrors the FE
+	// rewriteFile validation).
+	checkImports := func(selfKey, src string) error {
+		for _, imp := range collectReactImportDetails(src) {
 			if imp.spec == "react" || imp.kind == "odd" || imp.kind == "side" {
 				continue
 			}
@@ -810,12 +812,8 @@ func validateReactModules(entry string, modules map[string]string) error {
 				return err
 			}
 			dep := stripReactModuleExt(norm)
-			var target reactModuleExports
-			if dep == k {
-				target = exports
-			} else if e, ok2 := moduleExportsOf(byKey, dep); ok2 {
-				target = e
-			} else {
+			target, ok := moduleExportsOf(byKey, dep)
+			if !ok {
 				continue // missing already reported above.
 			}
 			depLabel := "'" + origName[dep] + "'"
@@ -860,6 +858,18 @@ func validateReactModules(entry string, modules map[string]string) error {
 					return newErrString("module " + depLabel + " has no export '" + nn.imported + "' — available: " + availE)
 				}
 			}
+		}
+		return nil
+	}
+	if err := checkImports("index", entry); err != nil {
+		return err
+	}
+	for k, content := range byKey {
+		if !reachable[k] {
+			continue
+		}
+		if err := checkImports(k, content); err != nil {
+			return err
 		}
 	}
 	return nil
