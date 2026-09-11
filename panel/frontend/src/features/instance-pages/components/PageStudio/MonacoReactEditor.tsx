@@ -6,8 +6,10 @@
 //   URL anywhere in this path and NO `vite-plugin-monaco-editor` (unneeded:
 //   Vite 5 bundles `?worker` natively; the plugin only adds copy-step build
 //   complexity for zero offline benefit).
-// - `MonacoEnvironment.getWorkerUrl` is configured with those bundled
-//   workers. Tradeoff, stated explicitly: full TS language service (hover,
+// - `MonacoEnvironment.getWorker` is configured with those bundled
+//   workers (the non-deprecated equivalent of `getWorkerUrl`: returning a
+//   constructed `?worker` instead of a URL string keeps the same same-origin,
+//   offline-safe loading without a URL round-trip). Tradeoff, stated explicitly: full TS language service (hover,
 //   diagnostics, completion) costs the ~monaco chunk in `ui/dist` (see
 //   bundle-size note in the item-5 report). The alternative — disabling
 //   workers (`getWorker: () => null`) — would keep the bundle small but kill
