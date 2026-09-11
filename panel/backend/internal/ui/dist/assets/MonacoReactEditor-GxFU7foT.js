@@ -1,4 +1,4 @@
-import{r as f,j as S}from"./react-0h_Dc6Wy.js";import{U as A,e as y,W as R,a as E,l as m}from"./monaco-DM-95xPw.js";import"./preload-helper-D7HrI6pR.js";const C=`// Custom Page SDK — provides a runtime API for custom instance pages.
+import{r as f,j as S}from"./react-0h_Dc6Wy.js";import{U as A,e as y,W as R,a as E,l as m}from"./monaco-C-Qj0obh.js";import"./preload-helper-D7HrI6pR.js";const C=`// Custom Page SDK — provides a runtime API for custom instance pages.
 // Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd,
 // stat, chmod, archive, extract)
 // All operations go through executeAction() - no per-endpoint methods.
