@@ -1,5 +1,6 @@
 // reactPageTranspile — dependency-free JSX + light-TS affordances for
 // instance React pages (near-real, Plan A).
+import type { CustomPageAPI } from './customPageSdk';
 //
 // v1 contract was plain JS with React.createElement (no JSX). This module
 // runs BOTH in the renderer (CustomPageView ReactModuleView, before script
@@ -2623,6 +2624,257 @@ export function transpileReactPageSource(
   const jsx = transpileJSX(rw.code);
   const ts = stripLightTS(jsx.code);
   return { code: ts.code, hadJSX: jsx.hadJSX, hadTS: ts.hadTS, hadImport: rw.hadImport };
+}
+
+// ---- lite diagnostics (Studio warnings, non-blocking) ----
+
+// ReactPageDiagnostic is one pre-Build warning for the Studio editor.
+// severity is always 'warn': Build stays the gate, this list never blocks
+// saves or builds.
+export interface ReactPageDiagnostic {
+  line: number;
+  message: string;
+  severity: 'warn';
+}
+
+// SDK_API_ALLOWLIST mirrors the top-level keys of CustomPageAPI
+// (customPageSdk.ts). `satisfies` keeps the two in sync at compile time: a
+// renamed/removed SDK method fails typecheck here instead of silently
+// drifting into false-positive typo warnings. `import type` only, so this
+// module stays dependency-free at runtime.
+const SDK_API_ALLOWLIST = [
+  'actions',
+  'archivePaths',
+  'chart',
+  'chmodPath',
+  'config',
+  'confirm',
+  'connectWS',
+  'copyPath',
+  'copyText',
+  'createAutomationJob',
+  'createDirectory',
+  'debounce',
+  'deleteAutomationJob',
+  'deleteFile',
+  'deleteSecret',
+  'disableSftp',
+  'docker',
+  'downloadAutomation',
+  'downloadFile',
+  'downloadText',
+  'emit',
+  'enableSftp',
+  'executeAction',
+  'extractArchive',
+  'fetchPanel',
+  'formatBytes',
+  'getMetrics',
+  'getSftp',
+  'importAutomationURL',
+  'instance',
+  'killProcess',
+  'kvm',
+  'listAudit',
+  'listAutomation',
+  'listAutomationRuns',
+  'listFiles',
+  'listPorts',
+  'listProcesses',
+  'listSecrets',
+  'lxd',
+  'markdown',
+  'modal',
+  'navigate',
+  'on',
+  'once',
+  'pageSlug',
+  'power',
+  'prompt',
+  'readFile',
+  'reinstall',
+  'renamePath',
+  'revealSecret',
+  'revealSftp',
+  'rotateSftp',
+  'runAction',
+  'runAutomationJob',
+  'saveEnv',
+  'savePorts',
+  'searchFiles',
+  'sendActionStdin',
+  'sendInstallStdin',
+  'setSecret',
+  'shell',
+  'statPath',
+  'storage',
+  'subscribe',
+  'timeAgo',
+  'toast',
+  'updateAutomationJob',
+  'updateIdentity',
+  'uploadFile',
+  'uploadFromUrl',
+  'writeFile',
+] satisfies Array<keyof CustomPageAPI>;
+
+const SDK_API_KNOWN: ReadonlySet<string> = new Set(SDK_API_ALLOWLIST);
+
+// BUILD_DENIED mirrors the validateReactSource deny-list
+// (panel/backend/internal/api/handlers/instance_page_handler.go): substrings
+// matched case-insensitively against the blanked source. Kept in the same
+// order with the same verdicts so a warning here always means Build rejects.
+const BUILD_DENIED: Array<{ needle: string; message: string }> = [
+  { needle: 'eval(', message: 'Build will reject `eval(` — pages must use sdk.* helpers instead (no dynamic code execution)' },
+  { needle: 'new function', message: 'Build will reject the `Function` constructor (`new function`) — pages must use sdk.* helpers instead' },
+  { needle: '__proto__', message: 'Build will reject `__proto__` — prototype pollution is not allowed in page sources' },
+  { needle: 'xmlhttprequest', message: 'Build will reject `XMLHttpRequest` — use `sdk.fetchPanel` instead' },
+  { needle: 'document.cookie', message: 'Build will reject `document.cookie` — pages must not touch cookies directly' },
+  { needle: 'localstorage', message: 'Build will reject `localStorage` — use `sdk.storage` instead' },
+  { needle: 'sessionstorage', message: 'Build will reject `sessionStorage` — use `sdk.storage` instead' },
+  { needle: 'child_process', message: 'Build will reject `child_process` — pages must use saved actions via `sdk.runAction`' },
+  { needle: 'require(', message: "Build will reject `require(` — only `import ... from 'react'` and relative `./...` modules are allowed" },
+];
+
+// diagnoseReactPageSource scans author source for the mistakes Build rejects
+// (plus bracket balance and a missing `return Page;`) and returns
+// non-blocking warnings with 1-based line numbers. Dependency-free and
+// string/comment-aware: every check runs on blankStringsAndComments output
+// (length- and newline-preserving, so lines map 1:1); no regex touches raw
+// text except the import-specifier extraction, which only runs on lines the
+// blanked gate already proved are real import statements (blanking erases
+// the quoted specifier, so it must be read back from the gated raw line).
+export function diagnoseReactPageSource(src: string): ReactPageDiagnostic[] {
+  const diags: ReactPageDiagnostic[] = [];
+  const blanked = blankStringsAndComments(src);
+  const lineCount = blanked.split('\n').length;
+  const lineStarts: number[] = [0];
+  for (let i = 0; i < blanked.length; i++) {
+    if (blanked[i] === '\n') lineStarts.push(i + 1);
+  }
+  const lineOfIndex = (idx: number): number => {
+    let lo = 0;
+    let hi = lineStarts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (lineStarts[mid] <= idx) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo + 1;
+  };
+
+  // 1) Unbalanced brackets (per-line depth report over the blanked source).
+  {
+    const stack: Array<{ ch: string; line: number }> = [];
+    const want: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+    const closeFor: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+    let line = 1;
+    for (let i = 0; i < blanked.length; i++) {
+      const c = blanked[i];
+      if (c === '\n') {
+        line++;
+        continue;
+      }
+      if (c === '(' || c === '[' || c === '{') {
+        stack.push({ ch: c, line });
+      } else if (c === ')' || c === ']' || c === '}') {
+        const top = stack.pop();
+        if (!top) {
+          diags.push({ line, message: `unbalanced \`${c}\` — no matching \`${want[c]}\` (Build will fail)`, severity: 'warn' });
+        } else if (top.ch !== want[c]) {
+          diags.push({
+            line,
+            message: `mismatched brackets — \`${top.ch}\` opened on line ${top.line} closed by \`${c}\` here`,
+            severity: 'warn',
+          });
+        }
+      }
+    }
+    for (const left of stack) {
+      diags.push({ line: left.line, message: `unclosed \`${left.ch}\` — missing \`${closeFor[left.ch]}\` (Build will fail)`, severity: 'warn' });
+    }
+  }
+
+  // 2) Missing `return Page;`.
+  if (!/(^|[^A-Za-z0-9_$])return\s+Page\b/.test(blanked)) {
+    diags.push({
+      line: Math.max(1, lineCount),
+      message: 'missing `return Page;` — pages must define `function Page()` and end with `return Page;`',
+      severity: 'warn',
+    });
+  }
+
+  // 3) Unknown sdk.* method (first segment checked against CustomPageAPI
+  // keys; sdk.storage.* sub-methods are covered by the top-level `storage`
+  // key and never warn here).
+  {
+    const sdkRe = /(^|[^A-Za-z0-9_$])sdk\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
+    const seen = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = sdkRe.exec(blanked)) !== null) {
+      const name = m[2];
+      if (SDK_API_KNOWN.has(name)) continue;
+      const line = lineOfIndex(m.index + m[1].length);
+      const key = `${line}:${name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      diags.push({ line, message: `unknown sdk.${name} — not on CustomPageAPI (typo? check the SDK method name)`, severity: 'warn' });
+    }
+  }
+
+  // 4) Primitives Build rejects (deny-list + raw fetch with the sanctioned
+  // sdk.fetchPanel masked out first, same gate as the validator).
+  {
+    const lower = blanked.toLowerCase();
+    for (const { needle, message } of BUILD_DENIED) {
+      let from = 0;
+      for (;;) {
+        const at = lower.indexOf(needle, from);
+        if (at === -1) break;
+        diags.push({ line: lineOfIndex(at), message, severity: 'warn' });
+        from = at + needle.length;
+      }
+    }
+    const masked = blanked.split('sdk.fetchPanel').join(' '.repeat('sdk.fetchPanel'.length));
+    const fetchRe = /(^|[^A-Za-z0-9_$])fetch\s*\(/g;
+    let fm: RegExpExecArray | null;
+    while ((fm = fetchRe.exec(masked)) !== null) {
+      diags.push({ line: lineOfIndex(fm.index + fm[1].length), message: 'Build will reject raw `fetch(` — use `sdk.fetchPanel` instead', severity: 'warn' });
+    }
+  }
+
+  // 5) Imports from non-react packages. Gate: the blanked line must be a
+  // real import statement (skips `// import` comments and quoted samples).
+  // The specifier itself is blanked away, so it is read back from the gated
+  // raw line with the same shapes collectFileImports accepts. 'react' and
+  // relative './...'/'../...' (virtual modules) are allowed; anything else
+  // warns. Unparsable (multiline/odd) shapes are left for Build to explain.
+  {
+    const rawLines = src.split('\n');
+    for (let li = 0; li < rawLines.length; li++) {
+      const rawLine = rawLines[li];
+      if (!/^\s*import\b/.test(blankStringsAndComments(rawLine))) continue;
+      let spec: string | null = null;
+      const side = rawLine.match(/^\s*import\s+['"]([^'"]+)['"]\s*;?\s*$/);
+      if (side) {
+        spec = side[1];
+      } else {
+        const from = rawLine.match(/^\s*import\s+(.+?)\s+from\s+['"]([^'"]+)['"]\s*;?\s*$/);
+        if (from) spec = from[2];
+      }
+      if (spec === null) continue;
+      if (spec === 'react') continue;
+      if (spec.startsWith('./') || spec.startsWith('../')) continue;
+      diags.push({
+        line: li + 1,
+        message: `import from '${spec.slice(0, 60)}' will fail Build — only \`from 'react'\` and relative \`./...\` staying inside the page root are allowed; React and sdk are already in scope`,
+        severity: 'warn',
+      });
+    }
+  }
+
+  diags.sort((a, b) => a.line - b.line);
+  return diags;
 }
 
 export default transpileReactPageSource;
