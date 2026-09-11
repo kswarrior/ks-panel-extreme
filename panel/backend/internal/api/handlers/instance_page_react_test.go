@@ -27,13 +27,53 @@ func TestValidateReactSourceRejectsHostEscapes(t *testing.T) {
 		`localStorage.getItem("k")`,
 		`require("fs")`,
 		`import x from "axios"`,
-		// Even react itself: the renderer injects sdk + React, and new
-		// Function cannot parse module syntax at all.
-		`import React from "react"`,
+		`import { Button } from "@mui/material"`,
+		// The renderer injects sdk + React inside a function wrapper, which
+		// cannot parse module syntax for other packages.
 		`export default Page`,
 	} {
 		if err := validateReactSource(src); err == nil {
 			t.Fatalf("expected rejection for %q", src)
+		}
+	}
+}
+
+func TestValidateReactSourceAllowsReactOnlyImports(t *testing.T) {
+	for _, src := range []string{
+		`import React from "react"
+function Page() { return React.createElement('div', null, 'hi'); }`,
+		`import { useState, useEffect } from 'react'
+function Page() { const [x] = useState(0); return React.createElement('div', null, String(x)); }`,
+		`import * as R from 'react'
+function Page() { return R.createElement('div', null, 'hi'); }`,
+		`import 'react'
+function Page() { return React.createElement('div', null, 'hi'); }`,
+	} {
+		if err := validateReactSource(src); err != nil {
+			t.Fatalf("expected react-only import to pass, got %v", err)
+		}
+	}
+}
+
+func TestValidateReactSourceAllowsJSXAndLightTS(t *testing.T) {
+	for _, src := range []string{
+		`function Page() { return <div className="ks-page">hi</div>; }
+return Page;`,
+		`import { useState } from 'react'
+type Props = { title: string };
+interface State { n: number }
+function Page(props: Props) {
+  const [n, setN] = useState<number>(0);
+  const v = props.title as string;
+  return <div>{v}{n}</div>;
+}
+return Page;`,
+		// Quoted samples must not trip the deny-list / fetch gate.
+		`function Page() { return React.createElement('div', null, 'localStorage is banned, use sdk.storage — fetch( is an example'); }
+return Page;`,
+	} {
+		if err := validateReactSource(src); err != nil {
+			t.Fatalf("expected JSX/TS source to pass, got %v", err)
 		}
 	}
 }

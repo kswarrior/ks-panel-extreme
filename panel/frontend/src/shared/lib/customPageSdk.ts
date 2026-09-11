@@ -155,6 +155,16 @@ export interface CustomPageAPI {
   confirm: (message: string) => Promise<boolean>;
   prompt: (message: string, defaultValue?: string) => Promise<string | null>;
   modal: (options: { title: string; content: string; buttons?: Array<{ label: string; action: () => void; variant?: 'primary' | 'secondary' | 'danger' }> }) => void;
+
+  // ==================== NEAR-REAL HELPERS (pure, additive) ============
+  // Small real-app affordances pages otherwise hand-roll (and get wrong):
+  // file download, clipboard, byte/time formatting, debounce. Pure
+  // functions — no instance scope, no permissions, no network.
+  downloadText: (filename: string, text: string, mime?: string) => void;
+  copyText: (text: string) => Promise<void>;
+  formatBytes: (n: number) => string;
+  timeAgo: (ts: number | string) => string;
+  debounce: <T extends (...args: any[]) => void>(fn: T, ms?: number) => (...args: Parameters<T>) => void;
   
   // ==================== EVENT SYSTEM ====================
   on: (event: string, callback: (data: any) => void) => () => void;

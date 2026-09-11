@@ -116,25 +116,187 @@ var validBuildStatuses = map[string]bool{
 	"error":    true,
 }
 
-// reactImportRe matches any ES import/export statement. The renderer
-// executes the bundle via new Function with (sdk, React) already in scope,
-// which cannot parse module syntax — so v1 forbids imports/exports outright
-// instead of maintaining an allow-list that could never execute.
+// reactImportRe matches any ES import/export statement. React-only imports
+// (`import ... from 'react'`) are allowed — the renderer rewrites them to
+// destructuring off the injected React runtime (see reactPageTranspile.ts).
+// Every other module statement is rejected: the renderer executes the bundle
+// inside (function(sdk,React){...}), which cannot parse module syntax, and
+// npm packages are not installed for page code.
 var reactImportRe = regexp.MustCompile(`(?m)^\s*(import|export)\b`)
 
+// reactFromAllowRe / reactSideEffectAllowRe match the single allowed import
+// shape: anything imported from the literal 'react' package (default, named,
+// namespace, or side-effect). Stripped before reactImportRe runs.
+var reactFromAllowRe = regexp.MustCompile(`(?m)^\s*import\s+[^;]*?\sfrom\s+['"]react['"]\s*;?\s*$`)
+var reactSideEffectAllowRe = regexp.MustCompile(`(?m)^\s*import\s+['"]react['"]\s*;?\s*$`)
+
+// blankReactStringsAndComments replaces string/comment contents with spaces
+// (newlines preserved) so keyword scans don't false-positive on JSX text or
+// quoted samples like "fetch(" inside a label.
+func blankReactStringsAndComments(src string) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	n := len(src)
+	state := 0 // 0 code, 1 sq, 2 dq, 3 tpl, 4 line, 5 block
+	tplDepth := 0
+	for i := 0; i < n; {
+		c := src[i]
+		var nx byte
+		if i+1 < n {
+			nx = src[i+1]
+		}
+		switch state {
+		case 0:
+			if c == '/' && nx == '/' {
+				state = 4
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '/' && nx == '*' {
+				state = 5
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '\'' {
+				state = 1
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if c == '"' {
+				state = 2
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if c == '`' {
+				state = 3
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			b.WriteByte(c)
+			i++
+		case 4:
+			if c == '\n' {
+				state = 0
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+			i++
+		case 5:
+			if c == '*' && nx == '/' {
+				state = 0
+				b.WriteString("  ")
+				i += 2
+			} else {
+				if c == '\n' {
+					b.WriteByte('\n')
+				} else {
+					b.WriteByte(' ')
+				}
+				i++
+			}
+		case 1:
+			if c == '\\' {
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '\'' {
+				state = 0
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if c == '\n' {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+			i++
+		case 2:
+			if c == '\\' {
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '"' {
+				state = 0
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if c == '\n' {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+			i++
+		default: // tpl: blank literal parts, keep ${...} code
+			if c == '\\' {
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '`' && tplDepth == 0 {
+				state = 0
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if c == '$' && nx == '{' {
+				tplDepth++
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if (c == '{' || c == '}') && tplDepth > 0 {
+				if c == '{' {
+					tplDepth++
+				} else {
+					tplDepth--
+				}
+				b.WriteByte(' ')
+				i++
+				continue
+			}
+			if tplDepth > 0 {
+				b.WriteByte(c)
+				i++
+				continue
+			}
+			if c == '\n' {
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+			i++
+		}
+	}
+	return b.String()
+}
+
 // validateReactSource checks author React JS without executing it: size,
-// no module syntax (see reactImportRe) and a deny-list of host-escape
-// primitives (eval, Function constructor, raw fetch/XHR, cookie/localStorage
-// access). The page must use sdk.fetchPanel/storage instead so calls stay
-// scoped.
+// react-only imports allowed (see reactFromAllowRe), every other module
+// syntax rejected, plus a deny-list of host-escape primitives (eval,
+// Function constructor, raw fetch/XHR, cookie/localStorage access). The page
+// must use sdk.fetchPanel/storage instead so calls stay scoped. Near-real:
+// JSX + light TS annotations are allowed and transpiled at render time.
 func validateReactSource(src string) error {
 	if len(src) > maxInstancePageReactSourceBytes {
 		return newErrString("source_tsx too large (max 512KB)")
 	}
-	if reactImportRe.MatchString(src) {
-		return newErrString("source_tsx must not use import/export (React and sdk are already in scope)")
+	blanked := blankReactStringsAndComments(src)
+	withoutReact := reactFromAllowRe.ReplaceAllString(blanked, "")
+	withoutReact = reactSideEffectAllowRe.ReplaceAllString(withoutReact, "")
+	if reactImportRe.MatchString(withoutReact) {
+		return newErrString("source_tsx must not import from other packages (only `from 'react'` is allowed; React and sdk are already in scope)")
 	}
-	lower := strings.ToLower(src)
+	lower := strings.ToLower(blanked)
 	for _, denied := range []string{"eval(", "new function", "__proto__", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {
 		if strings.Contains(lower, denied) {
 			return newErrString("source_tsx uses a forbidden primitive: " + denied)
@@ -143,8 +305,9 @@ func validateReactSource(src string) error {
 	// Raw fetch() would leave the sandbox scope — pages must use sdk.fetchPanel.
 	// Strip the sanctioned sdk.fetchPanel call first, then flag any remaining
 	// fetch( — including window.fetch / self.fetch / globalThis.fetch, which the
-	// old `.`-exempted predecessor class let straight through.
-	noSDK := strings.ReplaceAll(src, "sdk.fetchPanel", "")
+	// old `.`-exempted predecessor class let straight through. Runs on the
+	// blanked source so JSX text like "fetch(" inside a label doesn't trip it.
+	noSDK := strings.ReplaceAll(blanked, "sdk.fetchPanel", "")
 	if regexp.MustCompile(`(?m)(^|[^a-zA-Z0-9_$])fetch\s*\(`).MatchString(noSDK) {
 		return newErrString("source_tsx must use sdk.fetchPanel instead of fetch()")
 	}
