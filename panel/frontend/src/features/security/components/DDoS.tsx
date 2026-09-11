@@ -4,6 +4,10 @@ import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig, DDOSBackgro
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 interface DDoSProps {
@@ -59,6 +63,50 @@ const DDoS: React.FC<DDoSProps> = ({
   const [ddosGlobalWindow, setDdosGlobalWindow] = useState(initialConfig?.ddos_global_trigger_window ?? 10);
   // Global traffic limit (RPM ceiling enforced while Under Attack is on).
   const [globalRpmLimit, setGlobalRpmLimit] = useState(initialConfig?.global_rpm_limit ?? 0);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the config fields only — live state
+  // (underAttack toggle, snapshot, script results) applies immediately
+  // server-side and stays out of undo.
+  const snapshot = JSON.stringify({ ddosAutoStopEnabled, ddosStopMinutes, ddosMaxStopCount, ddosMode, ddosAltPort, ddosGlobalHits, ddosGlobalWindow, globalRpmLimit });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setDdosAutoStopEnabled(s.ddosAutoStopEnabled);
+    setDdosStopMinutes(s.ddosStopMinutes);
+    setDdosMaxStopCount(s.ddosMaxStopCount);
+    setDdosMode(s.ddosMode);
+    setDdosAltPort(s.ddosAltPort);
+    setDdosGlobalHits(s.ddosGlobalHits);
+    setDdosGlobalWindow(s.ddosGlobalWindow);
+    setGlobalRpmLimit(s.globalRpmLimit);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const applyConfig = (cfg: SecurityConfig) => {
+    histSuspend();
+    setDdosAutoStopEnabled(cfg.ddos_auto_stop_enabled);
+    setDdosStopMinutes(cfg.ddos_stop_minutes);
+    setDdosMaxStopCount(cfg.ddos_max_stop_count);
+    setDdosMode(cfg.ddos_mode);
+    setDdosAltPort(cfg.ddos_alt_port);
+    setDdosGlobalHits(cfg.ddos_global_trigger_hits);
+    setDdosGlobalWindow(cfg.ddos_global_trigger_window);
+    setGlobalRpmLimit(cfg.global_rpm_limit);
+  };
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refreshConfig = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setConfigError('');
+    try {
+      applyConfig(await securityGetConfig());
+    } catch (e: any) {
+      setConfigError(e?.response?.data || 'Failed to refresh DDoS config');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Sync local state when parent passes fresh snapshot/config (e.g. after save+reload or browser refresh).
   useEffect(() => {
