@@ -27,6 +27,10 @@ const (
 	ActionDockerCmd ActionType = "docker"     // Docker CLI command
 	ActionKVMCmd    ActionType = "kvm"        // KVM/Virsh command
 	ActionLXDCmd    ActionType = "lxd"        // LXD/LXC command
+	ActionStat      ActionType = "stat"       // Stat a path inside the container
+	ActionChmod     ActionType = "chmod"      // Chmod a path inside the container
+	ActionArchive   ActionType = "archive"    // Create a .zip/.tar.gz inside the container
+	ActionExtract   ActionType = "extract"    // Extract a .zip/.tar.gz inside the container
 )
 
 // Input is the request body for page action execution
@@ -43,6 +47,13 @@ type Input struct {
 	Timeout  int                    `json:"timeout"` // timeout in seconds
 	Options  map[string]interface{} `json:"options"` // driver-specific options
 	ModuleID string                 `json:"module_id,omitempty"` // module-based pages (panel forwards, edge ignores but keeps contract)
+	// New edge action types (item 6): explicit fields so the allow-list can
+	// pin them exactly. Mode is the chmod octal string; Names is the archive
+	// entry list (relative to Path); Dest is the archive path (archive) or
+	// the destination dir (extract, optional).
+	Mode  string   `json:"mode,omitempty"`
+	Names []string `json:"names,omitempty"`
+	Dest  string   `json:"dest,omitempty"`
 }
 
 // Output is the response from action execution
@@ -128,6 +139,14 @@ func Handler(token string) http.Handler {
 			out = executeKVMCmd(ctx, drv, in.Name, in.Command, in.Args)
 		case ActionLXDCmd:
 			out = executeLXDCmd(ctx, drv, in.Name, in.Command, in.Args)
+		case ActionStat:
+			out = executeStat(ctx, drv, in.Name, in.Path)
+		case ActionChmod:
+			out = executeChmod(ctx, drv, in.Name, in.Path, in.Mode)
+		case ActionArchive:
+			out = executeArchive(ctx, drv, in.Name, in.Path, in.Names, in.Dest)
+		case ActionExtract:
+			out = executeExtract(ctx, drv, in.Name, in.Path, in.Dest)
 		default:
 			writeErr(w, http.StatusBadRequest, "unknown action type: "+string(in.Type))
 			return
