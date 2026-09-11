@@ -6,6 +6,7 @@ import { confirmDialog } from '@/shared/stores/confirmStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import { rgbaAt } from '@/theme/colorUtils';
+import { DEFAULT_THEME } from '@/theme/defaults';
 import { getSharedPanelComponentContent } from '@/features/instance-pages/sharedPanelComponents';
 import { buildKsuiPreamble } from '@/features/instance-pages/pageUIComponents';
 
@@ -1330,6 +1331,20 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
   const statBorder = cssConst(cards?.stat_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
   const formBg = cssConst(cards?.form_background ?? c.background, 'rgba(255,255,255,0.04)');
   const formBorder = cssConst(cards?.form_border_color ?? c.border_color, 'rgba(255,255,255,0.10)');
+  // Pill + loading sections drive the instance-page component parity rules
+  // below (action/tabs pills, skeletons). pillTok mirrors themeStore's eqTok:
+  // equal-to-default ⇒ inherit the live base var so the Card tab keeps
+  // cascading until the Pill tab is overridden. pill fallbacks equal
+  // DEFAULT_THEME.pill (the host's D.pill) so unset values match the host.
+  const pill = (theme as any).pill as any;
+  const loading = (theme as any).loading as any;
+  const DP = (DEFAULT_THEME as any).pill as any;
+  const pillTok = (v: unknown, d: unknown, baseVar: string, fallback: string): string =>
+    v === d ? baseVar : cssConst(v, fallback);
+  const pillRadius = (pill?.border_radius ?? DP?.border_radius) === DP?.border_radius
+    ? 'var(--ks-card-radius)' : `${num(pill?.border_radius, 5)}px`;
+  const pillBlur = (pill?.backdrop_blur ?? DP?.backdrop_blur) === DP?.backdrop_blur
+    ? 'var(--ks-card-blur)' : `${num(pill?.backdrop_blur, 1)}px`;
   let baseCss = `
     /* Theme tokens — re-emitted from the ACTIVE panel theme. These override
        the stock :root defaults above so pages consuming var(--ks-*) follow
