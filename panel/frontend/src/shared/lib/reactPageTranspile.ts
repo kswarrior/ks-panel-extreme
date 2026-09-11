@@ -825,6 +825,127 @@ interface JSXNode {
   children: string[]; // emitted JS expression sources
 }
 
+// transpileExprInner rewrites JSX nested inside a `{...}` expression
+// (`.map((t) => (<li/>)`, ternaries `{ok ? <A/> : <B/>}`, fragments).
+// Linear scan with string/comment awareness; `<` that doesn't open a valid
+// element (comparisons like `a < b`) is left alone via tryParseElement's
+// null fallback. Recursion terminates: each nested parse consumes a
+// strictly smaller slice.
+function transpileExprInner(expr: string): string {
+  let out = '';
+  let i = 0;
+  const n = expr.length;
+  let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  let tplDepth = 0;
+  while (i < n) {
+    const c = expr[i];
+    if (state === 'code') {
+      if (c === '/' && expr[i + 1] === '/') {
+        state = 'line';
+        out += '//';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && expr[i + 1] === '*') {
+        state = 'block';
+        out += '/*';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = 'sq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        state = 'dq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        state = 'tpl';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '<') {
+        const nx = expr[i + 1] ?? '';
+        if (/[A-Za-z_>/]/.test(nx) || (nx === '/' && /[A-Za-z_>]/.test(expr[i + 2] ?? ''))) {
+          const parsed = tryParseElement(expr, i);
+          if (parsed) {
+            out += emitNode(parsed.node);
+            i = parsed.end;
+            continue;
+          }
+        }
+        out += c;
+        i++;
+        continue;
+      }
+      out += c;
+      i++;
+      continue;
+    }
+    if (state === 'line') {
+      out += c;
+      if (c === '\n') state = 'code';
+      i++;
+      continue;
+    }
+    if (state === 'block') {
+      out += c;
+      if (c === '*' && expr[i + 1] === '/') {
+        out += '/';
+        i += 2;
+        state = 'code';
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (state === 'sq' || state === 'dq') {
+      const q = state === 'sq' ? "'" : '"';
+      out += c;
+      if (c === '\\') {
+        out += expr[i + 1] ?? '';
+        i += 2;
+        continue;
+      }
+      if (c === q) state = 'code';
+      i++;
+      continue;
+    }
+    // tpl: `${...}` holes are code again (JSX may hide there).
+    out += c;
+    if (c === '\\') {
+      out += expr[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    if (c === '$' && expr[i + 1] === '{') {
+      tplDepth++;
+      out += '{';
+      i += 2;
+      continue;
+    }
+    if (c === '{' && tplDepth > 0) {
+      tplDepth++;
+      i++;
+      continue;
+    }
+    if (c === '}' && tplDepth > 0) {
+      tplDepth--;
+      i++;
+      continue;
+    }
+    if (c === '`' && tplDepth === 0) state = 'code';
+    i++;
+  }
+  return out;
+}
+
 // transpileJSX rewrites JSX elements to React.createElement calls.
 // Non-JSX `<` (comparisons, generics leftovers, arrows `=>`) is left alone:
 // parseElement returns null and the scanner copies one char.
@@ -1092,7 +1213,9 @@ function tryParseElement(src: string, start: number): { node: JSXNode; end: numb
       const b = parseBalanced(src, i, '{', '}');
       if (!b) return null;
       const expr = src.slice(i + 1, b.end - 1).trim();
-      propsParts.push(`${JSON.stringify(pname)}: (${expr || 'undefined'})`);
+      // Nested JSX inside the expression (callbacks, ternaries) transpiles
+      // recursively; plain expressions pass through unchanged.
+      propsParts.push(`${JSON.stringify(pname)}: (${transpileExprInner(expr) || 'undefined'})`);
       i = b.end;
       continue;
     }
@@ -1143,7 +1266,7 @@ function tryParseElement(src: string, start: number): { node: JSXNode; end: numb
       if (expr.trim() === '' || /^\/\*[\s\S]*\*\/$/.test(expr.trim())) {
         // `{/* comment */}` → no child.
       } else {
-        node.children.push(`(${expr.trim() || 'undefined'})`);
+        node.children.push(`(${transpileExprInner(expr.trim()) || 'undefined'})`);
       }
       i = b.end;
       continue;
