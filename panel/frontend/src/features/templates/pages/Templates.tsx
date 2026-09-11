@@ -20,6 +20,8 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
 type SortKey = 'name' | 'kind' | 'updated' | 'newest';
@@ -81,6 +83,13 @@ function KindIcon({ kind, className = '' }: { kind: KindKey; className?: string 
 const Templates: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle template cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -443,8 +452,12 @@ const Templates: React.FC = () => {
             const t = e.template;
             const meta = KIND_META[e.kind];
             return (
-              <article id={`ks-template-${t.id}`} key={t.id} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <article id={`ks-template-${t.id}`} key={t.id} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                <CardMediaLayer />
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
                 <header className="flex items-start gap-3 min-w-0">
                   <CardIconTile
                     icon={(t as any).icon || ''}
@@ -452,24 +465,41 @@ const Templates: React.FC = () => {
                     fallback={<KindIcon kind={e.kind} className="w-5 h-5" />}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight">{t.name}</h3>
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{t.name}</h3>
                     {(e.category || e.type) && (
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                      <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>
                         {[e.category, e.type].filter(Boolean).join(' · ')}
                       </p>
                     )}
                     {t.description && (
-                      <p className="text-xs text-gray-400 truncate">{t.description}</p>
+                      <p className="text-xs truncate" style={{ color: 'var(--ks-text-body)' }}>{t.description}</p>
                     )}
                   </div>
-                  <div className="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border bg-white/[0.05] border-white/10 text-gray-300">
+                  <div
+                    className="shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border"
+                    style={{
+                      borderColor: 'var(--ks-card-border)',
+                      background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                      color: 'var(--ks-text-heading)',
+                      opacity: 0.85,
+                    }}
+                  >
                     {meta.label}
                   </div>
                 </header>
 
                 {/* Image row — gives a single monospace line for the container/template image so a long registry path doesn't wrap. */}
                 {t.image && (
-                  <p className="text-[11px] text-gray-500 font-mono truncate bg-black/20 border border-white/5 rounded px-2 py-1" title={t.image}>
+                  <p
+                    className="text-[11px] font-mono truncate rounded px-2 py-1 border"
+                    style={{
+                      color: 'var(--ks-text-body)',
+                      opacity: 0.85,
+                      borderColor: 'var(--ks-card-border)',
+                      background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                    }}
+                    title={t.image}
+                  >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3 inline mr-1 -mt-0.5"><rect x="3" y="8" width="18" height="8" rx="1" /><path d="M3 12h18" /> </svg>
                     {t.image}
                   </p>
