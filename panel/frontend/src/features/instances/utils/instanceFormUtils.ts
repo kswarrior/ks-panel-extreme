@@ -556,14 +556,12 @@ export interface DeployImageOption {
 // template spec + its top-level image. Returns [] when the template is
 // single-image (only the fallback). default_image / default:true resolve
 // the isDefault flag; otherwise the fallback image is the default.
+// The spec is canonical YAML (legacy JSON parses identically) — it MUST go
+// through parseConfig, not JSON.parse, or every YAML template reports zero
+// runtimes on the deploy form.
 export function parseTemplateImages(specStr: string, fallbackImage: string): DeployImageOption[] {
-  let s: Record<string, any> = {};
-  try {
-    s = JSON.parse(specStr || '{}');
-    if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
-  } catch {
-    return [];
-  }
+  const s = parseConfig(specStr) as Record<string, any>;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return [];
   const rows: DeployImageOption[] = [];
   const seen = new Set<string>();
   const push = (name: string, image: string, description: string, isDefault: boolean) => {

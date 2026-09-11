@@ -7,6 +7,7 @@
 //
 // Allow-all defaults: a missing/unparseable block (old templates) enables
 // everything, so behaviour is backward compatible.
+import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 
 export type OverviewDefaultTab = 'details' | 'monitoring' | 'manage' | 'activity';
 
@@ -74,7 +75,7 @@ function boolOr(v: unknown, fallback: boolean): boolean {
 }
 
 // resolveInstanceControls normalises a template spec or instance config
-// (raw JSON string or parsed object) into a complete InstanceControls.
+// (raw YAML/JSON string or parsed object) into a complete InstanceControls.
 // Anything absent → allow-all default.
 export function resolveInstanceControls(
   raw?: string | Record<string, any> | null,
@@ -83,8 +84,11 @@ export function resolveInstanceControls(
   if (typeof raw === 'string') {
     const s = raw.trim();
     if (s) {
+      // Specs are canonical YAML (legacy JSON is valid YAML too). A pure
+      // JSON.parse here returns allow-all for every YAML template/instance,
+      // silently dropping author allow-lists on the deploy form and gates.
       try {
-        const p = JSON.parse(s);
+        const p = parseSpecDocument(s);
         if (p && typeof p === 'object' && !Array.isArray(p)) root = p;
       } catch {
         root = null;
