@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createTicket, getTicket, updateTicket } from '../api/tickets';
 import type { Ticket, TicketCategory, TicketPriority } from '../types/ticket';
@@ -6,6 +6,8 @@ import GlassCard from '@/shared/components/ui/Card';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 const CATEGORIES: { value: TicketCategory; label: string }[] = [
@@ -40,36 +42,72 @@ const TicketForm: React.FC = () => {
   const [priority, setPriority] = useState<TicketPriority>('medium');
   const [tagsStr, setTagsStr] = useState('');
   const [dueAt, setDueAt] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the inputs (loaded ticket object stays out).
+  const snapshot = JSON.stringify({ subject, description, category, priority, tagsStr, dueAt });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setSubject(s.subject);
+    setDescription(s.description);
+    setCategory(s.category);
+    setPriority(s.priority);
+    setTagsStr(s.tagsStr);
+    setDueAt(s.dueAt);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    if (!isEdit || !id) return;
+    histSuspend();
+    setError('');
+    try {
+      const detail = await getTicket(Number(id));
+      const t = detail.ticket;
+      setTicket(t);
+      setSubject(t.subject);
+      setDescription(t.description || '');
+      setCategory(t.category as TicketCategory);
+      setPriority(t.priority as TicketPriority);
+      setTagsStr('');
+      try {
+        const parsed = JSON.parse(t.tags);
+        if (Array.isArray(parsed)) setTagsStr(parsed.join(', '));
+      } catch {}
+      setDueAt('');
+      if (t.due_at) {
+        const d = new Date(t.due_at);
+        if (!Number.isNaN(d.getTime())) {
+          const pad = (n: number) => String(n).padStart(2, '0');
+          setDueAt(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+        }
+      }
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load ticket');
+    } finally {
+      setInitialLoading(false);
+    }
+  }, [isEdit, id, histSuspend]);
 
   useEffect(() => {
-    if (!isEdit || !id) return;
-    (async () => {
-      try {
-        const detail = await getTicket(Number(id));
-        const t = detail.ticket;
-        setTicket(t);
-        setSubject(t.subject);
-        setDescription(t.description || '');
-        setCategory(t.category as TicketCategory);
-        setPriority(t.priority as TicketPriority);
-        try {
-          const parsed = JSON.parse(t.tags);
-          if (Array.isArray(parsed)) setTagsStr(parsed.join(', '));
-        } catch {}
-        if (t.due_at) {
-          const d = new Date(t.due_at);
-          if (!Number.isNaN(d.getTime())) {
-            const pad = (n: number) => String(n).padStart(2, '0');
-            setDueAt(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-          }
-        }
-      } catch (e: any) {
-        setError(e?.response?.data || 'Failed to load ticket');
-      } finally {
-        setInitialLoading(false);
-      }
-    })();
-  }, [isEdit, id]);
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!isEdit) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -98,6 +136,7 @@ const TicketForm: React.FC = () => {
           tags,
           due_at: dueAtISO,
         });
+        hist.commit();
         navigate(`/tickets/${id}`);
       } else {
         const created = await createTicket({
@@ -108,6 +147,7 @@ const TicketForm: React.FC = () => {
           tags,
           due_at: dueAtISO,
         });
+        hist.commit();
         navigate(`/tickets/${created.id}`);
       }
     } catch (e: any) {
@@ -132,10 +172,11 @@ const TicketForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — title lives in the app header ("Tickets / New
-          Ticket" or "Tickets / Edit Ticket"). Footer Cancel/Create removed;
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+          title lives in the app header. Footer Cancel/Create removed;
           everything lives here. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/tickets')}

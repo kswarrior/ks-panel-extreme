@@ -163,20 +163,23 @@ const ApiKeyForm: React.FC = () => {
             display_name: key.display_name || '',
             accent_color: key.accent_color || '',
           });
-          // Pre-fill limits from existing value.
-          if (key.expires_at) {
-            setNoExpiry(false);
-            setExpiresAtLocal(expiryValueToInput(key.expires_at));
-          } else {
-            setNoExpiry(true);
-          }
-          if (key.rate_limit !== undefined && key.rate_limit !== null && key.rate_limit > 0) {
-            setNoRateLimit(false);
-            setRateLimit(key.rate_limit);
-            setRateWindow(key.rate_window_seconds && key.rate_window_seconds > 0 ? key.rate_window_seconds : 60);
-          } else {
-            setNoRateLimit(true);
-          }
+            // Pre-fill limits from existing value.
+            if (key.expires_at) {
+              setNoExpiry(false);
+              setExpiresAtLocal(expiryValueToInput(key.expires_at));
+            } else {
+              setNoExpiry(true);
+              setExpiresAtLocal('');
+            }
+            if (key.rate_limit !== undefined && key.rate_limit !== null && key.rate_limit > 0) {
+              setNoRateLimit(false);
+              setRateLimit(key.rate_limit);
+              setRateWindow(key.rate_window_seconds && key.rate_window_seconds > 0 ? key.rate_window_seconds : 60);
+            } else {
+              setNoRateLimit(true);
+              setRateLimit(25);
+              setRateWindow(60);
+            }
         } else {
           setError('API key not found');
         }
