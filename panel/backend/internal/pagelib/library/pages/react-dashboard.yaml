@@ -40,6 +40,19 @@ source_tsx: |
     return <canvas ref={ref} style={{ width: '100%', height: 80 }} />;
   }
 
+  function SdkChart(props: { points: LoadPoint[] }) {
+    const ref = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+      const host = ref.current;
+      if (!host) return;
+      const cleanup = sdk.chart(host, props.points.slice(-40).map((p) => p.v), { kind: 'bars' });
+      return cleanup;
+    }, [props.points]);
+    return <div ref={ref} style={{ width: '100%', minHeight: 90 }} />;
+  }
+
+  const NOTES_MD = '## Load notes\n\n- **1m load** sampled every 5s via `get_load`.\n- See [panel docs](https://example.com) for details.';
+
   function Page() {
     const [tab, setTab] = useState<TabId>('overview');
     const [status, setStatus] = useState<string>('loading…');
@@ -113,6 +126,14 @@ source_tsx: |
               <button className="ks-btn ks-btn-sm" onClick={exportStatus}>Export</button>
               <button className="ks-btn ks-btn-sm" onClick={() => sdk.copyText(status)}>Copy</button>
             </div>
+          </div>
+          <div className="ks-card" style={{ marginTop: 10 }}>
+            <h3>SDK chart</h3>
+            <SdkChart points={points} />
+          </div>
+          <div className="ks-card" style={{ marginTop: 10 }}>
+            <h3>SDK markdown</h3>
+            <div dangerouslySetInnerHTML={{ __html: sdk.markdown(NOTES_MD) }} />
           </div>
         ) : (
           <div className="ks-card">

@@ -890,6 +890,19 @@ type reactNamedBinding struct {
 
 var reactIdentRe = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 
+// hasReactRelativeImport reports whether src carries any non-react import
+// (relative, absolute or bare) in real code. Gates the graph check so an
+// entry importing './util' with zero Files still gets the missing-module
+// error (listing available names) instead of silently passing.
+func hasReactRelativeImport(src string) bool {
+	for _, spec := range collectReactImportSpecs(src) {
+		if spec != "react" {
+			return true
+		}
+	}
+	return false
+}
+
 // collectReactImportSpecs returns single-line import specifiers in real code
 // (comment-aware; mirrors the FE collectFileImports gate).
 func collectReactImportSpecs(src string) []string {

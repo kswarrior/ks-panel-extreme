@@ -122,6 +122,89 @@ func TestValidateReactSourceRejectsOversize(t *testing.T) {
 	}
 }
 
+// ---- virtual modules (item 2) ------------------------------------------------
+
+func TestValidateReactSourceAllowsJailedRelativeImports(t *testing.T) {
+	for _, src := range []string{
+		"import { helper } from './util'\nfunction Page() { return React.createElement('div', null, helper()); }\nreturn Page;",
+		"import def from \"./util\"\nfunction Page() { return React.createElement('div', null, String(def)); }\nreturn Page;",
+		"import * as U from './util'\nfunction Page() { return React.createElement('div', null, U.helper()); }\nreturn Page;",
+		"import './util'\nfunction Page() { return React.createElement('div', null, 'hi'); }\nreturn Page;",
+	} {
+		if err := validateReactSource(src); err != nil {
+			t.Fatalf("expected jailed relative import to pass, got %v", err)
+		}
+	}
+	// Direct jail verdicts (mirror the FE normalizeModuleSpecifier).
+	if _, err := normalizeReactImportSpecifier("./util", ""); err != nil {
+		t.Fatalf("expected ./util to jail-pass, got %v", err)
+	}
+	if _, err := normalizeReactImportSpecifier("./a/b", ""); err != nil {
+		t.Fatalf("expected ./a/b to jail-pass, got %v", err)
+	}
+	// '../x' from a nested importer that stays inside the root passes.
+	if got, err := normalizeReactImportSpecifier("../c", "a"); err != nil || got != "c" {
+		t.Fatalf("expected ../c from a to resolve to c, got %q, %v", got, err)
+	}
+}
+
+func TestValidateReactSourceRejectsEscapingImports(t *testing.T) {
+	for _, src := range []string{
+		"import { x } from '../secret'\nfunction Page() { return null; }\nreturn Page;",
+		"import { x } from './a/../../b'\nfunction Page() { return null; }\nreturn Page;",
+		"import { x } from '/etc/passwd'\nfunction Page() { return null; }\nreturn Page;",
+		"import { x } from '~/evil'\nfunction Page() { return null; }\nreturn Page;",
+		"import { x } from '%2e%2e/evil'\nfunction Page() { return null; }\nreturn Page;",
+	} {
+		if err := validateReactSource(src); err == nil {
+			t.Fatalf("expected escape/absolute import to fail for %q", src)
+		}
+	}
+}
+
+func TestValidateReactModulesRejectsCycle(t *testing.T) {
+	mods := map[string]string{
+		"a": "import { b } from './b'\nexport const a = 1;",
+		"b": "import { a } from './a'\nexport const b = 2;",
+	}
+	entry := "import { a } from './a'\nfunction Page() { return React.createElement('div', null, a); }\nreturn Page;"
+	if err := validateReactModules(entry, mods); err == nil || !strings.Contains(err.Error(), "circular import") {
+		t.Fatalf("expected circular import error, got %v", err)
+	}
+}
+
+func TestValidateReactModulesRejectsMissing(t *testing.T) {
+	mods := map[string]string{"util": "export const helper = 1;"}
+	entry := "import { x } from './missing'\nfunction Page() { return null; }\nreturn Page;"
+	err := validateReactModules(entry, mods)
+	if err == nil || !strings.Contains(err.Error(), "unknown module") {
+		t.Fatalf("expected unknown module error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "util") {
+		t.Fatalf("expected missing error to list available names, got %v", err)
+	}
+}
+
+func TestValidateReactModulesRejectsBareImport(t *testing.T) {
+	entry := "import x from 'axios'\nfunction Page() { return null; }\nreturn Page;"
+	if err := validateReactModules(entry, map[string]string{}); err == nil {
+		t.Fatal("expected bare non-react import to fail")
+	}
+	if err := validateReactSource(entry); err == nil {
+		t.Fatal("expected bare non-react import to fail validateReactSource too")
+	}
+}
+
+func TestValidateReactModulesAcceptsTwoModules(t *testing.T) {
+	mods := map[string]string{
+		"util": "export function helper() { return 42; }\nexport function MyComp() { return React.createElement('span', null, 'hi'); }",
+	}
+	entry := "import { helper, MyComp } from './util'\nfunction Page() { return React.createElement('div', null, String(helper())); }\nreturn Page;"
+	if err := validateReactModules(entry, mods); err != nil {
+		t.Fatalf("expected two-module page to pass, got %v", err)
+	}
+}
+
 // ---- validateInstancePage react gate ---------------------------------------
 
 func TestValidateInstancePageReactRequiresSource(t *testing.T) {
