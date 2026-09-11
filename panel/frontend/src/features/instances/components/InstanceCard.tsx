@@ -383,10 +383,13 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
-      className={`ks-card ks-list-card glass-card ${glassModifier} group relative flex flex-col gap-3 cursor-pointer transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-white/60 overflow-hidden hover:-translate-y-0.5 hover:border-white/20`}
+      className={`ks-card ks-list-card glass-card ${glassModifier} group relative flex flex-col gap-3 cursor-pointer transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-white/60 overflow-hidden hover:-translate-y-0.5`}
     >
       <CardMediaLayer />
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px"
+        style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+      />
       <div className="p-3 flex flex-col gap-3">
         {/* ── Header ─────────────────────────────────────────────────── */}
         <header className="flex items-start gap-3 min-w-0">
@@ -402,8 +405,8 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-white truncate leading-tight">{displayName}</h3>
-            <p className="text-[11px] text-gray-500 truncate font-mono mt-0.5">
+            <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{displayName}</h3>
+            <p className="text-[11px] truncate font-mono mt-0.5" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>
               #{instance.id} · {instance.external_id || instance.kind}
             </p>
           </div>
@@ -412,18 +415,18 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
 
         {/* ── Meta: node / template ─────────────────────────── */}
         <div className="flex flex-wrap gap-1.5 text-[11px]">
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.05] border border-white/10 text-gray-300" title="Node">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)', color: 'var(--ks-text-heading)', opacity: 0.85 }} title="Node">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /> </svg>
             {instance.node_name || `#${instance.node_id}`}
           </span>
           {instance.template_name && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.05] border border-white/10 text-gray-300" title="Template">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)', color: 'var(--ks-text-heading)', opacity: 0.85 }} title="Template">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /> </svg>
               {instance.template_name}
             </span>
           )}
           {showOwner && instance.owner_name && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.05] border border-white/10 text-gray-300" title="Owner">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border" style={{ borderColor: 'var(--ks-card-border)', background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)', color: 'var(--ks-text-heading)', opacity: 0.85 }} title="Owner">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /> </svg>
               {instance.owner_name}
             </span>
@@ -454,8 +457,11 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
         )}
 
         {/* ── Footer: uptime/created + action buttons ───────────────── */}
-        <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-[11px] text-gray-500 truncate">
+        <footer
+          className="mt-auto pt-2 border-t flex items-center justify-between gap-2 flex-wrap"
+          style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+        >
+          <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
             {(() => {
               const label = formatCardDate(instance.created_at);
               return label ? <>Created {label}</> : <>id {instance.id}</>;

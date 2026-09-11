@@ -9,6 +9,8 @@ import { useSettingsStore } from '@/shared/stores/settingsStore';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -61,6 +63,13 @@ function formatCreatedAt(iso: string | undefined | null): string {
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle user cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -364,10 +373,10 @@ const UsersPage: React.FC = () => {
         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {(search || roleFilter !== 'all') && (
-              <p className="text-xs text-gray-500">{visible.length} of {filtered.length} shown</p>
+              <p className="text-xs" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{visible.length} of {filtered.length} shown</p>
             )}
             {filtered.length > pageSize && (
-              <span className="text-[11px] text-gray-500">
+              <span className="text-[11px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                 (showing first {pageSize}; refine search to see more)
               </span>
             )}
@@ -385,7 +394,7 @@ const UsersPage: React.FC = () => {
         </div>
       )}
 
-      {error && users.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+      {error && users.length > 0 && <p className="mb-3 text-sm" style={{ color: 'var(--ks-accent-danger, #f87171)' }}>{error}</p>}
       {!loading && error && users.length === 0 && (
         <ErrorState
           variant="error"
@@ -406,8 +415,13 @@ const UsersPage: React.FC = () => {
             const isSuspended = u.suspended === 1;
             const suspensionCount = u.suspension_count || 0;
             return (
-              <article key={u.id} id={`ks-user-${u.id}`} className={`ks-card ks-list-card glass-card rounded-xl overflow-hidden flex flex-col hover:border-white/20 transition-colors ${isSuspended ? 'border-red-500/30' : ''}`}>
-                <div className="relative h-16 bg-black/30">
+              <article key={u.id} id={`ks-user-${u.id}`} className={`ks-card ks-list-card glass-card rounded-xl overflow-hidden flex flex-col transition-colors ${glassModifier} ${isSuspended ? 'border-red-500/30' : ''}`}>
+                <CardMediaLayer />
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
+                <div className="relative h-16" style={{ background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)' }}>
                   {u.has_banner && (
                     <img
                       src={userBannerURL(u.id, maxImage)}
@@ -436,13 +450,13 @@ const UsersPage: React.FC = () => {
                 <div className="px-4 pt-7 flex flex-col gap-3 flex-1 min-w-0">
                   <header className="min-w-0 flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-semibold text-white truncate" title={u.username}>
+                      <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }} title={u.username}>
                         {displayName}
                       </h3>
                       {u.display_name && u.display_name.trim() && u.display_name !== u.username && (
-                        <p className="text-[11px] text-gray-500 truncate">@{u.username}</p>
+                        <p className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>@{u.username}</p>
                       )}
-                      <p className="text-xs text-gray-400 truncate font-mono mt-0.5">{u.email}</p>
+                      <p className="text-xs truncate font-mono mt-0.5" style={{ color: 'var(--ks-text-body)' }}>{u.email}</p>
                     </div>
                     <span className="shrink-0 mt-1 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-md border bg-sky-900/50 border-sky-700/40 text-sky-300">
                       {role}
@@ -450,14 +464,17 @@ const UsersPage: React.FC = () => {
                   </header>
 
                   <div className="min-w-0">
-                    <p className="text-xs text-gray-400 leading-snug">
+                    <p className="text-xs leading-snug" style={{ color: 'var(--ks-text-body)' }}>
                       Created {formatCreatedAt(u.created_at)}
                     </p>
                   </div>
 
-                  <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                  <footer
+                    className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                    style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                  >
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-gray-500">
+                      <span className="text-[11px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                         id {u.id}
                       </span>
                       {suspensionCount > 0 && (
@@ -478,7 +495,7 @@ const UsersPage: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <Link to={`/user/${u.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                    <Link to={`/user/${u.id}`} className="text-[11px] hover:underline hover:opacity-80" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                   </footer>
                 </div>
               </article>
@@ -488,7 +505,7 @@ const UsersPage: React.FC = () => {
       )}
 
       {!loading && visible.length === 0 && users.length > 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
           No users match your filters.
           <div className="mt-2 flex justify-center">
             <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
@@ -501,7 +518,7 @@ const UsersPage: React.FC = () => {
         </div>
       )}
       {!loading && users.length === 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
           No users yet.
         </div>
       )}
