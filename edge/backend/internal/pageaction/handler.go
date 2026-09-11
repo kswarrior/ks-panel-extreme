@@ -282,6 +282,425 @@ func executeListFiles(ctx context.Context, drv drivers.Driver, name, path string
 	return Output{OK: true, Data: files}
 }
 
+// maxActionPathLen bounds pinned path/dest fields so a crafted saved action
+// cannot wedge the edge shell line or the panel proxy with a megabyte path.
+const maxActionPathLen = 4096
+
+// validActionPath reports whether p is a usable container path for the new
+// edge action types: non-empty, bounded, no NUL bytes. Container paths are
+// legitimately absolute (list_files defaults to "/"), so — like the
+// read_file/write_file/list_files siblings, which enforce no host jail —
+// there is no isDangerousPath check here: that jail guards edge-HOST paths
+// in files/handler.go, and applying it inside the instance container would
+// block legitimate container paths such as the container's own /etc/hosts.
+func validActionPath(p string) bool {
+	if p == "" || len(p) > maxActionPathLen {
+		return false
+	}
+	return !strings.ContainsRune(p, 0)
+}
+
+// validModeRe is the strict chmod charset: 3-4 octal digits only. The
+// numeric cap (<= 0o777, enforced alongside) additionally rejects setuid /
+// setgid / sticky bits, mirroring files chmodHost/chmodDocker.
+var validModeRe = regexp.MustCompile(`^[0-7]{3,4}$`)
+
+// validActionMode reports whether mode is an acceptable chmod value.
+func validActionMode(mode string) bool {
+	if !validModeRe.MatchString(mode) {
+		return false
+	}
+	v, err := strconv.ParseUint(mode, 8, 32)
+	if err != nil || v > 0o777 {
+		return false
+	}
+	return true
+}
+
+// executeStat stats one container path (first-class replacement for the
+// hand-rolled `stat -c ...` shell actions). The Data shape reuses FileEntry
+// (mode carries the octal permission bits, e.g. "644").
+func executeStat(ctx context.Context, drv drivers.Driver, name, actionPath string) Output {
+	if !validActionPath(actionPath) {
+		return Output{OK: false, Error: "path is required"}
+	}
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("stat -c '%%n|%%s|%%a|%%F|%%Y' -- %s 2>/dev/null", shellQuote(actionPath))}
+	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
+	if err != nil {
+		return Output{OK: false, Error: err.Error()}
+	}
+	defer sess.Close()
+
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
+	if code != 0 {
+		return Output{OK: false, ExitCode: code, Error: stderr}
+	}
+	entry, perr := parseStatOutput(stdout)
+	if perr != nil {
+		return Output{OK: false, Error: perr.Error()}
+	}
+	return Output{OK: true, Data: entry}
+}
+
+// parseStatOutput decodes one `stat -c '%n|%s|%a|%F|%Y'` line into a
+// FileEntry. The split runs from the RIGHT (last four separators) so a
+// filename containing '|' still parses.
+func parseStatOutput(stdout string) (FileEntry, error) {
+	line := strings.TrimSpace(stdout)
+	if line == "" {
+		return FileEntry{}, fmt.Errorf("stat returned no output")
+	}
+	if i := strings.Index(line, "\n"); i >= 0 {
+		line = strings.TrimSpace(line[:i])
+	}
+	parts := strings.Split(line, "|")
+	if len(parts) < 5 {
+		return FileEntry{}, fmt.Errorf("stat returned an unrecognized format")
+	}
+	tail := parts[len(parts)-4:]
+	name := strings.Join(parts[:len(parts)-4], "|")
+	size, _ := strconv.ParseInt(strings.TrimSpace(tail[0]), 10, 64)
+	mode := strings.TrimSpace(tail[1])
+	ts, _ := strconv.ParseInt(strings.TrimSpace(tail[3]), 10, 64)
+	base := name
+	if i := strings.LastIndex(base, "/"); i >= 0 {
+		base = base[i+1:]
+	}
+	return FileEntry{
+		Name:    base,
+		Size:    size,
+		IsDir:   strings.HasPrefix(strings.TrimSpace(tail[2]), "directory"),
+		ModTime: ts,
+		Mode:    mode,
+	}, nil
+}
+
+// executeChmod applies an octal mode to one container path (first-class
+// replacement for hand-rolled `chmod ...` shell actions).
+func executeChmod(ctx context.Context, drv drivers.Driver, name, actionPath, mode string) Output {
+	if !validActionPath(actionPath) {
+		return Output{OK: false, Error: "path is required"}
+	}
+	if !validActionMode(mode) {
+		return Output{OK: false, Error: fmt.Sprintf("invalid mode %q (must be 000-777)", mode)}
+	}
+	// mode is regex-pinned to [0-7]{3,4} so it interpolates safely; the
+	// path stays shell-quoted like every sibling executor.
+	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("chmod %s -- %s", mode, shellQuote(actionPath))}
+	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
+	if err != nil {
+		return Output{OK: false, Error: err.Error()}
+	}
+	defer sess.Close()
+
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
+	if code != 0 {
+		return Output{OK: false, ExitCode: code, Error: stderr}
+	}
+	return Output{OK: true, Stdout: stdout, Data: map[string]any{"path": actionPath, "mode": mode}}
+}
+
+// Archive bomb caps (mirror the host-side extractZip/extractTarGz spirit:
+// 10k entries; total unpacked bytes bounded so a 42.zip-style payload fails
+// closed instead of filling the instance disk).
+const (
+	maxArchiveEntries   = 10000
+	maxArchiveNameLen   = 1024
+	maxArchiveNames     = 1000
+	maxExtractBytes     = 4 << 30 // 4 GiB total unpacked
+)
+
+func isZipName(n string) bool { return strings.HasSuffix(strings.ToLower(n), ".zip") }
+func isTarGzName(n string) bool {
+	l := strings.ToLower(n)
+	return strings.HasSuffix(l, ".tar.gz") || strings.HasSuffix(l, ".tgz")
+}
+
+// sanitizeArchiveName jails one archive member name to the source dir,
+// mirroring files parseArchiveBody: no empties, no absolute escapes, no ..
+// segments. ok=false must fail the action closed (never silently skip: the
+// saved definition is pinned, so a bad entry is a definition error).
+func sanitizeArchiveName(n string) (string, bool) {
+	n = strings.TrimSpace(n)
+	if n == "" || n == "." || n == "/" || len(n) > maxArchiveNameLen {
+		return "", false
+	}
+	c := path.Clean("/" + n)
+	if c == "/" {
+		return "", false
+	}
+	rel := strings.TrimPrefix(c, "/")
+	if rel == "" || rel == ".." || strings.HasPrefix(rel, "../") {
+		return "", false
+	}
+	return rel, true
+}
+
+// safeArchiveEntry reports whether one name LISTED from an existing archive
+// is safe to extract: no absolute paths, no empty/dot names, no ".."
+// segments (ZipSlip guard — enforced before extraction regardless of which
+// unzip/tar binary the container ships).
+func safeArchiveEntry(n string) bool {
+	n = strings.TrimSpace(n)
+	if n == "" || n == "." || n == "/" {
+		return false
+	}
+	if path.IsAbs(n) {
+		return false
+	}
+	for _, seg := range strings.Split(path.Clean(n), "/") {
+		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// executeArchive creates a .zip/.tar.gz inside the container (first-class
+// replacement for hand-rolled `zip -qr`/`tar -czf` shell actions). src is
+// the source dir (or a single file when names is empty); names are
+// interpreted relative to src; dest is the archive path.
+func executeArchive(ctx context.Context, drv drivers.Driver, name, src string, names []string, dest string) Output {
+	if !validActionPath(src) {
+		return Output{OK: false, Error: "path is required"}
+	}
+	if !validActionPath(dest) {
+		return Output{OK: false, Error: "dest is required"}
+	}
+	if !isZipName(dest) && !isTarGzName(dest) {
+		return Output{OK: false, Error: "dest must end with .zip or .tar.gz"}
+	}
+	if len(names) > maxArchiveNames {
+		return Output{OK: false, Error: fmt.Sprintf("too many archive entries (max %d)", maxArchiveNames)}
+	}
+	picks := make([]string, 0, len(names))
+	for _, n := range names {
+		rel, ok := sanitizeArchiveName(n)
+		if !ok {
+			return Output{OK: false, Error: fmt.Sprintf("invalid archive entry %q", n)}
+		}
+		picks = append(picks, rel)
+	}
+	quoted := make([]string, 0, len(picks))
+	for _, n := range picks {
+		quoted = append(quoted, shellQuote(n))
+	}
+	var script string
+	if isZipName(dest) {
+		script = "set -e; if [ -e " + shellQuote(dest) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
+			"command -v zip >/dev/null 2>&1 || { echo NO_ZIP; exit 11; }; "
+		if len(quoted) == 0 {
+			script += "if [ -f " + shellQuote(src) + " ] && [ ! -d " + shellQuote(src) + " ]; then " +
+				"cd " + shellQuote(path.Dir(src)) + " && zip -qr " + shellQuote(dest) + " " + shellQuote(path.Base(src)) + " 2>&1; " +
+				"else cd " + shellQuote(src) + " && zip -qr " + shellQuote(dest) + " . 2>&1; fi"
+		} else {
+			script += "cd " + shellQuote(src) + " && zip -qr " + shellQuote(dest) + " " + strings.Join(quoted, " ") + " 2>&1"
+		}
+	} else {
+		script = "set -e; if [ -e " + shellQuote(dest) + " ]; then echo ARCH_EXISTS; exit 10; fi; " +
+			"command -v tar >/dev/null 2>&1 || { echo NO_TAR; exit 11; }; "
+		if len(quoted) == 0 {
+			script += "if [ -f " + shellQuote(src) + " ] && [ ! -d " + shellQuote(src) + " ]; then " +
+				"tar -czf " + shellQuote(dest) + " -C " + shellQuote(path.Dir(src)) + " " + shellQuote(path.Base(src)) + " 2>&1; " +
+				"else tar -czf " + shellQuote(dest) + " -C " + shellQuote(src) + " . 2>&1; fi"
+		} else {
+			script += "tar -czf " + shellQuote(dest) + " -C " + shellQuote(src) + " " + strings.Join(quoted, " ") + " 2>&1"
+		}
+	}
+	sess, err := drv.Exec(ctx, name, false, 0, 0, []string{"/bin/sh", "-lc", script})
+	if err != nil {
+		return Output{OK: false, Error: err.Error()}
+	}
+	defer sess.Close()
+
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
+	if code != 0 {
+		combined := stdout + "\n" + stderr
+		switch {
+		case strings.Contains(combined, "ARCH_EXISTS"):
+			return Output{OK: false, ExitCode: code, Error: fmt.Sprintf("%q already exists", path.Base(dest))}
+		case strings.Contains(combined, "NO_ZIP"):
+			return Output{OK: false, ExitCode: code, Error: "zip is not installed in this container (use .tar.gz instead)"}
+		case strings.Contains(combined, "NO_TAR"):
+			return Output{OK: false, ExitCode: code, Error: "tar is not installed in this container"}
+		default:
+			return Output{OK: false, ExitCode: code, Error: stderr}
+		}
+	}
+	return Output{OK: true, Stdout: stdout, Data: map[string]any{"path": dest, "count": len(picks)}}
+}
+
+// runContainerCmd runs one sh -lc program inside the instance container and
+// returns its captured stdout (readSession caps + ctx deadline apply, like
+// every sibling executor).
+func runContainerCmd(ctx context.Context, drv drivers.Driver, name, script string) (string, string, int, error) {
+	sess, err := drv.Exec(ctx, name, false, 0, 0, []string{"/bin/sh", "-lc", script})
+	if err != nil {
+		return "", "", -1, err
+	}
+	defer sess.Close()
+	return readSession(ctx, sess)
+}
+
+// parseArchiveNameList splits a `unzip -Z1` / `tar -tzf` listing into member
+// names, enforcing the entry-count bomb cap.
+func parseArchiveNameList(raw string) ([]string, error) {
+	var out []string
+	for _, ln := range strings.Split(raw, "\n") {
+		ln = strings.TrimRight(strings.TrimSpace(ln), "\r")
+		if ln == "" {
+			continue
+		}
+		out = append(out, ln)
+		if len(out) > maxArchiveEntries {
+			return nil, fmt.Errorf("archive entry count exceeds %d", maxArchiveEntries)
+		}
+	}
+	return out, nil
+}
+
+// parseUnzipListTotal extracts the total unpacked size from `unzip -l`
+// output (its trailing "  <total>  <n> files" line). ok=false when the
+// total line is absent (caller treats it as unknown, not as zero).
+func parseUnzipListTotal(raw string) (int64, bool) {
+	lines := strings.Split(raw, "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		ln := strings.TrimSpace(lines[i])
+		if !strings.Contains(ln, " file") {
+			continue
+		}
+		fields := strings.Fields(ln)
+		if len(fields) == 0 {
+			return 0, false
+		}
+		total, err := strconv.ParseInt(fields[0], 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return total, true
+	}
+	return 0, false
+}
+
+// parseTarListTotal sums the size column of `tar -tzvf` output
+// (best-effort: unparseable lines are skipped, the entry-count cap above is
+// the strict gate and the byte total is defense-in-depth).
+func parseTarListTotal(raw string) int64 {
+	var total int64
+	for _, ln := range strings.Split(raw, "\n") {
+		fields := strings.Fields(strings.TrimRight(strings.TrimSpace(ln), "\r"))
+		if len(fields) < 3 {
+			continue
+		}
+		if size, err := strconv.ParseInt(fields[2], 10, 64); err == nil && size > 0 {
+			total += size
+		}
+	}
+	return total
+}
+
+// executeExtract unpacks a .zip/.tar.gz inside the container (first-class
+// replacement for hand-rolled `unzip`/`tar -xzf` shell actions). dest
+// defaults to the archive's own directory when empty. ZipSlip-guarded: the
+// member listing is validated BEFORE extraction and any absolute or ".."
+// entry fails the action closed.
+func executeExtract(ctx context.Context, drv drivers.Driver, name, src, dest string) Output {
+	if !validActionPath(src) {
+		return Output{OK: false, Error: "path is required"}
+	}
+	if !isZipName(src) && !isTarGzName(src) {
+		return Output{OK: false, Error: "path must end with .zip or .tar.gz"}
+	}
+	if dest != "" && !validActionPath(dest) {
+		return Output{OK: false, Error: "invalid dest"}
+	}
+	if dest == "" {
+		dest = path.Dir(src)
+	}
+	var listScript, sizeScript string
+	if isZipName(src) {
+		listScript = "unzip -Z1 -- " + shellQuote(src) + " 2>/dev/null | head -n " + strconv.Itoa(maxArchiveEntries+1)
+		sizeScript = "unzip -l -- " + shellQuote(src) + " 2>/dev/null"
+	} else {
+		listScript = "tar -tzf " + shellQuote(src) + " 2>/dev/null | head -n " + strconv.Itoa(maxArchiveEntries+1)
+		sizeScript = "tar -tzvf " + shellQuote(src) + " 2>/dev/null | head -n " + strconv.Itoa(maxArchiveEntries+1)
+	}
+	rawList, listErr, listCode, lerr := runContainerCmd(ctx, drv, name, listScript)
+	if lerr != nil {
+		return Output{OK: false, Error: lerr.Error()}
+	}
+	if listCode != 0 {
+		return Output{OK: false, ExitCode: listCode, Error: listErr}
+	}
+	members, merr := parseArchiveNameList(rawList)
+	if merr != nil {
+		return Output{OK: false, Error: merr.Error()}
+	}
+	for _, m := range members {
+		if !safeArchiveEntry(m) {
+			return Output{OK: false, Error: fmt.Sprintf("archive contains an unsafe entry %q", m)}
+		}
+	}
+	rawSize, sizeErr, sizeCode, serr := runContainerCmd(ctx, drv, name, sizeScript)
+	if serr != nil {
+		return Output{OK: false, Error: serr.Error()}
+	}
+	if sizeCode == 0 {
+		var total int64
+		if isZipName(src) {
+			if t, ok := parseUnzipListTotal(rawSize); ok {
+				total = t
+			} else {
+				_ = sizeErr
+			}
+		} else {
+			total = parseTarListTotal(rawSize)
+		}
+		if total > maxExtractBytes {
+			return Output{OK: false, Error: fmt.Sprintf("archive unpacked size exceeds %d bytes", int64(maxExtractBytes))}
+		}
+	}
+	var script string
+	if isZipName(src) {
+		script = "set -e; command -v unzip >/dev/null 2>&1 || { echo NO_UNZIP; exit 11; }; " +
+			"mkdir -p " + shellQuote(dest) + "; unzip -qq -o " + shellQuote(src) + " -d " + shellQuote(dest) + " 2>&1"
+	} else {
+		script = "set -e; command -v tar >/dev/null 2>&1 || { echo NO_TAR; exit 11; }; " +
+			"mkdir -p " + shellQuote(dest) + "; tar -xzf " + shellQuote(src) + " -C " + shellQuote(dest) + " 2>&1"
+	}
+	sess, err := drv.Exec(ctx, name, false, 0, 0, []string{"/bin/sh", "-lc", script})
+	if err != nil {
+		return Output{OK: false, Error: err.Error()}
+	}
+	defer sess.Close()
+
+	stdout, stderr, code, rerr := readSession(ctx, sess)
+	if rerr != nil {
+		return Output{OK: false, Error: rerr.Error()}
+	}
+	if code != 0 {
+		combined := stdout + "\n" + stderr
+		switch {
+		case strings.Contains(combined, "NO_UNZIP"):
+			return Output{OK: false, ExitCode: code, Error: "unzip is not installed in this container"}
+		case strings.Contains(combined, "NO_TAR"):
+			return Output{OK: false, ExitCode: code, Error: "tar is not installed in this container"}
+		default:
+			return Output{OK: false, ExitCode: code, Error: stderr}
+		}
+	}
+	return Output{OK: true, Stdout: stdout, Data: map[string]any{"path": dest, "count": len(members)}}
+}
+
 func executeDockerCmd(ctx context.Context, drv drivers.Driver, name, command string, args []string) Output {
 	if drv.Name() != "docker" {
 		return Output{OK: false, Error: "docker commands only available on docker driver"}

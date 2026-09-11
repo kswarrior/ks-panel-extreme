@@ -1538,6 +1538,9 @@ func validateInstancePage(req instancePageDTO) (instancePageDTO, error) {
 		if err := json.Unmarshal([]byte(req.Actions), &arr); err != nil {
 			return req, newErrString("actions must be a JSON array")
 		}
+		if err := validatePageActions(req.Actions); err != nil {
+			return req, err
+		}
 	}
 	if err := validateSubPages(req.SubPages); err != nil {
 		return req, err
@@ -2442,10 +2445,13 @@ var validActionTypes = map[string]bool{
 	"docker":     true,
 	"kvm":        true,
 	"lxd":        true,
+	"stat":       true,
+	"chmod":      true,
+	"archive":    true,
+	"extract":    true,
 }
 
-// minActionTimeout / maxActionTimeout bound the edge round-trip so neither a
-// negative nor an absurd client-supplied timeout can disable the HTTP client
+// minActionTimeout / maxActionTimeout bound the edge round-trip so neither a// negative nor an absurd client-supplied timeout can disable the HTTP client
 // deadline or wedge a panel worker for minutes.
 const (
 	minActionTimeout = 1
