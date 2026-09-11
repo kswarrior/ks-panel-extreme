@@ -61,7 +61,7 @@ JSON library files to this format and verifies a lossless round-trip.
 - `content_html` (required if content_type=html): HTML content
 - `content_markdown` (required if content_type=markdown): Markdown content
 - `content_blocks` (required if content_type=blocks): list of block objects (native YAML list, or a JSON array string)
-- `source_tsx` (required if content_type=react): author React JS source (`function Page() { … }` + `return Page;`, `React.createElement`, no JSX in v1); click **Build** in the Studio to validate it into the executable bundle (`bundle_js`)
+- `source_tsx` (required if content_type=react): author React source — JSX + light TS (`type/interface`, `: T`, `as T`, `<T>`) + `import ... from 'react'` allowed, other packages banned (`function Page() { … }` + `return Page;`, `React.createElement` still works); click **Build** in the Studio to validate it into the executable bundle (`bundle_js`)
 - `icon_svg` (optional): Raw SVG inner markup for custom icon
 - `actions` (optional): saved executable actions (`{name, type, command/path/content, args, env, timeout, description}`). Pages execute ONLY these via `KSPageSDK.runAction(name)`; an action may opt in to caller-supplied arguments with `"open_args": true` — shell commands then substitute the validated runtime args into a `{{args}}` placeholder in the stored command.
 - `sub_pages` / `pages` (optional): nested sub-page definitions (`{path, name, content_type, content_*, source_tsx, bundle_css}` — sub-pages support `react` too) reachable at `<slug>/<path>`
