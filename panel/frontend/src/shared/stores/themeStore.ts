@@ -2571,7 +2571,6 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   text-overflow: ellipsis !important;
 }`;
 }
-}
 
 // resolveThemeFromStore is the merged resolver the store uses on every
 // navigation: LOCAL assignments (this user's localStorage) win, then the
