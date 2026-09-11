@@ -88,6 +88,8 @@ return Page;`,
 		}
 	}
 }
+
+func TestValidateReactSourceAllowsJSXAndLightTS(t *testing.T) {
 	for _, src := range []string{
 		`function Page() { return <div className="ks-page">hi</div>; }
 return Page;`,
