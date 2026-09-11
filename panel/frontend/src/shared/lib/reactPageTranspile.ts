@@ -780,14 +780,16 @@ function stripAnnotations(src: string, mark: () => void): string {
 }
 
 // looksLikeTernary reports whether the `:` at pos is the else-branch of a
-// `? :` on the same nesting level (scans back to a line/statement boundary).
+// `? :` on the same nesting level (scans back to a statement boundary).
+// Newlines are NOT boundaries — real ternaries (especially JSX ones) span
+// lines; only `;` and block/param edges stop the scan.
 function looksLikeTernary(src: string, pos: number): boolean {
   let round = 0;
   let square = 0;
   let curly = 0;
   for (let k = pos - 1; k >= 0; k--) {
     const c = src[k];
-    if (c === '\n' || c === ';') return false;
+    if (c === ';') return false;
     if (c === ')' || c === ']' || c === '}') {
       if (c === ')') round++;
       else if (c === ']') square++;
