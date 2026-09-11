@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { listRoles, deleteRole } from '@/shared/api/admin';
+import { listRoles } from '@/shared/api/admin';
 import type { Role } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
@@ -10,7 +10,6 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
-import { useConfirm } from '@/shared/stores/confirmStore';
 
 const ICON_PRESETS: Array<{ value: string; label: string; svg: string }> = [
   { value: 'shield', label: 'Shield', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> </svg>' },
@@ -33,11 +32,9 @@ const getRoleIconSvg = (icon?: string) => {
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
-  const confirm = useConfirm();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [deletingName, setDeletingName] = useState<string | null>(null);
   const [defaultRoleId, setDefaultRoleId] = useState<number | null>(null);
   const [allowSelfAssign, setAllowSelfAssign] = useState<Record<string, boolean>>({});
   const [perms] = useState<string[]>([
@@ -110,19 +107,6 @@ const filterRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     load();
   }, [load]);
-
-  const remove = async (r: Role) => {
-    if (!(await confirm({ title: 'Delete role', message: `Delete role "${r.name}"? This cannot be undone.`, tone: 'danger', confirmLabel: 'Delete' }))) return;
-    setDeletingName(r.name);
-    try {
-      await deleteRole(r.id);
-      await load();
-    } catch (e: any) {
-      alert(e?.response?.data || 'Failed to delete role');
-    } finally {
-      setDeletingName(null);
-    }
-  };
 
   const roleStats = useMemo(() => {
     const total = roles.length;
@@ -328,25 +312,7 @@ return (
                     {perms.length} permission{perms.length === 1 ? '' : 's'}
                   </span>
                   <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/roles/${r.id}/edit`)}
-                      aria-label={`Edit role ${r.name}`}
-                      title="Edit"
-                      className="ks-icon-btn rounded-lg"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /> </svg>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(r)}
-                      disabled={deletingName === r.name}
-                      aria-label={`Delete role ${r.name}`}
-                      title={deletingName === r.name ? 'Deleting…' : 'Delete'}
-                      className="ks-icon-btn rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                    </button>
+                    <Link to={`/role/${r.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
                     <CardMenu
                       ariaLabel={`More actions for role ${r.name}`}
                       items={[
