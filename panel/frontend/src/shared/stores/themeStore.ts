@@ -2569,6 +2569,48 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+}
+/* Count badge settings toggle — the leading icon doubles as the cards
+   per page dropdown trigger. The button resets so it inherits the badge
+   paint; hover/open washes follow the badge surface. */
+.ks-count-wrap {
+  position: relative !important;
+  display: inline-flex !important;
+  max-width: 100% !important;
+}
+.ks-count-icon-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 2px !important;
+  margin: -2px !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  color: inherit !important;
+  transition: background 150ms ease, transform 150ms ease !important;
+}
+.ks-count-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.ks-count-icon-btn:active {
+  transform: scale(0.9) !important;
+}
+.ks-count-icon-btn:focus-visible {
+  outline: 2px solid var(--ks-count-accent, #38bdf8) !important;
+  outline-offset: 2px !important;
+}
+.ks-count-icon-btn.is-open {
+  background: rgba(255, 255, 255, 0.10) !important;
+}
+.ks-count-menu {
+  position: absolute !important;
+  left: 0 !important;
+  top: calc(100% + 8px) !important;
+  z-index: 30 !important;
+  width: max-content !important;
+  max-width: min(280px, 80vw) !important;
 }`;
 }
 

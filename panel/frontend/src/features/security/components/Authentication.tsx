@@ -13,6 +13,10 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import NumberInput from '@/shared/components/ui/NumberInput';
 import ToggleRow from '@/shared/components/ui/ToggleRow';
 import TextInput from '@/shared/components/ui/TextInput';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // Authentication — Security page tab owning every authentication POLICY
@@ -99,9 +103,66 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
   const [recoveryUser, setRecoveryUser] = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [recoveryError, setRecoveryError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the policy fields only — live lockout /
+  // recovery state and the role option list stay out of undo.
+  const snapshot = JSON.stringify({ pwMinLength, pwMaxLength, pwRequireUpper, pwMinUpper, pwRequireLower, pwMinLower, pwRequireNumber, pwMinNumber, pwRequireSymbol, pwMinSymbol, pwNoCommon, pwNoPersonal, phEnabled, phMaxHistory, registerAllow, verifyRequired, registerRole, deviceAccountLimit, registrationMode, registrationN, registrationAllowed, appEnabled, appIssuer, appPinSize, appRotationSeconds, appDigitsInWindow, otpEmailEnabled, otpPhoneEnabled, magicLinkEmail, codeLength, ttlSeconds });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setPwMinLength(s.pwMinLength);
+    setPwMaxLength(s.pwMaxLength);
+    setPwRequireUpper(s.pwRequireUpper);
+    setPwMinUpper(s.pwMinUpper);
+    setPwRequireLower(s.pwRequireLower);
+    setPwMinLower(s.pwMinLower);
+    setPwRequireNumber(s.pwRequireNumber);
+    setPwMinNumber(s.pwMinNumber);
+    setPwRequireSymbol(s.pwRequireSymbol);
+    setPwMinSymbol(s.pwMinSymbol);
+    setPwNoCommon(s.pwNoCommon);
+    setPwNoPersonal(s.pwNoPersonal);
+    setPhEnabled(s.phEnabled);
+    setPhMaxHistory(s.phMaxHistory);
+    setRegisterAllow(s.registerAllow);
+    setVerifyRequired(s.verifyRequired);
+    setRegisterRole(s.registerRole);
+    setDeviceAccountLimit(s.deviceAccountLimit);
+    setRegistrationMode(s.registrationMode);
+    setRegistrationN(s.registrationN);
+    setRegistrationAllowed(s.registrationAllowed);
+    setAppEnabled(s.appEnabled);
+    setAppIssuer(s.appIssuer);
+    setAppPinSize(s.appPinSize);
+    setAppRotationSeconds(s.appRotationSeconds);
+    setAppDigitsInWindow(s.appDigitsInWindow);
+    setOtpEmailEnabled(s.otpEmailEnabled);
+    setOtpPhoneEnabled(s.otpPhoneEnabled);
+    setMagicLinkEmail(s.magicLinkEmail);
+    setCodeLength(s.codeLength);
+    setTtlSeconds(s.ttlSeconds);
+  });
+  const { suspend: histSuspend } = hist;
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refreshConfig = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setError('');
+    try {
+      hydrate(await getAuthority());
+    } catch (e: any) {
+      setError(typeof e?.response?.data === 'string' ? e.response.data : 'Failed to refresh authentication settings');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   function hydrate(cfg: AuthorityConfig) {
     cfgRef.current = cfg;
+    // Server values rebaseline silently instead of pushing an undo step
+    // (initial load, refresh, and the save echo all flow through here).
+    histSuspend();
     if (cfg.password_policy) {
       setPwMinLength(Number(cfg.password_policy.min_length) || 12);
       setPwMaxLength(Number(cfg.password_policy.max_length) || 128);
@@ -239,6 +300,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
 
     try {
       hydrate(await updateAuthority(body));
+      hist.commit();
       setSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
@@ -591,16 +653,27 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       {error && <p className="text-sm text-red-400">{error}</p>}
       {success && <p className="text-sm text-green-400">{success}</p>}
 
-      <div className="flex justify-end">
+      <PageFormActionsPill>
+        <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
+        <button
+          type="button"
+          onClick={() => hist.revert()}
+          disabled={!hist.isDirty || saving}
+          title="Discard unsaved edits"
+          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+          style={PILL_TAB_STYLE}
+        >
+          Cancel
+        </button>
         <button
           type="submit"
           disabled={saving}
-          className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+          className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+          style={PILL_TAB_STYLE}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
           {saving ? 'Saving…' : 'Save'}
         </button>
-      </div>
+      </PageFormActionsPill>
     </form>
   );
 };

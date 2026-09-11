@@ -4,7 +4,6 @@ import { listRoles } from '@/shared/api/admin';
 import type { Role } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
-import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import ListCount from '@/shared/components/ui/ListCount';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
@@ -61,20 +60,6 @@ const RolesPage: React.FC = () => {
 
 const filterRef = useRef<HTMLDivElement | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
-        setSettingsOpen(false);
-      }
-    }
-    if (settingsOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [settingsOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -193,47 +178,6 @@ return (
             )}
           </div>
 
-          <div className="relative" ref={settingsRef}>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(!settingsOpen)}
-              className={`ks-tab inline-flex items-center justify-center transition-colors ${settingsOpen ? 'is-open' : ''}`}
-              style={PILL_TAB_STYLE}
-              aria-label="Display settings"
-              aria-expanded={settingsOpen}
-              aria-haspopup="true"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <line x1="4" y1="21" x2="4" y2="14" /><line x1="4" y1="10" x2="4" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="12" /><line x1="12" y1="8" x2="12" y2="3" />
-                <line x1="20" y1="21" x2="20" y2="16" /><line x1="20" y1="12" x2="20" y2="3" />
-                <line x1="1" y1="14" x2="7" y2="14" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="17" y1="16" x2="23" y2="16" />
-              </svg>
-            </button>
-
-            {settingsOpen && (
-              <div className="absolute right-0 top-full mt-1 z-30 w-64">
-                <div className="ks-dropdown min-w-[260px] animate-in fade-in slide-in-from-to duration-150">
-                  <div className="p-3 space-y-3">
-                    <div>
-                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Cards per page</label>
-                      <LimitSelect value={pageSize} onChange={setPageSize} ariaLabel="Roles page size" />
-                    </div>
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setSettingsOpen(false); }}
-                        className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
-                      >
-                        Close
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           <Link
             to="/roles/stats"
             aria-label="Role Statistics"
@@ -266,13 +210,26 @@ return (
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {hasActiveFilter ? (
-            <ListCount shown={visible.length} total={filtered.length} label="role" />
+            <ListCount
+              shown={visible.length}
+              total={filtered.length}
+              label="role"
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
+            />
           ) : (
             <ListCount
-              shown={roleStats.total}
-              total={roleStats.total}
+              shown={visible.length}
+              total={roles.length}
               label="role"
-              extra={roleStats.withPerms > 0 ? <>{roleStats.withPerms} with permissions</> : undefined}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              extra={
+                roles.length > pageSize
+                  ? <>showing first {pageSize}{roleStats.withPerms > 0 ? <> · {roleStats.withPerms} with permissions</> : null}</>
+                  : roleStats.withPerms > 0 ? <>{roleStats.withPerms} with permissions</> : undefined
+              }
             />
           )}
         </div>

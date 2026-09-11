@@ -44,7 +44,7 @@ export const CountTab: React.FC<CountTabProps> = ({ draft, patch }) => {
       </div>
 
       <div className="ks-form-card rounded-lg space-y-4">
-        <Label label="Accent & icon" hint="Icon tint, divider glow and the automatic “filtered” chip shown when N ≠ M." />
+        <Label label="Accent & icon" hint="Icon tint, divider glow and the automatic “filtered” chip shown when N ≠ M. The icon doubles as the cards-per-page toggle on pages that offer it." />
         <ColorField label="Accent" value={c.accent_color ?? D.accent_color} onChange={(v) => patch('count', { accent_color: v })} hint="Icon + filtered dot." />
         <ColorField label="Filtered chip fill" value={c.accent_background ?? D.accent_background} onChange={(v) => patch('count', { accent_background: v })} />
         <ColorField label="Filtered chip text" value={c.accent_text_color ?? D.accent_text_color} onChange={(v) => patch('count', { accent_text_color: v })} />

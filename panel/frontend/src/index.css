@@ -513,6 +513,50 @@ input:-internal-autofill-selected:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Count badge settings toggle — the leading icon doubles as the
+   "cards per page" dropdown trigger (same LimitSelect the Roles/Users
+   pill sliders-button used to own). Plain CSS fallback; the theme
+   stylesheet re-asserts these with !important so they survive the
+   badge's themed paint. */
+.ks-count-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+.ks-count-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  margin: -2px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  transition: background 150ms ease, transform 150ms ease;
+}
+.ks-count-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.ks-count-icon-btn:active {
+  transform: scale(0.9);
+}
+.ks-count-icon-btn:focus-visible {
+  outline: 2px solid var(--ks-count-accent, #38bdf8);
+  outline-offset: 2px;
+}
+.ks-count-icon-btn.is-open {
+  background: rgba(255, 255, 255, 0.10);
+}
+.ks-count-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: max-content;
+  max-width: min(280px, 80vw);
+}
 
 /* dvh-safe reset so the layout hits the dynamic viewport unit on
  * mobile (avoids the iOS Safari URL bar jump). Setting this on
