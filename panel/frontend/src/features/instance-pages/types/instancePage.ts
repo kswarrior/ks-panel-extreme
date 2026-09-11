@@ -51,7 +51,7 @@ export interface InstancePage {
   content_html: string;
   content_markdown: string;
   content_blocks: string;
-  /** Author React JS source for content_type == 'react' (React.createElement, no JSX in v1). */
+  /** Author React source for content_type == 'react' (JSX + light TS + react-only imports; plain React.createElement still works). */
   source_tsx: string;
   /** Validated build output for content_type == 'react' (POST /:id/build). */
   bundle_js: string;
