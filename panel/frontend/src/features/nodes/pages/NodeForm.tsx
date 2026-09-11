@@ -484,6 +484,7 @@ const NodeForm: React.FC = () => {
         ...advancedPayload(),
       });
       setSetupInfo({ running: true, log: 'Node registered. Installing and launching ksedge…', done: false });
+      hist.commit();
       let setupRes: SetupLocalResult;
       try {
         setupRes = await setupLocalNode(res.id);
