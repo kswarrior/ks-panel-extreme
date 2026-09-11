@@ -23,6 +23,8 @@ import {
 } from '@/shared/types/stack';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 const capLabel = (capability: string): string =>
   stackCapabilityMeta(capability)?.label || capability;
@@ -46,6 +48,13 @@ const PAGE_BADGE: Record<string, string> = {
 const Stacks: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle stack cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [stacks, setStacks] = useState<Stack[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -335,8 +344,12 @@ const Stacks: React.FC = () => {
             const approved = s.permissions.filter((p) => p.granted).length;
             const allSet = s.pending === 0;
             return (
-              <article key={s.id} id={`ks-stack-${s.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <article key={s.id} id={`ks-stack-${s.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                <CardMediaLayer />
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
                 <header className="flex items-start gap-3 min-w-0">
                   <CardIconTile
                     icon={s.icon || ''}

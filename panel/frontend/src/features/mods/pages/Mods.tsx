@@ -572,16 +572,20 @@ return (
              const approved = m.permissions.filter((p) => p.granted).length;
              const allSet = m.pending === 0;
              return (
-               <article key={m.id} id={`ks-mod-${m.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+                <article key={m.id} id={`ks-mod-${m.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                 <CardMediaLayer />
+                 <div
+                   className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                   style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                 />
                 <header className="flex items-start gap-3 min-w-0">
                   <div className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-black/30 ${m.active ? 'border-emerald-700/60 text-emerald-300' : 'border-white/10 text-gray-300'}`} aria-hidden="true">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5"><path d="M9 2h6l2 4-3 2 3 2-2 4H9l-2-4 3-2-3-2z" /><path d="M12 14v8" /> </svg>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight">{m.name}</h3>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{m.slug}{m.version ? ` · v${m.version}` : ''}</p>
-                    {m.description && <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{m.description}</p>}
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{m.name}</h3>
+                    <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{m.slug}{m.version ? ` · v${m.version}` : ''}</p>
+                    {m.description && <p className="text-xs line-clamp-2 mt-0.5" style={{ color: 'var(--ks-text-body)' }}>{m.description}</p>}
                     {(() => {
                       const src = modSourceMeta(m.source || 'file');
                       if (!src || src.key === 'file') return null;
@@ -614,7 +618,7 @@ return (
                 {/* Requested permissions summary */}
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {m.permissions.length === 0 ? (
-                    <span className="text-[11px] text-gray-500 italic">No permissions requested — safe to activate.</span>
+                    <span className="text-[11px] italic" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>No permissions requested — safe to activate.</span>
                   ) : (
                     m.permissions.map((p: ModPermission) => {
                       const meta = modCapabilityMeta(p.capability);
@@ -639,8 +643,11 @@ return (
                   </p>
                 )}
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {(() => {
                       const label = formatCardDate(m.created_at);
                       return label ? <>Uploaded {label}</> : <>id {m.id}</>;
@@ -684,7 +691,7 @@ return (
       )}
 
       {!loading && filtered.length === 0 && mods.length > 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No mods match your filters.</div>
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>No mods match your filters.</div>
       )}
       {!loading && mods.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
@@ -703,7 +710,7 @@ return (
               <path d="M9 2h6l2 4-3 2 3 2-2 4H9l-2-4 3-2-3-2z" />
               <path d="M12 14v8" />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No mods yet</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No mods yet</p>
           </div>
         </div>
       )}
