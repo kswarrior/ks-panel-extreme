@@ -344,6 +344,53 @@ interface BlockRow {
 
 Edit visually in Studio → **Main page** → Visual/JSON toggle (`PageStudioBlocksEditor.tsx:19`). See §6 for full catalog. In YAML library files `content_blocks` is a native list.
 
+### 5.4 `content_type: "react"` — Multi-file pages (virtual modules)
+
+Split a React page into an entry (`source_tsx`, the `index` file) plus named
+files on the Studio React tab → **Files** (`PageStudioReactSection.tsx`).
+Storage: no new column — files persist as `components` entries with
+`type: 'module'` (`{name, content}`).
+
+```js
+// Files → util: export helpers/components (named and/or default)
+export function helper() { return 42; }
+export default function Badge(props) { return <span className="ks-badge">{props.text}</span>; }
+
+// index (entry): import with a relative path, extension optional
+import { useState } from 'react';
+import { helper } from './util';
+import Badge from './util';
+
+function Page() {
+  const [n] = useState(helper());
+  return <div className="ks-page"><Badge text={String(n)} /></div>;
+}
+return Page;
+```
+
+Rules (enforced identically by the renderer `transpileReactPageSource(src,
+modules)` and the server `validateReactSource` + `validateReactModules`):
+
+* Import forms (single-line): `import { a } from './util'`,
+  `import def from "./util"`, `import def, { a } from './util'`,
+  `import * as U from './util'`, `import './util'` (side effects).
+  `export ... from './x'` stays rejected.
+* Only `./...` / `../...` staying inside the page root, plus `from
+  'react'`. Absolute paths, `~/`, bare packages (other than `react`),
+  `\`, `%`-encoded dots, `?`/`#` → build error. `..` past the root →
+  build error naming the escape.
+* Missing file → error listing available names; import cycle → error naming
+  the cycle (`a -> b -> a`); unknown export → error listing the module's
+  exports; type-only (`interface`/`type`) exports cannot be imported as values.
+* Modules share one scope after inlining (dependency order): keep top-level
+  names unique. Unused files never ship. `import ... from 'react'` across
+  files is merged (no duplicate bindings).
+* Limits: ≤20 files; combined entry + reachable files ≤512 KiB; same 512 KiB
+  `components` budget, ≤50 component rows total — no cap changes.
+* Preview, link (`POST /:id/link` copies `components` verbatim) and template
+  `spec.pages[].components` carry files automatically; `{{component:name}}`
+  never substitutes a `module` row.
+
 ---
 
 ## 6) Visual Blocks Catalog
@@ -479,7 +526,7 @@ Define a fragment once, reference it from **main page *or* any sub-page** of the
 ### 8.1 Authoring
 
 * Studio → **Components** tab (`PageStudioComponentsSection.tsx:15`, `pageStudio.ts:50` `ComponentRow`).
-* Each row: `name` (`^[A-Za-z0-9_][A-Za-z0-9_-]*$` `instance_page_handler.go:212`, unique, ≤64), `type` (`html|markdown|block`), optional `description`, `content` (≤1 MiB).
+* Each row: `name` (`^[A-Za-z0-9_][A-Za-z0-9_-]*$` `instance_page_handler.go:212`, unique, ≤64), `type` (`html|markdown|block`, plus `shared` import-by-reference and `module` React files — see §5.4; modules never substitute as tokens), optional `description`, `content` (≤1 MiB).
 * `validateCompRows` (`pageStudioUtils.ts:191`).
 
 ### 8.2 Referencing
@@ -821,6 +868,7 @@ Also used for `HtmlBlockFrame` (`CustomPageView.tsx:380` `activePageThemeCss()`)
 | `actions` JSON | ≤64 KiB, JSON array | `actions must be a JSON array / too large` |
 | `sub_pages` JSON | ≤512 KiB, ≤20 entries | `sub_pages must be … / too many sub-pages (max 20)` |
 | `components` JSON | ≤512 KiB, ≤50 entries | `components must be … / too many components (max 50)` |
+| `components` type `module` (React files) | ≤20 files, combined entry + reachable ≤512 KiB | `too many modules (max 20) / combined page source too large / unknown module / circular import detected` |
 | `open_args` extras | ≤4, per-value ≤200, charset `a-zA-Z0-9 ._/ :@+=,-` | `action accepts at most 4 / unsupported characters / does not accept runtime arguments` |
 | `kind` | must `custom` (builtin rejected) | `kind must be "custom"` |
 | `content_type` | `html`\|`markdown`\|`blocks` when set | `content_type must be one of …` |
