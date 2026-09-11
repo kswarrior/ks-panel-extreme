@@ -176,6 +176,12 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
               borderRadius: p.border_radius,
               boxShadow: p.shadow,
               padding: p.padding,
+              // Collapsed preview mirrors the real pill's slim rectangle:
+              // same height, only side padding shrinks to hug the `<`.
+              paddingLeft: previewOff ? 4 : p.padding,
+              paddingRight: previewOff ? 4 : p.padding,
+              transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
+              transitionDuration: `${p.animation_duration}ms`,
               backdropFilter: `blur(${p.backdrop_blur}px)`,
               color: p.text_color,
             }}
@@ -227,8 +233,10 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
             <span
               className="ks-tab inline-flex items-center justify-center shrink-0"
               style={{
-                ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                ['--ks-tab-px' as any]: previewOff ? '4px' : `${p.tab_padding_x}px`,
                 ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
+                transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
+                transitionDuration: `${p.animation_duration}ms`,
                 color: p.text_color,
               }}
               aria-hidden="true"
@@ -326,6 +334,11 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
               borderRadius: p.border_radius,
               boxShadow: p.shadow,
               padding: p.padding,
+              // Collapsed preview mirrors the real pill's slim rectangle.
+              paddingLeft: formPreviewOff ? 4 : p.padding,
+              paddingRight: formPreviewOff ? 4 : p.padding,
+              transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
+              transitionDuration: `${p.animation_duration}ms`,
               backdropFilter: `blur(${p.backdrop_blur}px)`,
               color: p.text_color,
             }}
@@ -377,8 +390,10 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
             <span
               className="ks-tab inline-flex items-center justify-center shrink-0"
               style={{
-                ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                ['--ks-tab-px' as any]: formPreviewOff ? '4px' : `${p.tab_padding_x}px`,
                 ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
+                transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
+                transitionDuration: `${p.animation_duration}ms`,
                 color: p.text_color,
               }}
               aria-hidden="true"

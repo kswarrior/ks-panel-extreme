@@ -66,7 +66,7 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
       >
         <div
           ref={ref}
-          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${className}`}
+          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <div

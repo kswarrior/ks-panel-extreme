@@ -20,7 +20,6 @@ export const PILL_SHOW_DELAY = 2500;
 // --ks-tab-py + icon + shell vertical padding), only the width shrinks so
 // the off pill reads as a slim rectangle instead of a near-square.
 export const PILL_TOGGLE_COLLAPSED_PX = '4px';
-export const PILL_SHELL_COLLAPSED_PX = '4px';
 
 // useAutoHidePill hides a fixed action cluster while the page scrolls or
 // is clicked elsewhere, then reveals it again after `delay` ms idle.
@@ -154,7 +153,7 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
     >
       <div
         ref={ref}
-        className={`ks-card ks-pill-anim ks-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${className}`}
+        className={`ks-card ks-pill-anim ks-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
         style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
       >
         <div
