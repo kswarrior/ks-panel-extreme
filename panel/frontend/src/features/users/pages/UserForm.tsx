@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createUser, listRoles, updateUser, listUsers } from '@/shared/api/admin';
 import type { User, Role } from '@/shared/types/user';
@@ -7,6 +7,8 @@ import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
 type Form = {
@@ -26,35 +28,59 @@ const UserForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the form fields (option lists stay out).
+  const snapshot = JSON.stringify({ form });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    setForm(JSON.parse(snapStr).form);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const rs = await listRoles();
+      setRoles(rs);
+      if (editing) {
+        const users = await listUsers();
+        const u = users.find((x) => x.id === Number(id));
+        if (u) {
+          setEditingUser(u);
+          setForm({ username: u.username, email: u.email, password: '', role_id: u.role_id });
+        } else {
+          setError('User not found');
+        }
+      } else {
+        setForm({ username: '', email: '', password: '', role_id: rs[0]?.id || 0 });
+      }
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const rs = await listRoles();
-        if (cancelled) return;
-        setRoles(rs);
-        if (editing) {
-          const users = await listUsers();
-          if (cancelled) return;
-          const u = users.find((x) => x.id === Number(id));
-          if (u) {
-            setEditingUser(u);
-            setForm({ username: u.username, email: u.email, password: '', role_id: u.role_id });
-          } else {
-            setError('User not found');
-          }
-        } else {
-          setForm({ username: '', email: '', password: '', role_id: rs[0]?.id || 0 });
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form (never resets anything server-side).
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -79,6 +105,7 @@ const UserForm: React.FC = () => {
       } else {
         await createUser(form);
       }
+      hist.commit();
       navigate('/users');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save user');
@@ -100,8 +127,9 @@ const UserForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — Cancel + Save live here; the footer bar is removed. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save live here; the footer bar is removed. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/users')}
