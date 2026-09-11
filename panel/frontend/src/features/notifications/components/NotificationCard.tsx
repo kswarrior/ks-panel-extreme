@@ -2,11 +2,20 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Notification } from '../types/notification';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 export const CategoryBadge: React.FC<{ cat: string }> = ({ cat }) => {
   const m = CATEGORY_META[cat as keyof typeof CATEGORY_META] || CATEGORY_META.general;
   return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-md border bg-white/[0.05] border-white/10" style={{ color: m.color }}>
+    <span
+      className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wide uppercase px-2 py-1 rounded-md border"
+      style={{
+        color: m.color,
+        borderColor: 'var(--ks-card-border)',
+        background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+      }}
+    >
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.color }} />
       {m.label}
     </span>
@@ -38,11 +47,24 @@ const NotificationCard: React.FC<{
   const cat = CATEGORY_META[n.category] || CATEGORY_META.general;
   const pri = PRIORITY_META[n.priority] || PRIORITY_META.normal;
   const unread = !n.is_read;
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle notification cards identically.
+  // (The unread sky tint stays accent-semantic: solid sky utilities already
+  // follow --ks-accent-info via the theme's gated utility mappings.)
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
 
   return (
-    <article className={`ks-card ks-list-card group relative flex flex-col gap-3 p-4 rounded-xl border transition-all duration-200 hover:shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${unread ? 'glass-card border-sky-400/25 bg-sky-500/[0.04] hover:border-sky-300/30' : 'glass-card hover:border-white/20'}`}>
+    <article className={`ks-card ks-list-card group relative flex flex-col gap-3 p-4 rounded-xl border transition-all duration-200 hover:shadow-[0_8px_32px_rgba(0,0,0,0.5)] ${glassModifier} ${unread ? 'glass-card border-sky-400/25 bg-sky-500/[0.04] hover:border-sky-300/30' : 'glass-card hover:border-white/20'}`}>
+      <CardMediaLayer />
       {unread && <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-1 bg-sky-400 rounded-l-xl" aria-hidden="true" />}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-60" />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-60"
+        style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+      />
       <header className="flex items-start gap-3 min-w-0">
         <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border ${unread ? 'bg-sky-500/15 border-sky-400/20 text-sky-300' : 'bg-white/[0.05] border-white/10 text-gray-300'}`}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
@@ -54,11 +76,11 @@ const NotificationCard: React.FC<{
           </svg>
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className={`text-sm leading-snug line-clamp-2 ${unread ? 'font-bold text-white' : 'font-semibold text-gray-100'}`} title={n.title}>{n.title}</h3>
-          <p className="text-[11px] text-gray-500 font-mono mt-0.5 flex items-center gap-1.5">
+          <h3 className={`text-sm leading-snug line-clamp-2 ${unread ? 'font-bold' : 'font-semibold'}`} style={{ color: 'var(--ks-text-heading)' }} title={n.title}>{n.title}</h3>
+          <p className="text-[11px] font-mono mt-0.5 flex items-center gap-1.5" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
             <span>{timeAgoFull(n.created_at)}</span>
-            {n.actor_name && <><span className="w-1 h-1 rounded-full bg-white/20" /><span className="text-gray-400">by {n.actor_name}</span></>}
-            {n.is_broadcast && <><span className="w-1 h-1 rounded-full bg-white/20" /><span className="px-1.5 py-0.5 rounded bg-fuchsia-500/20 border border-fuchsia-400/30 text-fuchsia-200 text-[10px] font-bold uppercase tracking-wide">Broadcast</span></>}
+            {n.actor_name && <><span className="w-1 h-1 rounded-full" style={{ background: 'var(--ks-text-body)', opacity: 0.3 }} /><span style={{ color: 'var(--ks-text-body)' }}>by {n.actor_name}</span></>}
+            {n.is_broadcast && <><span className="w-1 h-1 rounded-full" style={{ background: 'var(--ks-text-body)', opacity: 0.3 }} /><span className="px-1.5 py-0.5 rounded bg-fuchsia-500/20 border border-fuchsia-400/30 text-fuchsia-200 text-[10px] font-bold uppercase tracking-wide">Broadcast</span></>}
           </p>
         </div>
         <div className="shrink-0 flex flex-col items-end gap-1.5">

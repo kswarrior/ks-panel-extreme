@@ -222,16 +222,19 @@ const ActivityCards: React.FC<ActivityCardsProps> = ({ rows }) => {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-sm font-semibold text-white truncate">
+                  <span className="text-sm font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }}>
                     {r.username || 'system'}
                   </span>
                   {r.role && (
-                    <span className="shrink-0 text-[10px] uppercase tracking-wide text-gray-400 border border-white/10 rounded px-1.5 py-0.5">
+                    <span
+                      className="shrink-0 text-[10px] uppercase tracking-wide border rounded px-1.5 py-0.5"
+                      style={{ color: 'var(--ks-text-body)', borderColor: 'var(--ks-card-border)' }}
+                    >
                       {r.role}
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-gray-500 truncate font-mono">
+                <div className="text-[11px] truncate font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>
                   user_id {r.user_id ?? '—'}
                 </div>
               </div>
@@ -247,28 +250,31 @@ const ActivityCards: React.FC<ActivityCardsProps> = ({ rows }) => {
                   {verb.label}
                 </span>
                 {(r.target_label || r.target_id) && (
-                  <span className="text-xs text-gray-200 truncate font-mono">
+                  <span className="text-xs truncate font-mono" style={{ color: 'var(--ks-text-heading)', opacity: 0.9 }}>
                     {r.target_label || `#${r.target_id}`}
                   </span>
                 )}
               </div>
               {r.message && (
-                <p className="text-sm text-gray-300 leading-snug break-words">
+                <p className="text-sm leading-snug break-words" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>
                   {r.message}
                 </p>
               )}
             </div>
 
-            <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-1.5 text-gray-400 min-w-0" title={formatAbsolute(r.created_at)}>
+            <footer
+              className="mt-auto pt-2 border-t flex items-center justify-between gap-2 text-[11px]"
+              style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+            >
+              <div className="flex items-center gap-1.5 min-w-0" style={{ color: 'var(--ks-text-body)' }} title={formatAbsolute(r.created_at)}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 shrink-0">
                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                 </svg>
+                </svg>
                 <span className="truncate">{formatRelative(r.created_at)}</span>
-                <span className="text-gray-600 truncate hidden sm:inline">·</span>
-                <span className="hidden sm:inline text-gray-600 truncate">{formatAbsolute(r.created_at)}</span>
+                <span className="truncate hidden sm:inline" style={{ opacity: 0.5 }}>·</span>
+                <span className="hidden sm:inline truncate" style={{ opacity: 0.5 }}>{formatAbsolute(r.created_at)}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-gray-300 shrink-0" title={`Client IP · ${formatIP(r.ip_address)}`}>
+              <div className="flex items-center gap-1.5 shrink-0" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }} title={`Client IP · ${formatIP(r.ip_address)}`}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
                  </svg>
