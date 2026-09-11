@@ -719,6 +719,7 @@ function stripAnnotations(src: string, mark: () => void): string {
         let cu = 0;
         let a = 0;
         let seen = false; // any non-space type char consumed yet?
+        let sawParen = false; // a `(` was consumed (function type?)
         let st: 'code' | 'sq' | 'dq' | 'tpl' = 'code';
         let end = -1;
         while (k < n) {
@@ -742,10 +743,12 @@ function stripAnnotations(src: string, mark: () => void): string {
               continue;
             }
             if (t === '=' && src[k + 1] === '>') {
-              // A bare `=>` at depth 0 is always the arrow of an arrow
-              // function (`(x): T => ...`); function TYPES carry their
-              // arrows inside parens (depth > 0) and are consumed above.
-              if (r === 0 && s === 0 && cu === 0 && a === 0) {
+              // A bare `=>` at depth 0 is the arrow of an arrow function
+              // (`(x): T => ...`) — unless parens were consumed, in which
+              // case it belongs to a function TYPE (`: (a) => void`).
+              // Function types always carry parens in valid TS, and any
+              // `=>` nested deeper is consumed by the depth branches above.
+              if (r === 0 && s === 0 && cu === 0 && a === 0 && !sawParen) {
                 end = k; // keep the arrow.
                 break;
               }
@@ -754,8 +757,10 @@ function stripAnnotations(src: string, mark: () => void): string {
               continue;
             }
             if (t === '(' || t === '[') {
-              if (t === '(') r++;
-              else s++;
+              if (t === '(') {
+                r++;
+                sawParen = true;
+              } else s++;
               seen = true;
               k++;
               continue;
@@ -887,7 +892,15 @@ function looksLikeTernary(src: string, pos: number): boolean {
     }
     if (c === '?' && round === 0 && square === 0 && curly === 0) {
       // `?.` optional chaining is not a ternary.
-      if (src[k + 1] === '.' || (k > 0 && /[A-Za-z0-9_$]/.test(src[k - 1]) && src[k + 1] === '?')) continue;
+      if (src[k + 1] === '.') continue;
+      // `??` nullish coalescing is not a ternary.
+      if (k > 0 && /[A-Za-z0-9_$]/.test(src[k - 1]) && src[k + 1] === '?') continue;
+      // `?` directly before `:`, `,` or `)` is an OPTIONAL marker
+      // (`(b?: string)`, `a?: B`), not a ternary — keep scanning back for
+      // the real statement start instead of claiming a ternary here.
+      let m = k + 1;
+      while (m < src.length && (src[m] === ' ' || src[m] === '\t' || src[m] === '\n' || src[m] === '\r')) m++;
+      if (m < src.length && (src[m] === ':' || src[m] === ',' || src[m] === ')')) continue;
       return true;
     }
     if (c === ':' && round === 0 && square === 0 && curly === 0) return false;
