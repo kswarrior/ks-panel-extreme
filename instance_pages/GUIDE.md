@@ -697,6 +697,9 @@ sdk.subscribe(action: PageAction, cb: (r:ActionResult)=>void, intervalMs?: numbe
 sdk.navigate(to: string): void // host: dispatch ks-navigate → router; iframe: parent via bridge
 // pageNavigateTarget() rejects schemes, //, dot-segments, >2048 chars (customPageSdk.ts:182)
 
+// — In-page router (react pages: tabs without reload, no react-router import) —
+sdk.useHashRoute<T>(tabs: readonly T[], fallback: T): [T, (t: T) => void] // active tab ↔ location.hash #tab=<name>; unknown → fallback; ids [a-z0-9_-] ≤64 (see §11.4)
+
 // — UI —
 sdk.toast(message: string, type?: 'success'|'error'|'info'|'warning'): void
 sdk.confirm(message: string): Promise<boolean> // themed ConfirmDialog, not browser confirm()
@@ -759,6 +762,49 @@ const ws = KSPageSDK.connectWS();
 ws.onopen = ()=> ws.send('ls\n');
 ws.onmessage = e=> term.write(e.data);
 ```
+
+### 11.4 Tabs without reload (`sdk.useHashRoute`)
+
+React pages (`content_type: react`, rendered host-side by `ReactModuleView`)
+get tab/nav state without reloads through `sdk.useHashRoute(tabs,
+fallback)` — a plain-hooks helper (no `react-router` import; the host
+router stays panel-owned). The active tab lives in `location.hash` as
+`#tab=<name>`, validated against `tabs` (unknown hash → `fallback`, never
+throws). Tab ids follow the sub-page shape: `[a-z0-9_-]`, ≤64 chars.
+First render is read-only (no hash → `fallback`, URL untouched); only the
+setter writes, via `history.replaceState` (no reload, no scroll jump).
+
+```tsx
+type TabId = 'overview' | 'system';
+
+function Page() {
+  const [tab, setTab] = sdk.useHashRoute<TabId>(['overview', 'system'], 'overview');
+  return (
+    <div className="ks-page">
+      <div className="ks-row">
+        {(['overview', 'system'] as TabId[]).map((t) => (
+          <button key={t} className={'ks-tab' + (tab === t ? ' ks-tab-active' : '')} onClick={() => setTab(t)}>
+            {t}
+          </button>
+        ))}
+      </div>
+      {tab === 'overview' ? <div className="ks-card">Overview</div> : <div className="ks-card">System</div>}
+    </div>
+  );
+}
+return Page;
+```
+
+Deep-link at one tab from another page of the same instance (or a
+bookmark) — the target page opens directly on that tab, back/forward stay
+in sync via `hashchange`:
+
+```js
+sdk.navigate(`/instances/${sdk.instance.id}/${sdk.pageSlug}#tab=system`);
+```
+
+Live example: `instance_pages/pages/react-dashboard.yaml` (`Overview` /
+`System` tabs; polling, `sdk.chart` and export behavior unchanged).
 
 ---
 

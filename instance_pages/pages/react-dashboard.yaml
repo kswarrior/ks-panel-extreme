@@ -54,7 +54,7 @@ source_tsx: |
   const NOTES_MD = '## Load notes\n\n- **1m load** sampled every 5s via `get_load`.\n- See [panel docs](https://example.com) for details.';
 
   function Page() {
-    const [tab, setTab] = useState<TabId>('overview');
+    const [tab, setTab] = sdk.useHashRoute<TabId>(['overview', 'system'], 'overview');
     const [status, setStatus] = useState<string>('loading…');
     const [points, setPoints] = useState<LoadPoint[]>([]);
     const [updated, setUpdated] = useState<number>(0);
