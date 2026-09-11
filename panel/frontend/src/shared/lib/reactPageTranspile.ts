@@ -97,7 +97,7 @@ export function rewriteReactImports(src: string): { code: string; hadImport: boo
   let badMod: RegExpExecArray | null;
   while ((badMod = modRe.exec(stripped)) !== null) {
     const stmt = badMod[2].trim();
-    const okExport = /^export\s+(const|let|var|async|function|class|enum|namespace|interface|type)\b/.test(stmt);
+    const okExport = /^export\s+(const|let|var|async|function|class|enum|namespace|interface|type|declare)\b/.test(stmt);
     if (!okExport) {
       throw new Error(
         `import/export is not supported here (${stmt.slice(0, 60)}) — pages are private scripts (end with \`return Page;\`), React and sdk are already in scope; use sdk.* helpers instead`,
