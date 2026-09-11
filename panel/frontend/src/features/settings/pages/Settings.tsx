@@ -535,6 +535,437 @@ const Settings: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* ---- Logo sub-page (node-form Icon & colour pattern) ---- */}
+      <GlassModal
+        open={logoModalOpen}
+        onClose={() => setLogoModalOpen(false)}
+        title="Logo"
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setLogoModalOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+            <button onClick={() => setLogoModalOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+          </>
+        }
+      >
+        <p className="text-xs text-gray-500">
+          Shown on the login page, in the sidebar, and in the header menu. PNG, JPEG, GIF, WebP, or SVG up to 5 MiB.
+          For the sharpest result use a square <span className="font-mono">512×512</span> PNG with transparency — or an SVG, which stays crisp at every size.
+        </p>
+        <div className="flex items-start gap-4">
+          <div className="rounded-xl bg-neutral-900/60 border border-neutral-700/60 p-3 flex items-center justify-center">
+            <PanelBrandLogo logo={previewLogo} style={logoStyle} baseSize={64} alt="Panel logo preview" eager />
+          </div>
+          <div className="flex flex-col gap-3 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onPickLogo}
+                disabled={uploadingLogo || saving}
+                className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /> </svg>
+                {uploadingLogo ? 'Uploading…' : logo ? 'Replace logo' : 'Upload logo'}
+              </button>
+              {logo && (
+                <button
+                  type="button"
+                  onClick={onRemoveLogo}
+                  disabled={uploadingLogo || saving}
+                  className="inline-flex items-center gap-2 bg-neutral-800 text-red-300 px-4 py-2 rounded hover:bg-neutral-700 text-sm disabled:opacity-60"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6 17.6 19a2 2 0 0 1-2 2H8.4a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /> </svg>
+                  Remove
+                </button>
+              )}
+            </div>
+            {logo && (
+              <p className="text-xs text-gray-500">
+                <span className="font-mono">{logo.filename}</span> · {logo.mime}
+              </p>
+            )}
+            {(logoDims || logoFileInfo) && (
+              <p className="text-xs text-gray-500">
+                {logoDims ? (
+                  <>{logoDims.w}×{logoDims.h}px</>
+                ) : (
+                  <>measuring…</>
+                )}
+                {logoFileInfo ? <> · {formatBytes(logoFileInfo.size)}</> : null}
+                {isSvg ? <> · vector (always sharp)</> : null}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {previewSrc && isSmallRaster && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+            This image is only {logoDims?.w}×{logoDims?.h}px — it will look blurry when scaled up to the login tile.
+            Re-export it at <span className="font-mono">512×512</span> or larger (or use an SVG) for a crisp logo.
+          </div>
+        )}
+        {previewSrc && !isSvg && isNonSquare && logoStyle.fit === 'cover' && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200">
+            This image is wide ({logoDims?.w}×{logoDims?.h}px) and fit is set to <span className="font-mono">cover</span>, so the sides will be cropped.
+            Switch fit to <span className="font-mono">contain</span> below to show the whole logo.
+          </div>
+        )}
+        {previewSrc && !isSvg && isNonSquare && logoStyle.fit === 'contain' && (
+          <p className="text-xs text-gray-500">
+            Wide source ({logoDims?.w}×{logoDims?.h}px) shown whole via <span className="font-mono">contain</span> — letterboxing is expected. A square export fills the tile better.
+          </p>
+        )}
+
+        {previewSrc && (
+          <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+            <p className="text-xs font-medium text-gray-400 mb-3">Live preview — exactly how it renders across the panel</p>
+            <div className="flex items-end gap-6">
+              <div className="flex flex-col items-center gap-1.5">
+                <PanelBrandLogo logo={previewLogo} style={logoStyle} baseSize={64} alt="Login-size logo preview" eager />
+                <span className="text-[11px] text-gray-500">Login · 64</span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <PanelBrandLogo logo={previewLogo} style={logoStyle} baseSize={28} alt="Sidebar-size logo preview" />
+                <span className="text-[11px] text-gray-500">Sidebar · 28</span>
+              </div>
+              <div className="flex flex-col items-center gap-1.5">
+                <PanelBrandLogo logo={previewLogo} style={logoStyle} baseSize={16} alt="Small-size logo preview" />
+                <span className="text-[11px] text-gray-500">Compact · 16</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Fit</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['contain', 'Contain (whole logo)'],
+                ['cover', 'Cover (fill + crop)'],
+                ['fill', 'Fill (stretch)'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchLogo({ fit: v })} className={segBtn(logoStyle.fit === v)} title={v === 'contain' ? 'Recommended — shows the whole image, never crops, never stretches.' : v === 'cover' ? 'Fills the tile; wide/tall images get cropped.' : 'Stretches to fill; may distort.'}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Corners</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['large', 'Rounded XL'],
+                ['rounded', 'Rounded'],
+                ['circle', 'Circle'],
+                ['square', 'Square'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchLogo({ shape: v })} className={segBtn(logoStyle.shape === v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Tile size</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['sm', 'Small'],
+                ['md', 'Medium'],
+                ['lg', 'Large'],
+                ['xl', 'Extra large'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchLogo({ size: v })} className={segBtn(logoStyle.size === v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Tile background</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['dark', 'Dark'],
+                ['transparent', 'Transparent'],
+                ['light', 'Light'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchLogo({ bg: v })} className={segBtn(logoStyle.bg === v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-500">Transparent suits logos that already carry their own background.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Shadow</label>
+            <div className="flex flex-wrap gap-2">
+              {(['none', 'sm', 'md', 'lg', 'glow'] as string[]).map((v) => (
+                <button key={v} type="button" onClick={() => patchLogo({ shadow: v })} className={segBtn(logoStyle.shadow === v)}>
+                  {v === 'none' ? 'None' : v === 'glow' ? 'Glow' : v.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Border ring</label>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => patchLogo({ ring: '1' })} className={segBtn(logoStyle.ring === '1')}>On</button>
+              <button type="button" onClick={() => patchLogo({ ring: '0' })} className={segBtn(logoStyle.ring === '0')}>Off</button>
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-500">Turn off for edge-to-edge artwork.</p>
+          </div>
+        </div>
+      </GlassModal>
+
+      {/* ---- Name sub-page (node-form Icon & colour pattern) ---- */}
+      <GlassModal
+        open={nameModalOpen}
+        onClose={() => setNameModalOpen(false)}
+        title="Panel name"
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button type="button" onClick={resetStyle} className="mr-auto text-xs text-gray-400 hover:text-white underline underline-offset-2 decoration-white/20">
+              Reset styling
+            </button>
+            <button onClick={() => setNameModalOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
+            <button onClick={() => setNameModalOpen(false)} className="ks-btn-form ks-btn-primary">Done</button>
+          </>
+        }
+      >
+        <p className="text-xs text-gray-500">
+          Appears on the login page, in the sidebar, and in the browser tab title.
+        </p>
+
+        <div className="rounded-xl border border-white/10 bg-black/40 px-4 py-5 flex items-center gap-3 overflow-hidden">
+          <PanelBrandLogo logo={previewLogo} style={logoStyle} baseSize={40} alt="" />
+          <div className="min-w-0">
+            <PanelBrandName name={name} style={nameStyle} basePx={26} />
+            <p className="text-[11px] text-gray-500 mt-1">Live preview</p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="panel-name">
+              Name
+            </label>
+            <input
+              id="panel-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              className={fieldClass}
+              placeholder="KS Panel"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Color</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={/^#[0-9a-fA-F]{6}$/.test(nameStyle.color) ? nameStyle.color : '#ffffff'}
+                  onChange={(e) => patchName({ color: e.target.value })}
+                  disabled={showGradient}
+                  className="h-10 w-12 bg-transparent border border-white/10 rounded cursor-pointer disabled:opacity-40"
+                  aria-label="Pick a panel name color"
+                />
+                <input
+                  value={nameStyle.color}
+                  onChange={(e) => patchName({ color: e.target.value })}
+                  maxLength={7}
+                  disabled={showGradient}
+                  className={fieldClass + ' w-28 disabled:opacity-40'}
+                  placeholder="#ffffff"
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {NAME_COLOR_PRESETS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    title={c}
+                    disabled={showGradient}
+                    onClick={() => patchName({ color: c })}
+                    className={`h-6 w-6 rounded-md border transition-transform hover:scale-110 disabled:opacity-40 ${nameStyle.color.toLowerCase() === c ? 'border-white ring-2 ring-white/40' : 'border-white/20'}`}
+                    style={{ background: c }}
+                  />
+                ))}
+              </div>
+              {showGradient && <p className="mt-1.5 text-[11px] text-gray-500">Color is ignored while the gradient effect is on.</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="panel-font">Font</label>
+              <select id="panel-font" value={nameStyle.font} onChange={(e) => patchName({ font: e.target.value })} className={fieldClass}>
+                {Object.entries(PANEL_NAME_FONTS).map(([key, f]) => (
+                  <option key={key} value={key} className="bg-neutral-900 text-white" style={{ fontFamily: f.stack }}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <label className="block text-sm font-medium text-gray-300 mt-4 mb-1" htmlFor="panel-weight">Weight</label>
+              <select id="panel-weight" value={nameStyle.weight} onChange={(e) => patchName({ weight: e.target.value })} className={fieldClass}>
+                {(['400', '500', '600', '700', '800', '900'] as string[]).map((w) => (
+                  <option key={w} value={w} className="bg-neutral-900 text-white" style={{ fontWeight: Number(w) }}>
+                    {w}{w === '400' ? ' · Regular' : w === '700' ? ' · Bold' : w === '800' ? ' · Extra bold' : w === '900' ? ' · Black' : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Size</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['sm', 'Small'],
+                ['md', 'Medium'],
+                ['lg', 'Large'],
+                ['xl', 'Extra large'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchName({ size: v })} className={segBtn(nameStyle.size === v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">Effect</label>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['shadow', 'Shadow'],
+                ['outline', 'Outline'],
+                ['3d', '3D'],
+                ['neon', 'Neon glow'],
+                ['gradient', 'Gradient'],
+                ['none', 'Flat'],
+              ] as Array<[string, string]>).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => patchName({ effect: v })} className={segBtn(nameStyle.effect === v)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {showShadow && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Shadow strength</label>
+              <div className="flex flex-wrap gap-2">
+                {(['none', 'sm', 'md', 'lg', 'glow'] as string[]).map((v) => (
+                  <button key={v} type="button" onClick={() => patchName({ shadow: v })} className={segBtn(nameStyle.shadow === v)}>
+                    {v === 'none' ? 'None' : v === 'glow' ? 'Glow' : v.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showGradient && (
+            <div className="rounded-xl border border-white/10 bg-black/20 p-4 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Gradient from</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(nameStyle.gradientFrom) ? nameStyle.gradientFrom : '#ffffff'}
+                      onChange={(e) => patchName({ gradientFrom: e.target.value })}
+                      className="h-10 w-12 bg-transparent border border-white/10 rounded cursor-pointer"
+                      aria-label="Pick a gradient start color"
+                    />
+                    <input
+                      value={nameStyle.gradientFrom}
+                      onChange={(e) => patchName({ gradientFrom: e.target.value })}
+                      maxLength={7}
+                      className={fieldClass + ' w-28'}
+                      placeholder="#ffffff"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-1">Gradient to</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={/^#[0-9a-fA-F]{6}$/.test(nameStyle.gradientTo) ? nameStyle.gradientTo : '#a5b4fc'}
+                      onChange={(e) => patchName({ gradientTo: e.target.value })}
+                      className="h-10 w-12 bg-transparent border border-white/10 rounded cursor-pointer"
+                      aria-label="Pick a gradient end color"
+                    />
+                    <input
+                      value={nameStyle.gradientTo}
+                      onChange={(e) => patchName({ gradientTo: e.target.value })}
+                      maxLength={7}
+                      className={fieldClass + ' w-28'}
+                      placeholder="#a5b4fc"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {GRADIENT_PRESETS.map(([from, to]) => (
+                  <button
+                    key={from + to}
+                    type="button"
+                    title={`${from} → ${to}`}
+                    onClick={() => patchName({ gradientFrom: from, gradientTo: to })}
+                    className={`h-6 w-12 rounded-md border ${nameStyle.gradientFrom.toLowerCase() === from && nameStyle.gradientTo.toLowerCase() === to ? 'border-white ring-2 ring-white/40' : 'border-white/20'}`}
+                    style={{ background: `linear-gradient(90deg, ${from}, ${to})` }}
+                  />
+                ))}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Direction</label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ['90deg', '→ Across'],
+                    ['135deg', '↘ Diagonal'],
+                    ['180deg', '↓ Down'],
+                  ] as Array<[string, string]>).map(([v, label]) => (
+                    <button key={v} type="button" onClick={() => patchName({ gradientDir: v })} className={segBtn(nameStyle.gradientDir === v)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">Style</label>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => patchName({ italic: nameStyle.italic === '1' ? '0' : '1' })} className={segBtn(nameStyle.italic === '1')} title="Italic">
+                  <span className="italic">I</span>talic
+                </button>
+                <button type="button" onClick={() => patchName({ uppercase: nameStyle.uppercase === '1' ? '0' : '1' })} className={segBtn(nameStyle.uppercase === '1')} title="Uppercase">
+                  ABC
+                </button>
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-300 mb-1">Letter spacing</label>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  ['tight', 'Tight'],
+                  ['normal', 'Normal'],
+                  ['wide', 'Wide'],
+                ] as Array<[string, string]>).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => patchName({ spacing: v })} className={segBtn(nameStyle.spacing === v)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </GlassModal>
+      </>
       )}
     </div>
   );
