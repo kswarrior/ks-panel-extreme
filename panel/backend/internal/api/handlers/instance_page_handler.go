@@ -2495,20 +2495,29 @@ func validPageActionMode(mode string) bool {
 }
 
 // validPageActionArchiveName mirrors the edge sanitizeArchiveName jail:
-// names stay inside the source dir (no empties, no absolute escapes, no ..
-// segments).
+// names stay inside the source dir (relative only — no absolute paths, no
+// ".." segments before or after cleaning).
 func validPageActionArchiveName(n string) bool {
 	n = strings.TrimSpace(n)
 	if n == "" || n == "." || n == "/" || len(n) > maxPageActionNameLen {
 		return false
 	}
-	c := path.Clean("/" + n)
-	if c == "/" {
+	if strings.HasPrefix(n, "/") {
 		return false
 	}
-	rel := strings.TrimPrefix(c, "/")
-	if rel == "" || rel == ".." || strings.HasPrefix(rel, "../") {
+	for _, seg := range strings.Split(n, "/") {
+		if seg == ".." {
+			return false
+		}
+	}
+	c := path.Clean(n)
+	if c == "" || c == "." || c == "/" || c == ".." || strings.HasPrefix(c, "../") {
 		return false
+	}
+	for _, seg := range strings.Split(c, "/") {
+		if seg == ".." {
+			return false
+		}
 	}
 	return true
 }

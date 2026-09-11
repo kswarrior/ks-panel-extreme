@@ -71,7 +71,7 @@ func TestValidatePageActionsModeStrictness(t *testing.T) {
 
 func TestValidatePageActionsArchiveNamesJail(t *testing.T) {
 	// Traversal outside the source dir must fail the definition closed.
-	bad := []string{"../escape", "..", ".", "/", ""}
+	bad := []string{"../escape", "..", ".", "/", "", "/abs/path", "a/../../escape", "a/../.."}
 	for _, n := range bad {
 		raw := `[{"name":"a","type":"archive","path":"/data/world","names":["level.dat","` + n + `"],"dest":"/tmp/a.zip"}]`
 		if err := validatePageActions(raw); err == nil {

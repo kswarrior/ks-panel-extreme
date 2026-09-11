@@ -422,24 +422,33 @@ func isTarGzName(n string) bool {
 	return strings.HasSuffix(l, ".tar.gz") || strings.HasSuffix(l, ".tgz")
 }
 
-// sanitizeArchiveName jails one archive member name to the source dir,
-// mirroring files parseArchiveBody: no empties, no absolute escapes, no ..
-// segments. ok=false must fail the action closed (never silently skip: the
+// sanitizeArchiveName jails one archive member name to the source dir:
+// relative names only (no absolute paths, no ".." segments before or after
+// cleaning). ok=false must fail the action closed (never silently skip: the
 // saved definition is pinned, so a bad entry is a definition error).
 func sanitizeArchiveName(n string) (string, bool) {
 	n = strings.TrimSpace(n)
 	if n == "" || n == "." || n == "/" || len(n) > maxArchiveNameLen {
 		return "", false
 	}
-	c := path.Clean("/" + n)
-	if c == "/" {
+	if strings.HasPrefix(n, "/") {
 		return "", false
 	}
-	rel := strings.TrimPrefix(c, "/")
-	if rel == "" || rel == ".." || strings.HasPrefix(rel, "../") {
+	for _, seg := range strings.Split(n, "/") {
+		if seg == ".." {
+			return "", false
+		}
+	}
+	c := path.Clean(n)
+	if c == "" || c == "." || c == "/" || c == ".." || strings.HasPrefix(c, "../") {
 		return "", false
 	}
-	return rel, true
+	for _, seg := range strings.Split(c, "/") {
+		if seg == ".." {
+			return "", false
+		}
+	}
+	return c, true
 }
 
 // safeArchiveEntry reports whether one name LISTED from an existing archive
