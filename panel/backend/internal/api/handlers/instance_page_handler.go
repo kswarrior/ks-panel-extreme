@@ -281,6 +281,113 @@ func blankReactStringsAndComments(src string) string {
 	return b.String()
 }
 
+// blankReactComments replaces // and /* */ comment contents with spaces
+// (newlines preserved, strings untouched) so import detection sees real
+// statements only.
+func blankReactComments(src string) string {
+	var b strings.Builder
+	b.Grow(len(src))
+	n := len(src)
+	state := 0 // 0 code, 1 sq, 2 dq, 3 tpl, 4 line, 5 block
+	for i := 0; i < n; {
+		c := src[i]
+		var nx byte
+		if i+1 < n {
+			nx = src[i+1]
+		}
+		switch state {
+		case 0:
+			if c == '/' && nx == '/' {
+				state = 4
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '/' && nx == '*' {
+				state = 5
+				b.WriteString("  ")
+				i += 2
+				continue
+			}
+			if c == '\'' {
+				state = 1
+				b.WriteByte(c)
+				i++
+				continue
+			}
+			if c == '"' {
+				state = 2
+				b.WriteByte(c)
+				i++
+				continue
+			}
+			if c == '`' {
+				state = 3
+				b.WriteByte(c)
+				i++
+				continue
+			}
+			b.WriteByte(c)
+			i++
+		case 4:
+			if c == '\n' {
+				state = 0
+				b.WriteByte('\n')
+			} else {
+				b.WriteByte(' ')
+			}
+			i++
+		case 5:
+			if c == '*' && nx == '/' {
+				state = 0
+				b.WriteString("  ")
+				i += 2
+			} else {
+				if c == '\n' {
+					b.WriteByte('\n')
+				} else {
+					b.WriteByte(' ')
+				}
+				i++
+			}
+		case 1:
+			b.WriteByte(c)
+			if c == '\\' && i+1 < n {
+				b.WriteByte(src[i+1])
+				i += 2
+				continue
+			}
+			if c == '\'' {
+				state = 0
+			}
+			i++
+		case 2:
+			b.WriteByte(c)
+			if c == '\\' && i+1 < n {
+				b.WriteByte(src[i+1])
+				i += 2
+				continue
+			}
+			if c == '"' {
+				state = 0
+			}
+			i++
+		default: // tpl: copy through (imports never hide in templates)
+			b.WriteByte(c)
+			if c == '\\' && i+1 < n {
+				b.WriteByte(src[i+1])
+				i += 2
+				continue
+			}
+			if c == '`' {
+				state = 0
+			}
+			i++
+		}
+	}
+	return b.String()
+}
+
 // validateReactSource checks author React JS without executing it: size,
 // react-only imports allowed (see reactFromAllowRe), every other module
 // syntax rejected, plus a deny-list of host-escape primitives (eval,
@@ -291,10 +398,24 @@ func validateReactSource(src string) error {
 	if len(src) > maxInstancePageReactSourceBytes {
 		return newErrString("source_tsx too large (max 512KB)")
 	}
-	blanked := blankReactStringsAndComments(src)
-	withoutReact := reactFromAllowRe.ReplaceAllString(blanked, "")
-	withoutReact = reactSideEffectAllowRe.ReplaceAllString(withoutReact, "")
-	if reactImportRe.MatchString(withoutReact) {
+	// Order matters: react imports are detected on comment-stripped RAW
+	// source (the `from 'react'` literal is still present), masked out, and
+	// only then are strings blanked for the remaining keyword scans — so a
+	// quoted sample like "fetch(" never trips the gates, while real code
+	// still does.
+	noComments := blankReactComments(src)
+	masked := []byte(noComments)
+	for _, re := range []*regexp.Regexp{reactFromAllowRe, reactSideEffectAllowRe} {
+		for _, loc := range re.FindAllStringIndex(noComments, -1) {
+			for i := loc[0]; i < loc[1]; i++ {
+				if masked[i] != '\n' {
+					masked[i] = ' '
+				}
+			}
+		}
+	}
+	blanked := blankReactStringsAndComments(string(masked))
+	if reactImportRe.MatchString(blanked) {
 		return newErrString("source_tsx must not import from other packages (only `from 'react'` is allowed; React and sdk are already in scope)")
 	}
 	lower := strings.ToLower(blanked)

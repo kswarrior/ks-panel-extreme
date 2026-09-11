@@ -19,6 +19,7 @@ import {
 import { PANEL_NAME_FONTS, PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import { applyBrandToDocument, effectiveTabTitle } from '@/shared/utils/brandTab';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
+import GlassModal from '@/shared/components/ui/Modal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
@@ -98,6 +99,11 @@ const Settings: React.FC = () => {
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const faviconInputRef = useRef<HTMLInputElement | null>(null);
+  // Sub-page modals (node-form Icon & colour pattern): the overview shows
+  // only a Logo row + Edit and a Name row + Edit; the full controls live
+  // in these modals.
+  const [logoModalOpen, setLogoModalOpen] = useState(false);
+  const [nameModalOpen, setNameModalOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
