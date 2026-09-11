@@ -72,6 +72,9 @@ return Page;`,
 		`declare const version: string;
 function Page() { return React.createElement('div', null, 'v'); }
 return Page;`,
+		`export declare const version: string;
+function Page() { return React.createElement('div', null, 'v'); }
+return Page;`,
 	} {
 		if err := validateReactSource(src); err != nil {
 			t.Fatalf("expected export/declare source to pass, got %v", err)
