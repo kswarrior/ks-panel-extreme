@@ -20,6 +20,10 @@ import { PANEL_NAME_FONTS, PanelBrandLogo, PanelBrandName } from '@/shared/compo
 import { applyBrandToDocument, effectiveTabTitle } from '@/shared/utils/brandTab';
 import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import GlassModal from '@/shared/components/ui/Modal';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 const MAX_LOGO_BYTES = 5 * 1024 * 1024; // mirrors server-side limit
@@ -104,25 +108,49 @@ const Settings: React.FC = () => {
   // in these modals.
   const [logoModalOpen, setLogoModalOpen] = useState(false);
   const [nameModalOpen, setNameModalOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history (undo / redo / dirty): one deterministic snapshot
+  // of every editable field. Transient UI (loading flags, messages,
+  // previews, modals) stays out so undo never touches it.
+  const snapshot = JSON.stringify({ name, tabTitle, rootUrl, nameStyle, logoStyle, logo, favicon });
+  const hist = useFormHistory(snapshot, (snap) => {
+    const s = JSON.parse(snap);
+    setName(s.name);
+    setTabTitle(s.tabTitle);
+    setRootUrl(s.rootUrl);
+    setNameStyleLocal(s.nameStyle);
+    setLogoStyleLocal(s.logoStyle);
+    setLogo(s.logo);
+    setFaviconLocal(s.favicon);
+  });
+  const { suspend: histSuspend } = hist;
+
+  // loadSettings (re)fetches canonical server state — Refresh AND the
+  // initial mount share it. suspend() first so server values rebaseline
+  // silently instead of pushing an undo step.
+  const loadSettings = React.useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const snap = await getSettings();
+      setName(snap.panel_name || 'KS Panel');
+      setLogo(snap.panel_logo || null);
+      setTabTitle((snap as any).browser_tab_title || '');
+      setRootUrl((snap as any).panel_root_url || '');
+      setFaviconLocal((snap as any).favicon || null);
+      setNameStyleLocal(brandNameStyleFromWire(snap as any));
+      setLogoStyleLocal(brandLogoStyleFromWire(snap as any));
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load settings');
+    } finally {
+      setLoading(false);
+    }
+  }, [histSuspend]);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const snap = await getSettings();
-        setName(snap.panel_name || 'KS Panel');
-        setLogo(snap.panel_logo || null);
-        setTabTitle((snap as any).browser_tab_title || '');
-        setRootUrl((snap as any).panel_root_url || '');
-        setFaviconLocal((snap as any).favicon || null);
-        setNameStyleLocal(brandNameStyleFromWire(snap as any));
-        setLogoStyleLocal(brandLogoStyleFromWire(snap as any));
-      } catch (e: any) {
-        setError(e?.response?.data || 'Failed to load settings');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+    loadSettings();
+  }, [loadSettings]);
 
   // Resolve dimensions for whatever is currently shown (server logo or local
   // preview) so the quality hints stay accurate after upload/remove too.
@@ -194,6 +222,9 @@ const Settings: React.FC = () => {
       setTabTitle((snap as any).browser_tab_title || '');
       setRootUrl((snap as any).panel_root_url || '');
       setPanelRootUrl((snap as any).panel_root_url || '');
+      // suspend() BEFORE the echo setters so server normalization
+      // rebaselines silently; commit() after seals the saved baseline.
+      hist.suspend();
       // Push the new brand into the global store so Header / Sidebar / Login
       // pick it up without a reload.
       setPanelName(snap.panel_name);
@@ -215,6 +246,7 @@ const Settings: React.FC = () => {
       setLogoStyle(ls);
       if (snap.panel_logo) setLogo(snap.panel_logo);
       setPanelLogo(snap.panel_logo || null);
+      hist.commit();
       setSuccess('Saved.');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save settings');
@@ -228,6 +260,19 @@ const Settings: React.FC = () => {
     setLogoStyleLocal({ ...DEFAULT_PANEL_LOGO_STYLE });
     setSuccess('');
     setError('');
+  };
+
+  // Refresh reloads saved values from the server — never resets to
+  // defaults (use the modals' Reset styling for that).
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setSuccess('');
+    try {
+      await loadSettings();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const onPickLogo = () => fileInputRef.current?.click();
@@ -524,16 +569,34 @@ const Settings: React.FC = () => {
         {error && <p className="text-sm text-red-400">{error}</p>}
         {success && <p className="text-sm text-green-400">{success}</p>}
 
-        <div className="flex justify-end">
+        {/* Bottom-right form pill — undo / redo / refresh / discard / save,
+            shared system with every panel form. Discard reverts to the last
+            saved values without a round-trip; Refresh reloads them from the
+            server (never resets to defaults). */}
+        <PageFormActionsPill>
+          <PillHistoryControls hist={hist} onRefresh={refresh} refreshing={refreshing} />
+          <button
+            type="button"
+            onClick={() => hist.revert()}
+            disabled={!hist.isDirty || saving}
+            title="Discard unsaved edits"
+            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+            style={PILL_TAB_STYLE}
+          >
+            Cancel
+          </button>
           <button
             type="submit"
             disabled={saving}
-            className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+            className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+            style={PILL_TAB_STYLE}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /> </svg>
-            {saving ? 'Saving…' : 'Save'}
+            <span className="inline-flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /> </svg>
+              {saving ? 'Saving…' : 'Save'}
+            </span>
           </button>
-        </div>
+        </PageFormActionsPill>
       </form>
 
       {/* ---- Logo sub-page (node-form Icon & colour pattern) ---- */}
