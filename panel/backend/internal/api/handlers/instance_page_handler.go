@@ -132,6 +132,27 @@ var reactImportRe = regexp.MustCompile(`(?m)^\s*(import|export)\b`)
 var reactFromAllowRe = regexp.MustCompile(`(?m)^\s*import\s+[^;]*?\sfrom\s+['"]react['"]\s*;?\s*$`)
 var reactSideEffectAllowRe = regexp.MustCompile(`(?m)^\s*import\s+['"]react['"]\s*;?\s*$`)
 
+// reactRelativeFromRe / reactRelativeSideRe match single-line relative
+// imports (`from './...'` / `from "../..."`, incl. side-effect
+// `import './x'`). Jailed lines are masked before reactImportRe runs (same
+// gate the FE bundler resolves from Files); escaping or malformed
+// specifiers fail closed in normalizeReactImportSpecifier. `export ... from`
+// lines intentionally never match here — re-exports stay rejected, same as
+// the renderer.
+var reactRelativeFromRe = regexp.MustCompile(`(?m)^\s*import\s+[^;]*?\sfrom\s+['"](\./[^'"]*|\.\./[^'"]*)['"]\s*;?\s*$`)
+var reactRelativeSideRe = regexp.MustCompile(`(?m)^\s*import\s+['"](\./[^'"]*|\.\./[^'"]*)['"]\s*;?\s*$`)
+
+// reactModuleDefaultRe matches a leading `export default` opener. Modules
+// (components type module) may default-export for `import def from './u'`;
+// the entry keeps rejecting it (renderer executes the entry inside
+// (function(sdk,React){...})). Only masked for module bodies.
+var reactModuleDefaultRe = regexp.MustCompile(`(?m)^\s*export\s+default\b`)
+// reactExportListRe matches a single-line local `export {a, b as c}` list.
+// Modules strip it (names are top-level after concatenation); re-exports
+// (`export {a} from './x'`, `export * from ...`) never match the mask and
+// stay rejected.
+var reactExportListRe = regexp.MustCompile(`(?m)^\s*export\s*\{[^}]*\}\s*;?\s*$`)
+
 // exportDeclAllowRe matches a leading `export` on a plain/enum/namespace/
 // interface/type/value declaration. The renderer drops the keyword (pages
 // are module-private scripts ending with `return Page;`), so only the
@@ -424,6 +445,25 @@ func validateReactSource(src string) error {
 	masked := []byte(noComments)
 	for _, re := range []*regexp.Regexp{reactFromAllowRe, reactSideEffectAllowRe, exportDeclAllowRe, declareAllowRe} {
 		for _, loc := range re.FindAllStringIndex(noComments, -1) {
+			for i := loc[0]; i < loc[1]; i++ {
+				if masked[i] != '\n' {
+					masked[i] = ' '
+				}
+			}
+		}
+	}
+	// Virtual modules (item 2): relative imports jailed to the page root are
+	// allowed — the renderer inlines them from Files (components type
+	// module). Each candidate line is jail-checked here; jailed lines are
+	// masked before reactImportRe, escaping/malformed specifiers fail closed
+	// so FE/BE verdicts match exactly. `export ... from` never matches the
+	// import regexes above and stays rejected, same as the renderer.
+	for _, re := range []*regexp.Regexp{reactRelativeFromRe, reactRelativeSideRe} {
+		for _, loc := range re.FindAllStringSubmatchIndex(noComments, -1) {
+			spec := noComments[loc[2]:loc[3]]
+			if _, err := normalizeReactImportSpecifier(spec, ""); err != nil {
+				return err
+			}
 			for i := loc[0]; i < loc[1]; i++ {
 				if masked[i] != '\n' {
 					masked[i] = ' '
