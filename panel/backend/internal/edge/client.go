@@ -1202,6 +1202,9 @@ type PageActionRequest struct {
 	Content  string            `json:"content,omitempty"`
 	Args     []string          `json:"args,omitempty"`
 	Env      map[string]string `json:"env,omitempty"`
+	Mode     string            `json:"mode,omitempty"`
+	Names    []string          `json:"names,omitempty"`
+	Dest     string            `json:"dest,omitempty"`
 	Timeout  int               `json:"timeout,omitempty"`
 	ModuleID string            `json:"module_id,omitempty"`
 }

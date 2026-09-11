@@ -258,6 +258,39 @@ export interface CustomPageAPI {
     clear: () => Promise<void>;
     keys: () => Promise<string[]>;
   };
+
+  // ==================== SERVER KV STORE ====================
+  /**
+   * Server-persisted key/value state for THIS instance + page family
+   * (`sdk.pageSlug`). Same Promise shape as `sdk.storage`, different
+   * durability and scope:
+   *
+   * - `storage` is `localStorage` in the operator's CURRENT browser only
+   *   (per `ks_page_<instanceId>_` prefix, page-agnostic, no quota beyond
+   *   the browser's ~5MB, never leaves the device).
+   * - `kv` lives in the panel DB (`page_kv`) keyed by
+   *   `(instance_id, page_slug, k)`, so it survives browsers/profiles and
+   *   is shared by every operator who can view this page on this
+   *   instance. Reads/writes need `VIEW_INSTANCES` and the page family
+   *   enabled on the instance (same `findSpecPageRow` gate as
+   *   `executeAction`; sub-pages share the parent family).
+   *
+   * Quotas (enforced server-side, fail with a thrown Error): <= 100 keys
+   * per page, key `^[A-Za-z0-9_.-]{1,128}$`, value <= 64KiB.
+   *
+   * NOT a secrets store: values are stored in the clear and readable by
+   * anyone with page access — keep tokens/passwords in the secrets vault.
+   */
+  kv: {
+    /** Read one key (`null` when absent). Implemented as a scoped list + pick. */
+    get: (key: string) => Promise<string | null>;
+    /** Create or replace one key (value must be a string, <= 64KiB). */
+    set: (key: string, value: string) => Promise<void>;
+    /** Delete one key (idempotent: missing keys resolve, never throw). */
+    delete: (key: string) => Promise<void>;
+    /** List this page's keys (sorted). */
+    keys: () => Promise<string[]>;
+  };
   
   // ==================== WEBSOCKET ====================
   // Panel terminal bridges for THIS instance (same JSON wire protocol on
