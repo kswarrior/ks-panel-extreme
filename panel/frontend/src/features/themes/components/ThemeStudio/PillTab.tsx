@@ -167,7 +167,11 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
         <p className="text-[11px] uppercase tracking-wide text-gray-500">Actions Pill</p>
         <div className="flex items-center justify-end">
           <div
-            className="flex items-center shadow-lg shadow-black/40"
+            // ks-actions-pill + ks-pill-toggle classes pull the real pill's
+            // toggle behavior (frozen hover color, gliding collapse padding)
+            // without its surface paint (that needs .ks-card too, kept off
+            // so the draft values below stay live).
+            className="ks-actions-pill flex items-center shadow-lg shadow-black/40"
             style={{
               background: p.background,
               borderColor: p.border_color,
@@ -323,7 +327,7 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
         <p className="text-[11px] uppercase tracking-wide text-gray-500 pt-1">Form Actions Pill</p>
         <div className="flex items-center justify-end">
           <div
-            className="flex items-center shadow-lg shadow-black/40"
+            className="ks-form-actions-pill flex items-center shadow-lg shadow-black/40"
             style={{
               background: p.background,
               borderColor: p.border_color,
@@ -386,12 +390,10 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
               ))}
             </div>
             <span
-              className="ks-tab inline-flex items-center justify-center shrink-0"
+              className="ks-tab ks-pill-toggle inline-flex items-center justify-center shrink-0"
               style={{
                 ['--ks-tab-px' as any]: formPreviewOff ? '4px' : `${p.tab_padding_x}px`,
                 ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
-                transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
-                transitionDuration: `${p.animation_duration}ms`,
                 color: p.text_color,
               }}
               aria-hidden="true"
