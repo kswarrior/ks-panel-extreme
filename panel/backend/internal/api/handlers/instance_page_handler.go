@@ -148,6 +148,7 @@ var reactRelativeSideRe = regexp.MustCompile(`(?m)^\s*import\s+['"](\./[^'"]*|\.
 // the entry keeps rejecting it (renderer executes the entry inside
 // (function(sdk,React){...})). Only masked for module bodies.
 var reactModuleDefaultRe = regexp.MustCompile(`(?m)^\s*export\s+default\b`)
+
 // reactExportListRe matches a single-line local `export {a, b as c}` list.
 // Modules strip it (names are top-level after concatenation); re-exports
 // (`export {a} from './x'`, `export * from ...`) never match the mask and
@@ -812,7 +813,7 @@ func validateReactModules(entry string, modules map[string]string) error {
 			var target reactModuleExports
 			if dep == k {
 				target = exports
-			} else if e, ok2 := moduleExportsCache(byKey, dep); ok2 {
+			} else if e, ok2 := moduleExportsOf(byKey, dep); ok2 {
 				target = e
 			} else {
 				continue // missing already reported above.
@@ -1053,7 +1054,7 @@ func collectReactModuleExports(src string) reactModuleExports {
 	return out
 }
 
-func moduleExportsCache(byKey map[string]string, dep string) (reactModuleExports, bool) {
+func moduleExportsOf(byKey map[string]string, dep string) (reactModuleExports, bool) {
 	content, ok := byKey[dep]
 	if !ok {
 		return reactModuleExports{}, false
