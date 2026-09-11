@@ -35,7 +35,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
+          if (!id.includes('node_modules')) {
+            // Vite's __vitePreload helper MUST NOT land inside the monaco
+            // chunk: the entry imports the helper statically, so absorbing
+            // it into monaco would drag the whole 2.3MB editor (+ its CSS)
+            // into every initial page load. A dedicated side-effect-free
+            // chunk keeps the entry's static edge cheap and monaco truly
+            // lazy (fetched only when the Studio React section opens).
+            if (id.includes('preload-helper')) return 'preload-helper';
+            return undefined;
+          }
           // Item 5 (Monaco): own lazy chunk so the Studio React section is
           // the ONLY route that downloads it. No vite-plugin-monaco-editor:
           // workers are bundled natively via `?worker` imports in
