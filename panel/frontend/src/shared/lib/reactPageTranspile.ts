@@ -601,6 +601,7 @@ function stripAnnotations(src: string, mark: () => void): string {
         let s = 0;
         let cu = 0;
         let a = 0;
+        let seen = false; // any non-space type char consumed yet?
         let st: 'code' | 'sq' | 'dq' | 'tpl' = 'code';
         let end = -1;
         while (k < n) {
@@ -608,11 +609,14 @@ function stripAnnotations(src: string, mark: () => void): string {
           if (st === 'code') {
             if (t === "'" || t === '"' || t === '`') {
               st = t === "'" ? 'sq' : t === '"' ? 'dq' : 'tpl';
+              seen = true;
               k++;
               continue;
             }
             if (t === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(src[k - 1] ?? '')) {
               a++;
+              nested = true;
+              seen = true;
               k++;
               continue;
             }
@@ -622,17 +626,36 @@ function stripAnnotations(src: string, mark: () => void): string {
               continue;
             }
             if (t === '=' && src[k + 1] === '>') {
-              if (r === 0 && s === 0 && cu === 0 && a === 0) {
-                end = k; // `=>` — return-type position, keep the arrow.
+              // `=>` at depth 0 ends a return annotation
+              // (`(x): T => ...`); inside a function TYPE it is consumed
+              // (`(f: (a) => void)`).
+              if (r === 0 && s === 0 && cu === 0 && a === 0 && afterParen && !nested) {
+                end = k; // keep the arrow.
                 break;
               }
+              seen = true;
               k += 2;
               continue;
             }
-            if (t === '(' || t === '[' || t === '{') {
+            if (t === '(' || t === '[') {
               if (t === '(') r++;
-              else if (t === '[') s++;
-              else cu++;
+              else s++;
+              nested = true;
+              seen = true;
+              k++;
+              continue;
+            }
+            if (t === '{') {
+              // `{` after a complete simple type opens the function body
+              // (`: unknown {`); at the start of a type it opens an object
+              // type (`props: { x: number }`).
+              if (r === 0 && s === 0 && cu === 0 && a === 0 && seen) {
+                end = k;
+                break;
+              }
+              cu++;
+              nested = true;
+              seen = true;
               k++;
               continue;
             }
@@ -651,11 +674,7 @@ function stripAnnotations(src: string, mark: () => void): string {
               end = k;
               break;
             }
-            // A `{` opening a function body ends a return type.
-            if (t === '{' && r === 0 && s === 0 && cu === 0 && a === 0) {
-              end = k;
-              break;
-            }
+            if (t !== ' ' && t !== '\t' && t !== '\n' && t !== '\r') seen = true;
             k++;
             continue;
           }
