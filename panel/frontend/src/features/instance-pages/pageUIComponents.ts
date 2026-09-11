@@ -121,8 +121,8 @@ const EMPTY_STATE_SOURCE = `function EmptyState(props) {
   function handleAction(e) { if (typeof props.onAction === 'function') props.onAction(e); }
   return React.createElement('div', { className: 'ks-card', style: { textAlign: 'center', padding: '2rem 1rem' } },
     React.createElement('h3', { style: { margin: '0 0 .5rem', fontSize: '.95rem', color: 'var(--ks-heading)' } }, props.title != null ? String(props.title) : 'Nothing here yet'),
-    props.hint != null ? React.createElement('p', { className: 'ks-muted', style: { margin: '0 0 1rem', fontSize: '13px' } }, String(props.hint)) : null,
-    props.actionLabel != null ? React.createElement('button', { type: 'button', className: 'ks-btn ks-btn-blue', onClick: handleAction }, String(props.actionLabel)) : null);
+    props.hint != null ? React.createElement('p', { className: 'ks-muted', style: { margin: '0 0 1rem', fontSize: '13px', color: 'var(--ks-muted, #9ca3af)' } }, String(props.hint)) : null,
+    props.actionLabel != null ? React.createElement('button', { type: 'button', className: 'ks-btn ks-btn-blue', style: { background: 'var(--ks-info, #38bdf8)', color: '#fff' }, onClick: handleAction }, String(props.actionLabel)) : null);
 }`;
 
 export const PAGE_UI_COMPONENTS: PageUIComponent[] = [

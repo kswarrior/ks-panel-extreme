@@ -1556,7 +1556,7 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
     .ks-bad { color: var(--ks-bad, #fca5a5) !important; }
     .ks-warn { color: var(--ks-warn, #fcd34d) !important; }
     .ks-info { color: var(--ks-info, #38bdf8) !important; }
-    .ks-badge { border: 1px solid var(--ks-card-border, rgba(255,255,255,0.15)) !important; background: var(--ks-input-bg, rgba(0,0,0,0.3)) !important; color: var(--ks-body) !important; border-radius: 9999px; padding: 0.125rem 0.5rem; font-size: 0.6875rem; display: inline-block; }
+    .ks-badge { display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:9999px;font-size:11px;border:1px solid var(--ks-card-border, rgba(255,255,255,0.15));background:var(--ks-input-bg, rgba(0,0,0,0.3));color:var(--ks-body, #d1d5db); }
     .ks-bar { position: relative; background: var(--ks-input-bg, rgba(0,0,0,0.4)); border-radius: 9999px; height: 8px; overflow: hidden; min-width: 80px; }
     .ks-bar > span { background: var(--ks-info, #38bdf8) !important; position: absolute; inset: 0 auto 0 0; border-radius: 9999px; }
     .ks-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
