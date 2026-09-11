@@ -101,6 +101,21 @@ const Templates: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sort, setSort] = useState<SortKey>('updated');
 
+  // Cards per page — same localStorage pattern as Roles/Users so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.templates.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -284,6 +299,8 @@ const Templates: React.FC = () => {
     return sorted;
   }, [enriched, search, kindFilter, categoryFilter, sort]);
 
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
+
   // Install modal state — supports three tabs: file upload + URL install + Studio
   const [installOpen, setInstallOpen] = useState(false);
   const [installTab, setInstallTab] = useState<'file' | 'url' | 'create'>('file');
@@ -432,7 +449,14 @@ const Templates: React.FC = () => {
       </PageActionsPill>
 
       <div className="flex items-center justify-between mb-3">
-        <ListCount shown={filtered.length} total={templates.length} label="template" />
+        <ListCount
+          shown={visible.length}
+          total={templates.length}
+          label="template"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
+        />
       </div>
 
       {error && templates.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
@@ -447,9 +471,9 @@ const Templates: React.FC = () => {
       )}
       {loading && <SkeletonGrid count={6} />}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && visible.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-templates-grid">
-          {filtered.map((e) => {
+          {visible.map((e) => {
             const t = e.template;
             const meta = KIND_META[e.kind];
             return (

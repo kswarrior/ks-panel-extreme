@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import {
   getAuthority,
   regenerateAppSecret,
@@ -208,8 +212,44 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
   // Authority App shared secret (App Secrets).
   const [appSecretDraft, setAppSecretDraft] = useState('');
   const [appSecretMasked, setAppSecretMasked] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const cfgRef = useRef<AuthorityConfig | null>(null);
+
+  // Session edit history over the credential fields (write-only secret
+  // inputs included — they live in memory exactly like the inputs
+  // themselves). Modal/UI state stays out.
+  const snapshot = JSON.stringify({ smtpHost, smtpPort, smtpUser, smtpPassword, smtpFrom, smtpTls, providers, smsGateway, smsAccountSid, smsApiToken, smsFromNumber, appSecretDraft });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setSmtpHost(s.smtpHost);
+    setSmtpPort(s.smtpPort);
+    setSmtpUser(s.smtpUser);
+    setSmtpPassword(s.smtpPassword);
+    setSmtpFrom(s.smtpFrom);
+    setSmtpTls(s.smtpTls);
+    setProviders(s.providers);
+    setSmsGateway(s.smsGateway);
+    setSmsAccountSid(s.smsAccountSid);
+    setSmsApiToken(s.smsApiToken);
+    setSmsFromNumber(s.smsFromNumber);
+    setAppSecretDraft(s.appSecretDraft);
+  });
+  const { suspend: histSuspend } = hist;
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refreshConfig = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setAuthError('');
+    try {
+      hydrate(await getAuthority());
+    } catch (e: any) {
+      setAuthError(e?.response?.data || 'Failed to refresh authority settings');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -226,6 +266,9 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
 
   function hydrate(cfg: AuthorityConfig) {
     cfgRef.current = cfg;
+    // Server values rebaseline silently instead of pushing an undo step
+    // (initial load, refresh, and the save echo all flow through here).
+    histSuspend();
     setSmtpHost(cfg.smtp_host || '');
     setSmtpPort(cfg.smtp_port || '');
     setSmtpUser(cfg.smtp_user || '');
@@ -337,6 +380,7 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
     try {
       const cfg = await updateAuthority(body);
       hydrate(cfg);
+      hist.commit();
       setAuthSuccess('Saved.');
       onConfigChange?.();
     } catch (e: any) {
@@ -648,16 +692,27 @@ const Authority: React.FC<AuthorityProps> = ({ onConfigChange }) => {
       {authError && <p className="text-sm text-red-400">{authError}</p>}
       {authSuccess && <p className="text-sm text-green-400">{authSuccess}</p>}
 
-      <div className="flex justify-end">
+      <PageFormActionsPill>
+        <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
+        <button
+          type="button"
+          onClick={() => hist.revert()}
+          disabled={!hist.isDirty || authSaving}
+          title="Discard unsaved edits"
+          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
+          style={PILL_TAB_STYLE}
+        >
+          Cancel
+        </button>
         <button
           type="submit"
           disabled={authSaving}
-          className="ks-primary-btn inline-flex items-center gap-2 bg-white text-black px-4 py-2 rounded hover:bg-gray-200 text-sm disabled:opacity-60"
+          className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
+          style={PILL_TAB_STYLE}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="20 6 9 17 4 12" /></svg>
           {authSaving ? 'Saving…' : 'Save'}
         </button>
-      </div>
+      </PageFormActionsPill>
     </form>
   );
 };
