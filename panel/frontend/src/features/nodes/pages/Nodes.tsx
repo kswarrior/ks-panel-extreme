@@ -438,10 +438,13 @@ const AdminNodes: React.FC = () => {
             <article
               id={`ks-node-${n.id}`}
               key={n.id}
-              className={`ks-card ks-list-card glass-card ${glassModifier} group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors`}
+              className={`ks-card ks-list-card glass-card ${glassModifier} group relative glass-card rounded-xl flex flex-col gap-3 transition-colors`}
             >
               <CardMediaLayer />
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+              />
                 <header className="flex items-start gap-3 min-w-0">
                   <CardIconTile
                     icon={n.icon || ''}
@@ -449,15 +452,15 @@ const AdminNodes: React.FC = () => {
                     fallback={<HeartbeatIcon state={resolved} />}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight" title={n.name}>{n.name}</h3>
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }} title={n.name}>{n.name}</h3>
                     {(() => {
                       const sub = [n.category, country?.code, n.location_node].filter(Boolean).join(' · ');
                       return sub ? (
-                        <p className="text-[11px] text-gray-500 truncate mt-0.5">{sub}</p>
+                        <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{sub}</p>
                       ) : null;
                     })()}
                     {n.notes && (
-                      <p className="text-xs text-gray-400 truncate">{n.notes}</p>
+                      <p className="text-xs truncate" style={{ color: 'var(--ks-text-body)' }}>{n.notes}</p>
                     )}
                   </div>
                   <div className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${st.badge}`}>
@@ -466,27 +469,36 @@ const AdminNodes: React.FC = () => {
                 </header>
 
                 {/* Address row — a single monospace line like the template image row. */}
-                <p className="text-[11px] text-gray-500 font-mono truncate bg-black/20 border border-white/5 rounded px-2 py-1" title={`${n.use_tls ? 'https' : 'http'}://${n.address}`}>
+                <p
+                  className="text-[11px] font-mono truncate rounded px-2 py-1 border"
+                  style={{
+                    color: 'var(--ks-text-body)',
+                    opacity: 0.85,
+                    borderColor: 'var(--ks-card-border)',
+                    background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                  }}
+                  title={`${n.use_tls ? 'https' : 'http'}://${n.address}`}
+                >
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3 inline mr-1 -mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /> </svg>
-                  <span className={n.use_tls ? 'text-emerald-400' : 'text-gray-500'}>{n.use_tls ? 'https' : 'http'}</span>
+                  <span className={n.use_tls ? 'text-emerald-400' : ''}>{n.use_tls ? 'https' : 'http'}</span>
                   {'://'}{n.address}
                 </p>
 
                 {/* Resource usage — SVG + Text + Value like template limits. */}
-                <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-300">
+                <div className="flex flex-wrap items-center gap-3 text-[11px]" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>
                   <span className="inline-flex items-center gap-1" title={`RAM: ${ramLabel}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-emerald-300"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
-                    <span className="text-gray-400">RAM</span>
+                    <span style={{ color: 'var(--ks-text-body)' }}>RAM</span>
                     <span className="text-emerald-300">{ramLabel}</span>
                   </span>
                   <span className="inline-flex items-center gap-1" title={`CPU: ${formatPercent(cpuPct)}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-sky-300"><rect x="5" y="5" width="14" height="14" rx="2" /><rect x="9" y="9" width="6" height="6" rx="0.5" /><path d="M2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3" /> </svg>
-                    <span className="text-gray-400">CPU</span>
+                    <span style={{ color: 'var(--ks-text-body)' }}>CPU</span>
                     <span className="text-sky-300">{formatPercent(cpuPct)}</span>
                   </span>
                   <span className="inline-flex items-center gap-1" title={`Disk: ${diskLabel}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-amber-300"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /> </svg>
-                    <span className="text-gray-400">Disk</span>
+                    <span style={{ color: 'var(--ks-text-body)' }}>Disk</span>
                     <span className="text-amber-300">{diskLabel}</span>
                   </span>
                 </div>

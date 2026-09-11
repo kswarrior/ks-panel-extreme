@@ -511,35 +511,38 @@ const Templates: React.FC = () => {
                     {e.memLimit && (
                       <span className="inline-flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-emerald-300"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
-                        <span className="text-gray-400">RAM</span>
+                        <span style={{ color: 'var(--ks-text-body)' }}>RAM</span>
                         <span className="text-emerald-300">{e.memLimit}</span>
                       </span>
                     )}
                     {e.cpuLimit && (
                       <span className="inline-flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-sky-300"><rect x="5" y="5" width="14" height="14" rx="2" /><rect x="9" y="9" width="6" height="6" rx="0.5" /><path d="M2 9h3M2 15h3M19 9h3M19 15h3M9 2v3M15 2v3M9 19v3M15 19v3" /> </svg>
-                        <span className="text-gray-400">CPU</span>
+                        <span style={{ color: 'var(--ks-text-body)' }}>CPU</span>
                         <span className="text-sky-300">{e.cpuLimit}</span>
                       </span>
                     )}
                     {e.diskLimit && (
                       <span className="inline-flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3.5 h-3.5 text-amber-300"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6" /><path d="M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" /> </svg>
-                        <span className="text-gray-400">Disk</span>
+                        <span style={{ color: 'var(--ks-text-body)' }}>Disk</span>
                         <span className="text-amber-300">{e.diskLimit}</span>
                       </span>
                     )}
                   </div>
                 )}
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {(() => {
                       const label = templateUpdatedLabel(t.updated_at);
                       return label ? <>Updated {label}</> : <>id {t.id}</>;
                     })()}
                   </span>
-                  <Link to={`/template/${t.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                  <Link to={`/template/${t.id}`} className="text-[11px] hover:underline hover:opacity-80" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                 </footer>
               </article>
             );
@@ -548,7 +551,7 @@ const Templates: React.FC = () => {
       )}
 
       {!loading && filtered.length === 0 && templates.length > 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
           No templates match your filters.
           <div className="mt-2 flex justify-center">
             <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
@@ -581,7 +584,7 @@ const Templates: React.FC = () => {
               <line x1="11" y1="13" x2="17" y2="13" opacity="0.7" />
               <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No templates yet</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No templates yet</p>
           </div>
         </div>
       )}
