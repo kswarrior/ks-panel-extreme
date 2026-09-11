@@ -436,6 +436,7 @@ const Settings: React.FC = () => {
       ) : (
       <>
       <form
+        id="settings-form"
         onSubmit={submit}
         className="glass-card ks-form-card rounded-xl space-y-6 max-w-2xl"
       >
