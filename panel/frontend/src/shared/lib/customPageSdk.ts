@@ -2,6 +2,7 @@
 // Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd)
 // All operations go through executeAction() - no per-endpoint methods.
 
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { confirmDialog } from '@/shared/stores/confirmStore';
 
 export interface InstanceContext {
@@ -156,6 +157,46 @@ export interface CustomPageAPI {
   // build sibling URLs (explorer <-> editor) must derive them from here
   // instead of hardcoding slugs — the slug is customizable per instance.
   pageSlug: string;
+
+  // ==================== IN-PAGE ROUTER (tabs without reload) =============
+  /**
+   * React hook keeping the active tab in sync with `location.hash`
+   * (`#tab=<name>`), validated against `tabs` (unknown hash → `fallback`,
+   * never throws). Plain hooks only — no router import, so it works inside
+   * `ReactModuleView`-rendered pages where only `(sdk, React)` are in scope.
+   *
+   * Rules: tab ids match `[a-z0-9_-]` (≤64 chars); the setter updates the
+   * hash without a page reload and ignores ids outside `tabs` (no-op, no
+   * throw). Read-only on first render: no hash → `fallback` without
+   * rewriting the URL; the URL only changes when the user switches.
+   * @example
+   * ```tsx
+   * type TabId = 'overview' | 'system';
+   *
+   * function Page() {
+   *   const [tab, setTab] = sdk.useHashRoute<TabId>(['overview', 'system'], 'overview');
+   *   return (
+   *     <div className="ks-page">
+   *       <div className="ks-row">
+   *         {(['overview', 'system'] as TabId[]).map((t) => (
+   *           <button key={t} className={'ks-tab' + (tab === t ? ' ks-tab-active' : '')} onClick={() => setTab(t)}>
+   *             {t}
+   *           </button>
+   *         ))}
+   *       </div>
+   *       {tab === 'overview' ? <div className="ks-card">Overview</div> : <div className="ks-card">System</div>}
+   *     </div>
+   *   );
+   * }
+   * return Page;
+   * ```
+   *
+   * Deep-link from another page (same instance) straight at one tab:
+   * ```js
+   * sdk.navigate(`/instances/${sdk.instance.id}/${sdk.pageSlug}#tab=system`);
+   * ```
+   */
+  useHashRoute: <T extends string>(tabs: readonly T[], fallback: T) => [T, (t: T) => void];
   
   // ==================== UTILITIES ====================
   toast: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
@@ -378,6 +419,105 @@ export function pageNavigateTarget(instanceId: number, to: unknown): string | nu
   const base = `/instances/${instanceId}`;
   if (t === base || t.startsWith(base + '/') || t.startsWith(base + '?')) return t;
   return null;
+}
+
+// ============================================================================
+// IN-PAGE ROUTER (plan item 3) — tabs without reload, hash-synced.
+// Host-router stays panel-owned: pages never import react-router, they only
+// read/write their own `#tab=<name>` fragment through sdk.useHashRoute.
+// Pure helpers are exported separately so node harnesses can exercise the
+// read/write rules without mounting React.
+// ============================================================================
+
+// HASH_TAB_ID_RE is the tab-id jail: same `[a-z0-9_-]` + ≤64 shape as
+// validSubPagePath server-side (instance_page_handler.go:318). Anything else
+// (uppercase, dots, slashes, query metachars) is rejected, never thrown.
+export const HASH_TAB_ID_RE = /^[a-z0-9_-]{1,64}$/;
+
+// isHashTabId reports whether s is a legal tab id (fail-closed shape check).
+export function isHashTabId(s: unknown): s is string {
+  return typeof s === 'string' && HASH_TAB_ID_RE.test(s);
+}
+
+// parseHashRoute reads `#tab=<name>` out of a location.hash value and returns
+// the matching entry of `tabs`, else `fallback`. Never throws: unknown,
+// missing, malformed or illegal ids all fall back (deep-links from other
+// pages can carry anything).
+export function parseHashRoute<T extends string>(hash: unknown, tabs: readonly T[], fallback: T): T {
+  try {
+    const raw = String(hash ?? '');
+    const frag = raw.startsWith('#') ? raw.slice(1) : raw;
+    if (!frag) return fallback;
+    const params = new URLSearchParams(frag);
+    const cand = params.get('tab');
+    if (cand !== null && isHashTabId(cand) && (tabs as readonly string[]).includes(cand)) {
+      return cand as T;
+    }
+  } catch { /* malformed hash — fall back below */ }
+  return fallback;
+}
+
+// hashForTab formats the fragment for a (caller-validated) tab id.
+export function hashForTab<T extends string>(t: T): string {
+  return `#tab=${t}`;
+}
+
+// writeHashTab replaces the current fragment with `#tab=<id>` without a page
+// reload (history.replaceState: no scroll jump, no extra history entry;
+// location.hash fallback where replaceState is unavailable). Returns false
+// (no write, no throw) for illegal ids or when there is no window.
+export function writeHashTab<T extends string>(t: T): boolean {
+  if (!isHashTabId(t)) return false;
+  try {
+    if (typeof window === 'undefined') return false;
+    if (window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', `#tab=${t}`);
+    } else if (window.location) {
+      window.location.hash = `tab=${t}`;
+    } else {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// useHashRoute is the hook behind sdk.useHashRoute (same function reference
+// is shared on every SDK instance — it holds no instance state). Initial
+// state reads the hash once and never rewrites it; a `hashchange` listener
+// keeps back/forward + cross-page deep-links in sync; the setter validates
+// against `tabs` (+ id jail) before writing. Refs pin the latest tabs/
+// fallback so the listener + setter stay stable without resubscribing.
+export function useHashRoute<T extends string>(tabs: readonly T[], fallback: T): [T, (t: T) => void] {
+  const [active, setActive] = useState<T>(() => {
+    if (typeof window === 'undefined' || typeof window.location === 'undefined') return fallback;
+    return parseHashRoute(window.location.hash, tabs, fallback);
+  });
+  const tabsRef = useRef<readonly T[]>(tabs);
+  tabsRef.current = tabs;
+  const fallbackRef = useRef<T>(fallback);
+  fallbackRef.current = fallback;
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.addEventListener === 'undefined') return;
+    const onHash = (): void => {
+      try {
+        setActive(parseHashRoute(window.location.hash, tabsRef.current, fallbackRef.current));
+      } catch { /* a hash event must never throw into React */ }
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => {
+      try {
+        window.removeEventListener('hashchange', onHash);
+      } catch { /* host already gone */ }
+    };
+  }, []);
+  const setTab = useCallback((t: T): void => {
+    if (!(tabsRef.current as readonly string[]).includes(t as string) || !isHashTabId(t)) return;
+    setActive(t);
+    writeHashTab(t);
+  }, []);
+  return [active, setTab];
 }
 
 // ============================================================================
@@ -1037,6 +1177,8 @@ export function createCustomPageSDK(
     navigate: (to: string) => {
       window.dispatchEvent(new CustomEvent('ks-navigate', { detail: { to } }));
     },
+    // In-page router hook (shared reference — no instance state inside).
+    useHashRoute,
     toast,
     confirm: (msg) => confirmDialog({ title: 'Please confirm', message: msg }),
     prompt: (msg, def = '') => Promise.resolve(window.prompt(msg, def)),
