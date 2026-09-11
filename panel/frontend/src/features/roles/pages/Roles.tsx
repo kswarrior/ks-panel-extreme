@@ -298,8 +298,6 @@ return (
           {visible.map((r) => {
             const perms = r.permissions || [];
             const label = r.display_name?.trim() || r.name;
-            const shownPerms = perms.slice(0, 6);
-            const extraPerms = perms.length - shownPerms.length;
             return (
               <article key={r.id} id={`ks-role-${r.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
                 <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
