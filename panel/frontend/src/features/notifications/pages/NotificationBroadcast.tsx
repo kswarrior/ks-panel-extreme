@@ -93,20 +93,10 @@ const NotificationBroadcast: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo / refresh / Cancel +
+      {/* Bottom-right form actions — undo / redo +
           Broadcast; "Broadcast" title lives in the app header. */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
-          <button
-            type="button"
-            onClick={() => navigate('/notifications')}
-            title="Cancel and back to Notifications"
-            aria-label="Cancel and back to Notifications"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => onSubmit()}

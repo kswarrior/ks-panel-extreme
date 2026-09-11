@@ -553,17 +553,7 @@ const TemplateForm: React.FC = () => {
           style), always visible no matter how far the form is scrolled.
           Footer Cancel/Create removed; everything lives here. */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => navigate('/templates')}
-            title="Cancel and back to Templates"
-            aria-label="Cancel and back to Templates"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => submit()}

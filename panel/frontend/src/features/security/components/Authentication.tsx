@@ -654,17 +654,7 @@ const Authentication: React.FC<AuthenticationProps> = ({ initialSnapshot, onConf
       {success && <p className="text-sm text-green-400">{success}</p>}
 
       <PageFormActionsPill>
-        <PillHistoryControls hist={hist} onRefresh={() => void refreshConfig()} refreshing={refreshing} />
-        <button
-          type="button"
-          onClick={() => hist.revert()}
-          disabled={!hist.isDirty || saving}
-          title="Discard unsaved edits"
-          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
-          style={PILL_TAB_STYLE}
-        >
-          Cancel
-        </button>
+        <PillHistoryControls hist={hist} />
         <button
           type="submit"
           disabled={saving}

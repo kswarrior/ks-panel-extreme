@@ -182,19 +182,9 @@ const RoleForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save live here; the footer bar is removed. */}
+      {/* Bottom-right form actions — undo / redo + Save live here; the footer bar is removed. */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => navigate('/roles')}
-            title="Cancel and back to Roles"
-            aria-label="Cancel and back to Roles"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => submit()}

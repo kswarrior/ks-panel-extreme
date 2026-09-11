@@ -204,20 +204,10 @@ const ApplicationConfigure: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+      {/* Bottom-right form actions — undo / redo + Save;
           fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => navigate('/applications')}
-            title="Cancel and back to Applications"
-            aria-label="Cancel and back to Applications"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => submit()}

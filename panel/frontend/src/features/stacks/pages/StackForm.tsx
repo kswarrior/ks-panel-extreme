@@ -160,17 +160,7 @@ const StackForm: React.FC = () => {
   return (
     <>
       <PageFormActionsPill spacer={false}>
-        <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
-        <button
-          type="button"
-          onClick={() => navigate('/stacks')}
-          title="Cancel and back to Stacks"
-          aria-label="Cancel and back to Stacks"
-          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-          style={PILL_TAB_STYLE}
-        >
-          Cancel
-        </button>
+        <PillHistoryControls hist={hist} />
         <button
           type="button"
           onClick={() => void submit()}

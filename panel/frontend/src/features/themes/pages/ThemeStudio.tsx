@@ -417,21 +417,9 @@ const ThemeStudio: React.FC = () => {
           </select>
         )}
       </PageActionsPill>
-      {/* Bottom-right form pill — undo / redo / refresh / Cancel + Save.
-          Refresh reverts to the opened theme (the canonical baseline);
-          Cancel discards the draft and goes back to Themes. */}
+      {/* Bottom-right form pill — undo / redo + Save. */}
       <PageFormActionsPill spacer={false}>
-        <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
-        <button
-          type="button"
-          onClick={cancel}
-          title="Cancel and back to Themes"
-          aria-label="Cancel and back to Themes"
-          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-          style={PILL_TAB_STYLE}
-        >
-          Cancel
-        </button>
+        <PillHistoryControls hist={hist} />
         {editingExisting && (
           <button
             type="button"

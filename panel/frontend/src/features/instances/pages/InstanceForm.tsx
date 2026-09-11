@@ -359,21 +359,10 @@ const InstanceForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Deploy;
-          fixed, auto-hide on scroll (node pattern). Refresh reverts to the
-          blank deploy form (create-only, no server state to reload). */}
+      {/* Bottom-right form actions — undo / redo + Deploy;
+          fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
-          <button
-            type="button"
-            onClick={() => navigate('/instances')}
-            title="Cancel and back to Instances"
-            aria-label="Cancel and back to Instances"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => submit()}

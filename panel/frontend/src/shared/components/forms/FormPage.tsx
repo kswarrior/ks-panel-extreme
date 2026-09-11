@@ -65,8 +65,6 @@ const FormPage: React.FC<FormPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const displayTitle = title || crumbs[crumbs.length - 1]?.label || '';
-  const fallbackCancel = crumbs.length > 1 ? crumbs[crumbs.length - 2]?.to : undefined;
-  const onCancel = () => navigate(cancelTo || fallbackCancel || '/instances');
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
@@ -105,20 +103,12 @@ const FormPage: React.FC<FormPageProps> = ({
         {children}
       </div>
 
-      {/* Action row — fixed bottom-right form pill (Cancel / Save); always
+      {/* Action row — fixed bottom-right form pill (Save); always
           visible by default so Save never scrolls away. Auto-off is opt-in
           via the Theme Studio's Pill tab. */}
       {(submitLabel || secondaryActions) && (
         <PageFormActionsPill>
           {secondaryActions}
-          <button
-            type="button"
-            onClick={onCancel}
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
           {submitLabel && (
             <button
               type="submit"

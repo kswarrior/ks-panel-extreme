@@ -59,21 +59,10 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   return (
     <div className="relative min-h-screen">
       <ThemedBackground />
-      {/* Bottom-right form actions — undo / redo / refresh / Back (+ Save in
-          the edit flow); fixed, auto-hide on scroll (node pattern).
-          Deploy flow has no save — just Back. */}
+      {/* Bottom-right form actions — undo / redo (+ Save in
+          the edit flow); fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
-          <button
-            type="button"
-            onClick={onClose}
-            title="Back"
-            aria-label="Back"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Back
-          </button>
+          <PillHistoryControls hist={hist} />
           {submitLabel && (
             <button
               type="button"

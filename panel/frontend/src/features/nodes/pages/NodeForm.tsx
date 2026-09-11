@@ -622,17 +622,7 @@ const NodeForm: React.FC = () => {
           with !important, so Tailwind px/py classes alone can never win —
           overriding the var value scoped to this pill does. */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => navigate('/nodes')}
-            title="Cancel and back to Nodes"
-            aria-label="Cancel and back to Nodes"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           {showSetupAction && (
             <button
               type="button"

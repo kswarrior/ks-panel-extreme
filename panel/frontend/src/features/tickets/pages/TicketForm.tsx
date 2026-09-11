@@ -172,21 +172,11 @@ const TicketForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+      {/* Bottom-right form actions — undo / redo + Save;
           title lives in the app header. Footer Cancel/Create removed;
           everything lives here. */}
       <PageFormActionsPill spacer={false}>
-          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
-          <button
-            type="button"
-            onClick={() => navigate('/tickets')}
-            title="Cancel and back to Tickets"
-            aria-label="Cancel and back to Tickets"
-            className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition"
-            style={PILL_TAB_STYLE}
-          >
-            Cancel
-          </button>
+          <PillHistoryControls hist={hist} />
           <button
             type="button"
             onClick={() => submit()}

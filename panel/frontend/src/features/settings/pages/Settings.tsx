@@ -576,17 +576,7 @@ const Settings: React.FC = () => {
           Ancestor backdrop-filter/transform would otherwise trap it inside
           the card. Save submits via form="settings-form". */}
       <PageFormActionsPill>
-        <PillHistoryControls hist={hist} onRefresh={refresh} refreshing={refreshing} />
-        <button
-          type="button"
-          onClick={() => hist.revert()}
-          disabled={!hist.isDirty || saving}
-          title="Discard unsaved edits"
-          className="ks-tab shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-40"
-          style={PILL_TAB_STYLE}
-        >
-          Cancel
-        </button>
+        <PillHistoryControls hist={hist} />
         <button
           type="submit"
           form="settings-form"
