@@ -4,6 +4,8 @@ import { TEMPLATE_TABS } from '@/features/templates/types/templateForm';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import ThemedBackground from '@/shared/components/layout/ThemedBackground';
 import { useDeployForm } from '../stores/deployFormStore';
 import InstanceAdvancedTabContent from '../components/InstanceAdvancedTabContent';
@@ -39,15 +41,29 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
   saving = false,
   onSubmit,
 }) => {
-  const { tab, setTab } = useDeployForm();
+  const { tab, setTab, editor, setEditor, envValues, setEnvValues, imageKey, setImageKey } = useDeployForm();
+
+  // Session edit history over the advanced editor slice. Per-view instance:
+  // the deploy flow and the edit flow each mount this view separately, and
+  // Main <-> Advance navigation remounts with a fresh stack. Refresh
+  // reverts to the values this view opened with (loaded instance config in
+  // the edit flow, current draft in the deploy flow) — never a reset.
+  const snapshot = JSON.stringify({ editor, envValues, imageKey });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setEditor(s.editor);
+    setEnvValues(s.envValues);
+    setImageKey(s.imageKey);
+  });
 
   return (
     <div className="relative min-h-screen">
       <ThemedBackground />
-      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
-          Back lives here (was headerActions); Save only when submitLabel set
-          (edit flow). Deploy flow has no save — just Back. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Back (+ Save in
+          the edit flow); fixed, auto-hide on scroll (node pattern).
+          Deploy flow has no save — just Back. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
           <button
             type="button"
             onClick={onClose}
@@ -61,7 +77,7 @@ const InstanceAdvancedOptionsFullScreen: React.FC<InstanceAdvancedOptionsFullScr
           {submitLabel && (
             <button
               type="button"
-              onClick={() => onSubmit?.({ preventDefault: () => {} } as React.FormEvent)}
+              onClick={() => { hist.commit(); onSubmit?.({ preventDefault: () => {} } as React.FormEvent); }}
               disabled={saving}
               title={submitLabel}
               className="ks-tab ks-tab-active shrink-0 px-3 py-1.5 rounded text-sm text-center transition disabled:opacity-60"
