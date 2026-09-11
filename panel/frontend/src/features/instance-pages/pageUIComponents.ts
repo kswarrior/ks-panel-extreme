@@ -69,7 +69,7 @@ const TABS_PILL_SOURCE = `function TabsPill(props) {
   });
   var active = props.active != null ? String(props.active) : tabs[0].id;
   function select(id, e) { if (typeof props.onSelect === 'function') props.onSelect(id, e); }
-  return React.createElement('div', { className: 'ks-tabs', role: 'tablist' }, tabs.map(function (t) {
+  return React.createElement('div', { className: 'ks-tabs', role: 'tablist', style: { display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' } }, tabs.map(function (t) {
     var isActive = t.id === active;
     return React.createElement('button', { key: t.id, type: 'button', role: 'tab', 'aria-selected': isActive ? 'true' : 'false', className: isActive ? 'ks-tab ks-tab-active' : 'ks-tab', onClick: function (e) { select(t.id, e); } }, t.label);
   }));
@@ -80,17 +80,19 @@ const STAT_CARD_SOURCE = `function StatCard(props) {
   var tones = { good: 'var(--ks-accent-success, #4ade80)', warn: 'var(--ks-accent-warning, #fbbf24)', bad: 'var(--ks-accent-danger, #ef4444)' };
   var valueColor = tones[props.tone] || 'var(--ks-heading)';
   return React.createElement('div', { className: 'ks-card ks-stat-card' },
-    props.label != null ? React.createElement('p', { className: 'ks-muted', style: { margin: '0 0 4px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.05em' } }, String(props.label)) : null,
+    props.label != null ? React.createElement('p', { className: 'ks-muted', style: { margin: '0 0 4px', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--ks-muted, #9ca3af)' } }, String(props.label)) : null,
     React.createElement('p', { style: { margin: 0, fontSize: '1.5rem', fontWeight: 600, color: valueColor } },
       props.value != null ? String(props.value) : '',
-      props.unit != null ? React.createElement('span', { className: 'ks-muted', style: { fontSize: '.85rem', marginLeft: '4px' } }, String(props.unit)) : null));
+      props.unit != null ? React.createElement('span', { className: 'ks-muted', style: { fontSize: '.85rem', marginLeft: '4px', color: 'var(--ks-muted, #9ca3af)' } }, String(props.unit)) : null));
 }`;
 
 const BADGE_SOURCE = `function Badge(props) {
   props = props || {};
   var tone = props.tone === 'ok' || props.tone === 'warn' || props.tone === 'bad' ? ' ks-' + props.tone : '';
+  var toneColors = { ok: 'var(--ks-ok, #34d399)', warn: 'var(--ks-warn, #fcd34d)', bad: 'var(--ks-bad, #fca5a5)' };
+  var textColor = toneColors[props.tone] || 'var(--ks-body, #e5e7eb)';
   var kids = props.text != null ? String(props.text) : (props.children !== undefined ? props.children : '');
-  return React.createElement('span', { className: 'ks-badge' + tone, title: props.title }, kids);
+  return React.createElement('span', { className: 'ks-badge' + tone, title: props.title, style: { display: 'inline-block', padding: '0.125rem 0.5rem', borderRadius: '9999px', fontSize: '0.6875rem', border: '1px solid var(--ks-card-border, rgba(255,255,255,0.15))', background: 'var(--ks-input-bg, rgba(0,0,0,0.3))', color: textColor } }, kids);
 }`;
 
 const PAGE_HEADER_SOURCE = `function PageHeader(props) {
@@ -109,9 +111,9 @@ const PAGE_HEADER_SOURCE = `function PageHeader(props) {
     var label = a.label != null ? String(a.label) : ('Action ' + (i + 1));
     btns.push(React.createElement('button', { key: 'a' + i, type: 'button', className: 'ks-btn-header ks-icon-btn', title: a.title || label, 'aria-label': label, onClick: a.onClick }, label));
   });
-  return React.createElement('div', { className: 'ks-page-header' },
+  return React.createElement('div', { className: 'ks-page-header', style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '0.75rem' } },
     React.createElement('h2', { style: { margin: 0, fontSize: '1.3rem', color: 'var(--ks-heading)' } }, title),
-    React.createElement('div', { className: 'ks-page-header-actions' }, btns));
+    React.createElement('div', { className: 'ks-page-header-actions', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } }, btns));
 }`;
 
 const EMPTY_STATE_SOURCE = `function EmptyState(props) {
