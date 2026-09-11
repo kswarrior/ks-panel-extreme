@@ -2308,9 +2308,6 @@ function bundleVirtualModules(entrySrc: string, modules: Record<string, string>)
     byKey.set(norm, { name: k, content: modules[k] ?? '' });
   }
   const available = [...byKey.keys()].sort();
-  const bodies = new Map<string, string>();
-  bodies.set('index', entrySrc);
-  for (const [, v] of byKey) bodies.set(v.name, v.content);
 
   // Dependency graph over normalized keys ('index' == entry at root).
   const deps = new Map<string, string[]>();
