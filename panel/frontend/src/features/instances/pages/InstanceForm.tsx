@@ -463,7 +463,6 @@ const InstanceForm: React.FC = () => {
                   className={glassFieldClass}
                   placeholder={(displayName.trim() || name.trim()) || 'New instance'}
                 />
-                <p className="text-xs text-gray-500 truncate mt-1.5">Icon &amp; colour shown on the instance card</p>
               </div>
             </div>
 
