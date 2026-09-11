@@ -270,10 +270,13 @@ function stripInterfaces(src: string, mark: () => void): string {
   let i = 0;
   const n = src.length;
   while (i < n) {
-    const m = /\binterface\b/.exec(src.slice(i, i + 64));
-    if (!m || m.index !== 0) {
-      // Check word boundary at i without slicing the world each time.
-      if (src.startsWith('interface', i) && !isIdPart(src[i - 1] ?? '') && !isIdPart(src[i + 9] ?? '')) {
+    // Genuine `interface` keyword at this position (not part of a larger
+    // identifier, e.g. `myinterface`)?
+    if (
+      src.startsWith('interface', i) &&
+      !isIdPart(src[i - 1] ?? '') &&
+      !isIdPart(src[i + 9] ?? '')
+    ) {
         // Find opening brace, then brace-match.
         let j = i + 9;
         while (j < n && src[j] !== '{' && src[j] !== '\n') j++;
@@ -314,13 +317,12 @@ function stripInterfaces(src: string, mark: () => void): string {
           i = k;
           continue;
         }
+        // No opening brace (shouldn't happen for real interfaces) — fall
+        // through and copy verbatim rather than dropping code.
       }
       out += src[i];
       i++;
       continue;
-    }
-    out += src[i];
-    i++;
   }
   return out;
 }
