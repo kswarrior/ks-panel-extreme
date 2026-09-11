@@ -216,21 +216,6 @@ const RoleDetail: React.FC = () => {
       </div>
 
       <GlassCard className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-xs uppercase tracking-wide text-gray-500">Permissions · {perms.length}</h4>
-        </div>
-        {perms.length === 0 ? (
-          <p className="text-sm text-gray-500">This role grants no permissions.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {perms.map((p) => (
-              <span key={p} className="inline-flex items-center text-[11px] font-mono px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-200">{p}</span>
-            ))}
-          </div>
-        )}
-      </GlassCard>
-
-      <GlassCard className="p-4">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Users in role · {members.length}</h4>
         {members.length === 0 ? (
           <p className="text-sm text-gray-500">No users currently hold this role.</p>

@@ -313,39 +313,6 @@ return (
                   </span>
                   <div className="flex items-center gap-1">
                     <Link to={`/role/${r.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
-                    <CardMenu
-                      ariaLabel={`More actions for role ${r.name}`}
-                      items={[
-                        {
-                          kind: 'checkbox',
-                          key: 'default',
-                          label: 'Default for new users',
-                          checked: defaultRoleId === r.id,
-                          hint:
-                            defaultRoleId === r.id
-                              ? 'New users get this role'
-                              : 'Click to make this role the default',
-                        },
-                        {
-                          kind: 'toggle',
-                          key: 'self-assign',
-                          label: 'Allow self-assign',
-                          checked: !!allowSelfAssign[r.id],
-                        },
-                        {
-                          kind: 'submenu',
-                          key: 'perms',
-                          label: 'Permissions…',
-                          children: perms.map((p) => ({
-                            kind: 'checkbox' as const,
-                            key: `perm-${p}`,
-                            label: p,
-                            checked: !!permState[r.id]?.[p],
-                          })),
-                        },
-                      ]}
-                      onSelect={() => {}}
-                    />
                   </div>
                 </footer>
               </article>
