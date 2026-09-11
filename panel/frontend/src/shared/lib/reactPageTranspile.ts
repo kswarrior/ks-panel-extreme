@@ -759,8 +759,6 @@ function looksLikeTernary(src: string, pos: number): boolean {
   }
   return false;
 }
-  return s;
-}
 
 // ---- JSX ----
 
