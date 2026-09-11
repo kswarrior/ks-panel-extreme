@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { PILL_SHOW_DELAY, PILL_TAB_STYLE, PILL_TOGGLE_COLLAPSED_PX, useAutoHidePill } from './PageActionsPill';
@@ -14,15 +14,25 @@ interface PageFormActionsPillProps {
   spacer?: boolean;
 }
 
-// PageFormActionsPill renders the fixed bottom-right form-action cluster
-// (Cancel / Create / Save / Deploy / Broadcast …) used by every panel form:
-// a compact pill that is ALWAYS visible by default. Auto-off (scroll /
-// outside-click, idle restore) is opt-in via the Theme Studio's Pill tab
+// Mount counter for the body flag below — several pills never coexist on
+// one page, but StrictMode double-mounts, so a bare set/remove would flap.
+let formBarMounts = 0;
+
+// PageFormActionsPill renders the bottom-docked form-action bar (Cancel /
+// Create / Save / Deploy / Broadcast …) used by every panel form: a
+// full-width bar fixed to the screen bottom (tabs-pill positioning) with
+// the buttons hugging the right — never a floating card over the content.
+// ALWAYS visible by default. Auto-off (scroll / outside-click, idle
+// restore) is opt-in via the Theme Studio's Pill tab
 // (`form_actions_auto_hide_enabled` + `form_actions_auto_show_delay`) —
 // the Default theme ships it OFF so Save is never hidden. The manual `>`
 // / `<` toggle always works. Surface / sizing / motion all come from the
 // Pill tab, shared with the Actions + Tabs pills (paint via --ks-pill-*
 // vars, collapse motion resolved for the current route).
+//
+// While mounted it sets body[data-ks-form-actions] so the phone Tabs pill
+// (same bottom strip) lifts above the bar instead of sliding underneath
+// it — see the lift rules in themeStore.
 export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
   children,
   className = '',
