@@ -292,6 +292,666 @@ export function stripLightTS(src: string): { code: string; hadTS: boolean } {
   return { code: s, hadTS };
 }
 
+// ---- enum / namespace (runtime TS) ----
+
+// findKeyword finds `word` as a standalone keyword in code (strings and
+// comments skipped), at or after `from`. A preceding `.` disqualifies
+// (`foo.enum` is a property, not a declaration).
+function findKeyword(src: string, word: string, from: number): number {
+  let i = from;
+  const n = src.length;
+  let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  while (i < n) {
+    const c = src[i];
+    if (state === 'code') {
+      if (c === '/' && src[i + 1] === '/') {
+        state = 'line';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        state = 'block';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = 'sq';
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        state = 'dq';
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        state = 'tpl';
+        i++;
+        continue;
+      }
+      if (
+        src.startsWith(word, i) &&
+        !isIdPart(src[i - 1] ?? '') &&
+        src[i - 1] !== '.' &&
+        !isIdPart(src[i + word.length] ?? '')
+      ) {
+        return i;
+      }
+      i++;
+      continue;
+    }
+    if (state === 'line') {
+      if (c === '\n') state = 'code';
+      i++;
+      continue;
+    }
+    if (state === 'block') {
+      if (c === '*' && src[i + 1] === '/') {
+        state = 'code';
+        i += 2;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (c === '\\') {
+      i += 2;
+      continue;
+    }
+    if ((state === 'sq' && c === "'") || (state === 'dq' && c === '"') || (state === 'tpl' && c === '`')) {
+      state = 'code';
+    }
+    i++;
+  }
+  return -1;
+}
+
+// matchBrace returns the index PAST the `}` matching src[openIdx] === '{`
+// (string/comment aware), or -1 when unbalanced.
+function matchBrace(src: string, openIdx: number): number {
+  let depth = 0;
+  let i = openIdx;
+  const n = src.length;
+  let st: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  while (i < n) {
+    const c = src[i];
+    if (st === 'code') {
+      if (c === '/' && src[i + 1] === '/') {
+        st = 'line';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        st = 'block';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        st = 'sq';
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        st = 'dq';
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        st = 'tpl';
+        i++;
+        continue;
+      }
+      if (c === '{') depth++;
+      if (c === '}') {
+        depth--;
+        if (depth === 0) return i + 1;
+      }
+      i++;
+      continue;
+    }
+    if (st === 'line') {
+      if (c === '\n') st = 'code';
+      i++;
+      continue;
+    }
+    if (st === 'block') {
+      if (c === '*' && src[i + 1] === '/') {
+        st = 'code';
+        i += 2;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (c === '\\') {
+      i += 2;
+      continue;
+    }
+    if ((st === 'sq' && c === "'") || (st === 'dq' && c === '"') || (st === 'tpl' && c === '`')) st = 'code';
+    i++;
+  }
+  return -1;
+}
+
+// splitTopLevel splits on `sep` at bracket depth 0 (strings/comments aware).
+function splitTopLevel(s: string, sep: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let angle = 0;
+  let start = 0;
+  let i = 0;
+  const n = s.length;
+  let st: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  while (i < n) {
+    const c = s[i];
+    if (st === 'code') {
+      if (c === '/' && s[i + 1] === '/') {
+        st = 'line';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && s[i + 1] === '*') {
+        st = 'block';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        st = 'sq';
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        st = 'dq';
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        st = 'tpl';
+        i++;
+        continue;
+      }
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+      else if (c === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(s[i - 1] ?? '')) angle++;
+      else if (c === '>' && angle > 0) angle--;
+      else if (c === sep && depth === 0 && angle === 0) {
+        parts.push(s.slice(start, i));
+        start = i + 1;
+      }
+      i++;
+      continue;
+    }
+    if (st === 'line') {
+      if (c === '\n') st = 'code';
+      i++;
+      continue;
+    }
+    if (st === 'block') {
+      if (c === '*' && s[i + 1] === '/') {
+        st = 'code';
+        i += 2;
+        continue;
+      }
+      i++;
+      continue;
+    }
+    if (c === '\\') {
+      i += 2;
+      continue;
+    }
+    if ((st === 'sq' && c === "'") || (st === 'dq' && c === '"') || (st === 'tpl' && c === '`')) st = 'code';
+    i++;
+  }
+  parts.push(s.slice(start));
+  return parts;
+}
+
+const NUMERIC_LITERAL_RE = /^[+-]?(?:0[xX][\da-fA-F]+|0[oO][0-7]+|0[bB][01]+|(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)$/;
+
+// takeDeclPrefix walks back from a keyword position over same-line/gap
+// whitespace and collects `export`/`const`/`declare` prefix words (for
+// `export const enum E`, `declare namespace N`). Stops at anything else.
+function takeDeclPrefix(src: string, kwPos: number): { start: number; words: string[] } {
+  let i = kwPos;
+  const words: string[] = [];
+  for (;;) {
+    let j = i;
+    while (j > 0 && (src[j - 1] === ' ' || src[j - 1] === '\t' || src[j - 1] === '\n' || src[j - 1] === '\r')) j--;
+    let k = j;
+    while (k > 0 && isIdPart(src[k - 1])) k--;
+    const w = src.slice(k, j);
+    if (w !== 'export' && w !== 'const' && w !== 'declare') return { start: i, words };
+    words.unshift(w);
+    i = k;
+  }
+}
+
+// emitEnum compiles `enum Name { ... }` members to tsc-style assignment
+// statements. Numeric members get reverse mappings; a missing initializer
+// after a non-numeric member throws (same rule as TypeScript).
+function emitEnum(name: string, inner: string, mark: () => void): string {
+  const blanked = blankStringsAndComments(inner);
+  const ranges: Array<{ from: number; to: number }> = [];
+  {
+    // Reuse splitTopLevel on the blanked text for boundaries, then slice
+    // the ORIGINAL so initializers stay verbatim.
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i <= blanked.length; i++) {
+      const c = blanked[i] ?? '';
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+      if ((c === ',' || i === blanked.length) && depth === 0) {
+        ranges.push({ from: start, to: i });
+        start = i + 1;
+      }
+    }
+  }
+  const lines = [`const ${name} = {};`];
+  let counter = 0;
+  let autoOk = true;
+  for (const { from, to } of ranges) {
+    const raw = inner.slice(from, to);
+    const clean = blankStringsAndComments(raw).trim();
+    if (clean === '') continue;
+    const mm = /^([A-Za-z_$][A-Za-z0-9_$]*)\s*(?:=\s*([\s\S]+))?$/.exec(clean);
+    if (!mm) throw new Error(`invalid enum member: ${clean.slice(0, 40)} — expected Name or Name = value`);
+    const key = mm[1];
+    // Recover the verbatim initializer from the original slice.
+    let init = '';
+    if (mm[2] !== undefined) {
+      const eqAt = raw.search(/=/);
+      init = blankStringsAndComments(raw.slice(eqAt + 1)).trim() === '' ? '' : raw.slice(eqAt + 1).trim();
+      // Strip a trailing line comment the blanker turned to spaces (already
+      // spaces) — trim suffices since blanking preserves layout.
+      init = blankStringsAndComments(init).trim() === '' ? '' : init;
+    }
+    if (init === '') {
+      if (!autoOk) {
+        throw new Error(
+          `enum member ${key} needs an initializer because the previous member is not a number — same rule as TypeScript`,
+        );
+      }
+      lines.push(`${name}[${JSON.stringify(key)}] = ${counter}; ${name}[${counter}] = ${JSON.stringify(key)};`);
+      counter++;
+    } else if (NUMERIC_LITERAL_RE.test(blankStringsAndComments(init).trim())) {
+      const v = Number(blankStringsAndComments(init).trim());
+      lines.push(`${name}[${JSON.stringify(key)}] = (${init}); ${name}[${v}] = ${JSON.stringify(key)};`);
+      counter = v + 1;
+      autoOk = true;
+    } else {
+      lines.push(`${name}[${JSON.stringify(key)}] = (${init});`);
+      autoOk = false;
+    }
+  }
+  mark();
+  return lines.join('\n');
+}
+
+// collectNamespaceExports finds top-level `export <decl> <name>` members in
+// a (recursively transformed) namespace body, drops the `export` keyword and
+// returns the member names for the IIFE return object. `export default`,
+// `export {}`, `export *` and `export =` throw — they have no namespace
+// meaning in a private page script.
+function collectNamespaceExports(body: string, nsName: string): { body: string; names: string[] } {
+  let out = '';
+  let i = 0;
+  const n = body.length;
+  const names: string[] = [];
+  let depth = 0;
+  let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  const flushWord = (): boolean => {
+    if (!body.startsWith('export', i) || isIdPart(body[i - 1] ?? '') || !/\s/.test(body[i + 6] ?? '')) return false;
+    if (depth !== 0) return false;
+    const rest = body.slice(i + 6);
+    const m = /^\s+(default\b|[{*=]|\bfrom\b|declare\b|const\b|let\b|var\b|async\s+function\b|function\b|class\b|enum\b|namespace\b|interface\b|type\b)/.exec(rest);
+    if (!m) return false;
+    const kind = m[1].replace(/\s+/g, ' ');
+    if (kind === 'default' || kind === '{' || kind === '*' || kind === '=' || kind === 'from' || kind === 'declare') {
+      throw new Error(
+        `export ${kind} is not supported inside namespace ${nsName} — export plain declarations (const, function, class, enum, namespace) instead`,
+      );
+    }
+    if (kind === 'interface' || kind === 'type') {
+      // Types vanish in later passes; just drop the keyword here.
+      out += '';
+      i += 6 + m[0].length - m[1].length + (m[0].length - kind.length - (m[0].match(/^\s+/)?.[0].length ?? 0));
+      // Simpler: advance past `export` + whitespace only.
+      return true;
+    }
+    // Value declaration: parse its bound name, drop `export `.
+    let j = i + 6 + m[0].length - kind.length;
+    // j now at the start of the kind keyword; advance past it.
+    const kindWord = kind === 'async function' ? 'async function' : kind;
+    j += kindWord.length;
+    while (j < n && (body[j] === ' ' || body[j] === '\t' || body[j] === '\n' || body[j] === '\r')) j++;
+    const nm = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(body.slice(j, j + 64));
+    if (!nm) {
+      throw new Error(`exported member in namespace ${nsName} needs a name — anonymous defaults are not supported`);
+    }
+    names.push(nm[0]);
+    i += 6; // skip `export`, keep the following whitespace + declaration.
+    return true;
+  };
+  while (i < n) {
+    const c = body[i];
+    if (state === 'code') {
+      if (c === '/' && body[i + 1] === '/') {
+        state = 'line';
+        out += '//';
+        i += 2;
+        continue;
+      }
+      if (c === '/' && body[i + 1] === '*') {
+        state = 'block';
+        out += '/*';
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = 'sq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        state = 'dq';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        state = 'tpl';
+        out += c;
+        i++;
+        continue;
+      }
+      if (c === '(' || c === '[' || c === '{') depth++;
+      if (c === ')' || c === ']' || c === '}') depth = Math.max(0, depth - 1);
+      if (c === 'e' && flushWord()) continue;
+      out += c;
+      i++;
+      continue;
+    }
+    if (state === 'line') {
+      out += c;
+      if (c === '\n') state = 'code';
+      i++;
+      continue;
+    }
+    if (state === 'block') {
+      out += c;
+      if (c === '*' && body[i + 1] === '/') {
+        out += '/';
+        i += 2;
+        state = 'code';
+        continue;
+      }
+      i++;
+      continue;
+    }
+    out += c;
+    if (c === '\\') {
+      out += body[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    if ((state === 'sq' && c === "'") || (state === 'dq' && c === '"') || (state === 'tpl' && c === '`')) state = 'code';
+    i++;
+  }
+  return { body: out, names };
+}
+
+// transformEnumsAndNamespaces compiles `enum` (statement assignments with
+// reverse mappings) and `namespace` (IIFE object of exported members),
+// recursively for nesting. A leading `export` is preserved on the emitted
+// `const` for the outer collector (or the top-level export-drop pass);
+// `declare` erases the declaration (ambient, no runtime here).
+function transformEnumsAndNamespaces(src: string, mark: () => void): { code: string } {
+  let out = src;
+  for (;;) {
+    const eIdx = findKeyword(out, 'enum', 0);
+    const nIdx = findKeyword(out, 'namespace', 0);
+    if (eIdx === -1 && nIdx === -1) break;
+    const isEnum = eIdx !== -1 && (nIdx === -1 || eIdx < nIdx);
+    const kwPos = isEnum ? eIdx : nIdx;
+    const kwLen = isEnum ? 4 : 9;
+    const { start, words } = takeDeclPrefix(out, kwPos);
+    const hasExport = words.includes('export');
+    const hasConst = words.includes('const');
+    const hasDeclare = words.includes('declare');
+    const badCombo =
+      words.some((w) => w !== 'export' && w !== 'const' && w !== 'declare') ||
+      (!isEnum && hasConst) ||
+      (hasConst && hasDeclare) ||
+      (hasExport && hasDeclare);
+    if (badCombo) {
+      throw new Error(
+        `invalid ${isEnum ? 'enum' : 'namespace'} declaration (${words.join(' ')}) — use [export] [const] enum / [export] namespace`,
+      );
+    }
+    // Name follows the keyword (whitespace/comments allowed).
+    let p = kwPos + kwLen;
+    while (p < out.length && (out[p] === ' ' || out[p] === '\t' || out[p] === '\n' || out[p] === '\r')) p++;
+    if (out.startsWith('//', p)) {
+      const nl = out.indexOf('\n', p);
+      p = nl === -1 ? out.length : nl + 1;
+      while (p < out.length && (out[p] === ' ' || out[p] === '\t' || out[p] === '\n' || out[p] === '\r')) p++;
+    }
+    const nm = /^[A-Za-z_$][A-Za-z0-9_$]*/.exec(out.slice(p, p + 64));
+    if (!nm) throw new Error(`invalid ${isEnum ? 'enum' : 'namespace'} declaration — a name must follow the keyword`);
+    let q = p + nm[0].length;
+    while (q < out.length && (out[q] === ' ' || out[q] === '\t' || out[q] === '\n' || out[q] === '\r')) q++;
+    if (out[q] !== '{') {
+      throw new Error(
+        `invalid ${isEnum ? 'enum' : 'namespace'} ${nm[0]} — expected { but found ${JSON.stringify(out[q] ?? 'end of input')}`,
+      );
+    }
+    const end = matchBrace(out, q);
+    if (end === -1) throw new Error(`unbalanced { in ${isEnum ? 'enum' : 'namespace'} ${nm[0]} — a closing } is missing`);
+    if (hasDeclare) {
+      mark();
+      out = `${out.slice(0, start)}\n${out.slice(end)}`;
+      continue;
+    }
+    const inner = out.slice(q + 1, end - 1);
+    let replacement: string;
+    if (isEnum) {
+      const stmts = emitEnum(nm[0], inner, mark);
+      replacement = `${hasExport ? 'export ' : ''}${stmts}`;
+    } else {
+      const rec = transformEnumsAndNamespaces(inner, mark);
+      const collected = collectNamespaceExports(rec.code, nm[0]);
+      mark();
+      replacement =
+        `${hasExport ? 'export ' : ''}const ${nm[0]} = (() => {\n${collected.body}\nreturn { ${collected.names.join(', ')} };\n})();`;
+    }
+    out = `${out.slice(0, start)}${replacement}${out.slice(end)}`;
+  }
+  return { code: out };
+}
+
+// stripExportDeclare drops a leftover leading `export` on plain declarations
+// (pages are module-private) and erases ambient `declare ...` statements.
+// Code-aware and line-anchored so strings/templates are never touched.
+function stripExportDeclare(src: string, mark: () => void): string {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+  let atLineStart = true;
+  while (i < n) {
+    const c = src[i];
+    if (state === 'code') {
+      if (c === '/' && src[i + 1] === '/') {
+        state = 'line';
+        out += '//';
+        atLineStart = false;
+        i += 2;
+        continue;
+      }
+      if (c === '/' && src[i + 1] === '*') {
+        state = 'block';
+        out += '/*';
+        atLineStart = false;
+        i += 2;
+        continue;
+      }
+      if (c === "'") {
+        state = 'sq';
+        out += c;
+        atLineStart = false;
+        i++;
+        continue;
+      }
+      if (c === '"') {
+        state = 'dq';
+        out += c;
+        atLineStart = false;
+        i++;
+        continue;
+      }
+      if (c === '`') {
+        state = 'tpl';
+        out += c;
+        atLineStart = false;
+        i++;
+        continue;
+      }
+      if ((c === ' ' || c === '\t') && atLineStart) {
+        out += c;
+        i++;
+        continue;
+      }
+      if (atLineStart) {
+        const rest = src.slice(i, i + 80);
+        const expM = /^export\s+(const|let|var|async\s+function|function|class|enum|namespace|interface|type)\b/.exec(rest);
+        if (expM) {
+          mark();
+          i += 6; // skip `export`, keep following whitespace + declaration.
+          atLineStart = false;
+          continue;
+        }
+        const decM = /^(?:export\s+)?declare\b/.exec(rest);
+        if (decM) {
+          // Erase the ambient statement: through the matching `}` when a
+          // brace opens first, else through `;` (or end of line for ASI).
+          mark();
+          let k = i + decM[0].length;
+          let st2: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
+          let erased = false;
+          while (k < n) {
+            const t = src[k];
+            if (st2 === 'code') {
+              if (t === '/' && src[k + 1] === '/') {
+                st2 = 'line';
+                k += 2;
+                continue;
+              }
+              if (t === '/' && src[k + 1] === '*') {
+                st2 = 'block';
+                k += 2;
+                continue;
+              }
+              if (t === "'") {
+                st2 = 'sq';
+                k++;
+                continue;
+              }
+              if (t === '"') {
+                st2 = 'dq';
+                k++;
+                continue;
+              }
+              if (t === '`') {
+                st2 = 'tpl';
+                k++;
+                continue;
+              }
+              if (t === '{') {
+                const end = matchBrace(src, k);
+                k = end === -1 ? n : end;
+                erased = true;
+                break;
+              }
+              if (t === ';' || t === '\n') {
+                k = t === ';' ? k + 1 : k;
+                erased = true;
+                break;
+              }
+              k++;
+              continue;
+            }
+            if (st2 === 'line') {
+              if (t === '\n') {
+                k++;
+                erased = true;
+                break;
+              }
+              k++;
+              continue;
+            }
+            if (st2 === 'block') {
+              if (t === '*' && src[k + 1] === '/') {
+                st2 = 'code';
+                k += 2;
+                continue;
+              }
+              k++;
+              continue;
+            }
+            if (t === '\\') {
+              k += 2;
+              continue;
+            }
+            if ((st2 === 'sq' && t === "'") || (st2 === 'dq' && t === '"') || (st2 === 'tpl' && t === '`')) st2 = 'code';
+            k++;
+          }
+          void erased;
+          out += '\n';
+          i = k;
+          atLineStart = true;
+          continue;
+        }
+      }
+      if (c === '\n') atLineStart = true;
+      else if (c !== ' ' && c !== '\t' && c !== '\r') atLineStart = false;
+      out += c;
+      i++;
+      continue;
+    }
+    if (state === 'line') {
+      out += c;
+      if (c === '\n') {
+        state = 'code';
+        atLineStart = true;
+      }
+      i++;
+      continue;
+    }
+    if (state === 'block') {
+      out += c;
+      if (c === '*' && src[i + 1] === '/') {
+        out += '/';
+        i += 2;
+        state = 'code';
+        continue;
+      }
+      i++;
+      continue;
+    }
+    out += c;
+    if (c === '\\') {
+      out += src[i + 1] ?? '';
+      i += 2;
+      continue;
+    }
+    if ((state === 'sq' && c === "'") || (state === 'dq' && c === '"') || (state === 'tpl' && c === '`')) state = 'code';
+    i++;
+  }
+  return out;
+}
+
 function stripInterfaces(src: string, mark: () => void): string {
 
   let out = '';
