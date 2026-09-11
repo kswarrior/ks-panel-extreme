@@ -374,9 +374,14 @@ const UsersPage: React.FC = () => {
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             {(search || roleFilter !== 'all') && (
-              <ListCount shown={visible.length} total={filtered.length} label="user" />
+              <ListCount
+                shown={visible.length}
+                total={filtered.length}
+                label="user"
+                extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
+              />
             )}
-            {filtered.length > pageSize && (
+            {!(search || roleFilter !== 'all') && filtered.length > pageSize && (
               <ListCount
                 shown={pageSize}
                 total={filtered.length}
