@@ -432,6 +432,9 @@ function normalizeChartPoints(series: ChartSeries): ChartSeriesPoint[] {
 // HiDPI: backing store scales by devicePixelRatio (capped at 3). Attacker
 // labels only ever reach fillText (never innerHTML), so markup is inert.
 export function renderSdkChart(el: HTMLElement, series: ChartSeries, opts?: ChartOptions): () => void {
+  if (!el || typeof (el as HTMLElement).appendChild !== 'function') {
+    throw new Error('sdk.chart: el must be an HTMLElement');
+  }
   const host = el;
   const kind = opts?.kind === 'line' ? 'line' : 'bars';
   const canvas = document.createElement('canvas');
