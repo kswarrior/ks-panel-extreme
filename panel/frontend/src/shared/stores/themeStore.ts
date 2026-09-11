@@ -2382,6 +2382,16 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   padding-left: 4px !important;
   padding-right: 4px !important;
 }
+/* Docked-bar coexistence: the form-actions bar spans the full bottom
+   strip, so while it is mounted (body flag set by PageFormActionsPill)
+   the phone Tabs pill rides above the bar instead of underneath it, and
+   its scroll spacer grows to clear both stacked bars. */
+body[data-ks-form-actions='1'] .ks-tabs-pill-wrap {
+  bottom: calc(max(0.75rem, env(safe-area-inset-bottom)) + 3.75rem) !important;
+}
+body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
+  height: 8.5rem !important;
+}
 /* Chevron toggle ("<" / ">" / "^" / "v") never changes color — hover,
    hold (active) and click (focus) all keep the same Pill text color +
    inactive background as the resting state. The (0,3,0) selectors beat

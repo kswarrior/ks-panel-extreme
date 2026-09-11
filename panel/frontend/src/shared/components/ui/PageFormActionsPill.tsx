@@ -67,16 +67,25 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
     : animation === 'scale' ? 'scale(0.92)'
     : animation === 'none' ? 'none'
     : 'translateX(8px)';
+  // Signal the docked bar so the phone Tabs pill lifts above it.
+  useEffect(() => {
+    formBarMounts += 1;
+    if (formBarMounts === 1) document.body.dataset.ksFormActions = '1';
+    return () => {
+      formBarMounts = Math.max(0, formBarMounts - 1);
+      if (formBarMounts === 0) delete document.body.dataset.ksFormActions;
+    };
+  }, []);
   return (
     <>
       <div
-        className={outerClassName ?? 'fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-4 sm:right-6 z-40'}
+        className={outerClassName ?? 'fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-end'}
         style={outerStyle}
         onMouseEnter={show}
       >
         <div
           ref={ref}
-          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
+          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center justify-end flex-wrap w-full shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <div

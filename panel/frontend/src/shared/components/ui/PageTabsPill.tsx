@@ -130,7 +130,7 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
     <>
       <nav
         aria-label={ariaLabel}
-        className={`${outerClassName ?? 'lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30'} flex justify-start`}
+        className={`ks-tabs-pill-wrap ${outerClassName ?? 'lg:hidden fixed inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30'} flex justify-start`}
         style={outerStyle}
       >
         <div
@@ -207,7 +207,7 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
       </nav>
       {/* Spacer — reserves scroll room so the fixed bottom pill never covers
           trailing content (node pattern). */}
-      {spacer && <div aria-hidden="true" className="h-24 lg:hidden" />}
+      {spacer && <div aria-hidden="true" className="ks-tabs-pill-spacer h-24 lg:hidden" />}
     </>
   );
 };
