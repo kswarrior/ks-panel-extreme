@@ -25,6 +25,7 @@
     "fast-glob": "^3.3.3",
     "jiti": "^2.7.0",
     "micromatch": "^4.0.8",
+    "monaco-editor": "^0.52.2",
     "object-hash": "^3.0.0",
     "picocolors": "^1.1.1",
     "postcss": "^8.5.26",
