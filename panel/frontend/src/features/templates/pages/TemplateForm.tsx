@@ -6,6 +6,8 @@ import type { Template } from '@/shared/types/instance';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -321,41 +323,68 @@ const TemplateForm: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TemplateTabId>('general');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the whole template draft (tab + import-modal
+  // UI stay out — every edit flows through setForm).
+  const snapshot = JSON.stringify({ form });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    setForm(JSON.parse(snapStr).form);
+  });
+  const { suspend: histSuspend } = hist;
 
   // Load template for edit if necessary.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (editing) {
-          const templates = await listTemplates();
-          const t = templates.find((x) => x.id === Number(id));
-          if (t) {
-            const parsed = parseSpec(t.spec);
-            setForm({
-              ...emptyForm,
-              ...parsed,
-              id: String(t.id),
-              name: t.name,
-              description: t.description || '',
-              kind: t.kind as DriverKind,
-              image: t.image,
-              // Top-level icon/color columns (migration 059) — never in spec.
-              icon: (t as any).icon || '',
-              color: (t as any).color || '',
-            });
-          } else {
-            setError('Template not found');
-          }
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      if (editing) {
+        const templates = await listTemplates();
+        const t = templates.find((x) => x.id === Number(id));
+        if (t) {
+          const parsed = parseSpec(t.spec);
+          setForm({
+            ...emptyForm,
+            ...parsed,
+            id: String(t.id),
+            name: t.name,
+            description: t.description || '',
+            kind: t.kind as DriverKind,
+            image: t.image,
+            // Top-level icon/color columns (migration 059) — never in spec.
+            icon: (t as any).icon || '',
+            color: (t as any).color || '',
+          });
+        } else {
+          setError('Template not found');
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load template');
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load template');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -375,6 +404,7 @@ const TemplateForm: React.FC = () => {
       } else {
         await createTemplate({ name: form.name, spec, image: form.image, kind: form.kind, description: form.description, icon, color });
       }
+      hist.commit();
       navigate('/templates');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save template');
@@ -523,6 +553,7 @@ const TemplateForm: React.FC = () => {
           style), always visible no matter how far the form is scrolled.
           Footer Cancel/Create removed; everything lives here. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/templates')}
