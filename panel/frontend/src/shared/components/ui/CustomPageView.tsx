@@ -154,7 +154,9 @@ const ReactModuleView: React.FC<{
    *  an unchanged key means equal values, so the closure stays current. */
   sdkKey: string;
   resetKey: string;
-}> = ({ bundle, bundleCss, sdk, sdkKey, resetKey }) => {
+  /** Virtual modules (Files) inlined before the entry body. */
+  modules?: Record<string, string>;
+}> = ({ bundle, bundleCss, sdk, sdkKey, resetKey, modules }) => {
   const [comp, setComp] = useState<React.ComponentType | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
 
@@ -162,11 +164,11 @@ const ReactModuleView: React.FC<{
   // theme polls and parent re-renders don't repay the parse cost.
   const transpiled = useMemo(() => {
     try {
-      return { code: transpileReactPageSource(bundle).code, error: null as string | null };
+      return { code: transpileReactPageSource(bundle, modules ?? {}).code, error: null as string | null };
     } catch (e) {
       return { code: '', error: e instanceof Error ? e.message : String(e) };
     }
-  }, [bundle]);
+  }, [bundle, modules]);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,10 +240,12 @@ const ReactModuleView: React.FC<{
   }, [bundle, transpiled.code, transpiled.error, sdkKey]);
   // Memoized on the bundle string: hashing 1MiB on every parent re-render
   // (theme switches, install polls) would waste cycles; the digest only
-  // recomputes when the bundle itself changes.
+  // recomputes when the bundle itself changes. Module names ride along so a
+  // Files-only edit still resets a stale error boundary.
   const bundleDigest = useMemo(() => bundleHash(bundle), [bundle]);
+  const moduleNames = useMemo(() => Object.keys(modules ?? {}).sort().join(','), [modules]);
   return (
-    <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}:${bundleDigest}`}>
+    <ReactModuleErrorBoundary resetKey={`${resetKey}:${bundle.length}:${bundleDigest}:${moduleNames}`}>
       <div className="ks-react-page animate-fade-in">
         {bundleCss && bundleCss.trim() !== '' ? <style>{`/* react page css (scope selectors under .ks-react-page) */\n${bundleCss}`}</style> : null}
         {execError ? (
@@ -403,6 +407,10 @@ function componentToHtml(comp: PageComponentDef): string {
       const key = (comp.shared || comp.name || '').trim();
       return getSharedPanelComponentContent(key);
     }
+    case 'module':
+      // Virtual file, not a fragment — never substitutes (filtered from the
+      // token map above; this is defense-in-depth).
+      return '';
     default:
       return comp.content;
   }
@@ -1590,6 +1598,10 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
     () => JSON.stringify(Array.isArray(content.actions) ? content.actions : []),
     [content.actions],
   );
+  // Virtual modules (Files) travel with the payload's components and are
+  // inlined by the transpiler — same table for live, linked and preview
+  // renders, so every flow carries them without extra plumbing.
+  const reactModules = useMemo(() => reactModulesFromComponents(content.components), [content.components]);
   const hostSdk = useMemo(
     () =>
       instanceContext
@@ -1917,6 +1929,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         sdk={hostSdk}
         sdkKey={fingerprint}
         resetKey={`${pageSlug ?? ''}`}
+        modules={reactModules}
       />
     );
   }

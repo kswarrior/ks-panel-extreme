@@ -404,7 +404,8 @@ export function renderPreview(contentType: string, content: string, components?:
   // without an explicit import row (same as the live CustomPageView).
   if (safeContent.indexOf('{{component:') !== -1) {
     const COMPONENT_TOKEN_RE = /\{\{\s*component:([A-Za-z0-9_][A-Za-z0-9_-]*)\s*\}\}/g;
-    const compMap = new Map((components || []).map((c) => [c.name, c]));
+    // Module rows are virtual files, not fragments — never substitute them.
+    const compMap = new Map((components || []).filter((c) => c && (c as any).type !== 'module').map((c) => [c.name, c]));
     const compToPreviewHtml = (comp: PageComponentDef): string => {
       switch (comp.type) {
         case 'shared':
