@@ -4,7 +4,6 @@ import { listRoles } from '@/shared/api/admin';
 import type { Role } from '@/shared/types/user';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
-import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
@@ -35,19 +34,6 @@ const RolesPage: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [defaultRoleId, setDefaultRoleId] = useState<number | null>(null);
-  const [allowSelfAssign, setAllowSelfAssign] = useState<Record<string, boolean>>({});
-  const [perms] = useState<string[]>([
-    'instances.view',
-    'instances.create',
-    'instances.reboot',
-    'users.view',
-    'users.manage',
-    'themes.manage',
-  ]);
-  const [permState, setPermState] = useState<Record<string, Record<string, boolean>>>(
-    {},
-  );
   const [search, setSearch] = useState('');
   const PAGE_SIZE_KEY = 'ks.roles.pageSize';
   const readPageSize = (): number => {
