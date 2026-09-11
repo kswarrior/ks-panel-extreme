@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { buildPageWsUrl, createCustomPageSDK, pageNavigateTarget, type InstanceContext } from '@/shared/lib/customPageSdk';
+import { transpileReactPageSource } from '@/shared/lib/reactPageTranspile';
 import { confirmDialog } from '@/shared/stores/confirmStore';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
@@ -48,7 +49,8 @@ export interface PageContent {
   blocks?: string;
   /** Validated React bundle body for type == 'react'. Executed once per
    *  bundle (see ReactModuleView) with (sdk, React) in scope; must return
-   *  the root component (`return Page;`). */
+   *  the root component (`return Page;`). Near-real: JSX + light TS +
+   *  react-only imports are transpiled in-memory before execution. */
   bundle?: string;
   /** Optional page CSS for type == 'react', scoped under .ks-react-page. */
   bundleCss?: string;
@@ -138,6 +140,11 @@ function reactSlotHolder(): Record<string, ReactBundleSlot> {
 // violation instead of loading. The bundle runs as an inline <script>
 // element (covered by 'unsafe-inline'); the `return Page;` contract still
 // holds because the body runs inside the wrapper function below.
+//
+// Near-real (Plan A): author source may use JSX + light TS + react-only
+// imports. The bundle is transpiled in-memory (transpileReactPageSource,
+// dependency-free) right before injection; old createElement pages pass
+// through unchanged. Transpile errors render as a fail-closed card.
 const ReactModuleView: React.FC<{
   bundle: string;
   bundleCss?: string;
@@ -151,10 +158,24 @@ const ReactModuleView: React.FC<{
   const [comp, setComp] = useState<React.ComponentType | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
 
+  // Transpile once per bundle string (JSX/TS → executable JS). Memoized so
+  // theme polls and parent re-renders don't repay the parse cost.
+  const transpiled = useMemo(() => {
+    try {
+      return { code: transpileReactPageSource(bundle).code, error: null as string | null };
+    } catch (e) {
+      return { code: '', error: e instanceof Error ? e.message : String(e) };
+    }
+  }, [bundle]);
+
   useEffect(() => {
     let cancelled = false;
     setComp(null);
     setExecError(null);
+    if (transpiled.error) {
+      setExecError(`This React page has a syntax error: ${transpiled.error}`);
+      return;
+    }
     const id = `r${++reactSlotSeq}_${Date.now().toString(36)}`;
     const holder = reactSlotHolder();
     let node: HTMLScriptElement | null = null;
@@ -198,11 +219,14 @@ const ReactModuleView: React.FC<{
     window.addEventListener('error', onScriptError);
     node = document.createElement('script');
     // The wrapper keeps `return Page;` legal; sdk/React come from the slot
-    // so the bundle body itself stays exactly what the author wrote.
+    // so the transpiled body executes with exactly the author-visible names.
+    // Bundle text is embedded verbatim — never build it by string-concat of
+    // author input elsewhere (CSP: inline script, no eval).
+    const execCode = transpiled.code;
     node.textContent =
       `"use strict";(function(){\n` +
       `var slot=window.__ksReactSlots[${JSON.stringify(id)}];\n` +
-      `try{var Page=(function(sdk,React){\n${bundle}\n})(slot.sdk,slot.react);slot.done(Page);}catch(e){slot.fail((e&&(e.message||e.stack))||String(e));}\n` +
+      `try{var Page=(function(sdk,React){\n${execCode}\n})(slot.sdk,slot.react);slot.done(Page);}catch(e){slot.fail((e&&(e.message||e.stack))||String(e));}\n` +
       `})();`;
     document.head.appendChild(node);
     return () => {
@@ -211,7 +235,7 @@ const ReactModuleView: React.FC<{
     };
     // sdk intentionally flows via sdkKey: same key == equal values.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bundle, sdkKey]);
+  }, [bundle, transpiled.code, transpiled.error, sdkKey]);
   // Memoized on the bundle string: hashing 1MiB on every parent re-render
   // (theme switches, install polls) would waste cycles; the digest only
   // recomputes when the bundle itself changes.
