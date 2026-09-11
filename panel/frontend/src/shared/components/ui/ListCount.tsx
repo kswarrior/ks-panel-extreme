@@ -40,12 +40,16 @@ export const ListCount: React.FC<ListCountProps> = ({
     : '';
   // Theme Studio → Count tab can hide the icon globally. The per-page
   // `icon` prop is an additional opt-out (defaults to true).
-  let themeShowIcon = true;
-  try {
-    themeShowIcon = (useThemeStore((s) => (s.active() as any)?.count?.show_icon) as unknown as boolean | undefined) ?? true;
-  } catch {
-    themeShowIcon = true;
-  }
+  // Same theme hook pattern as the template/role lists so the Count tab
+  // restyles the badge live.
+  const themeShowIcon = useThemeStore((s) => {
+    try {
+      const v = (s.active() as any)?.count?.show_icon;
+      return typeof v === 'boolean' ? v : true;
+    } catch {
+      return true;
+    }
+  });
   const showIcon = icon && themeShowIcon;
 
   return (
