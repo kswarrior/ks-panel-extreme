@@ -10,11 +10,16 @@
 //   • JSX: <div className="x">, <MyComp prop={v}>, fragments <>, self-close
 //     <br/>, spread {...props}, expression children, text children.
 //   • TS affordances: `import ... from 'react'` (rewritten to React
-//     destructuring), `interface`/`type` declarations (dropped), `: Type`
+//     destructuring), `interface`/`type` declarations (dropped),
+//     `enum` (numeric/string, emitted as statements), one-level `namespace`
+//     (emitted as an IIFE object of its `export`ed members), `: Type`
 //     annotations on params/lets/returns, `as Type` casts, `<T>` call
-//     generics, postfix `!` non-null assertions.
-//   • Anything else (other imports/exports, npm packages) still throws with
-//     a clear message — pages must use sdk.* + React in scope.
+//     generics, postfix `!` non-null assertions. A leading `export` on a
+//     plain/enum/namespace/interface/type declaration is dropped (pages are
+//     module-private scripts ending with `return Page;`).
+//   • Anything else (other imports, `export default`/`export {}`/`export *`,
+//     npm packages) still throws with a clear message — pages must use
+//     sdk.* + React in scope.
 //
 // Deliberately NOT a full compiler: complex TS falls back to writing plain
 // JS for that line. Fail-closed: unbalanced JSX/braces throw.
@@ -80,15 +85,24 @@ export function rewriteReactImports(src: string): { code: string; hadImport: boo
     }
     out.push(line);
   }
-  // Any remaining module syntax (other packages, exports) is still banned:
-  // the renderer executes the body inside (function(sdk,React){...}), which
-  // cannot parse module syntax. Scan ignoring strings/comments.
+  // Remaining module syntax: only `export` on a plain/enum/namespace/
+  // interface/type/value declaration passes (the keyword is dropped later —
+  // pages are module-private scripts ending with `return Page;`). Anything
+  // else (`export default`, `export {}`, `export *`, non-react imports) is
+  // rejected: the renderer executes the body inside
+  // (function(sdk,React){...}), which cannot parse module syntax. Scan
+  // ignoring strings/comments.
   const stripped = blankStringsAndComments(out.join('\n'));
-  if (/(^|[^A-Za-z0-9_$])(import|export)\b/.test(stripped)) {
-    const mm = stripped.match(/(^|[^A-Za-z0-9_$])((import|export)\b.{0,40})/);
-    throw new Error(
-      `import/export from other packages is not supported (React and sdk are already in scope)${mm ? `: ${mm[2].trim().slice(0, 60)}` : ''} — use sdk.* helpers instead`,
-    );
+  const modRe = /(^|[^A-Za-z0-9_$])((import|export)\b[^\n]{0,60})/g;
+  let badMod: RegExpExecArray | null;
+  while ((badMod = modRe.exec(stripped)) !== null) {
+    const stmt = badMod[2].trim();
+    const okExport = /^export\s+(const|let|var|async|function|class|enum|namespace|interface|type)\b/.test(stmt);
+    if (!okExport) {
+      throw new Error(
+        `import/export is not supported here (${stmt.slice(0, 60)}) — pages are private scripts (end with \`return Page;\`), React and sdk are already in scope; use sdk.* helpers instead`,
+      );
+    }
   }
   return { code: out.join('\n'), hadImport };
 }
