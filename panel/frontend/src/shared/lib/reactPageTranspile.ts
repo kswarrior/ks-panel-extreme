@@ -248,6 +248,19 @@ export function stripLightTS(src: string): { code: string; hadTS: boolean } {
   let hadTS = false;
   let s = src;
 
+  // 0) `enum` (emitted as statements) + `namespace` (emitted as an IIFE
+  // object of its `export`ed members), recursively for nesting. Runs first
+  // so member initializers still get the passes below (`as`, annotations).
+  s = transformEnumsAndNamespaces(s, () => {
+    hadTS = true;
+  }).code;
+
+  // 0b) Leftover `export ` on plain declarations is dropped (pages are
+  // module-private); ambient `declare ...` statements are erased.
+  s = stripExportDeclare(s, () => {
+    hadTS = true;
+  });
+
   // 1) `interface Name ... { ... }` blocks (brace-matched).
   s = stripInterfaces(s, () => {
     hadTS = true;
@@ -280,6 +293,7 @@ export function stripLightTS(src: string): { code: string; hadTS: boolean } {
 }
 
 function stripInterfaces(src: string, mark: () => void): string {
+
   let out = '';
   let i = 0;
   const n = src.length;
