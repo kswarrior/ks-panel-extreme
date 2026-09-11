@@ -402,6 +402,198 @@ function shellQuote(s: string): string {
   return "'" + String(s).replace(/'/g, "'\\''") + "'";
 }
 
+// --- Allowlisted libs (plan item 1): theme-aware canvas chart ---------------
+// Pure + dependency-free: no permissions, no network, no endpoints.
+
+function sdkCssVar(el: HTMLElement, name: string, fallback: string): string {
+  try {
+    const v = getComputedStyle(el).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeChartPoints(series: ChartSeries): ChartSeriesPoint[] {
+  const arr = Array.isArray(series) ? series : [];
+  // Bound the work: a page polling every few seconds must never grow the
+  // redraw cost without bound.
+  return arr.slice(-120).map((p) => {
+    if (typeof p === 'number') return { label: '', value: Number.isFinite(p) ? p : 0 };
+    const v = Number((p as ChartSeriesPoint)?.value);
+    return { label: String((p as ChartSeriesPoint)?.label ?? ''), value: Number.isFinite(v) ? v : 0 };
+  });
+}
+
+// renderSdkChart draws bars/line on a canvas child of `el` and returns a
+// cleanup fn. Theme-aware: series color resolves `--ks-info` (same fallback
+// `#38bdf8` the shipped pages hardcode), grid `--ks-card-border`, labels
+// `--ks-muted` — identical fallbacks to CustomPageView's stock :root block.
+// HiDPI: backing store scales by devicePixelRatio (capped at 3). Attacker
+// labels only ever reach fillText (never innerHTML), so markup is inert.
+export function renderSdkChart(el: HTMLElement, series: ChartSeries, opts?: ChartOptions): () => void {
+  const host = el;
+  const kind = opts?.kind === 'line' ? 'line' : 'bars';
+  const canvas = document.createElement('canvas');
+  canvas.style.width = '100%';
+  host.appendChild(canvas);
+
+  function draw(): void {
+    const pts = normalizeChartPoints(series);
+    const dpr = Math.min(3, Math.max(1, Math.floor(window.devicePixelRatio || 1)));
+    const W = Math.max(80, Math.floor(host.clientWidth || 300));
+    const H = 120;
+    canvas.style.height = `${H}px`;
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const base = (opts?.color || '').trim() || sdkCssVar(host, '--ks-info', '#38bdf8');
+    const grid = sdkCssVar(host, '--ks-card-border', 'rgba(255,255,255,0.10)');
+    const muted = sdkCssVar(host, '--ks-muted', '#9ca3af');
+    if (pts.length === 0) {
+      ctx.fillStyle = muted;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No data yet', W / 2, H / 2);
+      return;
+    }
+    // Baseline grid line.
+    ctx.fillStyle = grid;
+    ctx.fillRect(0, H - 17, W, 1);
+    const max = Math.max(1e-9, ...pts.map((p) => Math.max(0, p.value)));
+    const top = 8;
+    const bottom = 20;
+    const span = H - top - bottom;
+    const xAt = (i: number): number =>
+      pts.length === 1 ? W / 2 : 4 + (i * (W - 8)) / (pts.length - 1);
+    const yAt = (v: number): number => H - bottom - (Math.max(0, v) / max) * span;
+    if (kind === 'line') {
+      ctx.strokeStyle = base;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(xAt(i), yAt(p.value));
+        else ctx.lineTo(xAt(i), yAt(p.value));
+      });
+      ctx.stroke();
+    } else {
+      const bw = W / pts.length;
+      pts.forEach((p, i) => {
+        const h = Math.max(2, (Math.max(0, p.value) / max) * span);
+        ctx.fillStyle = base;
+        ctx.globalAlpha = i === pts.length - 1 ? 1 : 0.45;
+        ctx.fillRect(i * bw + 1, H - bottom - h, Math.max(1, bw - 2), h);
+      });
+      ctx.globalAlpha = 1;
+    }
+    // X labels (attacker data → fillText only, capped count + length).
+    ctx.fillStyle = muted;
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    const stride = Math.max(1, Math.ceil(pts.length / 6));
+    for (let i = 0; i < pts.length; i += stride) {
+      const label = pts[i].label;
+      if (label) ctx.fillText(label.slice(0, 12), xAt(i), H - 4);
+    }
+  }
+
+  draw();
+  window.addEventListener('resize', draw);
+  return () => {
+    window.removeEventListener('resize', draw);
+    try {
+      canvas.remove();
+    } catch { /* host already gone */ }
+  };
+}
+
+// --- Allowlisted libs (plan item 1): safe markdown subset -------------------
+// MIRROR of `safeUrl` + the `renderMarkdown` inline/block rules in
+// CustomPageView.tsx (`panel/frontend/src/shared/components/ui/
+// CustomPageView.tsx`). That file is React-node rendering in the host origin
+// and imports this SDK module — importing it back here would be a dependency
+// cycle — so the rules are mirrored, not imported. Keep the two in sync:
+// headings (#/##/###), **bold**, *italic*, `code`, [text](url), -/*/1. lists,
+// `---` divider (superset: renderMarkdown has no `---` rule yet), paragraphs.
+// Everything is HTML-escaped first; links go through the same safeUrl
+// allow-list (http/https/mailto/relative, else '#').
+function sdkMdEscape(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Mirror of safeUrl (CustomPageView.tsx) — keep in sync.
+function sdkMdSafeUrl(raw?: string): string {
+  const u = (raw ?? '').trim();
+  if (!u) return '#';
+  if (/^(https?:|mailto:)/i.test(u)) return u;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(u)) return '#';
+  return u;
+}
+
+// Mirror of renderMarkdown (CustomPageView.tsx) emitting an HTML string.
+export function renderSdkMarkdown(md: string): string {
+  const lines = String(md ?? '').split('\n');
+  const out: string[] = [];
+  let list: string[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  const flushList = (): void => {
+    if (list.length === 0) {
+      listType = null;
+      return;
+    }
+    const tag = listType === 'ol' ? 'ol' : 'ul';
+    out.push(`<${tag}>${list.join('')}</${tag}>`);
+    list = [];
+    listType = null;
+  };
+  const inline = (text: string): string => {
+    // Input is escaped FIRST so hostile markup is inert before any
+    // markdown replacement inserts the only raw tags we ever emit.
+    const s = sdkMdEscape(text)
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, t: string, u: string) =>
+        `<a href="${sdkMdEscape(sdkMdSafeUrl(u))}" target="_blank" rel="noreferrer">${t}</a>`);
+    return s;
+  };
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^#{1,3}\s/.test(trimmed)) {
+      flushList();
+      const lvl = trimmed.match(/^#+/)![0].length;
+      const body = inline(trimmed.replace(/^#+\s/, ''));
+      out.push(lvl === 1 ? `<h1>${body}</h1>` : lvl === 2 ? `<h2>${body}</h2>` : `<h3>${body}</h3>`);
+    } else if (/^---\s*$/.test(trimmed)) {
+      flushList();
+      out.push('<hr />');
+    } else if (/^[-*]\s/.test(trimmed)) {
+      if (listType === 'ol') flushList();
+      listType = 'ul';
+      list.push(`<li>${inline(trimmed.replace(/^[-*]\s/, ''))}</li>`);
+    } else if (/^\d+\.\s/.test(trimmed)) {
+      if (listType === 'ul') flushList();
+      listType = 'ol';
+      list.push(`<li>${inline(trimmed.replace(/^\d+\.\s/, ''))}</li>`);
+    } else if (trimmed === '') {
+      flushList();
+    } else {
+      flushList();
+      out.push(`<p>${inline(trimmed)}</p>`);
+    }
+  }
+  flushList();
+  return out.join('\n');
+}
+
 // --- CSRF token cache (mirrors shared/api/client.ts) ---
 // Tokens are minted by public GET /api/csrf-token (reusable ~1h) and sent
 // back as X-CSRF-Token on mutating requests. Module-level on purpose: the
@@ -841,6 +1033,10 @@ export function createCustomPageSDK(
     formatBytes,
     timeAgo,
     debounce,
+    // Allowlisted libs (pure canvas/markdown — same origin guarantees as
+    // the helpers above: no scope, no permissions, no network).
+    chart: (el, series, opts) => renderSdkChart(el, series, opts),
+    markdown: (md) => renderSdkMarkdown(md),
     
     // Events
     on,

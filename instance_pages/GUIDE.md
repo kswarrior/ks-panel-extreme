@@ -656,6 +656,10 @@ sdk.confirm(message: string): Promise<boolean> // themed ConfirmDialog, not brow
 sdk.prompt(message: string, defaultValue?: string): Promise<string|null>
 sdk.modal({title, content, buttons?: {label, action, variant}[]}): void
 
+// — Allowlisted libs (pure, dependency-free: canvas chart + safe markdown, no network) —
+sdk.chart(el: HTMLElement, series: number[] | {label,value}[], opts?: {kind, color}): () => void // theme-aware canvas bars/line chart; returns cleanup
+sdk.markdown(md: string): string // safe markdown subset → HTML string (same escaping + safeUrl as renderMarkdown)
+
 // — Events (page-local pub/sub + parent relay ks-page-event) —
 sdk.on(event: string, cb: (data:any)=>void): () => void
 sdk.emit(event: string, data: any): void
