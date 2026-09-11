@@ -36,7 +36,7 @@ export function getErrorMessage(e: any, fallback: string): string {
 let actionSeq = 0;
 export function blankAction(): ActionRow {
   actionSeq += 1;
-  return { id: `a${Date.now()}-${actionSeq}`, name: '', type: 'shell', command: '', path: '', content: '', args: '', open_args: false, env: '{}', timeout: '30', description: '' };
+  return { id: `a${Date.now()}-${actionSeq}`, name: '', type: 'shell', command: '', path: '', content: '', args: '', open_args: false, env: '{}', timeout: '30', description: '', mode: '', names: '', dest: '' };
 }
 
 // actionsToDefs serialises editor rows into the persisted JSON shape.
@@ -67,6 +67,9 @@ export function actionsToDefs(rows: ActionRow[]): PageActionDef[] {
       env,
       timeout: parseInt(r.timeout, 10) || undefined,
       description: r.description || undefined,
+      mode: r.mode.trim() || undefined,
+      names: r.names.trim() ? r.names.split(/\s+/).filter(Boolean) : undefined,
+      dest: r.dest.trim() || undefined,
     });
   }
   return out;
@@ -84,7 +87,7 @@ export function defsToActions(json: string | undefined): ActionRow[] {
   return defs.map((d) => ({
     id: `d${actionSeq++}-${Math.random().toString(36).slice(2, 8)}`,
     name: typeof d.name === 'string' ? d.name : '',
-    type: (['shell', 'read_file', 'write_file', 'list_files', 'docker', 'kvm', 'lxd'].includes(d.type) ? d.type : 'shell') as ActionRow['type'],
+    type: (['shell', 'read_file', 'write_file', 'list_files', 'docker', 'kvm', 'lxd', 'stat', 'chmod', 'archive', 'extract'].includes(d.type) ? d.type : 'shell') as ActionRow['type'],
     command: typeof d.command === 'string' ? d.command : '',
     path: typeof d.path === 'string' ? d.path : '',
     content: typeof d.content === 'string' ? d.content : '',
@@ -93,6 +96,9 @@ export function defsToActions(json: string | undefined): ActionRow[] {
     env: d.env && typeof d.env === 'object' ? JSON.stringify(d.env, null, 2) : '{}',
     timeout: d.timeout != null ? String(d.timeout) : '30',
     description: typeof d.description === 'string' ? d.description : '',
+    mode: typeof d.mode === 'string' ? d.mode : '',
+    names: Array.isArray(d.names) ? d.names.join(' ') : '',
+    dest: typeof d.dest === 'string' ? d.dest : '',
   }));
 }
 

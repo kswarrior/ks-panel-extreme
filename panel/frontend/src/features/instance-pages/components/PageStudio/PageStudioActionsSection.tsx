@@ -144,6 +144,10 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
                         <option value="docker">Docker command</option>
                         <option value="kvm">KVM/virsh command</option>
                         <option value="lxd">LXD/LXC command</option>
+                        <option value="stat">Stat path</option>
+                        <option value="chmod">Chmod path</option>
+                        <option value="archive">Create archive</option>
+                        <option value="extract">Extract archive</option>
                       </select>
                     </label>
                   </div>
@@ -173,10 +177,39 @@ export const PageStudioActionsSection: React.FC<PageStudioActionsSectionProps> =
                     </>
                   )}
 
-                  {(action.type === 'read_file' || action.type === 'write_file' || action.type === 'list_files') && (
+                  {(action.type === 'read_file' || action.type === 'write_file' || action.type === 'list_files' || action.type === 'stat' || action.type === 'chmod' || action.type === 'archive' || action.type === 'extract') && (
                     <label className="block">
-                      <span className="text-xs text-gray-400">Path</span>
+                      <span className="text-xs text-gray-400">
+                        {action.type === 'archive' ? 'Source directory (or file when Entries is empty)' : action.type === 'extract' ? 'Archive path (.zip or .tar.gz)' : 'Path'}
+                      </span>
                       <input value={action.path} onChange={(e) => onUpdate(action.id, { path: e.target.value })} className={`${glassFieldClass} font-mono`} placeholder="/etc/myapp/config.yaml" />
+                    </label>
+                  )}
+
+                  {action.type === 'chmod' && (
+                    <label className="block">
+                      <span className="text-xs text-gray-400">Mode (octal 000-777)</span>
+                      <input value={action.mode} onChange={(e) => onUpdate(action.id, { mode: e.target.value })} className={`${glassFieldClass} font-mono`} placeholder="0644" />
+                    </label>
+                  )}
+
+                  {action.type === 'archive' && (
+                    <>
+                      <label className="block">
+                        <span className="text-xs text-gray-400">Entries (space-separated, relative to the source directory)</span>
+                        <input value={action.names} onChange={(e) => onUpdate(action.id, { names: e.target.value })} className={`${glassFieldClass} font-mono`} placeholder="level.dat playerdata" />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs text-gray-400">Destination archive (.zip or .tar.gz)</span>
+                        <input value={action.dest} onChange={(e) => onUpdate(action.id, { dest: e.target.value })} className={`${glassFieldClass} font-mono`} placeholder="/tmp/world.tar.gz" />
+                      </label>
+                    </>
+                  )}
+
+                  {action.type === 'extract' && (
+                    <label className="block">
+                      <span className="text-xs text-gray-400">Destination directory (empty = archive&apos;s own directory)</span>
+                      <input value={action.dest} onChange={(e) => onUpdate(action.id, { dest: e.target.value })} className={`${glassFieldClass} font-mono`} placeholder="/data/restored" />
                     </label>
                   )}
 

@@ -46,6 +46,12 @@ export interface ActionRow {
   env: string;
   timeout: string;
   description: string;
+  /** chmod octal mode (e.g. "0644"). */
+  mode: string;
+  /** archive entries, space-separated in the editor. */
+  names: string;
+  /** archive destination archive path / extract destination dir. */
+  dest: string;
 }
 
 export interface ComponentRow {
