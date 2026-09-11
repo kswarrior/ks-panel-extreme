@@ -21,6 +21,8 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
 
@@ -79,6 +81,13 @@ function KindIcon({ kind, className = '' }: { kind: string; className?: string }
 const InstancePages: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle instance-page cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [pages, setPages] = useState<InstancePage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -482,7 +491,12 @@ const InstancePages: React.FC = () => {
               const p = e.page;
               const srcMeta = SOURCE_META[e.source] ?? SOURCE_META.studio;
               return (
-                <article key={p.id} id={`ks-instancepage-${p.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+                <article key={p.id} id={`ks-instancepage-${p.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                  <CardMediaLayer />
+                  <div
+                    className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                    style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                  />
                   <header className="flex items-start gap-3 min-w-0 relative">
                     <CardIconTile
                       icon={p.icon_svg || ''}
@@ -491,18 +505,18 @@ const InstancePages: React.FC = () => {
                       fallback={<KindIcon kind={e.kind} className="w-6 h-6" />}
                     />
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-semibold text-white truncate leading-tight">{p.name}</h3>
-                      <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">/{p.slug === '.' ? '' : p.slug}</p>
+                      <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{p.name}</h3>
+                      <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>/{p.slug === '.' ? '' : p.slug}</p>
                       {p.category && (
-                        <p className="text-[11px] text-gray-400 truncate mt-0.5">
+                        <p className="text-[11px] truncate mt-0.5" style={{ color: 'var(--ks-text-body)' }}>
                           <span className="inline-flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--ks-text-body)' }} />
                             {p.category}
                           </span>
                         </p>
                       )}
                       {p.description && (
-                        <p className="text-xs text-gray-400 truncate mt-1">{p.description}</p>
+                        <p className="text-xs truncate mt-1" style={{ color: 'var(--ks-text-body)' }}>{p.description}</p>
                       )}
                     </div>
                     <div className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${srcMeta.badge}`} title={e.source === 'market' ? 'Imported from marketplace, unmodified' : e.source === 'edited' ? 'Imported from marketplace, then edited' : 'Own page (Studio / upload / URL)'}>
@@ -513,12 +527,30 @@ const InstancePages: React.FC = () => {
 
                   {p.content_type && (
                     <div className="flex flex-wrap gap-1.5 text-xs">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Content type">
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border"
+                        style={{
+                          borderColor: 'var(--ks-card-border)',
+                          background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                          color: 'var(--ks-text-heading)',
+                          opacity: 0.85,
+                        }}
+                        title="Content type"
+                      >
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /> </svg>
                         {p.content_type}
                       </span>
                       {p.icon_svg && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title="Custom icon">
+                        <span
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border"
+                          style={{
+                            borderColor: 'var(--ks-card-border)',
+                            background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                            color: 'var(--ks-text-heading)',
+                            opacity: 0.85,
+                          }}
+                          title="Custom icon"
+                        >
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /> </svg>
                           Custom icon
                         </span>
@@ -526,14 +558,17 @@ const InstancePages: React.FC = () => {
                     </div>
                   )}
 
-                  <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-gray-500 truncate">
+                  <footer
+                    className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                    style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                  >
+                    <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                       {(() => {
                         const label = formatCardDate(p.updated_at);
                         return label ? <>Updated {label}</> : <>id {p.id}</>;
                       })()}
                     </span>
-                    <Link to={`/instance-pages/${p.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                    <Link to={`/instance-pages/${p.id}`} className="text-[11px] hover:underline hover:opacity-80" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                   </footer>
                 </article>
               );
@@ -542,7 +577,7 @@ const InstancePages: React.FC = () => {
         )}
 
         {!loading && filtered.length === 0 && pages.length > 0 && !error && (
-          <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
             No instance pages match your filters.
             <div className="mt-2 flex justify-center">
               <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
@@ -565,8 +600,8 @@ const InstancePages: React.FC = () => {
                 <line x1="11" y1="13" x2="17" y2="13" opacity="0.7" />
                 <line x1="11" y1="17" x2="15" y2="17" opacity="0.5" />
               </svg>
-              <p className="text-lg font-medium text-gray-300">No instance pages yet</p>
-              <p className="text-sm text-gray-400 text-center max-w-md">Click the <strong className="text-sky-300">+</strong> button to upload a page, import from URL or open Studio.</p>
+              <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No instance pages yet</p>
+              <p className="text-sm text-center max-w-md" style={{ color: 'var(--ks-text-body)' }}>Click the <strong style={{ color: 'var(--ks-link)' }}>+</strong> button to upload a page, import from URL or open Studio.</p>
             </div>
           </div>
         )}

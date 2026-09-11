@@ -422,7 +422,7 @@ const AdminNodes: React.FC = () => {
       {loading && <SkeletonGrid count={6} />}
 
       {!loading && refreshing && (
-        <p className="text-[11px] text-gray-500 mb-2" aria-live="polite">Refreshing…</p>
+        <p className="text-[11px] mb-2" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} aria-live="polite">Refreshing…</p>
       )}
 
       {!loading && filteredNodes.length > 0 && (
@@ -503,13 +503,17 @@ const AdminNodes: React.FC = () => {
                   </span>
                 </div>
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {versionMap[n.id] ? <>V {versionMap[n.id]}</> : <>id {n.id}</>}
                   </span>
                   <Link
                     to={`/node/${n.id}`}
-                    className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline shrink-0"
+                    className="text-[11px] hover:underline hover:opacity-80 shrink-0"
+                    style={{ color: 'var(--ks-link)' }}
                   >
                     View details →
                   </Link>
@@ -521,7 +525,7 @@ const AdminNodes: React.FC = () => {
       )}
 
       {!loading && filteredNodes.length === 0 && nodes.length > 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>
           No nodes match your filters.
           <div className="mt-2 flex justify-center">
             <button onClick={resetFilters} aria-label="Clear filters" className="ks-btn-icon ks-icon-btn" title="Clear filters">
@@ -558,7 +562,7 @@ const AdminNodes: React.FC = () => {
               <line x1="10.2" y1="13.8" x2="5.4" y2="17.6" opacity="0.6" />
               <line x1="13.8" y1="13.8" x2="18.6" y2="17.6" opacity="0.6" />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No nodes yet</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No nodes yet</p>
           </div>
         </div>
       )}
