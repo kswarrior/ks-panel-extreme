@@ -7,11 +7,19 @@ import { resolveInstanceControls } from '@/features/instances/utils/instanceCont
 import { emptyEditor, emptyKvm, emptyMp, emptyLxd, kindKey, KIND_META, InstallAction, NetworkMode, RestartPolicy, LogLevel } from '../types/instanceForm';
 
 function stripUnit(v: string): string {
-  const m = v.match(/^\s*(\d+)\s*([MGmg]?)\s*$/);
+  // Mirror templates stripUnit: handle decimals + trailing time suffix so
+  // "1.5G" -> "1536" and "30s" -> "30" instead of corrupting to "1.5GM" /
+  // "30ss" on the next serialize.
+  const s = (v ?? '').trim();
+  if (s === '') return '';
+  const m = s.match(/^(\d+(?:\.\d+)?)\s*([MGmg]?)(?:[Bb])?(?:[Ii][Bb]?)?\s*[Ss]?$/);
   if (!m) return v;
-  let n = parseInt(m[1], 10);
+  if (/s$/i.test(s) && !m[2]) {
+    return String(m[1].includes('.') ? Math.round(parseFloat(m[1])) : parseInt(m[1], 10));
+  }
+  let n = parseFloat(m[1]);
   if (m[2].toLowerCase() === 'g') n *= 1024;
-  return String(n);
+  return String(Math.round(n));
 }
 
 export function specToEditor(spec: string): EditorState {
