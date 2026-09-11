@@ -63,8 +63,9 @@ type InstancePage struct {
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
-	// SourceTSX is the author-written React JS source (React.createElement,
-	// no JSX in v1) for content_type == "react". Empty == non-React page.
+	// SourceTSX is the author-written React source (JSX + light TS +
+	// react-only imports; plain React.createElement still works) for
+	// content_type == "react". Empty == non-React page.
 	// Migration 075.
 	SourceTSX string `json:"source_tsx"`
 	// BundleJS/BundleCSS are the validated build outputs the renderer

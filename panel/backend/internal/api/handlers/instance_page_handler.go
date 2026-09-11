@@ -54,8 +54,9 @@ type instancePageDTO struct {
 	ContentHTML     string `json:"content_html"`
 	ContentMarkdown string `json:"content_markdown"`
 	ContentBlocks   string `json:"content_blocks"`
-	// SourceTSX is the author React JS source for content_type == "react"
-	// (React.createElement, no JSX in v1). "" == non-React page.
+	// SourceTSX is the author React source for content_type == "react"
+	// (JSX + light TS + react-only imports; plain React.createElement still
+	// works). "" == non-React page.
 	SourceTSX string `json:"source_tsx"`
 	// BundleCSS is optional page CSS for content_type == "react".
 	BundleCSS string `json:"bundle_css"`
