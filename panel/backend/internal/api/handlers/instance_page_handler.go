@@ -799,7 +799,8 @@ func validateReactModules(entry string, modules map[string]string) error {
 		if err := validateReactSource(strings.Join(lines, "\n")); err != nil {
 			return newErrString("module '" + origName[k] + "': " + err.Error())
 		}
-		// Unknown named/default imports fail closed with available exports —
+	}
+	// Unknown named/default imports fail closed with available exports —
 	// checked for the entry AND every reachable module (mirrors the FE
 	// rewriteFile validation).
 	checkImports := func(selfKey, src string) error {
