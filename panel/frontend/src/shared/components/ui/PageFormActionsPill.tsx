@@ -18,10 +18,11 @@ interface PageFormActionsPillProps {
 // one page, but StrictMode double-mounts, so a bare set/remove would flap.
 let formBarMounts = 0;
 
-// PageFormActionsPill renders the bottom-docked form-action bar (Cancel /
-// Create / Save / Deploy / Broadcast …) used by every panel form: a
-// full-width bar fixed to the screen bottom (tabs-pill positioning) with
-// the buttons hugging the right — never a floating card over the content.
+// PageFormActionsPill renders the bottom-docked form-action pill (Cancel /
+// Create / Save / Deploy / Broadcast …) used by every panel form: an
+// auto-width pill fixed to the screen bottom-right (tabs-pill positioning)
+// hugging its content — never a full-width bar or a floating card over the
+// content.
 // ALWAYS visible by default. Auto-off (scroll / outside-click, idle
 // restore) is opt-in via the Theme Studio's Pill tab
 // (`form_actions_auto_hide_enabled` + `form_actions_auto_show_delay`) —
@@ -85,7 +86,7 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
       >
         <div
           ref={ref}
-          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center justify-end flex-wrap w-full shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
+          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center justify-end flex-wrap w-auto shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${animation === 'none' ? 'ks-pill-instant' : ''} ${className}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <div
