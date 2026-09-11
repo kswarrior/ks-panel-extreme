@@ -136,7 +136,7 @@ const MonacoReactEditor: React.FC<MonacoReactEditorProps> = ({ value, onChange, 
       ariaLabel,
     });
     editorRef.current = editor;
-    const sub = model.onDidChangeModelContent(() => {
+    const sub = model.onDidChangeContent(() => {
       if (applyingExternal.current) return;
       onChangeRef.current(model.getValue());
     });
