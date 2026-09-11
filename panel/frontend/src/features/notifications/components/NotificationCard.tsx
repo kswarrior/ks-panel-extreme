@@ -66,7 +66,14 @@ const NotificationCard: React.FC<{
         style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
       />
       <header className="flex items-start gap-3 min-w-0">
-        <div className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border ${unread ? 'bg-sky-500/15 border-sky-400/20 text-sky-300' : 'bg-white/[0.05] border-white/10 text-gray-300'}`}>
+        <div
+          className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center border ${unread ? 'bg-sky-500/15 border-sky-400/20 text-sky-300' : ''}`}
+          style={unread ? undefined : {
+            borderColor: 'var(--ks-card-border)',
+            background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+            color: 'var(--ks-text-body)',
+          }}
+        >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" aria-hidden="true">
             {n.category === 'node' && <><circle cx="12" cy="12" r="3" /><circle cx="4" cy="5" r="1.5" /><circle cx="20" cy="5" r="1.5" /><circle cx="4" cy="19" r="1.5" /><circle cx="20" cy="19" r="1.5" /></>}
             {n.category === 'instance' && <><rect x="3" y="6" width="11" height="9" rx="1.2" /><rect x="8" y="11" width="11" height="9" rx="1.2" /></>}
@@ -131,7 +138,7 @@ const NotificationCard: React.FC<{
             </button>
           )}
           {onDelete && (
-            <button onClick={() => onDelete(n.id)} className="w-8 h-8 grid place-items-center rounded-md text-gray-500 hover:text-red-300 hover:bg-red-500/10 border border-white/10 hover:border-red-400/20 transition-colors">
+            <button onClick={() => onDelete(n.id)} className="w-8 h-8 grid place-items-center rounded-md hover:text-red-300 hover:bg-red-500/10 border hover:border-red-400/20 transition-colors" style={{ color: 'var(--ks-text-body)', opacity: 0.7, borderColor: 'var(--ks-card-border)' }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
             </button>
           )}
