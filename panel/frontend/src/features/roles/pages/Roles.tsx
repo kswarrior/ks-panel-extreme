@@ -321,23 +321,6 @@ return (
                   <p className="text-xs text-gray-400 line-clamp-2">
                     {r.description || <span className="italic text-gray-500">No description</span>}
                   </p>
-                  {perms.length > 0 ? (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {shownPerms.map((p) => (
-                        <span
-                          key={p}
-                          className="inline-flex items-center px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 text-[10px] font-mono"
-                        >
-                          {p}
-                        </span>
-                      ))}
-                      {extraPerms > 0 && (
-                        <span className="inline-flex items-center text-[10px] text-gray-500">+{extraPerms} more</span>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-gray-500 italic mt-1">No permissions</p>
-                  )}
                 </div>
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
