@@ -467,6 +467,7 @@ function migrateThemeSections(t: any): Theme {
     components: sectionBackfill(t?.components, DEFAULT_THEME.components),
     utilities: sectionBackfill(t?.utilities, DEFAULT_THEME.utilities),
     cards: sectionBackfill(t?.cards, DEFAULT_THEME.cards),
+    count: sectionBackfill((t as any)?.count, (DEFAULT_THEME as any).count ?? DEFAULT_THEME.cards),
     customCSS: migrateCustomCSS(t?.customCSS),
   };
 }
@@ -710,6 +711,7 @@ function sanitizeThemeTokens(theme: Theme): Theme {
     components: cleanSection(t.components) as unknown as Theme['components'],
     utilities: cleanSection(t.utilities) as unknown as Theme['utilities'],
     cards: cleanSection(t.cards) as unknown as Theme['cards'],
+    count: cleanSection((t as any).count) as unknown as Theme['count'],
   };
 }
 
@@ -1584,7 +1586,25 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-menu-popover-bg: ${eqTok((theme as any).menu?.popover_background, D.menu.popover_background, 'rgba(12,14,18,0.22)')};
   --ks-menu-popover-border: ${eqTok((theme as any).menu?.popover_border_color, D.menu.popover_border_color, 'rgba(255,255,255,0.18)')};
   --ks-menu-popover-radius: ${num((theme as any).menu?.popover_radius, D.menu.popover_radius)}px;
-  --ks-menu-popover-blur: ${num((theme as any).menu?.popover_blur, D.menu.popover_blur)}px;`,
+  --ks-menu-popover-blur: ${num((theme as any).menu?.popover_blur, D.menu.popover_blur)}px;
+  /* ---------------- Theme Studio: Count (list count badge) ---------------- */
+  --ks-count-bg: ${safeCssValue((theme as any).count?.background, (D as any).count?.background ?? 'rgba(255,255,255,0.04)')};
+  --ks-count-border: ${safeCssValue((theme as any).count?.border_color, (D as any).count?.border_color ?? 'rgba(255,255,255,0.10)')};
+  --ks-count-border-width: ${num((theme as any).count?.border_width, (D as any).count?.border_width ?? 1)}px;
+  --ks-count-radius: ${num((theme as any).count?.border_radius, (D as any).count?.border_radius ?? 9999)}px;
+  --ks-count-px: ${num((theme as any).count?.padding_x, (D as any).count?.padding_x ?? 12)}px;
+  --ks-count-py: ${num((theme as any).count?.padding_y, (D as any).count?.padding_y ?? 6)}px;
+  --ks-count-font: ${num((theme as any).count?.font_size, (D as any).count?.font_size ?? 12)}px;
+  --ks-count-gap: ${num((theme as any).count?.gap, (D as any).count?.gap ?? 8)}px;
+  --ks-count-blur: ${num((theme as any).count?.blur, (D as any).count?.blur ?? 12)}px;
+  --ks-count-shadow: ${safeCssValue((theme as any).count?.shadow, (D as any).count?.shadow ?? '0 4px 16px rgba(0,0,0,0.35)')};
+  --ks-count-text: ${safeCssValue((theme as any).count?.text_color, (D as any).count?.text_color ?? '#e5e7eb')};
+  --ks-count-number: ${safeCssValue((theme as any).count?.number_color, (D as any).count?.number_color ?? '#ffffff')};
+  --ks-count-muted: ${safeCssValue((theme as any).count?.muted_color, (D as any).count?.muted_color ?? 'rgba(255,255,255,0.35)')};
+  --ks-count-accent: ${safeCssValue((theme as any).count?.accent_color, (D as any).count?.accent_color ?? '#38bdf8')};
+  --ks-count-accent-text: ${safeCssValue((theme as any).count?.accent_text_color, (D as any).count?.accent_text_color ?? '#bae6fd')};
+  --ks-count-accent-bg: ${safeCssValue((theme as any).count?.accent_background, (D as any).count?.accent_background ?? 'rgba(56,189,248,0.14)')};
+  --ks-count-icon-size: ${num((theme as any).count?.icon_size, (D as any).count?.icon_size ?? 14)}px;`,
   };
 }
 
@@ -2454,7 +2474,103 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   border-radius: var(--ks-menu-popover-radius) !important;
   backdrop-filter: blur(var(--ks-menu-popover-blur)) saturate(180%) !important;
   -webkit-backdrop-filter: blur(var(--ks-menu-popover-blur)) saturate(180%) !important;
+}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Count. Modern glass pill replacing the old
+   `N of M shown` gray text on list pages. Painted from the Count tab
+   vars so one tab restyles every list counter panel-wide.
+   ------------------------------------------------------------------ */
+.ks-count-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: var(--ks-count-gap, 8px) !important;
+  background-color: var(--ks-count-bg, rgba(255,255,255,0.04)) !important;
+  border: var(--ks-count-border-width, 1px) solid var(--ks-count-border, rgba(255,255,255,0.10)) !important;
+  border-radius: var(--ks-count-radius, 9999px) !important;
+  padding: var(--ks-count-py, 6px) var(--ks-count-px, 12px) !important;
+  box-shadow: var(--ks-count-shadow, 0 4px 16px rgba(0,0,0,0.35)) !important;
+  backdrop-filter: blur(var(--ks-count-blur, 12px)) !important;
+  -webkit-backdrop-filter: blur(var(--ks-count-blur, 12px)) !important;
+  color: var(--ks-count-text, #e5e7eb) !important;
+  font-size: var(--ks-count-font, 12px) !important;
+  line-height: 1.4 !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+}
+.ks-count-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--ks-count-accent, #38bdf8) !important;
+  flex-shrink: 0 !important;
+}
+.ks-count-icon svg {
+  width: var(--ks-count-icon-size, 14px) !important;
+  height: var(--ks-count-icon-size, 14px) !important;
+}
+.ks-count-numbers {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 4px !important;
+}
+.ks-count-strong {
+  color: var(--ks-count-number, #ffffff) !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.ks-count-of {
+  color: var(--ks-count-text, #e5e7eb) !important;
+  opacity: 0.6 !important;
+  font-weight: 400 !important;
+  font-size: 0.92em !important;
+}
+.ks-count-dot {
+  width: 3px !important;
+  height: 3px !important;
+  border-radius: 9999px !important;
+  background: var(--ks-count-muted, rgba(255,255,255,0.35)) !important;
+  flex-shrink: 0 !important;
+}
+.ks-count-label {
+  color: var(--ks-count-text, #e5e7eb) !important;
+  opacity: 0.85 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.ks-count-filter {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  background: var(--ks-count-accent-bg, rgba(56,189,248,0.14)) !important;
+  color: var(--ks-count-accent-text, #bae6fd) !important;
+  border-radius: 9999px !important;
+  padding: 2px 8px !important;
+  font-size: 0.92em !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+.ks-count-filter-dot {
+  width: 5px !important;
+  height: 5px !important;
+  border-radius: 9999px !important;
+  background: var(--ks-count-accent, #38bdf8) !important;
+  box-shadow: 0 0 8px var(--ks-count-accent, #38bdf8) !important;
+  flex-shrink: 0 !important;
+}
+.ks-count-extra {
+  color: var(--ks-count-text, #e5e7eb) !important;
+  opacity: 0.7 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }`;
+}
 }
 
 // resolveThemeFromStore is the merged resolver the store uses on every
