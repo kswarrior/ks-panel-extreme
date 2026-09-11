@@ -8,7 +8,7 @@ export type InstancePageKind = 'builtin' | 'custom';
 // uses to run it (KSPageSDK.runAction(name)).
 export interface PageActionDef {
   name: string;
-  type: 'shell' | 'read_file' | 'write_file' | 'list_files' | 'docker' | 'kvm' | 'lxd';
+  type: 'shell' | 'read_file' | 'write_file' | 'list_files' | 'docker' | 'kvm' | 'lxd' | 'stat' | 'chmod' | 'archive' | 'extract';
   command?: string;
   path?: string;
   content?: string;
@@ -20,6 +20,12 @@ export interface PageActionDef {
   env?: Record<string, string>;
   timeout?: number;
   description?: string;
+  /** chmod octal mode ("000"-"777"). */
+  mode?: string;
+  /** archive entries relative to path. */
+  names?: string[];
+  /** archive destination archive path / extract destination dir. */
+  dest?: string;
 }
 
 export interface PageConfigureVar {

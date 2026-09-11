@@ -1,5 +1,6 @@
 // Custom Page SDK — provides a runtime API for custom instance pages.
-// Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd)
+// Uses the unified action system (shell, read_file, write_file, list_files, docker, kvm, lxd,
+// stat, chmod, archive, extract)
 // All operations go through executeAction() - no per-endpoint methods.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -40,16 +41,23 @@ export type ActionType =
   | 'list_files' 
   | 'docker' 
   | 'kvm' 
-  | 'lxd';
+  | 'lxd'
+  | 'stat'
+  | 'chmod'
+  | 'archive'
+  | 'extract';
 
 export interface PageAction {
   type: ActionType;
   command?: string;      // for shell, docker, kvm, lxd
-  path?: string;         // for read_file, write_file, list_files
+  path?: string;         // for read_file, write_file, list_files, stat, chmod, archive (source), extract (archive)
   content?: string;      // for write_file
   args?: string[];       // for shell, docker, kvm, lxd
   env?: Record<string, string>;
   timeout?: number;      // seconds
+  mode?: string;         // for chmod (octal "000"-"777")
+  names?: string[];      // for archive (entries relative to path)
+  dest?: string;         // for archive (archive path) / extract (dest dir, optional)
 }
 
 export interface ActionResult {
@@ -77,6 +85,9 @@ export interface PageActionDef {
   env?: Record<string, string>;
   timeout?: number;
   description?: string;
+  mode?: string;
+  names?: string[];
+  dest?: string;
 }
 
 export interface FileEntry {
@@ -962,6 +973,9 @@ export function createCustomPageSDK(
       args: def.args ? [...def.args] : undefined,
       env: def.env ? { ...def.env } : undefined,
       timeout: def.timeout,
+      mode: def.mode,
+      names: def.names ? [...def.names] : undefined,
+      dest: def.dest,
       ...overrides,
     });
   }

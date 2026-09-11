@@ -990,13 +990,16 @@ export async function linkInstancePage(
 }
 
 export interface InstancePageAction {
-  type: 'shell' | 'read_file' | 'write_file' | 'list_files' | 'docker' | 'kvm' | 'lxd';
+  type: 'shell' | 'read_file' | 'write_file' | 'list_files' | 'docker' | 'kvm' | 'lxd' | 'stat' | 'chmod' | 'archive' | 'extract';
   command?: string;
   path?: string;
   content?: string;
   args?: string[];
   env?: Record<string, string>;
   timeout?: number;
+  mode?: string;
+  names?: string[];
+  dest?: string;
 }
 
 export interface InstancePageActionResult {
@@ -1050,6 +1053,9 @@ export async function executeModulePageAction(
     args?: string[]
     env?: Record<string, string>
     timeout?: number
+    mode?: string
+    names?: string[]
+    dest?: string
   }
 ): Promise<InstancePageActionResult> {
   const res = await client.post<InstancePageActionResult>(
