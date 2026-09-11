@@ -2154,6 +2154,7 @@ export function normalizeModuleSpecifier(spec: string, importerDir: string): str
     if (!MODULE_SEGMENT_RE.test(seg)) {
       throw new Error(`import '${spec.slice(0, 80)}' has an unsupported path segment '${seg.slice(0, 40)}' — use letters, numbers, '_', '-' or '.'`);
     }
+    stack.push(seg);
   }
   if (stack.length === 0) {
     throw new Error(`import '${spec.slice(0, 80)}' points at the page root — import a file (e.g. './util') instead`);
