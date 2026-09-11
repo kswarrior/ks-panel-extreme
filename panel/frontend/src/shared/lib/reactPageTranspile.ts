@@ -615,7 +615,6 @@ function stripAnnotations(src: string, mark: () => void): string {
             }
             if (t === '<' && /[A-Za-z0-9_$\]>)\]?]/.test(src[k - 1] ?? '')) {
               a++;
-              nested = true;
               seen = true;
               k++;
               continue;
@@ -626,10 +625,10 @@ function stripAnnotations(src: string, mark: () => void): string {
               continue;
             }
             if (t === '=' && src[k + 1] === '>') {
-              // `=>` at depth 0 ends a return annotation
-              // (`(x): T => ...`); inside a function TYPE it is consumed
-              // (`(f: (a) => void)`).
-              if (r === 0 && s === 0 && cu === 0 && a === 0 && afterParen && !nested) {
+              // A bare `=>` at depth 0 is always the arrow of an arrow
+              // function (`(x): T => ...`); function TYPES carry their
+              // arrows inside parens (depth > 0) and are consumed above.
+              if (r === 0 && s === 0 && cu === 0 && a === 0) {
                 end = k; // keep the arrow.
                 break;
               }
@@ -640,7 +639,6 @@ function stripAnnotations(src: string, mark: () => void): string {
             if (t === '(' || t === '[') {
               if (t === '(') r++;
               else s++;
-              nested = true;
               seen = true;
               k++;
               continue;
@@ -654,7 +652,6 @@ function stripAnnotations(src: string, mark: () => void): string {
                 break;
               }
               cu++;
-              nested = true;
               seen = true;
               k++;
               continue;
