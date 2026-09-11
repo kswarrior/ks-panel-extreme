@@ -539,7 +539,7 @@ return (
       )}
 
       {!loading && filtered.length === 0 && apps.length > 0 && !error && (
-        <GlassCard className="text-center" style={{ color: 'var(--ks-text-body)' } as React.CSSProperties}>No applications match your filters.</GlassCard>
+        <GlassCard className="text-center"><span style={{ color: 'var(--ks-text-body)' }}>No applications match your filters.</span></GlassCard>
       )}
       {!loading && apps.length === 0 && !error && (
         <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>No applications in the catalog yet. Click “Upload Application” to add one.</div>

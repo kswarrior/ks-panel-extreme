@@ -15,6 +15,7 @@ import { themeManifestToToml } from '@/features/themes/toml';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
 // It wires RichMenu (which owns portal + placement + scrim + submenu
@@ -72,6 +73,13 @@ const Themes: React.FC = () => {
   const beginDraft = useThemeStore((s) => s.beginDraft);
   const editDraft = useThemeStore((s) => s.editDraft);
   const discardDraft = useThemeStore((s) => s.discardDraft);
+  // Glass-style modifier mirrors the roles list so the Card tab's glass
+  // choice and video background apply to theme cards too.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   // canManageGlobal admits the umbrella (MANAGE_THEMES) OR any of the
   // authoring verbs (CREATE_GLOBAL_THEMES / EDIT_THEMES), so a moderator
   // narrowed to "just publish" or "just edit" still sees the authoring
@@ -440,8 +448,12 @@ const Themes: React.FC = () => {
           const canAssign = origin !== 'global' || canManageGlobal;
 
           return (
-            <article key={t.id} id={`ks-theme-${t.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+            <article key={t.id} id={`ks-theme-${t.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+              <CardMediaLayer />
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+              />
               <header className="flex items-start gap-3 min-w-0">
                 <CardIconTile
                   icon={(t as any).icon || ''}
@@ -454,15 +466,18 @@ const Themes: React.FC = () => {
                   )}
                 />
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-white truncate leading-tight">{t.name}</h3>
-                  <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{t.id}{t.builtin ? ' · built-in' : origin === 'global' ? ' · global' : ' · local'}</p>
+                  <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{t.name}</h3>
+                  <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{t.id}{t.builtin ? ' · built-in' : origin === 'global' ? ' · global' : ' · local'}</p>
                 </div>
               </header>
 
               <ThemePreview theme={t} />
 
-              <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                <span className="text-[11px] text-gray-500 truncate">
+              <footer
+                className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+              >
+                <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                   {(() => {
                     const label = formatCardDate(t.updated_at);
                     return label ? <>Updated {label}</> : <>id {t.id}</>;
@@ -534,13 +549,20 @@ const Themes: React.FC = () => {
           onClick={openStudio}
           className="glass-card rounded-xl flex flex-col items-center justify-center gap-3 min-h-[180px] border-dashed hover:bg-white/[0.06] transition-colors"
         >
-          <span className="h-12 w-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-gray-300">
+          <span
+            className="h-12 w-12 rounded-full border flex items-center justify-center"
+            style={{
+              borderColor: 'var(--ks-card-border)',
+              background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+              color: 'var(--ks-text-body)',
+            }}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </span>
-          <p className="text-sm font-medium text-white">Create a new theme</p>
-          <p className="text-xs text-gray-400 text-center max-w-[16rem]">
+          <p className="text-sm font-medium" style={{ color: 'var(--ks-text-heading)' }}>Create a new theme</p>
+          <p className="text-xs text-center max-w-[16rem]" style={{ color: 'var(--ks-text-body)' }}>
             Open the Theme Studio to customise background, cards, sidebar, buttons and more, then assign it to any page or area.
           </p>
         </button>
