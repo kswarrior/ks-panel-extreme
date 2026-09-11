@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import { TemplateInstallSection } from '@/features/templates/components/TemplateForm/TemplateInstallSection';
@@ -47,6 +49,13 @@ const StackForm: React.FC = () => {
   const [tab, setTab] = useState<Tab>('meta');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Session edit history over the studio draft (tab + token-row UI stay out).
+  // Create-only: no server state to reload, so Refresh reverts to blank.
+  const snapshot = JSON.stringify({ draft });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    setDraft(JSON.parse(snapStr).draft);
+  });
 
   const patch = (partial: Partial<typeof draft>) => {
     setDraft((d) => ({ ...d, ...partial }));
@@ -139,6 +148,7 @@ const StackForm: React.FC = () => {
     try {
       const manifest = emitStackStudioManifest(draft);
       await createStackFromManifest(manifest, 'studio');
+      hist.commit();
       navigate('/stacks');
     } catch (err: any) {
       setError(extractStackApiError(err, 'Failed to create stack'));
@@ -150,6 +160,7 @@ const StackForm: React.FC = () => {
   return (
     <>
       <PageFormActionsPill spacer={false}>
+        <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
         <button
           type="button"
           onClick={() => navigate('/stacks')}

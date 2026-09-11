@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listApplications,
@@ -16,6 +16,8 @@ import {
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
@@ -58,43 +60,70 @@ const ApplicationEdit: React.FC = () => {
   // intermediate keystrokes that aren't valid JSON yet aren't silently
   // reverted by a controlled re-stringify; parsed + validated on submit.
   const [schemaDraft, setSchemaDraft] = useState('[]');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the form + raw schema text.
+  const snapshot = JSON.stringify({ form, schemaDraft });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setForm(s.form);
+    setSchemaDraft(s.schemaDraft);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      if (editing) {
+        const apps = await listApplications();
+        const a = apps.find((x) => x.id === Number(id));
+        if (a) {
+          const schema = Array.isArray(a.config_schema) ? a.config_schema : [];
+          setForm({
+            name: a.name,
+            slug: a.slug,
+            category: a.category,
+            version: a.version,
+            description: a.description,
+            icon: a.icon,
+            color: (a as any).color || '',
+            runtime: a.runtime,
+            entrypoint: a.entrypoint,
+            config_schema: schema,
+            permissionsRequested: Array.isArray(a.permissions) ? a.permissions.map(p => ({ capability: p.capability, access_level: p.access_level })) : [],
+          });
+          setSchemaDraft(JSON.stringify(schema, null, 2));
+        } else {
+          setError('Application not found');
+        }
+      }
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (editing) {
-          const apps = await listApplications();
-          if (cancelled) return;
-          const a = apps.find((x) => x.id === Number(id));
-          if (a) {
-            const schema = Array.isArray(a.config_schema) ? a.config_schema : [];
-            setForm({
-              name: a.name,
-              slug: a.slug,
-              category: a.category,
-              version: a.version,
-              description: a.description,
-              icon: a.icon,
-              color: (a as any).color || '',
-              runtime: a.runtime,
-              entrypoint: a.entrypoint,
-              config_schema: schema,
-              permissionsRequested: Array.isArray(a.permissions) ? a.permissions.map(p => ({ capability: p.capability, access_level: p.access_level })) : [],
-            });
-            setSchemaDraft(JSON.stringify(schema, null, 2));
-          } else {
-            setError('Application not found');
-          }
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import { CATEGORY_META, PRIORITY_META } from '../types/notification';
 import { createNotification } from '../api/notifications';
@@ -31,6 +33,19 @@ const NotificationBroadcast: React.FC = () => {
   const [actionLabel, setActionLabel] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // Session edit history over the inputs. Create-only: no server state to
+  // reload, so Refresh reverts to the blank form.
+  const snapshot = JSON.stringify({ title, message, category, priority, link, actionLabel });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setTitle(s.title);
+    setMessage(s.message);
+    setCategory(s.category);
+    setPriority(s.priority);
+    setLink(s.link);
+    setActionLabel(s.actionLabel);
+  });
 
   if (!canBroadcast) {
     return (
@@ -64,6 +79,7 @@ const NotificationBroadcast: React.FC = () => {
         action_label: actionLabel.trim() || undefined,
         broadcast: true,
       });
+      hist.commit();
       navigate('/notifications');
     } catch (err: any) {
       setError(err?.response?.data || 'Failed to broadcast');
@@ -77,10 +93,10 @@ const NotificationBroadcast: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — "Broadcast" title lives in the app header
-          ("Notifications / Broadcast"). Footer Cancel/Broadcast removed;
-          everything lives here. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel +
+          Broadcast; "Broadcast" title lives in the app header. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => hist.revert()} />
           <button
             type="button"
             onClick={() => navigate('/notifications')}
