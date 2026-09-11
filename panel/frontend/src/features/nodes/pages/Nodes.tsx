@@ -27,7 +27,7 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import { countryByCode } from '@/shared/components/forms/LocationField/countries';
 import { HeartbeatIcon, DriverRing, ResourceBar } from '../components/NodesComponents';
 import RollingUpdateModal from '../components/RollingUpdateModal';
-import { NodeIcon } from '../utils/nodeIcons';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { resolveState, isLocalAddress, formatBytes, formatBytesPair, formatPercent, withAlpha, buildMonitor, buildEdgeConfig } from '../utils/nodesUtils';
 import type { StateStyle } from '../types/nodes';
 import { STATE_STYLES, MONITOR_BARS } from '../types/nodes';
@@ -458,17 +458,14 @@ const AdminNodes: React.FC = () => {
               className={`ks-card ks-list-card glass-card ${glassModifier} group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors`}
             >
               <CardMediaLayer />
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
               <div className="p-3 flex flex-col gap-3">
                 <header className="flex items-start gap-3 min-w-0">
-                  <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center border bg-white/[0.05] border-white/10 text-gray-300" aria-hidden="true">
-                    {n.icon ? (
-                      <span style={n.color ? { color: n.color } : undefined}>
-                        <NodeIcon icon={n.icon} className="w-5 h-5" />
-                      </span>
-                    ) : (
-                      <HeartbeatIcon state={resolved} />
-                    )}
-                  </div>
+                  <CardIconTile
+                    icon={n.icon || ''}
+                    color={n.color || ''}
+                    fallback={<HeartbeatIcon state={resolved} />}
+                  />
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-semibold text-white truncate leading-tight flex items-center gap-1.5" title={n.name}>
                       <span className="truncate">{n.name}</span>
@@ -523,6 +520,7 @@ const AdminNodes: React.FC = () => {
                   </div>
                 </header>
 
+                <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 space-y-2">
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-gray-300" title={`RAM: ${ramLabel}`}>
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="w-3 h-3"><rect x="2" y="8" width="20" height="9" rx="1.5" /><path d="M6 8v3M10 8v3M14 8v3M18 8v3" /> </svg>
@@ -554,6 +552,7 @@ const AdminNodes: React.FC = () => {
                     {upPctDisplay.toFixed(1)}%
                   </span>
                 </div>
+                </div>
 
                 <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex flex-wrap items-center gap-1.5 min-w-0">
@@ -571,12 +570,12 @@ const AdminNodes: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <button
-                    onClick={() => navigate(`/node/${n.id}`)}
-                    className="text-[11px] text-gray-400 hover:text-white transition-colors shrink-0"
+                  <Link
+                    to={`/node/${n.id}`}
+                    className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline shrink-0"
                   >
                     View details →
-                  </button>
+                  </Link>
                 </footer>
               </div>
             </article>
