@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createAdminApiKey, listAdminApiKeys, listPermissions, listUsers, updateAdminApiKey } from '@/shared/api/admin';
 import type { ApiKey, CreateApiKeyResult } from '@/shared/types/apiKey';
@@ -6,6 +6,8 @@ import type { Permission, User } from '@/shared/types/user';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassField from '@/shared/components/ui/Field';
@@ -123,60 +125,91 @@ const ApiKeyForm: React.FC = () => {
   const [noRateLimit, setNoRateLimit] = useState(true);
   const [rateLimit, setRateLimit] = useState<number | ''>(25);
   const [rateWindow, setRateWindow] = useState<number | ''>(60);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the inputs (option lists + token modal stay out).
+  const snapshot = JSON.stringify({ form, noExpiry, expiresAtLocal, noRateLimit, rateLimit, rateWindow });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    setForm(s.form);
+    setNoExpiry(s.noExpiry);
+    setExpiresAtLocal(s.expiresAtLocal);
+    setNoRateLimit(s.noRateLimit);
+    setRateLimit(s.rateLimit);
+    setRateWindow(s.rateWindow);
+  });
+  const { suspend: histSuspend } = hist;
 
   // Load backing data and optionally load editing key
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [usersRes, permsRes, keysRes] = await Promise.all([
-          listUsers(),
-          listPermissions(),
-          listAdminApiKeys(),
-        ]);
-        if (cancelled) return;
-        setUsers(usersRes);
-        setPerms(permsRes);
-        if (editing) {
-          const key = keysRes.find((k) => k.id === Number(id));
-          if (key) {
-            setForm({
-              name: key.name,
-              user_id: key.user_id,
-              permissions: key.permissions || [],
-              description: key.description || '',
-              display_name: key.display_name || '',
-              accent_color: key.accent_color || '',
-            });
-            // Pre-fill limits from existing value.
-            if (key.expires_at) {
-              setNoExpiry(false);
-              setExpiresAtLocal(expiryValueToInput(key.expires_at));
-            } else {
-              setNoExpiry(true);
-            }
-            if (key.rate_limit !== undefined && key.rate_limit !== null && key.rate_limit > 0) {
-              setNoRateLimit(false);
-              setRateLimit(key.rate_limit);
-              setRateWindow(key.rate_window_seconds && key.rate_window_seconds > 0 ? key.rate_window_seconds : 60);
-            } else {
-              setNoRateLimit(true);
-            }
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const [usersRes, permsRes, keysRes] = await Promise.all([
+        listUsers(),
+        listPermissions(),
+        listAdminApiKeys(),
+      ]);
+      setUsers(usersRes);
+      setPerms(permsRes);
+      if (editing) {
+        const key = keysRes.find((k) => k.id === Number(id));
+        if (key) {
+          setForm({
+            name: key.name,
+            user_id: key.user_id,
+            permissions: key.permissions || [],
+            description: key.description || '',
+            display_name: key.display_name || '',
+            accent_color: key.accent_color || '',
+          });
+          // Pre-fill limits from existing value.
+          if (key.expires_at) {
+            setNoExpiry(false);
+            setExpiresAtLocal(expiryValueToInput(key.expires_at));
           } else {
-            setError('API key not found');
+            setNoExpiry(true);
+          }
+          if (key.rate_limit !== undefined && key.rate_limit !== null && key.rate_limit > 0) {
+            setNoRateLimit(false);
+            setRateLimit(key.rate_limit);
+            setRateWindow(key.rate_window_seconds && key.rate_window_seconds > 0 ? key.rate_window_seconds : 60);
+          } else {
+            setNoRateLimit(true);
           }
         } else {
-          // default owner to first user if any
-          setForm({ ...emptyForm, user_id: usersRes[0]?.id || 0 });
+          setError('API key not found');
         }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load form data');
-      } finally {
-        if (!cancelled) setLoading(false);
+      } else {
+        // default owner to first user if any
+        setForm({ ...emptyForm, user_id: usersRes[0]?.id || 0 });
       }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load form data');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // bumpExpiry extends the configured expiry forward by N days. When nothing
   // is configured yet, the new expiry is N days from "now". Lets an admin
@@ -242,6 +275,7 @@ const ApiKeyForm: React.FC = () => {
           rate_window_set: !noRateLimit,
           ...extras,
         });
+        hist.commit();
         navigate('/api-keys');
       } else {
         const expiresISO = noExpiry ? null : inputToISO(expiresAtLocal) || null;
@@ -254,6 +288,7 @@ const ApiKeyForm: React.FC = () => {
           rate_window_seconds: noRateLimit ? 0 : (typeof rateWindow === 'number' ? rateWindow : Number(rateWindow)),
           ...extras,
         });
+        hist.commit();
         setCreatedToken(created);
       }
     } catch (e: any) {
@@ -348,9 +383,10 @@ const ApiKeyForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — fixed like the phone tab bar, auto-hide on
-          scroll (node pattern). Footer Cancel/Save removed. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+          fixed like the phone tab bar, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/api-keys')}
