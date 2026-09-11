@@ -525,23 +525,94 @@ function stripAnnotations(src: string, mark: () => void): string {
     const k = out.lastIndexOf('\n');
     return out.slice(k + 1).trimStart();
   };
-  // Current statement (back to ; { or }) with bracket depth relative to it:
-  // a `:` with unclosed {[( before it lives inside a pattern/literal, not a
-  // declaration, e.g. `const {a: b} = c` renaming (must be preserved).
-  const stmtHasUnclosedBracket = (): boolean => {
-    const k = Math.max(out.lastIndexOf(';'), out.lastIndexOf('{'), out.lastIndexOf('}'));
-    const stmt = out.slice(k + 1);
-    let d = 0;
-    for (const c of stmt) {
-      if (c === '{' || c === '(' || c === '[') d++;
-      if (c === '}' || c === ')' || c === ']') d = Math.max(0, d - 1);
+  // scanBlockStart scans backward over the emitted code to classify the
+  // `{` enclosing the current position: object literal vs code block.
+  // Returns 'object' | 'block' | 'top' (no enclosing brace / statement
+  // start). String-aware (approximately — ambiguous input defaults to
+  // 'object', i.e. never strip, the fail-safe direction).
+  const scanEnclosing = (): { kind: 'object' | 'block' | 'top'; stmt: string } => {
+    let dRound = 0;
+    let dSquare = 0;
+    let dCurly = 0;
+    let inStr: string | null = null;
+    let k = out.length - 1;
+    while (k >= 0) {
+      const c = out[k];
+      if (inStr) {
+        if (c === inStr) {
+          let bs = 0;
+          let m = k - 1;
+          while (m >= 0 && out[m] === '\\') {
+            bs++;
+            m--;
+          }
+          if (bs % 2 === 0) inStr = null;
+        }
+        k--;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') {
+        inStr = c;
+        k--;
+        continue;
+      }
+      if (c === ')' || c === ']' || c === '}') {
+        if (c === ')') dRound++;
+        else if (c === ']') dSquare++;
+        else dCurly++;
+        k--;
+        continue;
+      }
+      if (c === '(' || c === '[' || c === '{') {
+        if (c === '(') {
+          if (dRound === 0) return { kind: 'top', stmt: out.slice(k + 1) };
+          dRound--;
+          k--;
+          continue;
+        }
+        if (c === '[') {
+          if (dSquare === 0) return { kind: 'top', stmt: out.slice(k + 1) };
+          dSquare--;
+          k--;
+          continue;
+        }
+        // c === '{'
+        if (dCurly > 0) {
+          dCurly--;
+          k--;
+          continue;
+        }
+        // Enclosing `{` found — object literal or code block?
+        let p = k - 1;
+        while (p >= 0 && (out[p] === ' ' || out[p] === '\t' || out[p] === '\n' || out[p] === '\r')) p--;
+        const pc = p >= 0 ? out[p] : '';
+        const before = out.slice(Math.max(0, p - 7), p + 1);
+        const isObject =
+          pc === '(' ||
+          pc === ',' ||
+          pc === '=' ||
+          pc === ':' ||
+          pc === '[' ||
+          pc === '?' ||
+          pc === '.' ||
+          /return\b/.test(before) ||
+          /=>$/.test(out.slice(Math.max(0, p - 1), p + 1));
+        // `=> {` is a function BODY (block), not an object — arrow object
+        // literals need parens in valid JS, so `=>` never opens an object.
+        if (/=>$/.test(out.slice(Math.max(0, p - 1), p + 1))) {
+          return { kind: 'block', stmt: out.slice(k + 1) };
+        }
+        return isObject ? { kind: 'object', stmt: '' } : { kind: 'block', stmt: out.slice(k + 1) };
+      }
+      if (c === ';' && dRound === 0 && dSquare === 0 && dCurly === 0) {
+        return { kind: 'block', stmt: out.slice(k + 1) };
+      }
+      k--;
     }
-    return d > 0;
+    return { kind: 'top', stmt: out };
   };
-  const stmtIsDeclaration = (): boolean =>
-    /^\s*(export\s+default\s+|export\s+)?(async\s+function\*?\s|function\*?\s|const\s|let\s|var\s|class\s)/.test(
-      out.slice(Math.max(out.lastIndexOf(';'), out.lastIndexOf('}')) + 1),
-    );
+  const stmtIsDeclaration = (stmt: string): boolean =>
+    /^\s*(export\s+default\s+|export\s+)?(async\s+function\*?\s|function\*?\s|const\s|let\s|var\s|class\s)/.test(stmt);
   while (i < n) {
     const c = src[i];
     if (state === 'code') {
@@ -599,13 +670,18 @@ function stripAnnotations(src: string, mark: () => void): string {
           i++;
           continue;
         }
-        // Position rule: directly inside parens (params/args) is always a
-        // candidate; elsewhere only declaration statements
-        // (`const x: T`, `function f(): R`) with no unclosed bracket before
-        // the colon (which would mean a pattern rename like `const {a: b}`
-        // or an object literal — both must be preserved).
+        // Position rule: directly inside parens (params/args) or right after
+        // `)` (return position) is always a candidate; elsewhere only
+        // declaration statements (`const x: T`, block-level) qualify — an
+        // enclosing OBJECT brace (`{"a": 1}`, emitted prop objects,
+        // destructuring patterns) means preserve.
         const inParens = top === '(';
-        if (!inParens && !(prev === ')' || (stmtIsDeclaration() && !stmtHasUnclosedBracket()))) {
+        let allowByPos = inParens || prev === ')';
+        if (!allowByPos) {
+          const enc = scanEnclosing();
+          allowByPos = enc.kind !== 'object' && stmtIsDeclaration(enc.stmt);
+        }
+        if (!allowByPos) {
           out += c;
           i++;
           continue;
