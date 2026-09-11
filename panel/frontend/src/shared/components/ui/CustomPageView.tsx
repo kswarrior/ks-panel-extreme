@@ -1443,6 +1443,9 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
       --ks-tab-hover-text: ${cssConst(tabs?.hover_text_color, '#ffffff')};
       --ks-tab-border: ${cssConst(tabs?.border, 'none')};
       --ks-tab-radius: ${num(tabs?.border_radius, 5)}px;
+      --ks-tab-px: ${num(tabs?.padding_x, 12)}px;
+      --ks-tab-py: ${num(tabs?.padding_y, 6)}px;
+      --ks-tab-font: ${num(tabs?.font_size, 14)}px;
       --ks-dropdown-bg: ${ddBg};
       --ks-dropdown-border: ${ddBorder};
       --ks-dropdown-border-width: ${num(dd?.border_width, 1)}px;
@@ -1486,6 +1489,26 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
       --ks-accent-danger: ${badCol};
       --ks-accent-info: ${infoCol};
       --ks-base-size: ${num(t.base_size, 14)}px;
+      /* Component parity tokens — Tabs geometry, Loading skeletons and the
+         Pill tab surface consumed by the parity rules below (shared panel
+         fragments + hand-written ks-* markup). Same names/defaults as the
+         host theme stylesheet so instance pages follow those Studio tabs. */
+      --ks-skeleton-base: ${cssConst(loading?.skeleton_base_color, 'rgba(255,255,255,0.06)')};
+      --ks-skeleton-shimmer: ${cssConst(loading?.skeleton_shimmer_color, 'rgba(255,255,255,0.18)')};
+      --ks-skeleton-radius: ${num(loading?.skeleton_radius, 6)}px;
+      --ks-pill-bg: ${pillTok(pill?.background, DP?.background, 'var(--ks-card-bg)', 'rgba(255,255,255,0.04)')};
+      --ks-pill-border: ${pillTok(pill?.border_color, DP?.border_color, 'var(--ks-card-border)', 'rgba(255,255,255,0.10)')};
+      --ks-pill-border-width: ${num(pill?.border_width ?? DP?.border_width, 1)}px;
+      --ks-pill-radius: ${pillRadius};
+      --ks-pill-padding: ${num(pill?.padding ?? DP?.padding, 6)}px;
+      --ks-pill-blur: ${pillBlur};
+      --ks-pill-shadow: ${pillTok(pill?.shadow, DP?.shadow, 'var(--ks-card-shadow)', '0 8px 32px rgba(0,0,0,0.45)')};
+      --ks-pill-text: ${cssConst(pill?.text_color, '#e5e7eb')};
+      --ks-pill-gap: ${num(pill?.gap ?? DP?.gap, 4)}px;
+      --ks-pill-tab-px: ${num(pill?.tab_padding_x ?? DP?.tab_padding_x, 10)}px;
+      --ks-pill-tab-py: ${num(pill?.tab_padding_y ?? DP?.tab_padding_y, 5)}px;
+      --ks-pill-tab-font: ${num(pill?.font_size ?? DP?.font_size, 13)}px;
+      --ks-pill-icon-size: ${num(pill?.icon_size ?? DP?.icon_size, 16)}px;
     }
     html { font-size: var(--ks-base-size); }
     body { color: ${bodyCol}; font-family: ${cssConst(t.font_family, 'inherit')}; background-color: transparent; line-height: 1.6; }
@@ -1514,10 +1537,10 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
     .ks-btn-green:hover { background: var(--ks-accent-success, ${rgbaAt(a.success, 1, '#10b981')}); filter: brightness(1.08); }
     .ks-btn-ghost { background: var(--ks-btn-ghost-bg, transparent); color: var(--ks-btn-ghost-text, #e5e7eb); border: var(--ks-btn-ghost-border, 1px solid rgba(255,255,255,0.10)); border-radius: var(--ks-btn-ghost-radius, 5px); }
     .ks-btn-ghost:hover { background: var(--ks-btn-ghost-hover, rgba(255,255,255,0.10)); }
-    .ks-btn-icon, .ks-iconbtn, .ks-btn-header { background: var(--ks-btn-icon-bg, rgba(255,255,255,0.10)); color: var(--ks-btn-icon-text, #fff); border: var(--ks-btn-icon-border, none); border-radius: var(--ks-btn-icon-radius, 5px); }
-    .ks-btn-icon:hover, .ks-iconbtn:hover, .ks-btn-header:hover { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)); }
+    .ks-btn-icon, .ks-iconbtn, .ks-btn-header, .ks-icon-btn { background: var(--ks-btn-icon-bg, rgba(255,255,255,0.10)); color: var(--ks-btn-icon-text, #fff); border: var(--ks-btn-icon-border, none); border-radius: var(--ks-btn-icon-radius, 5px); }
+    .ks-btn-icon:hover, .ks-iconbtn:hover, .ks-btn-header:hover, .ks-icon-btn:hover { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)); }
     .ks-btn-header { display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;font-size:12px;font-weight:500;cursor:pointer;transition: background .15s ease; line-height:1; min-height:32px; min-width:32px; }
-    .ks-btn-header svg { width:14px;height:14px; }
+    .ks-btn-header svg, .ks-icon-btn svg { width:var(--ks-btn-icon-size, 14px);height:var(--ks-btn-icon-size, 14px); }
     .ks-btn-header.is-open { background: var(--ks-btn-icon-hover, rgba(255,255,255,0.20)) !important; }
     .ks-page-header { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:0.75rem; }
     .ks-page-header-actions { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
@@ -1552,7 +1575,43 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
     ::-webkit-scrollbar-thumb { background: var(--ks-card-border, rgba(255,255,255,0.15)); border-radius: 9999px; }
     ::-webkit-scrollbar-track { background: transparent; }
     /* Utility: make any inline hardcoded dark overlay respect theme via attribute override */
-    div[style*=\"rgba(0,0,0,0.55)\"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
+    div[style*="rgba(0,0,0,0.55)"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
+    /* Instance-page component parity — rules the starter-library preamble
+       (pageStarters INSTANCE_THEME_SUPPORT_CSS) ships inline, promoted here
+       so hand-written HTML pages and shared fragments (tabs strip, pill
+       clusters, modal shells, skeletons) get the same themed paint without
+       starter scaffolding. Values mirror the starter preamble + host theme
+       rules 1:1. .ks-tab:hover / .ks-tab-active are intentionally NOT
+       repeated — the themed overrides above own that paint. */
+    @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+    @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+    @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+    .ks-tabs{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+    .ks-tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:var(--ks-tab-py, 8px) var(--ks-tab-px, 12px);border-radius:var(--ks-tab-radius, 6px);font-size:var(--ks-tab-font, 14px);font-weight:500;border:var(--ks-tab-border, none);cursor:pointer;transition:all .15s ease;background:var(--ks-tab-inactive-bg, transparent);color:var(--ks-tab-inactive-text, #d1d5db);font-family:inherit;line-height:1;white-space:nowrap}
+    .ks-card.ks-pill-anim { transition-property: transform, opacity !important; transition-duration: 300ms !important; transition-timing-function: ease-out !important; }
+    .ks-card.ks-pill-anim.ks-actions-pill, .ks-card.ks-pill-anim.ks-tabs-pill { background-color: var(--ks-pill-bg) !important; border-color: var(--ks-pill-border) !important; border-width: var(--ks-pill-border-width) !important; border-radius: var(--ks-pill-radius) !important; box-shadow: var(--ks-pill-shadow) !important; padding: var(--ks-pill-padding) !important; backdrop-filter: blur(var(--ks-pill-blur)) !important; -webkit-backdrop-filter: blur(var(--ks-pill-blur)) !important; }
+    .ks-actions-pill .ks-tab, .ks-tabs-pill .ks-tab { --ks-tab-px: var(--ks-pill-tab-px); --ks-tab-py: var(--ks-pill-tab-py); --ks-tab-font: var(--ks-pill-tab-font); }
+    .ks-actions-pill .ks-pill-toggle, .ks-tabs-pill .ks-pill-toggle { color: var(--ks-pill-text) !important; }
+    .ks-actions-pill .ks-pill-toggle svg, .ks-tabs-pill .ks-pill-toggle svg { width: var(--ks-pill-icon-size) !important; height: var(--ks-pill-icon-size) !important; }
+    .ks-card.ks-pill-anim.ks-actions-pill.ks-pill-collapsed, .ks-card.ks-pill-anim.ks-form-actions-pill.ks-pill-collapsed { padding-left: 4px !important; padding-right: 4px !important; }
+    .ks-actions-pill.ks-pill-collapsed .ks-pill-toggle, .ks-form-actions-pill.ks-pill-collapsed .ks-pill-toggle { padding-left: 4px !important; padding-right: 4px !important; }
+    .ks-actions-pill .ks-pill-content, .ks-tabs-pill .ks-pill-content { gap: var(--ks-pill-gap) !important; }
+    .ks-ip-modal-overlay{position:fixed;inset:0;z-index:var(--ks-z-modal,60);display:flex;align-items:center;justify-content:center;background:var(--ks-modal-overlay, rgba(0,0,0,0.60));backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:16px;animation:ks-overlay-in .18s ease}
+    .ks-ip-modal-panel{background:var(--ks-modal-bg, var(--ks-card-bg, rgba(255,255,255,0.07)));border:1px solid var(--ks-modal-border, var(--ks-card-border, rgba(255,255,255,0.10)));box-shadow:var(--ks-modal-shadow, var(--ks-card-shadow, 0 8px 32px rgba(0,0,0,0.6)));border-radius:var(--ks-modal-radius, 12px);backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%);-webkit-backdrop-filter:blur(var(--ks-modal-blur, 16px)) saturate(180%);width:100%;max-width:512px;max-height:90vh;max-height:90dvh;overflow-y:auto;animation:ks-modal-in .22s cubic-bezier(0.22,1,0.36,1);display:flex;flex-direction:column}
+    .ks-ip-modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid rgba(255,255,255,0.10);position:sticky;top:0;background:rgba(255,255,255,0.05);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:10;border-radius:var(--ks-modal-radius,12px) var(--ks-modal-radius,12px) 0 0}
+    .ks-ip-modal-title{font-size:18px;font-weight:600;color:var(--ks-heading, #fff);margin:0;line-height:1.2}
+    .ks-ip-modal-close{border:none;background:transparent;color:var(--ks-muted, #9ca3af);cursor:pointer;padding:4px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s ease, background .15s ease}
+    .ks-ip-modal-close:hover{color:var(--ks-heading, #fff);background:rgba(255,255,255,0.08)}
+    .ks-ip-modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;flex:1}
+    .ks-ip-modal-footer{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid rgba(255,255,255,0.10);flex-wrap:wrap;background:rgba(255,255,255,0.02);border-radius:0 0 var(--ks-modal-radius,12px) var(--ks-modal-radius,12px)}
+    .ks-skeleton{background:var(--ks-skeleton-base, rgba(255,255,255,0.06)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite}
+    .ks-skeleton-bar{background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;border-radius:var(--ks-skeleton-radius,6px) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite}
+    .ks-skeleton-avatar{width:32px;height:32px;border-radius:9999px;background:var(--ks-skeleton-shimmer, rgba(255,255,255,0.13)) !important;animation:ks-skeleton-p 1.45s ease-in-out infinite;flex-shrink:0}
+    .ks-skeleton-table th .ks-skeleton-bar,.ks-skeleton-table td .ks-skeleton-bar{height:10px}
+    @media(max-width:640px){.ks-ip-modal-panel{width:96vw;margin:8px;max-height:92vh}}
+    @media(prefers-reduced-motion:reduce){.ks-ip-modal-overlay,.ks-ip-modal-panel,.ks-skeleton,.ks-skeleton-bar,.ks-skeleton-avatar,.ks-skeleton-card{animation:none !important}}
+    html[data-ks-reduced-motion='1'] .ks-ip-modal-overlay,html[data-ks-reduced-motion='1'] .ks-ip-modal-panel{animation:none !important}
+    html[data-ks-reduced-motion='1'] .ks-skeleton,html[data-ks-reduced-motion='1'] .ks-skeleton-bar,html[data-ks-reduced-motion='1'] .ks-skeleton-avatar,html[data-ks-reduced-motion='1'] .ks-skeleton-card{animation:none !important}
     @media (max-width:640px){ .ks-hidden-sm{display:none!important} }`;
   // Bake Theme Studio Custom CSS for instance pages (global + instance scopes) so "theme Works in all instances pages"
   let customBlock = '';
