@@ -7,8 +7,13 @@
 // the panel React runtime and the real KSPageSDK; static preview needs a
 // bound instance.
 
-import React from 'react';
+import React, { useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+
+export interface ReactModuleFile {
+  name: string;
+  content: string;
+}
 
 export interface PageStudioReactSectionProps {
   source: string;
@@ -22,6 +27,9 @@ export interface PageStudioReactSectionProps {
   canBuild: boolean;
   onContentTypeChange: (t: 'html' | 'markdown' | 'blocks' | 'react') => void;
   sectionCls: string;
+  /** Virtual files (components type 'module') inlined by `import './name'`. */
+  modules: ReactModuleFile[];
+  onModulesChange: (m: ReactModuleFile[]) => void;
 }
 
 const STARTER = `import { useState } from 'react';
@@ -72,11 +80,66 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
   canBuild,
   onContentTypeChange,
   sectionCls,
+  modules,
+  onModulesChange,
 }) => {
   const statusTone =
     buildStatus === 'ok' ? 'text-emerald-300'
     : buildStatus === 'error' ? 'text-red-300'
     : 'text-gray-400';
+  // Files list (virtual modules): the editor swaps buffers between the entry
+  // (index) and one module. Stored as components type 'module' ({name,
+  // content}) — zero migration, same 512KiB budget; preview/link carry them
+  // via the payload's components.
+  const [activeFile, setActiveFile] = useState<string>('index');
+  const [newName, setNewName] = useState('');
+  const [fileError, setFileError] = useState('');
+  const activeModule = modules.find((m) => m.name === activeFile) ?? null;
+  // Renamed/deleted out from under us — render the entry without a state
+  // update in the render path.
+  const effectiveActive = activeFile !== 'index' && !activeModule ? 'index' : activeFile;
+  const effectiveModule = effectiveActive === 'index' ? null : activeModule;
+  const editorValue = effectiveModule ? effectiveModule.content : source;
+  const handleEditorChange = (v: string) => {
+    if (effectiveModule) {
+      onModulesChange(modules.map((m) => (m.name === effectiveModule.name ? { ...m, content: v } : m)));
+    } else {
+      onSourceChange(v);
+    }
+  };
+  const validFileName = (n: string): string => {
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(n)) return `File name "${n}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`;
+    if (modules.some((m) => m.name === n)) return `File "${n}" already exists.`;
+    if (modules.length >= 20) return 'Too many files (max 20) — merge small helpers into fewer files.';
+    return '';
+  };
+  const handleAdd = () => {
+    const n = newName.trim();
+    const err = validFileName(n);
+    if (err) { setFileError(err); return; }
+    setFileError('');
+    setNewName('');
+    onModulesChange([...modules, { name: n, content: '' }]);
+    setActiveFile(n);
+  };
+  const handleRename = (oldName: string, next: string) => {
+    const n = next.trim();
+    if (n === oldName) return;
+    if (n === '') { setFileError('File name cannot be empty.'); return; }
+    // Allow keeping the row while typing an invalid name elsewhere — only
+    // commit valid renames; invalid input surfaces as an inline message.
+    const others = modules.filter((m) => m.name !== oldName);
+    if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(n)) { setFileError(`File name "${n}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`); return; }
+    if (others.some((m) => m.name === n)) { setFileError(`File "${n}" already exists.`); return; }
+    setFileError('');
+    onModulesChange(modules.map((m) => (m.name === oldName ? { ...m, name: n } : m)));
+    if (activeFile === oldName) setActiveFile(n);
+  };
+  const handleDelete = (name: string) => {
+    setFileError('');
+    onModulesChange(modules.filter((m) => m.name !== name));
+    if (effectiveActive === name) setActiveFile('index');
+  };
   return (
     <div className={sectionCls}>
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
