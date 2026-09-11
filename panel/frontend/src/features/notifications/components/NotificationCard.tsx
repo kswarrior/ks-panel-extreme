@@ -88,15 +88,28 @@ const NotificationCard: React.FC<{
         </div>
       </header>
 
-      {n.message && <p className="text-sm text-gray-300 leading-relaxed line-clamp-3 bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2">{n.message}</p>}
+      {n.message && (
+        <p
+          className="text-sm leading-relaxed line-clamp-3 rounded-lg px-3 py-2 border"
+          style={{
+            color: 'var(--ks-text-heading)',
+            opacity: 0.85,
+            borderColor: 'var(--ks-card-border)',
+            background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+          }}
+        >{n.message}</p>
+      )}
 
       <div className="flex flex-wrap items-center gap-1.5">
         <CategoryBadge cat={n.category} />
         <PriorityBadge pri={n.priority} />
-        <span className="text-[11px] text-gray-500 ml-auto">{n.is_read && n.read_at ? `Read ${new Date(n.read_at).toLocaleDateString()}` : unread ? 'Unread' : 'Read'}</span>
+        <span className="text-[11px] ml-auto" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{n.is_read && n.read_at ? `Read ${new Date(n.read_at).toLocaleDateString()}` : unread ? 'Unread' : 'Read'}</span>
       </div>
 
-      <footer className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.06] mt-1">
+      <footer
+        className="flex items-center justify-between gap-2 pt-2 border-t mt-1"
+        style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+      >
         <div className="flex items-center gap-2">
           {n.link ? (
             <a href={n.link} onClick={(e) => { e.preventDefault(); if (n.link!.startsWith('/')) navigate(n.link!); else window.location.href = n.link!; }} className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-white hover:bg-gray-100 px-3 py-1.5 rounded-md transition-colors">
@@ -104,7 +117,10 @@ const NotificationCard: React.FC<{
               {n.action_label || 'Open'}
             </a>
           ) : n.action_label ? (
-            <span className="text-xs text-gray-400 border border-white/10 rounded-md px-2 py-1">{n.action_label}</span>
+            <span
+              className="text-xs rounded-md px-2 py-1 border"
+              style={{ color: 'var(--ks-text-body)', borderColor: 'var(--ks-card-border)' }}
+            >{n.action_label}</span>
           ) : null}
         </div>
         <div className="flex items-center gap-1.5">
