@@ -40,6 +40,12 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
     : p.animation === 'scale' ? 'scale(0.92)'
     : p.animation === 'none' ? 'none'
     : 'translateX(8px)';
+  // Tabs Pill menu rises vertically (PageTabsPill), so its slide axis is Y.
+  const tabsHiddenTransform =
+    p.animation === 'fade' ? 'none'
+    : p.animation === 'scale' ? 'scale(0.95)'
+    : p.animation === 'none' ? 'none'
+    : 'translateY(8px)';
   // Tabs Pill preview is the manual upward dropdown (closed `ActiveLabel <`
   // vs open `PageName ^` + vertical list), so it has no collapse transform.
 
@@ -254,7 +260,11 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
         <p className="text-[11px] uppercase tracking-wide text-gray-500 pt-1">Tabs Pill</p>
         <div className="flex items-center justify-start">
           <div
-            className="flex flex-col items-stretch shadow-lg shadow-black/40 w-fit"
+            // ks-tabs-pill + ks-pill-toggle pull the real pill's toggle
+            // behavior (frozen hover color, gliding collapse padding)
+            // without its surface paint (that needs .ks-card too, kept off
+            // so the draft values below stay live).
+            className="ks-tabs-pill flex flex-col items-stretch shadow-lg shadow-black/40 w-fit"
             style={{
               background: p.background,
               borderColor: p.border_color,
@@ -263,6 +273,11 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
               borderRadius: p.border_radius,
               boxShadow: p.shadow,
               padding: p.padding,
+              // Collapsed preview mirrors the real pill's slim rectangle.
+              paddingLeft: previewOff ? 4 : p.padding,
+              paddingRight: previewOff ? 4 : p.padding,
+              transitionProperty: p.animation === 'none' ? 'none' : 'padding-left, padding-right',
+              transitionDuration: `${p.animation_duration}ms`,
               backdropFilter: `blur(${p.backdrop_blur}px)`,
               color: p.text_color,
               ...((p.tabs_menu_width ?? 'shrink') === 'fixed' && !previewOff
@@ -270,43 +285,61 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
                 : { maxWidth: '100%' }),
             }}
           >
-            {!previewOff && (
-              <div
-                className="flex flex-col w-full min-w-0 pb-1 mb-1 border-b border-white/10"
-                style={{ gap: p.gap }}
-              >
-                {['Theme', 'Background', 'Button', 'Tabs'].map((t, i) => (
-                  <span
-                    key={t}
-                    className={`ks-tab inline-flex items-center justify-start w-full whitespace-nowrap ${i === 0 ? 'ks-tab-active' : ''}`}
-                    style={{
-                      ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
-                      ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
-                      ['--ks-tab-font' as any]: `${p.font_size}px`,
-                    }}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
-            )}
+            <div
+              className={`flex flex-col w-full min-w-0 max-h-[50vh] overflow-y-auto transition-all ease-in-out ${previewOff ? '' : 'pb-1 mb-1 border-b border-white/10'}`}
+              style={
+                previewOff
+                  ? {
+                      maxHeight: 0,
+                      opacity: 0,
+                      transform: tabsHiddenTransform,
+                      transitionDuration: `${p.animation_duration}ms`,
+                      transitionProperty: p.animation === 'none' ? 'none' : undefined,
+                      pointerEvents: 'none',
+                      visibility: 'hidden',
+                      overflow: 'hidden',
+                      paddingTop: 0,
+                      paddingBottom: 0,
+                      marginTop: 0,
+                      marginBottom: 0,
+                    }
+                  : {
+                      opacity: 1,
+                      transform: 'none',
+                      transitionDuration: `${p.animation_duration}ms`,
+                      transitionProperty: p.animation === 'none' ? 'none' : undefined,
+                      gap: p.gap,
+                    }
+              }
+              aria-hidden={previewOff}
+            >
+              {['Theme', 'Background', 'Button', 'Tabs'].map((t, i) => (
+                <span
+                  key={t}
+                  className={`ks-tab inline-flex items-center justify-start w-full whitespace-nowrap ${i === 0 ? 'ks-tab-active' : ''}`}
+                  style={{
+                    ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                    ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
+                    ['--ks-tab-font' as any]: `${p.font_size}px`,
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
             <span
-              className="ks-tab inline-flex items-center justify-between gap-1.5 shrink-0 w-full"
+              className="ks-tab ks-pill-toggle inline-flex items-center justify-center shrink-0 w-full"
               style={{
-                ['--ks-tab-px' as any]: `${p.tab_padding_x}px`,
+                ['--ks-tab-px' as any]: previewOff ? '4px' : `${p.tab_padding_x}px`,
                 ['--ks-tab-py' as any]: `${p.tab_padding_y}px`,
                 color: p.text_color,
               }}
               aria-hidden="true"
             >
-              <span className="inline-flex items-center gap-1.5 min-w-0">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                <span className="whitespace-nowrap leading-none" style={{ fontSize: p.font_size }}>{previewOff ? 'Theme' : 'Themes'}</span>
-              </span>
               {previewOff ? (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><polyline points="15 18 9 12 15 6" /></svg>
-              ) : (
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><polyline points="18 15 12 9 6 15" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ width: p.icon_size, height: p.icon_size }}><polyline points="6 9 12 15 18 15" /></svg>
               )}
             </span>
           </div>
