@@ -212,6 +212,11 @@ content_html: |-
   @media(min-width:641px){.ks-only-sm{display:none !important}}
   /* Terminal */
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
+  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: drop the iframe body frame + pane nesting so the
+  console fills the view. html body beats the bake rule by specificity (no
+  !important needed); .ks-page keeps a uniform 12px gutter. */
+  html body{padding:0;margin:0}
+  .ks-page{padding:12px}
   </style><div class="ks-page">
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
@@ -461,10 +466,10 @@ content_html: |-
     }
     function tabDot(pane) {
       var b = bindingOf(pane);
-      if (b.kind === 'workflow') return { dot: 'background:#4ade80', label: 'running' };
-      if (b.kind === 'startup') return { dot: 'background:#38bdf8', label: 'startup' };
-      if (b.idle) return { dot: 'background:#fbbf24', label: 'idle' };
-      return { dot: 'background:#6b7280', label: 'shell' };
+      if (b.kind === 'workflow') return { dot: 'background:var(--ks-ok)', label: 'running' };
+      if (b.kind === 'startup') return { dot: 'background:var(--ks-info)', label: 'startup' };
+      if (b.idle) return { dot: 'background:var(--ks-warn)', label: 'idle' };
+      return { dot: 'background:var(--ks-muted)', label: 'shell' };
     }
     function activePane() {
       for (var i = 0; i < panes.length; i++) if (panes[i].key === activeKey) return panes[i];
@@ -832,7 +837,7 @@ content_html: |-
       var style = cfgGet('prompt_style');
       if (cfgGet('input_mode') === 'box' || style === 'none' || !style) return '';
       var host = esc(promptHost());
-      var h = '<div class="ks-mono" style="font-size:12px;margin-bottom:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">';
+      var h = '<div class="ks-mono" style="font-size:12px;margin:0 0 8px;padding:10px 10px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">';
       if (style !== 'path') h += '<span style="color:var(--ks-ok)">'+host+'</span>';
       if (style === 'host_path') h += '<span style="color:var(--ks-muted)">:</span>';
       if (style !== 'host') h += '<span style="color:var(--ks-info)">~</span>';
@@ -1022,16 +1027,15 @@ content_html: |-
         var stopped = liveStatus === 'stopped';
         return '<div data-pane="' + p.key + '" style="' + (active ? '' : 'display:none') + '">'
           + '<div style="border-radius:12px;border:1px solid var(--ks-card-border);background:rgba(0,0,0,0.20);overflow:hidden">'
-          + '<div style="padding:12px">'
           + (boxMode ? '' : promptHtml())
           + '<div style="position:relative;background:var(--ks-term-bg,#1e1e1e);border-radius:8px">'
           + '<div id="pre-' + p.key + '" tabindex="0" role="textbox" aria-label="Terminal" aria-multiline="true" class="ks-mono" style="background:var(--ks-term-bg,#1e1e1e);color:var(--ks-secondary,#d4d4d4);font-size:' + fontSize + 'px;line-height:1.35;padding:10px;height:24rem;overflow:auto;outline:none;cursor:text;user-select:text;-webkit-user-select:text"></div>'
           + '<textarea id="hid-' + p.key + '" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" rows="1" aria-label="Terminal input" style="position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;border:0;outline:none;background:transparent;color:transparent;caret-color:transparent;resize:none;overflow:hidden;padding:0"></textarea>'
           + '</div>'
-          + (p.stoppedExit ? '<p style="font-size:11px;color:var(--ks-warn);margin:8px 0 0">Pane stopped — process exited. Refresh to reconnect.</p>' : '')
-          + (ro && !p.stoppedExit && !stopped ? '<p style="font-size:11px;color:var(--ks-muted);margin:8px 0 0">Read-only pane.</p>' : '')
-          + (boxMode ? '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><input id="box-' + p.key + '" value="' + esc(boxTexts[p.key] || '') + '" placeholder="Type a command…" aria-label="Command input" class="ks-input" style="flex:1;min-width:0;font-size:' + fontSize + 'px"><button type="button" data-send="' + p.key + '" aria-label="Send" title="Send" class="ks-btn-header ks-icon-btn" style="flex-shrink:0"><span style="font-size:14px;line-height:1">⌯⌲</span></button></div>' : '')
-          + '</div></div></div>';
+          + (p.stoppedExit ? '<p style="font-size:11px;color:var(--ks-warn);margin:8px 10px 10px">Pane stopped — process exited. Refresh to reconnect.</p>' : '')
+          + (ro && !p.stoppedExit && !stopped ? '<p style="font-size:11px;color:var(--ks-muted);margin:8px 10px 10px">Read-only pane.</p>' : '')
+          + (boxMode ? '<div style="display:flex;align-items:center;gap:8px;margin:8px 10px 10px"><input id="box-' + p.key + '" value="' + esc(boxTexts[p.key] || '') + '" placeholder="Type a command…" aria-label="Command input" class="ks-input" style="flex:1;min-width:0;font-size:' + fontSize + 'px"><button type="button" data-send="' + p.key + '" aria-label="Send" title="Send" class="ks-btn-header ks-icon-btn" style="flex-shrink:0"><span style="font-size:14px;line-height:1">⌯⌲</span></button></div>' : '')
+          + '</div></div>';
       }).join('');
       for (var i = 0; i < panes.length; i++) {
         (function (p) {
