@@ -23,6 +23,7 @@ import {
   ComponentsTab,
   UtilitiesTab,
   CardsTab,
+  CountTab,
   CustomCSSTab,
   MarketTab,
   HistoryTab,
@@ -212,6 +213,13 @@ const ICON_HISTORY = (
     <line x1="12" y1="12" x2="15" y2="14" />
   </svg>
 );
+const ICON_COUNT = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <path d="M12 2 2 7l10 5 10-5-10-5z" />
+    <path d="M2 12l10 5 10-5" />
+    <path d="M2 17l10 5 10-5" />
+  </svg>
+);
 
 // SCOPE_OPTIONS / scopeLabelFor previously lived here but were only ever
 // used by the Custom CSS tab, which now owns its own copy in
@@ -241,6 +249,7 @@ const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactN
   { key: 'components', label: 'Components', hint: 'Modals, glass & chrome', icon: ICON_COMPONENTS },
   { key: 'utilities', label: 'Utilities', hint: 'Tokens, shadows & z-index', icon: ICON_UTILITIES },
   { key: 'cards', label: 'Cards', hint: 'List, stat, form, row & page cards', icon: ICON_CARD },
+  { key: 'count', label: 'Count', hint: 'List count badge pill', icon: ICON_COUNT },
   { key: 'customCSS', label: 'Custom CSS', hint: 'Raw CSS, global & scoped', icon: ICON_CSS },
   { key: 'market', label: 'Market', hint: 'Browse & install themes', icon: ICON_MARKET },
   { key: 'history', label: 'History', hint: 'Versions & restore', icon: ICON_HISTORY },
@@ -479,6 +488,7 @@ const ThemeStudio: React.FC = () => {
             {tab === 'components' && <ComponentsTab draft={draft} patch={patch} />}
             {tab === 'utilities' && <UtilitiesTab draft={draft} patch={patch} />}
             {tab === 'cards' && <CardsTab draft={draft} patch={patch} />}
+            {tab === 'count' && <CountTab draft={draft} patch={patch} />}
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
             {tab === 'market' && <MarketTab />}
             {tab === 'history' && <HistoryTab />}

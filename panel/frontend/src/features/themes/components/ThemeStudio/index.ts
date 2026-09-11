@@ -15,6 +15,7 @@ export { FormsTab } from './FormsTab';
 export { ComponentsTab } from './ComponentsTab';
 export { UtilitiesTab } from './UtilitiesTab';
 export { CardsTab } from './CardsTab';
+export { CountTab } from './CountTab';
 export { CustomCSSTab } from './CustomCSSTab';
 export { MarketTab } from './MarketTab';
 export { HistoryTab } from './HistoryTab';
