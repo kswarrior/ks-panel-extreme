@@ -7,8 +7,9 @@
 // the panel React runtime and the real KSPageSDK; static preview needs a
 // bound instance.
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
+import { diagnoseReactPageSource } from '@/shared/lib/reactPageTranspile';
 
 export interface ReactModuleFile {
   name: string;
@@ -107,6 +108,15 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
       onSourceChange(v);
     }
   };
+  // Lite diagnostics (plan item 4): pre-Build warnings only — never blocks
+  // save or Build. Debounced so typing stays smooth, memoized on the
+  // debounced buffer so idle renders are free, hidden when empty.
+  const [diagInput, setDiagInput] = useState(editorValue);
+  useEffect(() => {
+    const t = setTimeout(() => setDiagInput(editorValue), 300);
+    return () => clearTimeout(t);
+  }, [editorValue]);
+  const diags = useMemo(() => diagnoseReactPageSource(diagInput), [diagInput]);
   const validFileName = (n: string): string => {
     if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(n)) return `File name "${n}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`;
     if (modules.some((m) => m.name === n)) return `File "${n}" already exists.`;
@@ -273,6 +283,20 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
         spellCheck={false}
         placeholder={effectiveModule ? `// ${effectiveModule.name} — export helpers/components, e.g.\nexport function helper() { return 42; }` : STARTER}
       />
+      {diags.length > 0 && (
+        <div className="mt-2 rounded-lg border border-amber-700/50 bg-amber-900/30 p-3" role="status" aria-label="React warnings">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
+            Warnings ({diags.length}) — non-blocking, Build stays the gate
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {diags.map((d, i) => (
+              <li key={i} className="text-xs text-amber-300 font-mono">
+                Line {d.line}: {d.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <label className="block text-xs text-gray-400 mt-3 mb-2">Page CSS (optional, scoped under .ks-react-page)</label>
       <textarea
         value={css}
