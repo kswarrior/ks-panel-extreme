@@ -212,11 +212,16 @@ content_html: |-
   @media(min-width:641px){.ks-only-sm{display:none !important}}
   /* Terminal */
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
-  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: drop the iframe body frame + pane nesting so the
-  console fills the view. html body beats the bake rule by specificity (no
-  !important needed); .ks-page keeps a uniform 12px gutter. */
+  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
+  frame removed so there is no extra gap between instance context and page
+  body. html body beats the bake rule by specificity (no !important needed);
+  .ks-page stays flush (0) like .ks-react-page. */
   html body{padding:0;margin:0}
-  .ks-page{padding:12px}
+  .ks-page{padding:0;margin:0}
+  /* Pills reuse .ks-card for theming but need compact 6px padding — the shared
+  .ks-card rule forces var(--ks-card-padding,16px) !important, so re-assert
+  here with higher specificity. */
+  #ks-pill.ks-card,#ks-ptabs-wrap .ks-card{padding:6px !important}
   </style><div class="ks-page">
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
