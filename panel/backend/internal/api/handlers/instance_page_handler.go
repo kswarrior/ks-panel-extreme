@@ -3109,9 +3109,12 @@ func ExecuteModulePageActionHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Verify the module is enabled for this instance (using instance's own config)
 	// The instance's Config field contains the deploy-time snapshot (template.spec + overrides)
+	// stored as canonical YAML (legacy JSON parses identically).
 	var spec map[string]any
 	if instance.Config != "" {
-		_ = json.Unmarshal([]byte(instance.Config), &spec)
+		if m, merr := specyaml.Parse(instance.Config); merr == nil {
+			spec = m
+		}
 	}
 	enabledModules := getEnabledModules(spec)
 	moduleAllowed := false
@@ -3233,7 +3236,8 @@ func findSpecModuleActions(specJSON, moduleID string) []map[string]any {
 			Actions  json.RawMessage `json:"actions"`
 		} `json:"pages"`
 	}
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	if err := specyaml.Unmarshal(specJSON, &spec); err != nil {
 		return nil
 	}
 	for _, p := range spec.Pages {

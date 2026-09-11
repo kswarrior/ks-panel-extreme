@@ -33,6 +33,7 @@ import (
 
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
+	"github.com/example/kspanel/internal/specyaml"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -220,9 +221,12 @@ func instancePageSpecEnabled(specJSON, pageSlug string) bool {
 	if specJSON == "" {
 		return false // EMPTY-BY-DEFAULT: no config = no pages allowed
 	}
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
 	var spec map[string]any
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+	if m, err := specyaml.Parse(specJSON); err != nil {
 		return false // unparseable = no pages allowed (safe default)
+	} else {
+		spec = m
 	}
 	pagesAny, ok := spec["pages"].([]any)
 	if !ok || len(pagesAny) == 0 {
@@ -277,7 +281,8 @@ func parseSpecRows(specJSON string) []specPageRow {
 			Actions      json.RawMessage `json:"actions"`
 		} `json:"pages"`
 	}
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	if err := specyaml.Unmarshal(specJSON, &spec); err != nil {
 		return nil
 	}
 	rows := make([]specPageRow, 0, len(spec.Pages))

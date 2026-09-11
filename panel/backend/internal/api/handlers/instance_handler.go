@@ -3840,8 +3840,9 @@ func installTerminalIDFromConfig(configJSON string) string {
 	if s == "" {
 		return ""
 	}
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(s), &spec); err != nil {
+	// Configs are stored as canonical YAML (legacy JSON parses identically).
+	spec, err := specyaml.Parse(s)
+	if err != nil {
 		return ""
 	}
 	return installTerminalIDFromSpec(spec)
