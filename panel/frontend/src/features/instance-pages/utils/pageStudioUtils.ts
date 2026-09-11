@@ -185,7 +185,7 @@ export function compRowsFromJSON(json: string | undefined | null): ComponentRow[
   return defs.map((d) => ({
     id: `c${compSeq++}-${Math.random().toString(36).slice(2, 8)}`,
     name: d.name,
-    type: (['html', 'markdown', 'block', 'shared'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
+    type: (['html', 'markdown', 'block', 'shared', 'module'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
     description: d.description || '',
     content: d.content || '',
     ...(d.type === 'shared' ? { shared: typeof (d as any).shared === 'string' && (d as any).shared ? (d as any).shared : d.name } : {}),
@@ -209,19 +209,52 @@ export function compsToJSON(rows: ComponentRow[]): string {
 
 export function validateCompRows(rows: ComponentRow[]): string {
   const seen = new Set<string>();
+  let modules = 0;
   for (const r of rows) {
     const name = r.name.trim();
     if (name === '') continue; // untouched row
     if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(name)) return `Component name "${name}" must start with a letter, number or underscore and contain only letters, numbers, underscores or dashes.`;
     if (seen.has(name)) return `Duplicate component name "${name}".`;
     seen.add(name);
-    if (r.type && !['html', 'markdown', 'block', 'shared'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block, shared.`;
+    if (r.type && !['html', 'markdown', 'block', 'shared', 'module'].includes(r.type)) return `Component "${name}" type must be one of: html, markdown, block, shared, module.`;
+    if (r.type === 'module') modules += 1;
     if (r.type === 'shared') {
       const ref = (r.shared || r.name).trim();
       if (!/^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(ref)) return `Shared component "${name}" references an invalid panel component "${ref}".`;
     }
   }
+  if (modules > 20) return `Too many modules (${modules}, max 20) — merge small helpers into fewer files.`;
   return '';
+}
+
+// ---------------------------------------------------------------------------
+// Virtual modules — Files list backing (components type 'module')
+// ---------------------------------------------------------------------------
+
+// modulesFromRows extracts the transpile-time module table ({name: content})
+// from editor rows. First name wins so a duplicate (blocked at save by
+// validateCompRows) still bundles deterministically.
+export function modulesFromRows(rows: ComponentRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of rows) {
+    if (r.type !== 'module') continue;
+    const name = r.name.trim();
+    if (!name || Object.prototype.hasOwnProperty.call(out, name)) continue;
+    out[name] = r.content ?? '';
+  }
+  return out;
+}
+
+// modulesFromDefs is the same extraction for parsed PageComponentDef lists
+// (preview/link payloads, which carry components verbatim).
+export function modulesFromDefs(defs: PageComponentDef[] | undefined | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const d of defs ?? []) {
+    if (!d || d.type !== 'module' || typeof d.name !== 'string' || !d.name) continue;
+    if (Object.prototype.hasOwnProperty.call(out, d.name)) continue;
+    out[d.name] = typeof d.content === 'string' ? d.content : '';
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------

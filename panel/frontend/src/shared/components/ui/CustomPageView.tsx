@@ -28,7 +28,7 @@ interface BlockRow {
 
 export interface PageComponentDef {
   name: string;
-  type: 'html' | 'markdown' | 'block' | 'shared';
+  type: 'html' | 'markdown' | 'block' | 'shared' | 'module';
   description?: string;
   content: string;
   /** Registry key for type "shared" (defaults to name when omitted). */
@@ -309,9 +309,23 @@ const CONFIG_TOKEN_RE = /\{\{\s*config:([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g;
 // HTML comes from the panel's shared registry at render time. A token that
 // matches a registry key also resolves even without an explicit import row,
 // so panel components work the moment they are referenced.
+// reactModulesFromComponents extracts the transpile-time module table
+// ({name: content}) from a page payload's components. Type 'module' rows are
+// virtual files, not HTML — they never participate in token substitution.
+function reactModulesFromComponents(components?: PageComponentDef[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of components ?? []) {
+    if (!c || c.type !== 'module' || typeof c.name !== 'string' || !c.name) continue;
+    if (Object.prototype.hasOwnProperty.call(out, c.name)) continue;
+    out[c.name] = typeof c.content === 'string' ? c.content : '';
+  }
+  return out;
+}
+
 function resolveComponentTokens(text: string, components: PageComponentDef[]): string {
   if (!text || text.indexOf('{{component:') === -1) return text;
-  const compMap = new Map((components || []).map(c => [c.name, c]));
+  // Module rows are virtual files, not fragments — never substitute them.
+  const compMap = new Map((components || []).filter((c) => c && c.type !== 'module').map(c => [c.name, c]));
   let cur = text;
   for (let iter = 0; iter < 5; iter++) {
     let changed = false;

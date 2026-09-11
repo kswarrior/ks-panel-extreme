@@ -104,9 +104,13 @@ export function pageSourceOf(p: Pick<InstancePage, 'source'> | undefined | null)
 // type "shared" is an import-by-reference: only {name, shared} is stored
 // (no source copy) and the panel supplies the HTML from the shared panel
 // component registry at render time.
+// type "module" is a virtual React file: {name, content} inlined by the
+// renderer at transpile time (`import ... from './name'`). Zero migration —
+// it reuses the components column and its 512KiB budget. Excluded from
+// {{component:name}} substitution (not HTML).
 export interface PageComponentDef {
   name: string;
-  type: 'html' | 'markdown' | 'block' | 'shared';
+  type: 'html' | 'markdown' | 'block' | 'shared' | 'module';
   description?: string;
   content: string;
   /** Registry key for type "shared" (defaults to name when omitted). */
