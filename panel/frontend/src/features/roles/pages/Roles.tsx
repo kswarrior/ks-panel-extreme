@@ -6,6 +6,7 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import ListCount from '@/shared/components/ui/ListCount';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
@@ -262,15 +263,17 @@ return (
           </button>
       </PageActionsPill>
 
-      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {hasActiveFilter ? (
-            <span style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} className="text-xs">{visible.length} of {filtered.length} shown</span>
+            <ListCount shown={visible.length} total={filtered.length} label="role" />
           ) : (
-            <span style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} className="text-xs">
-              {roleStats.total} role{roleStats.total === 1 ? '' : 's'}
-              {roleStats.withPerms > 0 && <> · {roleStats.withPerms} with permissions</>}
-            </span>
+            <ListCount
+              shown={roleStats.total}
+              total={roleStats.total}
+              label="role"
+              extra={roleStats.withPerms > 0 ? <>{roleStats.withPerms} with permissions</> : undefined}
+            />
           )}
         </div>
         {hasActiveFilter && (

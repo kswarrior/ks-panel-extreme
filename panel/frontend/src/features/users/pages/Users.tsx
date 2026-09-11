@@ -8,6 +8,7 @@ import Avatar from '@/shared/components/ui/Avatar';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import ListCount from '@/shared/components/ui/ListCount';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
@@ -370,15 +371,18 @@ const UsersPage: React.FC = () => {
       </PageActionsPill>
 
       {(search || roleFilter !== 'all' || pageSize !== 25) && (
-        <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {(search || roleFilter !== 'all') && (
-              <p className="text-xs" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>{visible.length} of {filtered.length} shown</p>
+              <ListCount shown={visible.length} total={filtered.length} label="user" />
             )}
             {filtered.length > pageSize && (
-              <span className="text-[11px]" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
-                (showing first {pageSize}; refine search to see more)
-              </span>
+              <ListCount
+                shown={pageSize}
+                total={filtered.length}
+                label="user"
+                extra={<>refine search to see more</>}
+              />
             )}
           </div>
           <div className="flex items-center gap-3">
