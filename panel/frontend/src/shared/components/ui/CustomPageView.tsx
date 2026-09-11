@@ -818,6 +818,9 @@ const BRIDGE_METHODS = [
   // SPA navigation within the SAME instance (parent re-validates the target).
   'navigate',
   'storage.get', 'storage.set', 'storage.delete', 'storage.clear', 'storage.keys',
+  // Server KV store (panel DB per instance + page family; host executes so
+  // the opaque-origin iframe never touches panel APIs directly).
+  'kv.get', 'kv.set', 'kv.delete', 'kv.keys',
   // Built-in parity wrappers (all instance-scoped fetchPanel calls executed
   // host-side, so binary bodies and raw bytes survive the iframe boundary).
   'statPath', 'renamePath', 'copyPath', 'chmodPath', 'archivePaths',
@@ -1773,8 +1776,9 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
                 return { ok: true };
               }
               default: {
-                // storage.* — routed onto the storage namespace.
-                const [, op] = method.split('.');
+                // storage.* / kv.* — routed onto their namespaces.
+                const [ns, op] = method.split('.');
+                if (ns === 'kv') return (sdk.kv as any)[op](...list.slice(0, 2));
                 return (sdk.storage as any)[op](...list.slice(0, 2));
               }
             }

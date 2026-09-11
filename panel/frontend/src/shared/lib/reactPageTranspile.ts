@@ -2674,6 +2674,7 @@ const SDK_API_ALLOWLIST = [
   'importAutomationURL',
   'instance',
   'killProcess',
+  'kv',
   'kvm',
   'listAudit',
   'listAutomation',
@@ -2806,8 +2807,8 @@ export function diagnoseReactPageSource(src: string): ReactPageDiagnostic[] {
   }
 
   // 3) Unknown sdk.* method (first segment checked against CustomPageAPI
-  // keys; sdk.storage.* sub-methods are covered by the top-level `storage`
-  // key and never warn here).
+  // keys; sdk.storage.* / sdk.kv.* sub-methods are covered by the top-level
+  // `storage` / `kv` keys and never warn here).
   {
     const sdkRe = /(^|[^A-Za-z0-9_$])sdk\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
     const seen = new Set<string>();

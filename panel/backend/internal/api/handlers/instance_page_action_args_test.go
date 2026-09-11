@@ -14,7 +14,7 @@ func TestSavedActionMatchesExactArgs(t *testing.T) {
 		"command": "df -h",
 		"args":    []any{"-x"},
 	}
-	if !savedActionMatches(def, "shell", "df -h", "", "", []string{"-x"}, nil) {
+	if !savedActionMatches(def, "shell", "df -h", "", "", []string{"-x"}, nil, "", nil, "") {
 		t.Fatal("exact payload must match")
 	}
 	// Without open_args even a benign extra argument must be rejected: the

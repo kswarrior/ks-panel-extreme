@@ -1020,6 +1020,43 @@ export function createCustomPageSDK(
     clear: () => Promise.resolve(Object.keys(localStorage).filter(k => k.startsWith(storagePrefix)).forEach(k => localStorage.removeItem(k))),
     keys: () => Promise.resolve(Object.keys(localStorage).filter(k => k.startsWith(storagePrefix)).map(k => k.slice(storagePrefix.length))),
   };
+
+  // --- Server KV store (panel DB, per instance + page family) ---
+  // Same Promise shape as `storage` (see the `kv` JSDoc on CustomPageAPI
+  // for the durability/scope difference). page_slug stamps the call with
+  // the page family rendering right now — the server resolves it with the
+  // same findSpecPageRow precedence as executeAction (exact slug, legacy
+  // original_slug, "<parent>/<sub>" through the enabled parent row), so a
+  // page without a slug (Studio static preview) fails closed server-side.
+  // get() lists + picks so the wire surface stays three endpoints.
+  interface PageKVListResponse {
+    entries?: Array<{ k: string; v: string }>;
+  }
+  function kvScopeQuery(): string {
+    return `instance_id=${encodeURIComponent(String(instanceContext.id))}&page_slug=${encodeURIComponent(pageSlug)}`;
+  }
+  const kv = {
+    get: async (key: string): Promise<string | null> => {
+      const d = await fetchJSON<PageKVListResponse>(`/api/instance-pages/kv?${kvScopeQuery()}`, { method: 'GET' });
+      const hit = Array.isArray(d?.entries) ? d.entries.find((e) => e?.k === key) : undefined;
+      return hit ? String(hit.v) : null;
+    },
+    set: async (key: string, value: string): Promise<void> => {
+      if (typeof value !== 'string') return Promise.reject(new Error('kv.set: value must be a string'));
+      await fetchJSON<void>(`/api/instance-pages/kv?${kvScopeQuery()}`, {
+        method: 'PUT',
+        body: JSON.stringify({ k: key, v: value }),
+      });
+    },
+    delete: async (key: string): Promise<void> => {
+      await fetchJSON<void>(`/api/instance-pages/kv?${kvScopeQuery()}&k=${encodeURIComponent(key)}`, { method: 'DELETE' });
+    },
+    keys: async (): Promise<string[]> => {
+      const d = await fetchJSON<PageKVListResponse>(`/api/instance-pages/kv?${kvScopeQuery()}`, { method: 'GET' });
+      if (!Array.isArray(d?.entries)) return [];
+      return d.entries.map((e) => String(e?.k ?? '')).filter((k) => k !== '');
+    },
+  };
   
   // --- WebSocket ---
   // Markdown/blocks pages run in the panel's own origin, so they can open
@@ -1233,6 +1270,9 @@ export function createCustomPageSDK(
     
     // Storage
     storage,
+
+    // Server KV store (panel DB, per instance + page family)
+    kv,
     
     // WebSocket (terminal / workflow / startup bridges)
     connectWS,
