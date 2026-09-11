@@ -30,6 +30,8 @@ import {
 } from '@/features/themes/components/ThemeStudio';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 
 // renderLoadingPreview renders a preview of the loading animation based on
@@ -279,11 +281,25 @@ const ThemeStudio: React.FC = () => {
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveScope, setSaveScope] = useState<'local' | 'global'>('local');
+  const replaceDraft = useThemeStore((s) => s.replaceDraft);
+
+  // Session edit history over the whole draft + locals (tab UI stays out).
+  const snapshot = JSON.stringify({ draft, name, description, saveScope });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    const s = JSON.parse(snapStr);
+    if (s.draft) replaceDraft(s.draft);
+    setName(s.name);
+    setDescription(s.description);
+    setSaveScope(s.saveScope);
+  });
+  const { suspend: histSuspend } = hist;
 
   useEffect(() => {
     if (!useThemeStore.getState().draft) {
+      histSuspend();
       beginDraft(useThemeStore.getState().active());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [beginDraft]);
 
   useEffect(() => {
@@ -346,6 +362,7 @@ const ThemeStudio: React.FC = () => {
       } else {
         saveDraft(asNew);
       }
+      hist.commit();
       navigate('/themes');
     } catch (e: any) {
       const msg = e?.response?.data || e?.message || 'Failed to save theme.';
