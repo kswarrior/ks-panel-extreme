@@ -7,6 +7,7 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import type { Theme } from '@/features/themes/types/theme';
 import { rgbaAt } from '@/theme/colorUtils';
 import { getSharedPanelComponentContent } from '@/features/instance-pages/sharedPanelComponents';
+import { buildKsuiPreamble } from '@/features/instance-pages/pageUIComponents';
 
 // BlockRow mirrors the BlockRow type used in the Instance Page Studio's
 // visual block editor.
@@ -145,6 +146,17 @@ function reactSlotHolder(): Record<string, ReactBundleSlot> {
 // imports. The bundle is transpiled in-memory (transpileReactPageSource,
 // dependency-free) right before injection; old createElement pages pass
 // through unchanged. Transpile errors render as a fail-closed card.
+// KSUI_PREAMBLE is the third scope beside sdk/React for type == 'react'
+// pages: dependency-free panel-UI clones (pageUIComponents.ts) as
+// KSUI.{ActionPill,TabsPill,StatCard,Badge,PageHeader,EmptyState}. It is a
+// compile-time constant expression over the renderer's `slot.react` — never
+// author input — evaluated once per bundle execution like the slot itself.
+// Author `KSUI.X` references are plain identifiers: the transpiler passes
+// them through untouched (see emitNode) and the Go validator needs no new
+// syntax (no imports/exports/fetch). HTML/markdown pages are unaffected:
+// {{component:name}} there still resolves from the HTML registries only.
+const KSUI_PREAMBLE = buildKsuiPreamble('slot.react');
+
 const ReactModuleView: React.FC<{
   bundle: string;
   bundleCss?: string;
@@ -220,15 +232,16 @@ const ReactModuleView: React.FC<{
     holder[id] = reactBundleSlots.get(id)!;
     window.addEventListener('error', onScriptError);
     node = document.createElement('script');
-    // The wrapper keeps `return Page;` legal; sdk/React come from the slot
-    // so the transpiled body executes with exactly the author-visible names.
+    // The wrapper keeps `return Page;` legal; sdk/React/KSUI come from the
+    // slot (KSUI is a constant preamble over slot.react) so the transpiled
+    // body executes with exactly the author-visible names.
     // Bundle text is embedded verbatim — never build it by string-concat of
     // author input elsewhere (CSP: inline script, no eval).
     const execCode = transpiled.code;
     node.textContent =
       `"use strict";(function(){\n` +
       `var slot=window.__ksReactSlots[${JSON.stringify(id)}];\n` +
-      `try{var Page=(function(sdk,React){\n${execCode}\n})(slot.sdk,slot.react);slot.done(Page);}catch(e){slot.fail((e&&(e.message||e.stack))||String(e));}\n` +
+      `try{var Page=(function(sdk,React,KSUI){\n${execCode}\n})(slot.sdk,slot.react,${KSUI_PREAMBLE});slot.done(Page);}catch(e){slot.fail((e&&(e.message||e.stack))||String(e));}\n` +
       `})();`;
     document.head.appendChild(node);
     return () => {
