@@ -336,6 +336,34 @@ const InstancePageStudio: React.FC = () => {
   const addComponent = () => setComponents((c) => [...c, blankComponent()]);
   const removeComponent = (id: string) => setComponents((c) => c.filter((x) => x.id !== id));
   const updateComponent = (id: string, patch: Partial<ComponentRow>) => setComponents((c) => c.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  // Virtual modules (Files): components rows with type 'module' ({name,
+  // content}) inlined by `import './name'` at transpile time. The React tab
+  // owns them; preview/link carry them via the payload's components.
+  const moduleFiles = useMemo(
+    () => components.filter((c) => c.type === 'module').map((c) => ({ name: c.name, content: c.content })),
+    [components],
+  );
+  const updateModuleFiles = (mods: Array<{ name: string; content: string }>) => {
+    setComponents((prev) => {
+      const rest = prev.filter((c) => c.type !== 'module');
+      const byName = new Map(prev.filter((c) => c.type === 'module').map((c) => [c.name, c]));
+      const rows: ComponentRow[] = mods.map((m) => {
+        const existing = byName.get(m.name);
+        if (existing) return { ...existing, content: m.content };
+        return {
+          id: `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: m.name,
+          type: 'module' as const,
+          description: '',
+          content: m.content,
+        };
+      });
+      return [...rest, ...rows];
+    });
+    // Modules ship inside the bundle — a Files edit invalidates the stored
+    // build like a source edit does.
+    setPage((p) => ({ ...p, build_status: '', build_log: '' } as any));
+  };
   // Import a panel-shared component by reference (stores name only — the
   // panel supplies the source at render time). Duplicate names are ignored
   // so {{component:name}} tokens never become ambiguous.
@@ -791,6 +819,8 @@ const InstancePageStudio: React.FC = () => {
               canBuild={isEdit && pageId != null}
               onContentTypeChange={(t) => { onChange('content_type', t); setBlocksMode('visual'); }}
               sectionCls={sectionCls}
+              modules={moduleFiles}
+              onModulesChange={updateModuleFiles}
             />
           )}
 

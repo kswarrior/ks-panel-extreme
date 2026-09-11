@@ -177,28 +177,101 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
         <code>function Page()</code> (closes over <code>sdk</code> + <code>React</code>) and end with{' '}
         <code>return Page;</code>. <code>{`import { useState } from 'react'`}</code> is allowed; other packages are not — use{' '}
         <code>sdk.runAction/fetchPanel/storage/downloadText/copyText/formatBytes/timeAgo</code> — never <code>fetch()</code>,{' '}
+        <code>sdk.runAction/fetchPanel/storage/downloadText/copyText/formatBytes/timeAgo</code> — never <code>fetch()</code>,{' '}
         <code>eval</code> or browser storage directly. Tailwind + <code>ks-*</code> theme classes work (host origin).
+        Split code with <code>Files</code> below: <code>{`import { helper } from './util'`}</code> inlines <code>util</code> at
+        transpile time (relative paths only, <code>..</code> past the root rejected, cycles fail the build).
       </p>
+      <div className="mt-3 rounded-lg border border-white/10 bg-black/20 p-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Files ({modules.length}/20)</h5>
+          <div className="flex items-center gap-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAdd(); } }}
+              className="bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white font-mono w-36"
+              placeholder="util"
+              aria-label="New file name"
+              spellCheck={false}
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="px-2 py-1 text-xs rounded border border-white/10 text-gray-200 hover:bg-white/10"
+              title="Add a virtual file (stored as a components entry with type 'module')"
+            >
+              Add file
+            </button>
+          </div>
+        </div>
+        {fileError && <p className="text-xs text-red-300 mt-2">{fileError}</p>}
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setActiveFile('index')}
+            title="Entry file (the page source below when selected)"
+            className={`px-2 py-1 text-xs rounded border font-mono ${effectiveActive === 'index' ? 'bg-white text-black border-white' : 'border-white/10 text-gray-300 hover:bg-white/10'}`}
+          >
+            index
+          </button>
+          {modules.map((m) => (
+            <span
+              key={m.name}
+              className={`inline-flex items-center gap-1 pl-2 pr-1 py-0.5 text-xs rounded border font-mono ${effectiveActive === m.name ? 'bg-white text-black border-white' : 'border-white/10 text-gray-300'}`}
+            >
+              <button type="button" onClick={() => setActiveFile(m.name)} title={`Edit ${m.name}`}>
+                {m.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(m.name)}
+                aria-label={`Delete ${m.name}`}
+                title={`Delete ${m.name}`}
+                className="px-1 rounded hover:bg-red-500/30"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+        {effectiveModule && (
+          <label className="block text-xs text-gray-400 mt-2">
+            File name
+            <input
+              value={effectiveModule.name}
+              onChange={(e) => handleRename(effectiveModule.name, e.target.value)}
+              className="mt-1 bg-black/40 border border-white/10 rounded px-2 py-1 text-xs text-white font-mono w-48 block"
+              spellCheck={false}
+            />
+          </label>
+        )}
+        <p className="text-[11px] text-gray-500 mt-2">
+          Files live at the page root — <code>import … from './{effectiveModule ? effectiveModule.name : 'util'}'</code> (extension
+          optional). Modules share one scope after inlining: keep top-level names unique. Unused files never ship. Budget: same 512KiB
+          components total, ≤20 files.
+        </p>
+      </div>
       <label className="block text-xs text-gray-400 mt-3 mb-2">
-        Page source (JS)
+        {effectiveModule ? <span>File <code className="font-mono">{effectiveModule.name}</code> (JS)</span> : 'Page source (JS · index)'}
         <span className="float-right">
           <button
             type="button"
-            onClick={() => onSourceChange(STARTER)}
+            onClick={() => { setActiveFile('index'); onSourceChange(STARTER); }}
             className="text-xs text-gray-400 hover:text-white underline"
-            title="Replace editor with a minimal working page"
+            title="Replace the entry file with a minimal working page"
           >
             Starter
           </button>
         </span>
       </label>
       <textarea
-        value={source}
-        onChange={(e) => onSourceChange(e.target.value)}
+        value={editorValue}
+        onChange={(e) => handleEditorChange(e.target.value)}
         className={`${glassFieldClass} font-mono text-sm`}
         style={{ minHeight: '420px', width: '100%' }}
         spellCheck={false}
-        placeholder={STARTER}
+        placeholder={effectiveModule ? `// ${effectiveModule.name} — export helpers/components, e.g.\nexport function helper() { return 42; }` : STARTER}
       />
       <label className="block text-xs text-gray-400 mt-3 mb-2">Page CSS (optional, scoped under .ks-react-page)</label>
       <textarea

@@ -130,6 +130,7 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
                             <option value="markdown">Markdown</option>
                             <option value="block">Block JSON</option>
                             <option value="shared">Shared (panel)</option>
+                            <option value="module">Module (React file — edited on the React tab)</option>
                           </select>
                         </label>
                       </div>
