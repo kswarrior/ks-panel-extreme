@@ -212,11 +212,16 @@ content_html: |-
   @media(min-width:641px){.ks-only-sm{display:none !important}}
   /* Terminal */
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
-  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: drop the iframe body frame + pane nesting so the
-  console fills the view. html body beats the bake rule by specificity (no
-  !important needed); .ks-page keeps a uniform 12px gutter. */
+  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
+  frame removed so there is no extra gap between instance context and page
+  body. html body beats the bake rule by specificity (no !important needed);
+  .ks-page stays flush (0) like .ks-react-page. */
   html body{padding:0;margin:0}
-  .ks-page{padding:12px}
+  .ks-page{padding:0;margin:0}
+  /* Pills reuse .ks-card for theming but need compact 6px padding — the shared
+  .ks-card rule forces var(--ks-card-padding,16px) !important, so re-assert
+  here with higher specificity. */
+  #ks-pill.ks-card,#ks-ptabs-wrap .ks-card{padding:6px !important}
   </style><div class="ks-page">
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
@@ -303,6 +308,57 @@ content_html: |-
         return Array.isArray(a) ? a : [];
       } catch (e) { return []; }
     }
+    function cfgHash() {
+      return ['allow_multi', 'max_terminals', 'default_stop_on_exit', 'default_allow_input', 'default_timeout_s', 'input_mode', 'prompt_style', 'shortcuts_enabled', 'shortcuts', 'default_terminals'].map(cfgGet).join('|');
+    }
+    function saveSession() {
+      try {
+        var data = {
+          panes: panes.slice(0, 10).map(function (p) { return { name: String(p.name || '').slice(0, 64), tid: normTid(p.tid) }; }),
+          active: Math.max(0, panes.indexOf(activePane()))
+        };
+        window.localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+      } catch (e) {}
+    }
+    function loadSession() {
+      try {
+        var raw = window.localStorage.getItem(SESSION_KEY);
+        if (!raw) return null;
+        var d = JSON.parse(raw);
+        if (!d || !Array.isArray(d.panes) || !d.panes.length) return null;
+        var out = [];
+        for (var i = 0; i < d.panes.length && out.length < 10; i++) {
+          var r = d.panes[i] || {};
+          var nm = String(r.name || '').trim().slice(0, 64);
+          var id = normTid(r.id !== undefined ? r.id : r.tid);
+          if (nm !== '' || id !== '') out.push({ name: nm, tid: id });
+        }
+        if (!out.length) return null;
+        return { panes: out, active: Math.max(0, Math.min(out.length - 1, Number(d.active) || 0)) };
+      } catch (e) { return null; }
+    }
+    function enforceLimits() {
+      var maxN = parseInt(cfgGet('max_terminals').trim(), 10);
+      if (Number.isFinite(maxN) && maxN > 0 && panes.length > maxN) {
+        var keep = activePane();
+        while (panes.length > maxN) {
+          var victim = null;
+          for (var i = panes.length - 1; i >= 0; i--) { if (panes[i] !== keep) { victim = panes[i]; break; } }
+          if (!victim) victim = panes[panes.length - 1];
+          victim.dead = true;
+          closePaneWs(victim);
+          delete boxTexts[victim.key];
+          panes.splice(panes.indexOf(victim), 1);
+        }
+      }
+      if (!cfgBool('allow_multi', true) && panes.length > 1) {
+        var ap = activePane() || panes[0];
+        for (var j = panes.length - 1; j >= 0; j--) {
+          if (panes[j] !== ap) { panes[j].dead = true; closePaneWs(panes[j]); delete boxTexts[panes[j].key]; panes.splice(j, 1); }
+        }
+      }
+      if (!activePane() && panes.length) activeKey = panes[0].key;
+    }
 
     // ---- shortcut placeholder vars: {{VAR}} / ${VAR} / $(VAR) -------------------
     var SHORTCUT_VAR_RE = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}|\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}|\$\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
@@ -330,6 +386,7 @@ content_html: |-
     function ansiToHtml(text) {
       var parts = String(text).split(/\x1b\[/);
       var out = esc(parts[0]);
+      var spanOpen = false;
       for (var i = 1; i < parts.length; i++) {
         var seg = parts[i];
         var m = seg.match(/^([0-9;]*)([A-Za-z])/);
@@ -342,11 +399,11 @@ content_html: |-
         var nums = m[1].split(';').filter(Boolean).map(Number);
         if (code === 'm') {
           var open = '';
-          var close = false;
+          var reset = false;
           if (nums.length === 0) nums = [0];
           for (var k = 0; k < nums.length; k++) {
             var n = nums[k];
-            if (n === 0) { close = true; }
+            if (n === 0) { reset = true; }
             else if (n === 1) open += 'font-weight:600;';
             else if (n === 3) open += 'font-style:italic;';
             else if (n === 4) open += 'text-decoration:underline;';
@@ -354,14 +411,20 @@ content_html: |-
             else if (n === 39) open += 'color:var(--ks-secondary,#d4d4d4)';
             else if (n >= 90 && n <= 97) open += 'color:' + PALETTE[n - 90 + 8] + ';';
           }
-          if (close && nums.length === 1) out += '</span>';
-          else if (open) out += '<span style="' + open + '">';
+          if (reset && spanOpen) { out += '</span>'; spanOpen = false; }
+          if (open) {
+            if (spanOpen) out += '</span>';
+            out += '<span style="' + open + '">';
+            spanOpen = true;
+          }
         } else if (code === 'J' && (nums[0] === 2 || m[1] === '')) {
-          out += '\x1b[CLEAR]\x1b[';
+          if (spanOpen) { out += '</span>'; spanOpen = false; }
+          out = '';
         }
         out += esc(seg.slice(m[0].length)).replace(/<\/?span[^>]*>/g, '');
       }
-      return out.split('\x1b[CLEAR]\x1b[').join('');
+      if (spanOpen) out += '</span>';
+      return out;
     }
 
     // ---- startup-pane severity tint (display-only, uncolored lines only) --------
@@ -412,6 +475,8 @@ content_html: |-
     var liveActions = [];
     var liveInstall = { state: '', kind: '', actionId: '' };
     var pollTimer = null;
+    var SESSION_KEY = 'ks.terminal.session.v1';
+    var lastCfgHash = '';
     var FONT_KEY = 'ks.terminal.fontSize';
     var PREFIX_KEY = 'ks.terminal.showLogPrefix';
     var fontSize = 13;
@@ -477,8 +542,10 @@ content_html: |-
     }
     function paneText(pane) {
       var ls = pane.lines.slice();
-      while (ls.length && ls[ls.length - 1].replace(/<[^>]*>/g, '').trim() === '') ls.pop();
-      while (ls.length && ls[0].replace(/<[^>]*>/g, '').trim() === '') ls.shift();
+      if (pane.cur && pane.cur.trim() !== '') ls.push(ansiToHtml(pane.cur));
+      var isBlank = function (h) { return String(h).replace(/<[^>]*>/g, '').replace(/\u00a0/g, ' ').trim() === ''; };
+      while (ls.length && isBlank(ls[ls.length - 1])) ls.pop();
+      while (ls.length && isBlank(ls[0])) ls.shift();
       var div = document.createElement('div');
       div.innerHTML = ls.join('\n').split('<br>').join('\n');
       return (div.textContent || '').replace(/\n+$/, '');
@@ -514,10 +581,14 @@ content_html: |-
           if (n1 === ']') {
             var rest = text.slice(i + 2);
             var bel = rest.indexOf('\x07');
-            i += 2 + (bel >= 0 ? bel + 1 : rest.length);
+            if (bel < 0) { pane.pending = text.slice(i); i = text.length; continue; }
+            i += 2 + bel + 1;
             continue;
           }
-          if (n1 === '(' || n1 === ')' || n1 === '*' || n1 === '+' || n1 === '#') { i += 3; continue; }
+          if (n1 === '(' || n1 === ')' || n1 === '*' || n1 === '+' || n1 === '#') {
+            if (i + 2 >= text.length) { pane.pending = text.slice(i); i = text.length; continue; }
+            i += 3; continue;
+          }
           i += 2;
           continue;
         }
@@ -535,7 +606,7 @@ content_html: |-
       pane.cur = '';
       if (pane.lines.length > 3000) pane.lines.splice(0, pane.lines.length - 3000);
     }
-    function clearPane(pane) { pane.lines = []; pane.cur = ''; paintPane(pane); }
+    function clearPane(pane) { pane.lines = []; pane.cur = ''; pane.overwritable = false; pane.pending = ''; paintPane(pane); }
     function feedBytes(pane, bytes) {
       var text = bytesToStr(bytes);
       if (!showPrefix) {
@@ -570,7 +641,19 @@ content_html: |-
     function paintAll() {
       for (var i = 0; i < panes.length; i++) paintPane(panes[i]);
     }
-    setInterval(paintAll, 150);
+    var paintTimer = window.setInterval(function () {
+      if (document.hidden) return;
+      try {
+        var live = document.getElementById('ks-live');
+        if (live && live.style.display === 'none') return;
+      } catch (e) {}
+      paintAll();
+    }, 150);
+    window.addEventListener('pagehide', function () {
+      try { window.clearInterval(paintTimer); } catch (e) {}
+      try { if (pollTimer) window.clearInterval(pollTimer); } catch (e2) {}
+      for (var i = 0; i < panes.length; i++) closePaneWs(panes[i]);
+    });
 
     // ---- wire ---------------------------------------------------------------------
     function sendStdin(pane, data) {
@@ -603,6 +686,16 @@ content_html: |-
       pane.state = st;
       pane.stateMsg = msg || '';
       renderTabs();
+    }
+    function scheduleReconnect(pane) {
+      if (pane.dead) return;
+      if (pane.lastOpenAt && Date.now() - pane.lastOpenAt > 3000) pane.attempt = 0;
+      pane.attempt = (pane.attempt || 0) + 1;
+      var backoff = Math.min(8000, 500 * Math.pow(2, pane.attempt));
+      setPaneState(pane, 'reconnecting', 'reconnecting in ' + Math.round(backoff / 1000) + 's');
+      feed(pane, '\r\n\x1b[33m● connection dropped — reconnecting in ' + Math.round(backoff / 1000) + 's\x1b[0m\r\n');
+      if (pane.timer) window.clearTimeout(pane.timer);
+      pane.timer = window.setTimeout(function () { if (!pane.dead) openPane(pane); }, backoff);
     }
     function openPane(pane) {
       closePaneWs(pane);
@@ -645,19 +738,15 @@ content_html: |-
         } else if (msg.type === 'error') {
           setPaneState(pane, 'error', msg.message || 'error');
           feed(pane, '\r\n\x1b[31m● ' + (msg.message || 'error') + '\x1b[0m\r\n');
+          try { if (pane.ws) pane.ws.close(); } catch (e) {}
+          pane.ws = null;
+          scheduleReconnect(pane);
         }
       };
       ws.onerror = function () { setPaneState(pane, 'error', 'connection failed'); };
       ws.onclose = function () {
         pane.ws = null;
-        if (pane.dead) return;
-        if (pane.lastOpenAt && Date.now() - pane.lastOpenAt > 3000) pane.attempt = 0;
-        pane.attempt = (pane.attempt || 0) + 1;
-        var backoff = Math.min(8000, 500 * Math.pow(2, pane.attempt));
-        setPaneState(pane, 'reconnecting', 'reconnecting in ' + Math.round(backoff / 1000) + 's');
-        feed(pane, '\r\n\x1b[33m● connection dropped — reconnecting in ' + Math.round(backoff / 1000) + 's\x1b[0m\r\n');
-        if (pane.timer) window.clearTimeout(pane.timer);
-        pane.timer = window.setTimeout(function () { openPane(pane); }, backoff);
+        scheduleReconnect(pane);
       };
     }
     function closePaneWs(pane) {
@@ -695,12 +784,18 @@ content_html: |-
     function paneReadOnly(pane) {
       if (pane.stoppedExit) return true;
       if (cfgGet('input_mode') === 'box') return true;
-      return cfgGet('default_allow_input') === 'disabled';
+      var mode = cfgGet('default_allow_input');
+      if (mode === 'disabled') return true;
+      if (mode === 'allowlist') return normTid(pane.tid) === '';
+      return false;
     }
     // programmatic twin of typing a line + Enter (box Send, shortcuts)
     function sendLineToPane(pane, line) {
+      if (pane.stoppedExit) { toast('Pane stopped — Refresh to reconnect', 'error'); return; }
+      var mode = cfgGet('default_allow_input');
+      if (mode === 'disabled') { toast('Input disabled by template', 'error'); return; }
+      if (mode === 'allowlist' && normTid(pane.tid) === '') { toast('Input allowed only on bound terminals', 'error'); return; }
       if (line.trim() === '') return;
-      if (cfgGet('default_allow_input') === 'disabled') { toast('Input disabled by template', 'error'); return; }
       echoLocal(pane, line + '\r');
       sendStdin(pane, line + '\r');
       paneLine(pane, line);
@@ -710,6 +805,11 @@ content_html: |-
       var out = '';
       for (var i = 0; i < d.length; i++) {
         var ch = d[i];
+        if (ch === '\x1b') {
+          var m = d.slice(i + 1).match(/^\[[ -?]*[@-~]/);
+          if (m) i += m[0].length;
+          continue;
+        }
         if (ch === '\r' || ch === '\n') out += '\r\n';
         else if (ch === '\x7f' || ch === '\b') out += '\b \b';
         else if (ch >= ' ' || ch === '\t') out += ch;
@@ -723,15 +823,20 @@ content_html: |-
       var hid = document.getElementById('hid-' + pane.key);
       if (!pre || !hid) return;
       pre.addEventListener('click', function () { try { hid.focus({ preventScroll: true }); } catch (e) { try { hid.focus(); } catch (e2) {} } });
-      hid.addEventListener('input', function () {
+      hid.addEventListener('input', function (ev) {
+        if (ev && ev.isComposing) return;
         var v = hid.value;
         if (!v) return;
         hid.value = '';
         if (paneReadOnly(pane)) return;
-        for (var i = 0; i < v.length; i++) {
-          var seq = v[i] === '\n' ? '\r' : v[i];
-          echoLocal(pane, seq);
-          sendStdin(pane, seq);
+        var chunk = '';
+        for (var i = 0; i < v.length; i++) chunk += v[i] === '\n' ? '\r' : v[i];
+        echoLocal(pane, chunk);
+        sendStdin(pane, chunk);
+        for (var j = 0; j < chunk.length; j++) {
+          var c = chunk[j];
+          if (c === '\r') { paneLine(pane, pane.lineBuf || ''); pane.lineBuf = ''; }
+          else if (c >= ' ' || c === '\t') pane.lineBuf = (pane.lineBuf || '') + c;
         }
       });
       hid.addEventListener('keydown', function (ev) {
@@ -768,7 +873,7 @@ content_html: |-
           }
           return;
         }
-        if (ev.key && ev.key.length === 1) pane.lineBuf = (pane.lineBuf || '') + ev.key;
+        if (ev.key && ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) pane.lineBuf = (pane.lineBuf || '') + ev.key;
       });
     }
 
@@ -788,6 +893,12 @@ content_html: |-
         };
         renderStopped();
         renderTabs();
+        var ch = cfgHash();
+        if (ch !== lastCfgHash) {
+          lastCfgHash = ch;
+          enforceLimits();
+          renderPill(); renderTabs(); renderPanes(); startPoll();
+        }
       }).catch(function () {});
     }
     function startPoll() {
@@ -821,7 +932,7 @@ content_html: |-
         }
         renderPanes();
       } else {
-        askFor = { i: i, target: target };
+        askFor = { cmd: sc.command, label: sc.label, target: target };
         askVals = {};
         renderDialogs();
       }
@@ -957,7 +1068,7 @@ content_html: |-
         var url = window.URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
-        a.download = 'terminal-' + (sdk.instance.id || 'instance') + '-' + label + '-' + stamp + '.log';
+        a.download = 'terminal-' + (((sdk && sdk.instance && sdk.instance.id) || 'instance')) + '-' + label + '-' + stamp + '.log';
         document.body.appendChild(a); a.click(); a.remove();
         window.setTimeout(function () { window.URL.revokeObjectURL(url); }, 1000);
         flashPill('Saved');
@@ -987,6 +1098,7 @@ content_html: |-
             var c = e.target && e.target.closest ? e.target.closest('[data-close]') : null;
             if (c) { removePane(Number(c.getAttribute('data-close'))); return; }
             activeKey = Number(t.getAttribute('data-tab'));
+            saveSession();
             renderTabs(); renderPanes(); renderPhoneTabs();
           });
         })(tabs[i]);
@@ -1009,6 +1121,7 @@ content_html: |-
         (function (b) {
           b.addEventListener('click', function () {
             activeKey = Number(b.getAttribute('data-ptab'));
+            saveSession();
             renderTabs(); renderPanes(); renderPhoneTabs();
           });
         })(btns[i]);
@@ -1020,6 +1133,13 @@ content_html: |-
     function renderPanes() {
       var host = el('ks-panes');
       if (!host) return;
+      var savedScroll = {};
+      var savedFocus = '';
+      try { savedFocus = (document.activeElement && document.activeElement.id) || ''; } catch (e) {}
+      for (var si = 0; si < panes.length; si++) {
+        var spre = document.getElementById('pre-' + panes[si].key);
+        if (spre) { try { savedScroll[panes[si].key] = { top: spre.scrollTop, bottom: spre.scrollTop + spre.clientHeight >= spre.scrollHeight - 24 }; } catch (e2) {} }
+      }
       var boxMode = cfgGet('input_mode') === 'box';
       host.innerHTML = panes.map(function (p) {
         var active = p.key === activeKey;
@@ -1066,6 +1186,16 @@ content_html: |-
         })(panes[i]);
       }
       applyFontSize();
+      for (var ri = 0; ri < panes.length; ri++) {
+        var rp = panes[ri];
+        var kept = savedScroll[rp.key];
+        var rpre = document.getElementById('pre-' + rp.key);
+        if (rpre && kept && !kept.bottom) { try { rpre.scrollTop = kept.top; } catch (e) {} }
+      }
+      if (savedFocus) {
+        var fn = document.getElementById(savedFocus);
+        if (fn && fn.focus) { try { fn.focus({ preventScroll: true }); } catch (e) { try { fn.focus(); } catch (e2) {} } }
+      }
     }
 
     function renderStopped() {
@@ -1084,6 +1214,12 @@ content_html: |-
       }
     }
 
+    function addIdHintHtml() {
+      var norm = normTid(draftId);
+      if (draftId.trim() !== '' && norm === '') return '<p id="dlg-id-hint" style="font-size:11px;color:var(--ks-bad);margin:6px 0 0">Invalid ID — use only letters, numbers, _ and - (max 64 chars).</p>';
+      if (norm !== '') return '<p id="dlg-id-hint" style="font-size:11px;color:var(--ks-muted);margin:6px 0 0">Terminal ID: <code class="ks-mono" style="color:var(--ks-body)">' + esc(norm) + '</code> — must match the action\u2019s Terminal ID for its live console.</p>';
+      return '<p id="dlg-id-hint" style="font-size:11px;color:var(--ks-muted);margin:6px 0 0">Leave empty for a plain shell, or enter the action\u2019s Terminal ID for its live console.</p>';
+    }
     function renderDialogs() {
       var host = el('ks-dialogs');
       if (!host) return;
@@ -1098,17 +1234,15 @@ content_html: |-
           + '<input id="dlg-name" value="' + esc(draftName) + '" placeholder="e.g. MC console" style="width:100%;box-sizing:border-box" class="ks-input">'
           + '<label style="display:block;font-size:12px;color:var(--ks-muted);margin:12px 0 4px">ID <span style="opacity:.7">(empty = plain shell)</span></label>'
           + '<input id="dlg-id" value="' + esc(draftId) + '" placeholder="action terminal id (e.g. mc-console)" style="width:100%;box-sizing:border-box" class="ks-input ks-mono">'
-          + (invalid ? '<p style="font-size:11px;color:var(--ks-bad);margin:6px 0 0">Invalid ID — use only letters, numbers, _ and - (max 64 chars).</p>'
-            : (norm !== '' ? '<p style="font-size:11px;color:var(--ks-muted);margin:6px 0 0">Terminal ID: <code class="ks-mono" style="color:var(--ks-body)">' + esc(norm) + '</code> — must match the action\u2019s Terminal ID for its live console.</p>'
-            : '<p style="font-size:11px;color:var(--ks-muted);margin:6px 0 0">Leave empty for a plain shell, or enter the action\u2019s Terminal ID for its live console.</p>'))
+          + addIdHintHtml()
           + '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px"><button type="button" data-x="add" class="ks-btn">Cancel</button>'
           + '<button type="button" id="dlg-add-ok" ' + (invalid ? 'disabled style="opacity:.4" class="ks-btn"' : 'class="ks-btn" style="background:var(--ks-btn-bg,#fff);color:var(--ks-btn-text,#000)"') + '>Add</button></div>'
           + '</div></div>';
       }
-      if (askFor !== null) {
-        var sc = shortcuts()[askFor.i];
-        if (sc) {
-          var cmd = sc.command;
+      if (askFor !== null && askFor.cmd) {
+        var sc = askFor;
+        {
+          var cmd = sc.cmd;
           var vars = extractShortcutVars(cmd);
           var blocked = vars.some(function (v) { return !(askVals[v] || '').trim(); });
           h += '<div data-overlay="1" style="position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.60);padding:16px">'
@@ -1149,7 +1283,18 @@ content_html: |-
       }
       var di = document.getElementById('dlg-id');
       if (di) {
-        di.addEventListener('input', function () { draftId = di.value; renderDialogs(); var n = document.getElementById('dlg-id'); if (n) { n.focus(); try { n.setSelectionRange(n.value.length, n.value.length); } catch (e) {} } });
+        di.addEventListener('input', function () {
+          draftId = di.value;
+          var bad = draftId.trim() !== '' && normTid(draftId) === '';
+          var okBtn = document.getElementById('dlg-add-ok');
+          if (okBtn) okBtn.disabled = bad;
+          var hint = document.getElementById('dlg-id-hint');
+          if (hint) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = addIdHintHtml();
+            if (tmp.firstChild) hint.replaceWith(tmp.firstChild);
+          }
+        });
         di.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') confirmAddPane(); });
       }
       var ok = document.getElementById('dlg-add-ok');
@@ -1159,7 +1304,7 @@ content_html: |-
         (function (inp) {
           inp.addEventListener('input', function () {
             askVals[inp.getAttribute('data-askvar')] = inp.value.slice(0, 200);
-            var blocked2 = extractShortcutVars(shortcuts()[askFor.i].command).some(function (v) { return !(askVals[v] || '').trim(); });
+            var blocked2 = (askFor && askFor.cmd) ? extractShortcutVars(askFor.cmd).some(function (v) { return !(askVals[v] || '').trim(); }) : false;
             var btn = document.getElementById('dlg-ask-ok');
             if (btn) btn.disabled = blocked2;
           });
@@ -1177,12 +1322,11 @@ content_html: |-
       renderDialogs();
     }
     function confirmAsk() {
-      if (askFor === null) return;
-      var sc = shortcuts()[askFor.i];
-      if (!sc) { askFor = null; renderDialogs(); return; }
-      var vars = extractShortcutVars(sc.command);
+      if (askFor === null || !askFor.cmd) { askFor = null; renderDialogs(); return; }
+      var sc = askFor;
+      var vars = extractShortcutVars(sc.cmd);
       for (var i = 0; i < vars.length; i++) if (!(askVals[vars[i]] || '').trim()) return;
-      var text = resolveShortcutCommand(sc.command, askVals);
+      var text = resolveShortcutCommand(sc.cmd, askVals);
       if (askFor.target === 'box') boxTexts[activeKey] = text;
       else {
         var p = activePane();
@@ -1200,6 +1344,7 @@ content_html: |-
       var p = { key: keySeq++, name: name || '', tid: normTid(tid), ws: null, state: 'connecting', stateMsg: '', attempt: 0, timer: null, lines: [], cur: '', pending: '', overwritable: false, lineBuf: '', ep: 'terminal', stoppedExit: false, dead: false, lastOpenAt: 0 };
       panes.push(p);
       activeKey = p.key;
+      saveSession();
       renderTabs(); renderPanes(); startPoll();
       openPane(p);
     }
@@ -1216,7 +1361,8 @@ content_html: |-
         var fb = panes[Math.min(idx, panes.length - 1)];
         activeKey = fb.key;
       }
-      renderTabs(); renderPanes();
+      saveSession();
+      renderTabs(); renderPanes(); startPoll();
     }
     function seedPanes() {
       var raws = cfgJSON('default_terminals').slice(0, 10);
@@ -1227,20 +1373,26 @@ content_html: |-
         var id = normTid(r.id);
         if (nm !== '' || id !== '') list.push({ name: nm, tid: id });
       }
-      if (!cfgBool('allow_multi', true)) list = list.slice(0, 1);
+      var wantActive = 0;
+      if (!list.length) {
+        var sess = loadSession();
+        if (sess) { list = sess.panes; wantActive = sess.active; }
+      }
+      if (!cfgBool('allow_multi', true)) { list = list.slice(0, 1); wantActive = 0; }
       var maxN = parseInt(cfgGet('max_terminals').trim(), 10);
-      if (Number.isFinite(maxN) && maxN > 0) list = list.slice(0, maxN);
+      if (Number.isFinite(maxN) && maxN > 0) { list = list.slice(0, maxN); wantActive = Math.min(wantActive, Math.max(0, list.length - 1)); }
       if (!list.length) list = [{ name: '', tid: '' }];
       for (var j = 0; j < list.length; j++) {
         panes.push({ key: keySeq++, name: list[j].name, tid: list[j].tid, ws: null, state: 'connecting', stateMsg: '', attempt: 0, timer: null, lines: [], cur: '', pending: '', overwritable: false, lineBuf: '', ep: 'terminal', stoppedExit: false, dead: false, lastOpenAt: 0 });
       }
-      activeKey = panes[0].key;
+      activeKey = panes[Math.min(wantActive, panes.length - 1)].key;
     }
 
     // ---- boot -------------------------------------------------------------------------
     function renderChrome() { renderPill(); renderTabs(); renderPanes(); renderDialogs(); renderStopped(); }
     function start(s) {
       sdk = s;
+      lastCfgHash = cfgHash();
       try {
         var cfg = (s.instance.config || {});
         var list = Array.isArray(cfg.actions) ? cfg.actions : [];
@@ -1263,6 +1415,14 @@ content_html: |-
         for (var j = 0; j < panes.length; j++) sendResize(panes[j]);
       });
     }
+    window.addEventListener('message', function (ev) {
+      if (!ev || ev.source !== window.parent || !ev.data || typeof ev.data !== 'object') return;
+      if (ev.data.type === 'ks-page-config' && ev.data.config && typeof ev.data.config === 'object') {
+        try { window.KS_PAGE_CONFIG = ev.data.config; } catch (e) {}
+        enforceLimits();
+        renderPill(); renderTabs(); renderPanes(); startPoll();
+      }
+    });
     if (window.KSPageSDK) start(window.KSPageSDK);
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
@@ -1310,7 +1470,7 @@ configure:
   append_value: ''
 - name: default_allow_input
   label: New-pane input default
-  description: Whether new panes accept typed input.
+  description: Whether new panes accept typed input (all = every pane, allowlist = only panes bound to a terminal ID, disabled = none).
   default: all
   user_viewable: true
   user_editable: true

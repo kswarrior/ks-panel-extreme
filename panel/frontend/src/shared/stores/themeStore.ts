@@ -2310,6 +2310,30 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
 .ks-page-card:hover { border-color: var(--ks-pagecard-hover) !important; }
 
 /* ------------------------------------------------------------------
+   Theme Studio → Cards: nested-row single-glass flattening. Template
+   Actions / Env / Install rows (and studio configure / block rows)
+   render INSIDE a ks-form-card section, and action steps nest a row
+   inside a row. When both surfaces carry their own translucent fill +
+   backdrop-blur + shadow, the two frosted layers stack into a milky
+   grey that no longer looks like the Form card. Only the OUTER Form
+   carries the glass; nested rows become almost-transparent structure
+   (border + radius + padding + hover still themed via the Row tab).
+   Standalone rows (Cards-tab preview) keep their full glass paint.
+   ------------------------------------------------------------------ */
+.ks-form-card .ks-row-card,
+.ks-form-card .ks-page-card,
+.ks-row-card .ks-row-card,
+.ks-row-card .ks-page-card,
+.ks-page-card .ks-row-card,
+.ks-page-card .ks-page-card {
+  background-color: transparent !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+/* ------------------------------------------------------------------
    Theme Studio → Cards: row/page inset editor bodies. The collapsible
    area under each row/page header (the part that used to be a hardcoded
    bg-black/20 + border-white/5 pair, which stayed dark gray no matter
