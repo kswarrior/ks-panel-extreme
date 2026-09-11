@@ -2345,6 +2345,21 @@ ${String(f.toggle_thumb_shadow || '').trim() ? `\n.ks-toggle .ks-toggle__thumb {
   width: var(--ks-pill-icon-size) !important;
   height: var(--ks-pill-icon-size) !important;
 }
+/* Collapsed ("<"-only) shell — slim rectangle instead of a near-square.
+   Only horizontal padding shrinks (chevron + a little space each side);
+   top/bottom padding is untouched so height matches the open pill. The
+   toggle button itself is slimmed inline (see PILL_TOGGLE_COLLAPSED_PX);
+   these rules are the CSS fallback + shell-side slimming. */
+.ks-card.ks-pill-anim.ks-actions-pill.ks-pill-collapsed,
+.ks-card.ks-pill-anim.ks-form-actions-pill.ks-pill-collapsed {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
+.ks-actions-pill.ks-pill-collapsed .ks-pill-toggle,
+.ks-form-actions-pill.ks-pill-collapsed .ks-pill-toggle {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+}
 /* Collapsing content: gap + duration follow the Pill tab. The motion
    itself (slide/fade/scale) is applied inline by PageActionsPill /
    PageTabsPill. */

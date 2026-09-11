@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useThemeStore } from '@/shared/stores/themeStore';
-import { PILL_SHOW_DELAY, PILL_TAB_STYLE, useAutoHidePill } from './PageActionsPill';
+import { PILL_SHOW_DELAY, PILL_TAB_STYLE, PILL_TOGGLE_COLLAPSED_PX, useAutoHidePill } from './PageActionsPill';
 
 interface PageFormActionsPillProps {
   children: React.ReactNode;
@@ -66,7 +66,7 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
       >
         <div
           ref={ref}
-          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${className}`}
+          className={`ks-card ks-pill-anim ks-form-actions-pill rounded-md flex items-center shadow-lg shadow-black/40 opacity-100 ${isOff ? 'ks-pill-collapsed' : ''} ${className}`}
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <div
@@ -97,7 +97,11 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
             aria-label={isOff ? 'Show form actions' : 'Hide form actions'}
             aria-expanded={!isOff}
             title={isOff ? 'Show form actions' : 'Hide form actions'}
-            style={PILL_TAB_STYLE}
+            style={
+              isOff
+                ? ({ ...PILL_TAB_STYLE, '--ks-tab-px': PILL_TOGGLE_COLLAPSED_PX } as React.CSSProperties)
+                : PILL_TAB_STYLE
+            }
             className="ks-tab ks-pill-toggle inline-flex items-center justify-center shrink-0"
           >
             {isOff ? (
