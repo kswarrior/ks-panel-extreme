@@ -833,6 +833,19 @@ func validateReactModules(entry string, modules map[string]string) error {
 				}
 			}
 			for _, nn := range imp.named {
+				if nn.imported == "default" {
+					// `import { default as D } from './m'` — the default binding.
+					if !target.hasDefault {
+						availE := "(no value exports)"
+						if len(target.values) > 0 {
+							sorted := append([]string{}, target.values...)
+							sort.Strings(sorted)
+							availE = strings.Join(sorted, ", ")
+						}
+						return newErrString("module " + depLabel + " has no default export — available: " + availE + " — add 'export default ...' or use a named import")
+					}
+					continue
+				}
 				if containsReactStr(target.types, nn.imported) && !containsReactStr(target.values, nn.imported) {
 					return newErrString("module " + depLabel + " export '" + nn.imported + "' is a type (interface/type) and cannot be imported as a value — import a function, const or component instead")
 				}

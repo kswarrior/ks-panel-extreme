@@ -2522,10 +2522,19 @@ function bundleVirtualModules(entrySrc: string, modules: Record<string, string>)
       const bindings: string[] = [];
       const checkNamed = (items: Array<{ imported: string; local: string }>) => {
         for (const { imported, local } of items) {
+          if (imported === 'default') {
+            // `import { default as D } from './m'` — the default binding.
+            if (!exp.hasDefault) {
+              const avail = exp.values.length ? exp.values.slice().sort().join(', ') : '(no value exports)';
+              throw new Error(`module ${depLabel} has no default export — available: ${avail} — add 'export default ...' or use a named import`);
+            }
+            bindings.push(`const ${local} = __ks_default_${sanitizeModuleKey(byKey.get(dep)!.name)};`);
+            continue;
+          }
           if (exp.types.includes(imported) && !exp.values.includes(imported)) {
             throw new Error(`module ${depLabel} export '${imported}' is a type (interface/type) and cannot be imported as a value — import a function, const or component instead`);
           }
-          if (!exp.values.includes(imported) && imported !== 'default') {
+          if (!exp.values.includes(imported)) {
             const avail = exp.values.length ? exp.values.slice().sort().join(', ') : '(no value exports)';
             throw new Error(`module ${depLabel} has no export '${imported}' — available: ${avail}`);
           }
@@ -2605,8 +2614,8 @@ export function transpileReactPageSource(
   modules?: Record<string, string>,
 ): { code: string; hadJSX: boolean; hadTS: boolean; hadImport: boolean } {
   // Optional second arg (default {}): old single-file call sites keep
-  // working and stay byte-identical (fast path below skips bundling when no
-  // reachable relative import exists).
+  // working and stay byte-identical (the old path runs verbatim when the
+  // entry has no non-react import; unused Files never ship).
   const table = modules ?? {};
   const needsBundle = collectFileImports(src).some((i) => i.spec !== 'react');
   const entry = needsBundle ? bundleVirtualModules(src, table) : src;
