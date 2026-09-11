@@ -37,6 +37,8 @@ import {
 } from '@/shared/types/mod';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 
 // resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when the manifest shipped an
@@ -53,6 +55,13 @@ const CapDot: React.FC<{ capability: string }> = ({ capability }) => {
 const Mods: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle mod cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [mods, setMods] = useState<Mod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

@@ -14,6 +14,8 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -29,6 +31,13 @@ const emptyForm: Form = { name: '', user_id: 0, permissions: [] };
 const AdminApiKeys: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle API key cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -281,7 +290,7 @@ const AdminApiKeys: React.FC = () => {
           </button>
       </PageActionsPill>
 
-       {error && keys.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
+       {error && keys.length > 0 && <p className="mb-3 text-sm" style={{ color: 'var(--ks-accent-danger, #f87171)' }}>{error}</p>}
        {!loading && error && keys.length === 0 && (
          <ErrorState
            variant="error"
@@ -310,8 +319,13 @@ const AdminApiKeys: React.FC = () => {
                ? { backgroundColor: k.accent_color, color: '#000', borderColor: k.accent_color }
                : undefined;
              return (
-               <article key={k.id} id={`ks-apikey-${k.id}`} className="ks-card ks-list-card glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <header className="flex items-start gap-3 min-w-0">
+                <article key={k.id} id={`ks-apikey-${k.id}`} className={`ks-card ks-list-card glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                 <CardMediaLayer />
+                 <div
+                   className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                   style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                 />
+                 <header className="flex items-start gap-3 min-w-0">
                   <div
                     className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center border ${
                       k.accent_color ? '' : 'bg-amber-900/50 border-amber-700/40 text-amber-300'
@@ -325,19 +339,27 @@ const AdminApiKeys: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 min-w-0">
-                      <h3 className="text-sm font-semibold text-white truncate">{label}</h3>
+                      <h3 className="text-sm font-semibold truncate" style={{ color: 'var(--ks-text-heading)' }}>{label}</h3>
                       {k.display_name && k.display_name.trim() && k.display_name.trim() !== k.name && (
-                        <span className="shrink-0 text-[10px] uppercase tracking-wide font-mono text-gray-500 bg-white/5 border border-white/10 rounded px-1.5 py-0.5">
+                        <span
+                          className="shrink-0 text-[10px] uppercase tracking-wide font-mono rounded px-1.5 py-0.5 border"
+                          style={{
+                            color: 'var(--ks-text-body)',
+                            opacity: 0.7,
+                            borderColor: 'var(--ks-card-border)',
+                            background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                          }}
+                        >
                           {k.name}
                       </span>
                       )}
                  </div>
-                    <p className="text-[11px] text-gray-500 truncate font-mono">{k.prefix}…</p>
-                    <p className="text-xs text-gray-400 truncate">
-                      Owner: <span className="text-gray-200">{owner}</span>
+                    <p className="text-[11px] truncate font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{k.prefix}…</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--ks-text-body)' }}>
+                      Owner: <span style={{ color: 'var(--ks-text-heading)', opacity: 0.9 }}>{owner}</span>
                     </p>
                     {k.description && k.description.trim() && (
-                      <p className="text-xs text-gray-400/90 truncate italic mt-1" title={k.description}>
+                      <p className="text-xs truncate italic mt-1" style={{ color: 'var(--ks-text-body)' }} title={k.description}>
                         {k.description}
                     </p>
                     )}
@@ -360,8 +382,11 @@ const AdminApiKeys: React.FC = () => {
                   ))}
                 </div>
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {(() => {
                       const created = formatCardDate(k.created_at);
                       if (!created) return <>id {k.id}</>;
@@ -369,7 +394,7 @@ const AdminApiKeys: React.FC = () => {
                       return <>Created {created}{lastUsed ? <> · Last used {lastUsed}</> : null}</>;
                     })()}
                   </span>
-                  <Link to={`/api-key/${k.id}`} className="text-[11px] text-sky-300 hover:text-sky-200 hover:underline">View details →</Link>
+                  <Link to={`/api-key/${k.id}`} className="text-[11px] hover:underline hover:opacity-80" style={{ color: 'var(--ks-link)' }}>View details →</Link>
                 </footer>
               </article>
             );
@@ -394,7 +419,7 @@ const AdminApiKeys: React.FC = () => {
             >
               <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No API keys yet</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No API keys yet</p>
           </div>
         </div>
       )}
