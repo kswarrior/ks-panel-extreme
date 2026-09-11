@@ -5,14 +5,18 @@ import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sectionCls } from '@/features/instance-pages/types/pageStudio';
 import type { ComponentRow } from '@/features/instance-pages/types/pageStudio';
 import { SHARED_PANEL_COMPONENTS, type SharedPanelComponent } from '@/features/instance-pages/sharedPanelComponents';
+import { PAGE_UI_COMPONENTS } from '@/features/instance-pages/pageUIComponents';
 
 export interface PageStudioComponentsSectionProps {
   components: ComponentRow[];
   onAdd: () => void;
   onRemove: (id: string) => void;
   onUpdate: (id: string, patch: Partial<ComponentRow>) => void;
-  /** Import a panel-shared component by reference (stores name only). */
-  onImport?: (shared: SharedPanelComponent) => void;
+  /** Import a panel-shared component by reference (stores name only).
+   *  Accepts HTML shared entries and live-React clones alike (both carry
+   *  name/label/description); clones store a type:'shared' row whose ref the
+   *  React renderer maps to KSUI. */
+  onImport?: (shared: Pick<SharedPanelComponent, 'name' | 'label' | 'description'>) => void;
   sectionCls?: string;
 }
 
@@ -51,7 +55,21 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
     );
   });
 
-  const handleImport = (s: SharedPanelComponent) => {
+  // Live-React clones (pageUIComponents.ts): same picker, separate list.
+  // Importing one stores a type:'shared'-compatible row; the React renderer
+  // maps the page_* ref to KSUI (HTML pages intentionally ignore them).
+  const filteredClones = PAGE_UI_COMPONENTS.filter((s) => {
+    const q = importQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.label.toLowerCase().includes(q) ||
+      s.description.toLowerCase().includes(q) ||
+      s.ksuiKey.toLowerCase().includes(q)
+    );
+  });
+
+  const handleImport = (s: Pick<SharedPanelComponent, 'name' | 'label' | 'description'>) => {
     onImport?.(s);
     setImportOpen(false);
   };
@@ -188,6 +206,31 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
           {filtered.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-4">No panel components match “{importQuery}”.</p>
           )}
+          {filteredClones.length > 0 && (
+            <p className="text-[11px] uppercase tracking-wide text-gray-500 pt-1">Live React · instance pages only (KSUI)</p>
+          )}
+          {filteredClones.map((s) => {
+            const already = importedKeys.has(s.name);
+            return (
+              <div key={s.name} className="flex items-start justify-between gap-3 p-3 rounded-lg border border-emerald-400/20 bg-emerald-400/[0.03]">
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-medium">{s.label} <span className="font-mono text-[11px] text-gray-500">{s.name}</span>{' '}
+                    <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border border-emerald-400/30 bg-emerald-400/10 text-emerald-300">live React</span>{' '}
+                    <span className="font-mono text-[11px] text-emerald-300/70">KSUI.{s.ksuiKey}</span></p>
+                  <p className="text-xs text-gray-500 mt-0.5">{s.description}</p>
+                  <p className="text-[11px] text-gray-600 mt-1 font-mono">{"{{component:"}{s.name}{"}}"}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={already}
+                  onClick={() => handleImport(s)}
+                  className="ks-btn-header shrink-0 px-3 py-1.5 rounded text-xs disabled:opacity-50"
+                >
+                  {already ? 'Added' : 'Import'}
+                </button>
+              </div>
+            );
+          })}
         </div>
         <p className="text-[11px] text-gray-500">Import stores only the name — the panel supplies the source on every visit, so updates apply automatically.</p>
       </Modal>

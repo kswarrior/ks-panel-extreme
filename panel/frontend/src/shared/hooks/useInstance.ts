@@ -1,20 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
+import { parse as parseYaml } from 'yaml';
 import { listInstances } from '@/shared/api/admin';
 import { listMyInstances } from '@/features/auth/api/me';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
 import type { Instance } from '@/features/instances/types/instance';
 
-// Parse a template/instance "spec"/"config" JSON blob into a plain map. The
+// Parse a template/instance "spec"/"config" document into a plain map. The
 // spec is opaque to the panel, so callers that only want a couple of known
 // keys (env, ports, mounts, limits…) read off this helper without each
-// subpage re-implementing JSON.parse + try/catch.
+// subpage re-implementing parsing + try/catch.
+// Specs are stored as canonical YAML (legacy JSON rows parse identically —
+// YAML is a superset of JSON), so this accepts both syntaxes. Pure
+// JSON.parse here blanked the deploy form for every YAML template (install
+// workflow, command, etc. all missing) while the template editor (which
+// uses parseSpecDocument) kept working.
 export function parseConfig(raw?: string): any {
   if (!raw) return {};
+  // Fast path: legacy JSON (also valid YAML, but JSON.parse is cheaper and
+  // preserves the old error shape for truly corrupt blobs).
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed;
+    }
+  } catch {
+    // Fall through to the YAML parser below.
+  }
+  try {
+    const doc: unknown = parseYaml(raw);
+    if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
+      return doc as Record<string, any>;
     }
   } catch (e) {
     console.error('Error parsing config:', e);

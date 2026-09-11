@@ -49,8 +49,9 @@ export interface PageContent {
   markdown?: string;
   blocks?: string;
   /** Validated React bundle body for type == 'react'. Executed once per
-   *  bundle (see ReactModuleView) with (sdk, React) in scope; must return
-   *  the root component (`return Page;`). Near-real: JSX + light TS +
+   *  bundle (see ReactModuleView) with (sdk, React, KSUI) in scope; must return
+   *  the root component (`return Page;`). KSUI carries the dependency-free
+   *  panel-UI clones (pageUIComponents.ts). Near-real: JSX + light TS +
    *  react-only imports are transpiled in-memory before execution. */
   bundle?: string;
   /** Optional page CSS for type == 'react', scoped under .ks-react-page. */
