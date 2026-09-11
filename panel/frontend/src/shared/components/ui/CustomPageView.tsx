@@ -1575,7 +1575,7 @@ function customPageThemeCss(theme: Theme, pageSlugOrPath?: string): string {
     ::-webkit-scrollbar-thumb { background: var(--ks-card-border, rgba(255,255,255,0.15)); border-radius: 9999px; }
     ::-webkit-scrollbar-track { background: transparent; }
     /* Utility: make any inline hardcoded dark overlay respect theme via attribute override */
-    div[style*="rgba(0,0,0,0.55)"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
+    div[style*=\"rgba(0,0,0,0.55)\"] { background: var(--ks-modal-overlay, rgba(0,0,0,0.60)) !important; }
     /* Instance-page component parity — rules the starter-library preamble
        (pageStarters INSTANCE_THEME_SUPPORT_CSS) ships inline, promoted here
        so hand-written HTML pages and shared fragments (tabs strip, pill
