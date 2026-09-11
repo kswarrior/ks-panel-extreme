@@ -132,6 +132,20 @@ var reactImportRe = regexp.MustCompile(`(?m)^\s*(import|export)\b`)
 var reactFromAllowRe = regexp.MustCompile(`(?m)^\s*import\s+[^;]*?\sfrom\s+['"]react['"]\s*;?\s*$`)
 var reactSideEffectAllowRe = regexp.MustCompile(`(?m)^\s*import\s+['"]react['"]\s*;?\s*$`)
 
+// exportDeclAllowRe matches a leading `export` on a plain/enum/namespace/
+// interface/type/value declaration. The renderer drops the keyword (pages
+// are module-private scripts ending with `return Page;`), so only the
+// prefix is masked before reactImportRe runs — `export default`, `export {}`,
+// `export *` and re-exports stay rejected. `declare` is ambient (erased at
+// render), so `export declare ...` passes through this mask as well.
+var exportDeclAllowRe = regexp.MustCompile(`(?m)^\s*export\s+(const|let|var|async|function|class|enum|namespace|interface|type|declare)\b`)
+
+// declareAllowRe matches a top-level ambient `declare ...` opener. The
+// renderer erases the statement, so masking the keyword keeps the validator
+// from tripping on the declaration kind that follows (`declare const`,
+// `declare global {}`, `declare module "..." {}`).
+var declareAllowRe = regexp.MustCompile(`(?m)^\s*declare\b`)
+
 // blankReactStringsAndComments replaces string/comment contents with spaces
 // (newlines preserved) so keyword scans don't false-positive on JSX text or
 // quoted samples like "fetch(" inside a label.
@@ -390,23 +404,25 @@ func blankReactComments(src string) string {
 }
 
 // validateReactSource checks author React JS without executing it: size,
-// react-only imports allowed (see reactFromAllowRe), every other module
-// syntax rejected, plus a deny-list of host-escape primitives (eval,
-// Function constructor, raw fetch/XHR, cookie/localStorage access). The page
-// must use sdk.fetchPanel/storage instead so calls stay scoped. Near-real:
-// JSX + light TS annotations are allowed and transpiled at render time.
+// react-only imports and `export` on plain/enum/namespace/interface/type
+// declarations allowed (see reactFromAllowRe / exportDeclAllowRe), every
+// other module syntax rejected, plus a deny-list of host-escape primitives
+// (eval, Function constructor, raw fetch/XHR, cookie/localStorage access).
+// The page must use sdk.fetchPanel/storage instead so calls stay scoped.
+// Near-real: JSX + light TS (annotations, enum, namespace) are allowed and
+// transpiled at render time.
 func validateReactSource(src string) error {
 	if len(src) > maxInstancePageReactSourceBytes {
 		return newErrString("source_tsx too large (max 512KB)")
 	}
-	// Order matters: react imports are detected on comment-stripped RAW
-	// source (the `from 'react'` literal is still present), masked out, and
-	// only then are strings blanked for the remaining keyword scans — so a
-	// quoted sample like "fetch(" never trips the gates, while real code
-	// still does.
+	// Order matters: react imports and declaration exports are detected on
+	// comment-stripped RAW source (their literals are still present), masked
+	// out, and only then are strings blanked for the remaining keyword scans
+	// — so a quoted sample like "fetch(" never trips the gates, while real
+	// code still does.
 	noComments := blankReactComments(src)
 	masked := []byte(noComments)
-	for _, re := range []*regexp.Regexp{reactFromAllowRe, reactSideEffectAllowRe} {
+	for _, re := range []*regexp.Regexp{reactFromAllowRe, reactSideEffectAllowRe, exportDeclAllowRe, declareAllowRe} {
 		for _, loc := range re.FindAllStringIndex(noComments, -1) {
 			for i := loc[0]; i < loc[1]; i++ {
 				if masked[i] != '\n' {
@@ -417,7 +433,7 @@ func validateReactSource(src string) error {
 	}
 	blanked := blankReactStringsAndComments(string(masked))
 	if reactImportRe.MatchString(blanked) {
-		return newErrString("source_tsx must not import from other packages (only `from 'react'` is allowed; React and sdk are already in scope)")
+		return newErrString("source_tsx must not import from other packages and must not use `export default`/`export {}`/`export *` (only `from 'react'` and `export` on plain declarations are allowed; React and sdk are already in scope)")
 	}
 	lower := strings.ToLower(blanked)
 	for _, denied := range []string{"eval(", "new function", "__proto__", "xmlhttprequest", "document.cookie", "localstorage", "sessionstorage", "child_process", "require("} {

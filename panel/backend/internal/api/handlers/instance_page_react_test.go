@@ -55,7 +55,39 @@ function Page() { return React.createElement('div', null, 'hi'); }`,
 	}
 }
 
-func TestValidateReactSourceAllowsJSXAndLightTS(t *testing.T) {
+func TestValidateReactSourceAllowsExportDeclarations(t *testing.T) {
+	for _, src := range []string{
+		`export const title = 'hi';
+function Page() { return React.createElement('div', null, title); }
+return Page;`,
+		`export enum Level { Low, High = 5 }
+function Page() { return React.createElement('div', null, String(Level.High)); }
+return Page;`,
+		`export namespace Maps { export const a = 1; }
+function Page() { return React.createElement('div', null, String(Maps.a)); }
+return Page;`,
+		`export interface P { t: string }
+function Page(p: P) { return React.createElement('div', null, p.t); }
+return Page;`,
+		`declare const version: string;
+function Page() { return React.createElement('div', null, 'v'); }
+return Page;`,
+	} {
+		if err := validateReactSource(src); err != nil {
+			t.Fatalf("expected export/declare source to pass, got %v", err)
+		}
+	}
+	for _, src := range []string{
+		`export default Page`,
+		`export { Page }`,
+		`export * from './x'`,
+		`export = Page`,
+	} {
+		if err := validateReactSource(src); err == nil {
+			t.Fatalf("expected rejection for %q", src)
+		}
+	}
+}
 	for _, src := range []string{
 		`function Page() { return <div className="ks-page">hi</div>; }
 return Page;`,
