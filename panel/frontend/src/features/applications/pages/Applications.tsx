@@ -26,6 +26,8 @@ import {
   appRuntimeMeta,
 } from '@/features/applications/types/application';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import { useThemeStore } from '@/shared/stores/themeStore';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -74,6 +76,13 @@ const RuntimeChip: React.FC<{ runtime: string }> = ({ runtime }) => {
 const Applications: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  // Same theme hooks as the roles list so Card-tab video/glass-style and
+  // the list-card variant tokens restyle application cards identically.
+  const glassModifier = useThemeStore((s) => {
+    const g = s.active().card.glass_style;
+    if (!g || g === 'frosted') return '';
+    return g === 'solid' ? 'ks-card-glass-solid' : 'ks-card-glass-strong';
+  });
   const [apps, setApps] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -450,8 +459,12 @@ return (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-applications-grid">
           {filtered.map((a) => {
             return (
-              <article key={a.id} id={`ks-application-${a.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
-                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+              <article key={a.id} id={`ks-application-${a.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
+                <CardMediaLayer />
+                <div
+                  className="pointer-events-none absolute inset-x-0 top-0 h-px"
+                  style={{ background: 'linear-gradient(to right, transparent, color-mix(in srgb, var(--ks-text-heading, #ffffff) 30%, transparent), transparent)' }}
+                />
                 <header className="flex items-start gap-3 min-w-0">
                   {a.icon ? (
                     <CardIconTile
@@ -465,15 +478,18 @@ return (
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight">{a.name}</h3>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{a.slug}{a.version ? ` · v${a.version}` : ''}</p>
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>{a.name}</h3>
+                    <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{a.slug}{a.version ? ` · v${a.version}` : ''}</p>
                   </div>
                   <span className={`shrink-0 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${a.active ? 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60' : 'bg-neutral-800 text-gray-300 border-neutral-700'}`}>
                     {a.active ? 'Active' : 'Inactive'}
                   </span>
                 </header>
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-end gap-2">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-end gap-2"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
                   <CardMenu
                     ariaLabel={`Actions for application ${a.name}`}
                     items={[
@@ -523,10 +539,10 @@ return (
       )}
 
       {!loading && filtered.length === 0 && apps.length > 0 && !error && (
-        <GlassCard className="text-center text-gray-400">No applications match your filters.</GlassCard>
+        <GlassCard className="text-center" style={{ color: 'var(--ks-text-body)' } as React.CSSProperties}>No applications match your filters.</GlassCard>
       )}
       {!loading && apps.length === 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No applications in the catalog yet. Click “Upload Application” to add one.</div>
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>No applications in the catalog yet. Click “Upload Application” to add one.</div>
       )}
 
       {/* ---- Upload modal ---- */}

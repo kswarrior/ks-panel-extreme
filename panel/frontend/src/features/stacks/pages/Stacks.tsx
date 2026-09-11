@@ -357,11 +357,11 @@ const Stacks: React.FC = () => {
                     fallback={<span aria-hidden="true" className="text-lg">📦</span>}
                   />
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate leading-tight">
-                      <Link to={`/stack/${s.id}`} className="hover:text-sky-300">{s.name}</Link>
+                    <h3 className="text-sm font-semibold truncate leading-tight" style={{ color: 'var(--ks-text-heading)' }}>
+                      <Link to={`/stack/${s.id}`} className="hover:opacity-80">{s.name}</Link>
                     </h3>
-                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{s.slug}{s.version ? ` · v${s.version}` : ''}{s.category ? ` · ${s.category}` : ''}</p>
-                    {s.description && <p className="text-xs text-gray-400 line-clamp-2 mt-0.5">{s.description}</p>}
+                    <p className="text-[11px] truncate mt-0.5 font-mono" style={{ color: 'var(--ks-text-body)', opacity: 0.65 }}>{s.slug}{s.version ? ` · v${s.version}` : ''}{s.category ? ` · ${s.category}` : ''}</p>
+                    {s.description && <p className="text-xs line-clamp-2 mt-0.5" style={{ color: 'var(--ks-text-body)' }}>{s.description}</p>}
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${THEME_BADGE[s.theme_mode] || THEME_BADGE.panel}`} title="panel = inherits panel theme, custom = own theme.css, none = unthemed">
                         theme: {s.theme_mode}
@@ -369,7 +369,16 @@ const Stacks: React.FC = () => {
                       <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border ${PAGE_BADGE[s.page_style] || PAGE_BADGE.spa}`} title="spa = full bundle in iframe, simple = panel-rendered pages">
                         {s.page_style}
                       </span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border border-white/10 bg-white/5 text-gray-300 font-mono" title={s.entrypoint || s.runtime}>
+                      <span
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border font-mono"
+                        style={{
+                          borderColor: 'var(--ks-card-border)',
+                          background: 'color-mix(in srgb, var(--ks-text-heading, #ffffff) 5%, transparent)',
+                          color: 'var(--ks-text-heading)',
+                          opacity: 0.85,
+                        }}
+                        title={s.entrypoint || s.runtime}
+                      >
                         {s.runtime}
                       </span>
                       {src && src.key !== 'file' && (
@@ -386,7 +395,7 @@ const Stacks: React.FC = () => {
 
                 <div className="flex flex-wrap gap-1.5 text-xs">
                   {s.permissions.length === 0 ? (
-                    <span className="text-[11px] text-gray-500 italic">No permissions requested — safe to activate.</span>
+                    <span className="text-[11px] italic" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>No permissions requested — safe to activate.</span>
                   ) : (
                     s.permissions.map((p) => {
                       const meta = stackCapabilityMeta(p.capability);
@@ -410,8 +419,11 @@ const Stacks: React.FC = () => {
                   </p>
                 )}
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-[11px] text-gray-500 truncate">
+                <footer
+                  className="mt-auto pt-2 border-t flex items-center justify-between gap-2 flex-wrap"
+                  style={{ borderColor: 'var(--ks-listcard-border, var(--ks-card-border))' }}
+                >
+                  <span className="text-[11px] truncate" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>
                     {(() => {
                       const label = formatCardDate(s.created_at);
                       return label ? <>Uploaded {label}</> : <>id {s.id}</>;
@@ -419,7 +431,8 @@ const Stacks: React.FC = () => {
                   </span>
                   <button
                     onClick={() => navigate(`/stack/${s.id}`)}
-                    className="text-[11px] text-gray-400 hover:text-white transition-colors shrink-0"
+                    className="text-[11px] hover:underline hover:opacity-80 transition-colors shrink-0"
+                    style={{ color: 'var(--ks-link)' }}
                   >
                     View details →
                   </button>
@@ -431,7 +444,7 @@ const Stacks: React.FC = () => {
       )}
 
       {!loading && filtered.length === 0 && stacks.length > 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">No stacks match your filters.</div>
+        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>No stacks match your filters.</div>
       )}
       {!loading && stacks.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
@@ -451,8 +464,8 @@ const Stacks: React.FC = () => {
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
-            <p className="text-lg font-medium text-gray-300">No stacks yet</p>
-            <p className="text-sm text-gray-500">Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No stacks yet</p>
+            <p className="text-sm" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
           </div>
         </div>
       )}
