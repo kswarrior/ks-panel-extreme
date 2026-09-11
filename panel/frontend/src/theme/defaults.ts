@@ -414,6 +414,31 @@ export const DEFAULT_THEME: Theme = {
     page_padding: 15,
   },
 
+  // List count badge — the modern glass pill replacing the old
+  // `N of M shown` gray text. Glass surface mirrors the Card tab so the
+  // counter always matches the panel chrome; numerals stay bright white
+  // while the label sits muted underneath the accent icon.
+  count: {
+    background: 'rgba(255,255,255,0.04)',
+    border_color: 'rgba(255,255,255,0.10)',
+    border_width: 1,
+    border_radius: 9999,
+    padding_x: 12,
+    padding_y: 6,
+    font_size: 12,
+    gap: 8,
+    blur: 12,
+    shadow: '0 4px 16px rgba(0,0,0,0.35)',
+    text_color: '#e5e7eb',
+    number_color: '#ffffff',
+    muted_color: 'rgba(255,255,255,0.35)',
+    accent_color: '#38bdf8',
+    accent_text_color: '#bae6fd',
+    accent_background: 'rgba(56,189,248,0.14)',
+    show_icon: true,
+    icon_size: 14,
+  },
+
   // Custom CSS — empty by default. The Theme Studio surfaces a "Custom
   // CSS" tab where the admin can paste arbitrary CSS (panel-wide via
   // `global`, or per-route via `scopes`). Kept flat + empty so it

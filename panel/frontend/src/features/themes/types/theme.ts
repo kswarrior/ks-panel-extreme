@@ -532,6 +532,31 @@ export interface ThemeMenu {
   popover_blur: number;       // px — backdrop blur behind the panel
 }
 
+// List count badge — the modern glass pill replacing the old
+// `N of M shown` gray text on list pages (Templates / Stacks / Tickets /
+// Users / Roles …). One section paints every page so the counter always
+// matches the panel chrome.
+export interface ThemeCount {
+  background: string;       // pill fill
+  border_color: string;     // hex or rgba
+  border_width: number;     // px
+  border_radius: number;    // px (9999 = full pill)
+  padding_x: number;        // px
+  padding_y: number;        // px
+  font_size: number;        // px
+  gap: number;              // px between icon / numbers / label / chip
+  blur: number;             // px backdrop blur
+  shadow: string;           // raw CSS box-shadow
+  text_color: string;       // label ("templates shown") + "of"
+  number_color: string;     // the N / M numerals
+  muted_color: string;      // divider dot
+  accent_color: string;     // icon tint + filtered dot
+  accent_text_color: string; // "filtered" chip text
+  accent_background: string; // "filtered" chip fill
+  show_icon: boolean;       // false = hide the leading layers icon
+  icon_size: number;        // px
+}
+
 export interface Theme {
   id: string;                // stable id; 'default' is reserved for the seed
   name: string;
@@ -561,9 +586,10 @@ export interface Theme {
   components: ThemeComponents;
   utilities: ThemeUtilities;
   cards: ThemeCards;
+  count: ThemeCount;
   customCSS: ThemeCustomCSS;
 }
 
 export type ThemeKey = keyof Pick<Theme,
   'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape'
-  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'menu' | 'forms' | 'components' | 'utilities' | 'cards' | 'customCSS'>;
+  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'menu' | 'forms' | 'components' | 'utilities' | 'cards' | 'count' | 'customCSS'>;
