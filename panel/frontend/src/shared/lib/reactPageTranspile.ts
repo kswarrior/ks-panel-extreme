@@ -374,24 +374,56 @@ function stripAsCastsAndGenerics(src: string, mark: () => void): string {
         let j = i + 2;
         while (j < n && /[ \t]/.test(src[j])) j++;
         if (j < n && (isIdStart(src[j]) || src[j] === '{' || src[j] === '"' || src[j] === "'")) {
-          // Skip the type until a code boundary (, ) ; } ] = \n or operator).
+          // Skip the type until a code boundary. Openers nest and their
+          // closers are part of the type (`as { a?: string }`); a closer
+          // with nothing open ends it (`(a as T)` stops before `)`).
+          // String-aware so quoted literals inside the type don't desync.
           let k = j;
           let depth = 0;
+          let st: 'code' | 'sq' | 'dq' | 'tpl' = 'code';
+          let end = -1;
           while (k < n) {
             const t = src[k];
-            if (t === '<' || t === '(' || t === '[' || t === '{') depth++;
-            if (t === '>' || t === ')' || t === ']' || t === '}') {
-              if (depth === 0) break;
-              depth--;
+            if (st !== 'code') {
+              if (t === '\\') {
+                k += 2;
+                continue;
+              }
+              if ((st === 'sq' && t === "'") || (st === 'dq' && t === '"') || (st === 'tpl' && t === '`')) st = 'code';
+              k++;
+              continue;
             }
-            if (depth === 0 && /[,);}\]=&|?:+\-*/!%\n]/.test(t)) break;
-            // Stop before `;` `,` `)` at depth 0 — but keep scanning through
-            // qualified names like `Record<string, any>`.
+            if (t === "'" || t === '"' || t === '`') {
+              st = t === "'" ? 'sq' : t === '"' ? 'dq' : 'tpl';
+              k++;
+              continue;
+            }
+            if (t === '<' || t === '(' || t === '[' || t === '{') {
+              depth++;
+              k++;
+              continue;
+            }
+            if (t === '>' || t === ')' || t === ']' || t === '}') {
+              if (depth === 0) {
+                end = k;
+                break;
+              }
+              depth--;
+              k++;
+              continue;
+            }
+            // Stop before `;` `,` `=` and operators at depth 0 — but keep
+            // scanning through qualified names like `Record<string, any>`.
+            if (depth === 0 && /[,;=[&|?:+\-*/!%\n]/.test(t)) {
+              end = k;
+              break;
+            }
             k++;
           }
-          if (k > j) {
+          if (end === -1) end = k;
+          if (end > j) {
             mark();
-            i = k;
+            i = end;
             continue;
           }
         }
@@ -543,47 +575,37 @@ function stripAnnotations(src: string, mark: () => void): string {
         i++;
         continue;
       }
-      if (c === '(') {
-        round++;
+      if (c === '(' || c === '[' || c === '{') {
+        stack.push(c);
         out += c;
         i++;
         continue;
       }
-      if (c === ')') {
-        round = Math.max(0, round - 1);
+      if (c === ')' || c === ']' || c === '}') {
+        // Pop the matching opener when present; tolerate stray closers.
+        const want = c === ')' ? '(' : c === ']' ? '[' : '{';
+        if (stack.length && stack[stack.length - 1] === want) stack.pop();
         out += c;
         i++;
         continue;
       }
-      if (c === '[') {
-        square++;
-        out += c;
-        i++;
-        continue;
-      }
-      if (c === ']') {
-        square = Math.max(0, square - 1);
-        out += c;
-        i++;
-        continue;
-      }
-      if (c === '{') {
-        curly++;
-        out += c;
-        i++;
-        continue;
-      }
-      if (c === '}') {
-        curly = Math.max(0, curly - 1);
-        out += c;
-        i++;
-        continue;
-      }
-      if (c === ':' && curly === 0 && square === 0 && src[i + 1] !== ':') {
+      if (c === ':' && src[i + 1] !== ':') {
+        const top = stack.length ? stack[stack.length - 1] : '';
         const prev = prevNonSpace();
         const isBindingEnd =
-          /[A-Za-z0-9_$\])]/.test(prev) || prev === '?' || prev === '"' || prev === "'";
+          /[A-Za-z0-9_$\])}]/.test(prev) || prev === '?' || prev === '"' || prev === "'";
         if (!isBindingEnd) {
+          out += c;
+          i++;
+          continue;
+        }
+        // Position rule: directly inside parens (params/args) is always a
+        // candidate; elsewhere only declaration statements
+        // (`const x: T`, `function f(): R`) with no unclosed bracket before
+        // the colon (which would mean a pattern rename like `const {a: b}`
+        // or an object literal — both must be preserved).
+        const inParens = top === '(';
+        if (!inParens && !(prev === ')' || (stmtIsDeclaration() && !stmtHasUnclosedBracket()))) {
           out += c;
           i++;
           continue;
