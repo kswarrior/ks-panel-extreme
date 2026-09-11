@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createRole, listAuthProviders, listPermissions, listRoles, updateRole } from '@/shared/api/admin';
 import type { Role, Permission } from '@/shared/types/user';
@@ -6,6 +6,8 @@ import type { AuthProviderInfo } from '@/features/authority/types/authority';
 import FormPage from '@/shared/components/forms/FormPage';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import PageTabsPill from '@/shared/components/ui/PageTabsPill';
 import GlassCard from '@/shared/components/ui/Card';
 import RoleIdentity from '@/features/roles/components/RoleIdentity';
@@ -61,45 +63,70 @@ const RoleForm: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'identity' | 'permissions' | 'authorities'>('identity');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the form fields (option lists + tab UI stay out).
+  const snapshot = JSON.stringify({ form });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    setForm(JSON.parse(snapStr).form);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const [perms, providers, roles] = await Promise.all([
+        listPermissions(),
+        listAuthProviders(),
+        listRoles(),
+      ]);
+      setPermissions(perms);
+      setAuthProviders(providers);
+      if (editing) {
+        const r = roles.find((x) => x.id === Number(id));
+        if (r) {
+          setRole(r);
+          setForm({
+            name: r.name,
+            display_name: r.display_name || '',
+            color: r.color || '',
+            description: r.description,
+            icon: r.icon || '',
+            permissions: r.permissions || [],
+            allowed_auth_types:
+              Array.isArray(r.allowed_auth_types) ? [...r.allowed_auth_types] : null,
+          });
+        } else {
+          setError('Role not found');
+        }
+      }
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, editing, histSuspend]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [perms, providers, roles] = await Promise.all([
-          listPermissions(),
-          listAuthProviders(),
-          listRoles(),
-        ]);
-        if (cancelled) return;
-        setPermissions(perms);
-        setAuthProviders(providers);
-        if (editing) {
-          const r = roles.find((x) => x.id === Number(id));
-          if (r) {
-            setRole(r);
-            setForm({
-              name: r.name,
-              display_name: r.display_name || '',
-              color: r.color || '',
-              description: r.description,
-              icon: r.icon || '',
-              permissions: r.permissions || [],
-              allowed_auth_types:
-                Array.isArray(r.allowed_auth_types) ? [...r.allowed_auth_types] : null,
-            });
-          } else {
-            setError('Role not found');
-          }
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id, editing]);
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server in edit mode; in create
+  // mode it reverts to the blank form.
+  const refresh = async () => {
+    if (refreshing) return;
+    if (!editing) {
+      hist.revert();
+      return;
+    }
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -133,6 +160,7 @@ const RoleForm: React.FC = () => {
       } else {
         await createRole(payload);
       }
+      hist.commit();
       navigate('/roles');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save role');
@@ -154,8 +182,9 @@ const RoleForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — Cancel + Save live here; the footer bar is removed. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save live here; the footer bar is removed. */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/roles')}
