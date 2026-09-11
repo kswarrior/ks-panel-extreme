@@ -22,6 +22,13 @@
 import React, { useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import 'monaco-editor/esm/vs/language/typescript/monaco.contribution';
+// Basic-languages TS contribution: REGISTERS the 'typescript' language id +
+// monarch tokenizer. Without it the bundle only knows 'plaintext': the
+// `onLanguage('typescript')` hook above never fires, `setupTypeScript` never
+// runs, and hover/completions/diagnostics stay dead (proven by the item-5
+// offline test: `getLanguages()` was `["plaintext"]` until this import).
+// Still fully offline (bundled chunk, same-origin, no CSP impact).
+import 'monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 import tsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 import { buildSdkTypingsText } from './pageStudioSdkTypings';
