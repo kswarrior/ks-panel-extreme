@@ -471,7 +471,7 @@ export function writeHashTab<T extends string>(t: T): boolean {
   try {
     if (typeof window === 'undefined') return false;
     if (window.history && typeof window.history.replaceState === 'function') {
-      window.history.replaceState(null, '', `#tab=${t}`);
+      window.history.replaceState(null, '', hashForTab(t));
     } else if (window.location) {
       window.location.hash = `tab=${t}`;
     } else {
