@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   listApplications,
@@ -10,6 +10,8 @@ import FormPage from '@/shared/components/forms/FormPage';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
+import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField from '@/shared/components/ui/Field';
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 
@@ -23,32 +25,52 @@ const ApplicationConfigure: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Session edit history over the field list (loaded app object stays out).
+  const snapshot = JSON.stringify({ fields });
+  const hist = useFormHistory(snapshot, (snapStr) => {
+    setFields(JSON.parse(snapStr).fields);
+  });
+  const { suspend: histSuspend } = hist;
+
+  const load = useCallback(async () => {
+    histSuspend();
+    setError('');
+    try {
+      const apps = await listApplications();
+      const a = apps.find((x) => x.id === Number(id));
+      if (a) {
+        setApp(a);
+        setFields(
+          Array.isArray(a.config_schema) && a.config_schema
+            ? a.config_schema.map((f) => ({ ...f, options: f.options ? [...f.options] : undefined }))
+            : []
+        );
+      } else {
+        setError('Application not found');
+      }
+    } catch (e: any) {
+      setError(e?.response?.data || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, histSuspend]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const apps = await listApplications();
-        if (cancelled) return;
-        const a = apps.find((x) => x.id === Number(id));
-        if (a) {
-          setApp(a);
-          setFields(
-            Array.isArray(a.config_schema) && a.config_schema
-              ? a.config_schema.map((f) => ({ ...f, options: f.options ? [...f.options] : undefined }))
-              : []
-          );
-        } else {
-          setError('Application not found');
-        }
-      } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data || 'Failed to load');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
+    void load();
+  }, [load]);
+
+  // Refresh reloads saved values from the server — never resets to defaults.
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const updateField = (idx: number, patch: Partial<ConfigField>) => {
     setFields((prev) => prev.map((f, i) => (i === idx ? { ...f, ...patch } : f)));
@@ -127,6 +149,7 @@ const ApplicationConfigure: React.FC = () => {
         entrypoint: app.entrypoint,
         config_schema: cleaned,
       });
+      hist.commit();
       navigate('/applications');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save');
@@ -181,9 +204,10 @@ const ApplicationConfigure: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
-          Footer Cancel/Save removed; everything lives here. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+          fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/applications')}

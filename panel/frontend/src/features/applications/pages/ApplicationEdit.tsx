@@ -169,6 +169,7 @@ const ApplicationEdit: React.FC = () => {
       } else {
         await createApplication(payload);
       }
+      hist.commit();
       navigate('/applications');
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to save');
@@ -199,9 +200,10 @@ const ApplicationEdit: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — fixed, auto-hide on scroll (node pattern).
-          Footer Save removed; everything lives here. */}
+      {/* Bottom-right form actions — undo / redo / refresh / Cancel + Save;
+          fixed, auto-hide on scroll (node pattern). */}
       <PageFormActionsPill spacer={false}>
+          <PillHistoryControls hist={hist} onRefresh={() => void refresh()} refreshing={refreshing} />
           <button
             type="button"
             onClick={() => navigate('/applications')}
