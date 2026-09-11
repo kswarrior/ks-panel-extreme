@@ -9,32 +9,8 @@ import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { useConfirm } from '@/shared/stores/confirmStore';
-
-function withAlpha(color: string, alpha: number): string {
-  const c = color.trim();
-  if (!c) return c;
-  const hexMatch = c.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/);
-  if (hexMatch) {
-    let h = hexMatch[1];
-    if (h.length === 3) {
-      h = h.split('').map((x) => x + x).join('');
-    }
-    const r = parseInt(h.slice(0, 2), 16);
-    const g = parseInt(h.slice(2, 4), 16);
-    const b = parseInt(h.slice(4, 6), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-  const rgbMatch = c.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
-  if (rgbMatch) {
-    return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${alpha})`;
-  }
-  const hslMatch = c.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
-  if (hslMatch) {
-    return `hsla(${hslMatch[1]}, ${hslMatch[2]}%, ${hslMatch[3]}%, ${alpha})`;
-  }
-  return c;
-}
 
 const ICON_PRESETS: Array<{ value: string; label: string; svg: string }> = [
   { value: 'shield', label: 'Shield', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/> </svg>' },
@@ -321,119 +297,111 @@ return (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-roles-grid">
           {visible.map((r) => {
             const perms = r.permissions || [];
-            const color = r.color || '';
             const label = r.display_name?.trim() || r.name;
-            const tintStyle = color
-              ? { backgroundColor: withAlpha(color, 0.18), borderColor: withAlpha(color, 0.5), color }
-              : undefined;
-            const tintClass = color
-              ? ''
-              : 'bg-violet-900/50 border-violet-700/40 text-violet-300';
+            const shownPerms = perms.slice(0, 6);
+            const extraPerms = perms.length - shownPerms.length;
             return (
-              <article key={r.id} id={`ks-role-${r.id}`} className="ks-card ks-list-card glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+              <article key={r.id} id={`ks-role-${r.id}`} className="ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 hover:border-white/20 transition-colors">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
                 <header className="flex items-start gap-3 min-w-0">
-                  <div
-                    className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-white border border-white/10 ${tintClass}`}
-                    style={tintStyle || undefined}
-                    aria-hidden="true"
-                  >
-                    {(() => {
-                      const iconSvg = getRoleIconSvg(r.icon);
-                      if (!iconSvg) {
-                        return (
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                            <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
-                          </svg>
-                        );
-                      }
-                      return (
-                        <span
-                          className="w-4 h-4"
-                          dangerouslySetInnerHTML={{
-                            __html: iconSvg.replace(/<svg /, '<svg width="16" height="16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" '),
-                          }}
-                        />
-                      );
-                    })()}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-semibold text-white truncate">{label}</h3>
-                    {label !== r.name && (
-                      <p className="text-[11px] text-gray-500 truncate font-mono">{r.name}</p>
+                  <CardIconTile
+                    icon={getRoleIconSvg(r.icon) || ''}
+                    color={r.color || ''}
+                    fallback={(
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                        <path d="M12 2 4 6v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6l-8-4Z" />
+                      </svg>
                     )}
-                    <p className="text-xs text-gray-400 truncate">
-                      {r.description || '—'}
-                    </p>
-                  </div>
-                  <div
-                    className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${tintClass}`}
-                    style={tintStyle || undefined}
-                  >
-                    Role
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-semibold text-white truncate leading-tight">{label}</h3>
+                    <p className="text-[11px] text-gray-500 truncate mt-0.5 font-mono">{label !== r.name ? r.name : `id ${r.id}`}</p>
                   </div>
                 </header>
 
-                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-gray-500">
-{perms.length} permission{perms.length === 1 ? '' : 's'}
-                   </span>
+                <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <p className="text-xs text-gray-400 line-clamp-2">
+                    {r.description || <span className="italic text-gray-500">No description</span>}
+                  </p>
+                  {perms.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {shownPerms.map((p) => (
+                        <span
+                          key={p}
+                          className="inline-flex items-center px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-gray-300 text-[10px] font-mono"
+                        >
+                          {p}
+                        </span>
+                      ))}
+                      {extraPerms > 0 && (
+                        <span className="inline-flex items-center text-[10px] text-gray-500">+{extraPerms} more</span>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-gray-500 italic mt-1">No permissions</p>
+                  )}
+                </div>
 
-                  <CardMenu
-                     ariaLabel={`Actions for role ${r.name}`}
-                     items={[
-                       {
-                         kind: 'checkbox',
-                         key: 'default',
-                         label: 'Default for new users',
-                         checked: defaultRoleId === r.id,
-                         hint:
-                           defaultRoleId === r.id
-                             ? 'New users get this role'
-                             : 'Click to make this role the default',
-                       },
-                       {
-                         kind: 'toggle',
-                         key: 'self-assign',
-                         label: 'Allow self-assign',
-                         checked: !!allowSelfAssign[r.id],
-                       },
-                       {
-                         kind: 'submenu',
-                         key: 'perms',
-                         label: 'Permissions…',
-                         children: perms.map((p) => ({
-                           kind: 'checkbox' as const,
-                           key: `perm-${p}`,
-                           label: p,
-                           checked: !!permState[r.id]?.[p],
-                         })),
-                       },
-                       { kind: 'separator', key: 'sep1' },
-                       {
-                         key: 'edit',
-                         label: 'Edit',
-                         tone: 'default',
-                         icon: (
-                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /> </svg>
-                         ),
-                       },
-{
-                          key: 'delete',
-                          label: deletingName === r.name ? 'Deleting…' : 'Delete',
-                           tone: 'danger',
-                           disabled: deletingName === r.name,
-                           icon: (
-                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
-                           ),
-                          },
-                       ]}
-                       onSelect={(key) => {
-                         if (key === 'edit') navigate(`/roles/${r.id}/edit`);
-                         else if (key === 'delete') remove(r);
-                       }}
+                <footer className="mt-auto pt-2 border-t border-white/[0.06] flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-gray-500 truncate">
+                    {perms.length} permission{perms.length === 1 ? '' : 's'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/roles/${r.id}/edit`)}
+                      aria-label={`Edit role ${r.name}`}
+                      title="Edit"
+                      className="ks-icon-btn rounded-lg"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /> </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => remove(r)}
+                      disabled={deletingName === r.name}
+                      aria-label={`Delete role ${r.name}`}
+                      title={deletingName === r.name ? 'Deleting…' : 'Delete'}
+                      className="ks-icon-btn rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /> </svg>
+                    </button>
+                    <CardMenu
+                      ariaLabel={`More actions for role ${r.name}`}
+                      items={[
+                        {
+                          kind: 'checkbox',
+                          key: 'default',
+                          label: 'Default for new users',
+                          checked: defaultRoleId === r.id,
+                          hint:
+                            defaultRoleId === r.id
+                              ? 'New users get this role'
+                              : 'Click to make this role the default',
+                        },
+                        {
+                          kind: 'toggle',
+                          key: 'self-assign',
+                          label: 'Allow self-assign',
+                          checked: !!allowSelfAssign[r.id],
+                        },
+                        {
+                          kind: 'submenu',
+                          key: 'perms',
+                          label: 'Permissions…',
+                          children: perms.map((p) => ({
+                            kind: 'checkbox' as const,
+                            key: `perm-${p}`,
+                            label: p,
+                            checked: !!permState[r.id]?.[p],
+                          })),
+                        },
+                      ]}
+                      onSelect={() => {}}
                     />
-                  </footer>
-</article>
+                  </div>
+                </footer>
+              </article>
             );
           })}
         </div>

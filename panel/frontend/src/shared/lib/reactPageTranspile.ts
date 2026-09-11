@@ -476,9 +476,11 @@ function stripAnnotations(src: string, mark: () => void): string {
   let i = 0;
   const n = src.length;
   let state: 'code' | 'sq' | 'dq' | 'tpl' | 'line' | 'block' = 'code';
-  let round = 0;
-  let square = 0;
-  let curly = 0;
+  // Bracket stack for the *emitted* code: decides whether `:` sits in a
+  // params/args list (`(` on top), a block, or an object literal. Stripped
+  // annotations remove their brackets too, so the stack always reflects the
+  // code as the renderer will execute it.
+  const stack: string[] = [];
   const prevNonSpace = (): string => {
     for (let k = out.length - 1; k >= 0; k--) {
       const c = out[k];
@@ -491,6 +493,23 @@ function stripAnnotations(src: string, mark: () => void): string {
     const k = out.lastIndexOf('\n');
     return out.slice(k + 1).trimStart();
   };
+  // Current statement (back to ; { or }) with bracket depth relative to it:
+  // a `:` with unclosed {[( before it lives inside a pattern/literal, not a
+  // declaration, e.g. `const {a: b} = c` renaming (must be preserved).
+  const stmtHasUnclosedBracket = (): boolean => {
+    const k = Math.max(out.lastIndexOf(';'), out.lastIndexOf('{'), out.lastIndexOf('}'));
+    const stmt = out.slice(k + 1);
+    let d = 0;
+    for (const c of stmt) {
+      if (c === '{' || c === '(' || c === '[') d++;
+      if (c === '}' || c === ')' || c === ']') d = Math.max(0, d - 1);
+    }
+    return d > 0;
+  };
+  const stmtIsDeclaration = (): boolean =>
+    /^\s*(export\s+default\s+|export\s+)?(async\s+function\*?\s|function\*?\s|const\s|let\s|var\s|class\s)/.test(
+      out.slice(Math.max(out.lastIndexOf(';'), out.lastIndexOf('}')) + 1),
+    );
   while (i < n) {
     const c = src[i];
     if (state === 'code') {
