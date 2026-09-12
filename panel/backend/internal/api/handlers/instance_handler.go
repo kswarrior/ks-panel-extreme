@@ -1645,7 +1645,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// the opaque `docker: Error … Bind for 0.0.0.0:25565 failed: port is
 	// already allocated` (exit 125) plus a leftover Created container.
 	// Answer 409 now with the owner so the operator picks a free host port.
-	if tmpl.Kind == "docker" {
+	// Host services bind host ports directly, so they get the same guard.
+	if tmpl.Kind == "docker" || tmpl.Kind == "host" {
 		if want := extractRequestedPorts(cfg); len(want) > 0 {
 			if bad, owner, found := findPortCollision(con, req.NodeID, 0, want); found {
 				writeJSONStatus(w, http.StatusConflict, map[string]any{
@@ -2755,7 +2756,7 @@ var _ = models.Instance{}
 
 // driverMissingOn returns the CLI the operator must install on the edge for the
 // given kind, or "" when the node already advertises that driver (or when the
-// kind isn't one of the four well-known drivers we preflight). We key off the
+// kind isn't one of the five well-known drivers we preflight). We key off the
 // heartbeat-reported driver_* flags rather than dialing the edge so a deploy
 // onto a node whose edge is down or whose CLI is absent fails fast with a
 // precise "install X" message instead of a 23ms-later 502 cloudflare banner.
@@ -2796,6 +2797,9 @@ func driverMissingOn(node models.Node, kind string) string {
 		if !node.DriverLXD {
 			return "lxd (lxc)"
 		}
+	case "host":
+		// Host needs no CLI (/bin/sh only) — always available.
+		return ""
 	}
 	return ""
 }

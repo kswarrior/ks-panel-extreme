@@ -197,7 +197,8 @@ func UpdatePortsHandler(w http.ResponseWriter, r *http.Request) {
 	// Cross-instance collision check: another instance on the same node must
 	// not already own any wanted host binding, otherwise the edge's docker
 	// recreate would die with exit 125 `port is already allocated`.
-	if len(inputs) > 0 && inst.Kind == "docker" {
+	// Host services bind host ports directly, so they get the same guard.
+	if len(inputs) > 0 && (inst.Kind == "docker" || inst.Kind == "host") {
 		want := make([]requestedPort, 0, len(inputs))
 		for _, p := range inputs {
 			want = append(want, requestedPort{host: p.Host, proto: p.Protocol, ip: p.IP})

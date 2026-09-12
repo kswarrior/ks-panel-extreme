@@ -16,7 +16,9 @@ type Template struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	// Kind selects the ksedge driver: "docker" | "lxd" | "kvm" | "multipass".
+	// Kind selects the ksedge driver: "docker" | "lxd" | "kvm" | "multipass" | "host".
+	// "host" runs a simple shell service directly on the edge host
+	// filesystem with no container/VM isolation.
 	Kind string `json:"kind"`
 	// Image is the driver-specific base (e.g. "alpine:3.19", "ubuntu/22.04",
 	// "debian-12"). Forwarded verbatim to the driver.
