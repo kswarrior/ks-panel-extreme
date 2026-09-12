@@ -6,7 +6,6 @@ import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import Avatar from '@/shared/components/ui/Avatar';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
-import LimitSelect from '@/shared/components/ui/LimitSelect';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import ListCount from '@/shared/components/ui/ListCount';
 import GlassCard from '@/shared/components/ui/Card';
@@ -366,38 +365,39 @@ const UsersPage: React.FC = () => {
           </button>
       </PageActionsPill>
 
-      {(search || roleFilter !== 'all' || pageSize !== 25) && (
-        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-          <div className="flex items-center gap-2 flex-wrap">
-            {(search || roleFilter !== 'all') && (
-              <ListCount
-                shown={visible.length}
-                total={filtered.length}
-                label="user"
-                extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
-              />
-            )}
-            {!(search || roleFilter !== 'all') && filtered.length > pageSize && (
-              <ListCount
-                shown={pageSize}
-                total={filtered.length}
-                label="user"
-                extra={<>refine search to see more</>}
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {(search || roleFilter !== 'all') && (
-              <button type="button" onClick={resetFilters} aria-label="Reset filters" className="p-1.5 rounded-md ks-ghost-btn" title="Reset filters">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                  <polyline points="1 4 1 10 7 10" />
-                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                 </svg>
-              </button>
-            )}
-          </div>
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {(search || roleFilter !== 'all') ? (
+            <ListCount
+              shown={visible.length}
+              total={filtered.length}
+              label="user"
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
+            />
+          ) : (
+            <ListCount
+              shown={visible.length}
+              total={users.length}
+              label="user"
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
+            />
+          )}
         </div>
-      )}
+        <div className="flex items-center gap-3">
+          {(search || roleFilter !== 'all') && (
+            <button type="button" onClick={resetFilters} aria-label="Reset filters" className="p-1.5 rounded-md ks-ghost-btn" title="Reset filters">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+               </svg>
+            </button>
+          )}
+        </div>
+      </div>
 
       {error && users.length > 0 && <p className="mb-3 text-sm" style={{ color: 'var(--ks-accent-danger, #f87171)' }}>{error}</p>}
       {!loading && error && users.length === 0 && (

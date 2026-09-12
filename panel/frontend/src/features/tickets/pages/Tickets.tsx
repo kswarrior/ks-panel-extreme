@@ -49,6 +49,21 @@ const Tickets: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Cards per page — server fetch limit, same localStorage pattern as
+  // Templates. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.tickets.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 100;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 100;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
   // Debounced search so typing does not spam the API on every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
@@ -90,7 +105,7 @@ const Tickets: React.FC = () => {
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
         search: debouncedSearch.trim() || undefined,
         mine: mineOnly || undefined,
-        limit: 100,
+        limit: pageSize,
       });
       setTickets(ts);
       setTotal(t);
@@ -104,7 +119,7 @@ const Tickets: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, priorityFilter, categoryFilter, debouncedSearch, mineOnly]);
+  }, [statusFilter, priorityFilter, categoryFilter, debouncedSearch, mineOnly, pageSize]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -244,6 +259,8 @@ const Tickets: React.FC = () => {
           shown={filtered.length}
           total={total}
           label="ticket"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
           extra={stats ? <>{stats.total} total • {stats.unassigned} unassigned • {stats.mine} mine</> : undefined}
         />
       </div>

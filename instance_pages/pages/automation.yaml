@@ -538,6 +538,44 @@ content_html: |-
       if (!outer) return;
       if (pillTimer) { clearTimeout(pillTimer); pillTimer = null; }
     }
+    // Chevron glyphs for live toggles (resolved at bake time).
+    var AU_CHEV_L = '{{component:icon_chev_left}}';
+    var AU_CHEV_R = '{{component:icon_chev_right}}';
+    // Live collapse: toggle the class + aria + chevrons on the EXISTING
+    // nodes so the pill_css 300ms transition runs. A full render() rebuild
+    // would recreate the nodes and snap instantly.
+    function setAuPillOff(off) {
+      state.pillOff = off;
+      var p = document.getElementById('au-pill');
+      if (!p) return;
+      if (off) p.classList.add('ks-pill-off');
+      else p.classList.remove('ks-pill-off');
+      var c = p.querySelector('.ks-pill-content');
+      if (c) c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      var t = document.getElementById('au-pill-toggle');
+      if (t) {
+        t.setAttribute('aria-label', off ? 'Show actions' : 'Hide actions');
+        t.setAttribute('aria-expanded', off ? 'false' : 'true');
+        t.setAttribute('title', off ? 'Show actions' : 'Hide actions');
+        t.innerHTML = off ? AU_CHEV_L : AU_CHEV_R;
+      }
+    }
+    function setEdPillOff(off) {
+      state.pillOff = off;
+      var p = document.getElementById('ed-savepill');
+      if (!p) return;
+      if (off) p.classList.add('ks-pill-off');
+      else p.classList.remove('ks-pill-off');
+      var c = p.querySelector('.ks-pill-content');
+      if (c) c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      var t = document.getElementById('ed-pill-toggle');
+      if (t) {
+        t.setAttribute('aria-label', off ? 'Show save bar' : 'Hide save bar');
+        t.setAttribute('aria-expanded', off ? 'false' : 'true');
+        t.setAttribute('title', off ? 'Show save bar' : 'Hide save bar');
+        t.innerHTML = off ? AU_CHEV_L : AU_CHEV_R;
+      }
+    }
     function wire() {
       var q = function (sel, fn) {
         Array.prototype.forEach.call(document.querySelectorAll(sel), function (b) { b.addEventListener('click', fn); });
