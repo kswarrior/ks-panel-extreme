@@ -330,7 +330,7 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 				r.Body = http.MaxBytesReader(w, r.Body, limit)
 			}
 			next.ServeHTTP(w, r)
-			})
+		})
 	}
 }
 
