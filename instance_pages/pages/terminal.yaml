@@ -454,6 +454,12 @@ content_html: |-
     var pillMsg = '';
     var docMenuWired = false;
     var pillTimer = null;
+    // Action-pill collapse parity with PageActionsPill (manual chevron
+    // toggle + auto-hide on scroll / outside-tap with idle restore).
+    var pillOff = false, pillAutoTimer = null, pillAutoWired = false;
+    function pillShow() {
+      if (pillAutoTimer) { window.clearTimeout(pillAutoTimer); pillAutoTimer = null; }
+    }
     var liveStatus = '';
     var liveActions = [];
     var liveInstall = { state: '', kind: '', actionId: '' };
@@ -940,11 +946,20 @@ content_html: |-
     function renderPill() {
       var host = el('ks-pill');
       if (!host) return;
+      // Pill shell parity: animation + collapse classes live on the host
+      // (the static shell ships plain ks-card; the host bakes the rest).
+      host.className = 'ks-card ks-pill-anim ks-actions-pill' + (pillOff ? ' ks-pill-collapsed' : '');
+      host.setAttribute('role', 'toolbar');
+      host.setAttribute('aria-label', 'Terminal actions');
       var sc = shortcuts();
       var maxN = parseInt(cfgGet('max_terminals').trim(), 10);
       var atMax = Number.isFinite(maxN) && maxN > 0 && panes.length >= maxN;
       var canAdd = cfgBool('allow_multi', true) && !atMax;
-      var h = '';
+      var cs = pillOff
+        ? 'display:flex;align-items:center;gap:4px;max-width:0;opacity:0;transform:translateX(8px);pointer-events:none;visibility:hidden;overflow:hidden;padding:0;margin:0'
+        : 'display:flex;align-items:center;gap:4px;max-width:800px;opacity:1;transform:none;overflow:visible';
+      var ts = pillOff ? '--ks-tab-px:4px' : '--ks-tab-px:var(--ks-pill-tab-px,10px)';
+      var h = '<div class="ks-pill-content" style="' + cs + '" aria-hidden="' + (!!pillOff) + '">';
       if (sc.length > 0) {
         h += '<div style="position:relative">'
           + '<button type="button" id="pill-shortcuts" title="Shortcuts" aria-label="Shortcuts" class="ks-btn-header ks-icon-btn">{{component:icon_shortcut}}</button>'
@@ -966,8 +981,16 @@ content_html: |-
         + '<p style="font-size:11px;color:var(--ks-muted);margin:0">New lines follow at once — Refresh reloads history.</p>'
         + '</div></div></div>';
       if (pillMsg) h += '<span style="font-size:12px;color:var(--ks-ok);white-space:nowrap">' + esc(pillMsg) + '</span>';
+      h += '</div>'
+        + '<button type="button" id="ks-pill-toggle" aria-label="' + (pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!pillOff) + '" title="' + (pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>';
       host.innerHTML = h;
       var q = function (id) { return document.getElementById(id); };
+      var tg = q('ks-pill-toggle');
+      if (tg) tg.addEventListener('click', function () { pillShow(); pillOff = !pillOff; renderPill(); });
+      if (!host.getAttribute('data-hover')) {
+        host.setAttribute('data-hover', '1');
+        host.addEventListener('mouseenter', function () { pillShow(); if (pillOff) { pillOff = false; renderPill(); } });
+      }
       var scBtn = q('pill-shortcuts');
       if (scBtn) scBtn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -986,6 +1009,29 @@ content_html: |-
           var m1 = document.getElementById('pill-menu'), m2 = document.getElementById('pill-setmenu');
           if (m1) m1.style.display = 'none';
           if (m2) m2.style.display = 'none';
+        });
+      }
+      // Pill auto-hide parity with PageActionsPill: scroll / outside-tap
+      // collapses to the chevron, idle 2.5s + hover restore. Bound once.
+      if (!pillAutoWired) {
+        pillAutoWired = true;
+        document.addEventListener('scroll', function () {
+          var p = document.getElementById('ks-pill');
+          if (p && document.activeElement && p.contains(document.activeElement)) return;
+          if (!pillOff) { pillOff = true; renderPill(); }
+          pillShow();
+          pillAutoTimer = window.setTimeout(function () { pillOff = false; renderPill(); }, 2500);
+        }, true);
+        document.addEventListener('pointerdown', function (ev) {
+          var p = document.getElementById('ks-pill');
+          if (!p) return;
+          var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
+          var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
+          if (!inside && !pillOff) { pillOff = true; renderPill(); }
+        });
+        document.addEventListener('focusin', function (ev) {
+          var p = document.getElementById('ks-pill');
+          if (p && ev.target && p.contains(ev.target)) { pillShow(); if (pillOff) { pillOff = false; renderPill(); } }
         });
       }
       var all = host.querySelectorAll('[data-sc]');
