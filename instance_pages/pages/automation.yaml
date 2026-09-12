@@ -213,7 +213,19 @@ content_html: |-
   /* Terminal */
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
   </style><div class="ks-page">
-    {{component:pill_css}}
+    <style id="ks-automation-pills">/* Automation pills — panel PageActionsPill / PageTabsPill / PageFormActionsPill parity.
+       Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
+       these fallbacks reproduce the historic geometry when no theme sets them. */
+    .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
+    .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
+    .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+    .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
+    .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
+    .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+    @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+    @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+    </style>
     <div id="root"><div class="ks-card"><div class="ks-skeleton-bar" style="height:12px;width:40%;margin-bottom:8px"></div><div class="ks-skeleton" style="height:12px;width:65%"></div></div></div>
   </div>
   <script>
@@ -423,10 +435,10 @@ content_html: |-
       var h = '<div id="au-pill-outer" style="position:fixed;top:12px;right:12px;z-index:40">'
         + '<div id="au-pill" class="ks-card ks-pill-anim ks-actions-pill' + off + '" role="toolbar" aria-label="Automation actions" style="display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px">'
         + '<div class="ks-pill-content" style="display:flex;align-items:center;gap:4px">'
-        + '<button type="button" id="au-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"' + (state.loading ? ' disabled style="opacity:.4"' : '') + '>{{component:icon_refresh}}</button>'
-        + (ro ? '' : '<button type="button" id="au-new" title="Create task" aria-label="Create task" class="ks-tab au-tabbtn" style="padding:5px 10px;font-size:13px"><span style="display:inline-flex;align-items:center;gap:6px">{{component:icon_plus}}New job</span></button>')
+        + '<button type="button" id="au-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"' + (state.loading ? ' disabled style="opacity:.4"' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>'
+        + (ro ? '' : '<button type="button" id="au-new" title="Create task" aria-label="Create task" class="ks-tab au-tabbtn" style="padding:5px 10px;font-size:13px"><span style="display:inline-flex;align-items:center;gap:6px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New job</span></button>')
         + '</div>'
-        + '<button type="button" id="au-pill-toggle" aria-label="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+        + '<button type="button" id="au-pill-toggle" aria-label="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>' : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>') + '</button>'
         + '</div></div>';
       return h;
     }
@@ -455,7 +467,7 @@ content_html: |-
         }
         if (state.tab === 'tasks') {
           if (!state.jobs.length) {
-            h += '{{component:empty_tasks}}';
+            h += '<div class="ks-card" style="text-align:center;padding:40px 24px"><p style="font-size:13px;color:var(--ks-body);margin:0">No automation jobs yet.</p><p style="font-size:12px;color:var(--ks-muted);margin:4px 0 0">Click New job to schedule a command inside this instance.</p></div>';
           } else {
             h += '<div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">';
             for (var i = 0; i < state.jobs.length; i++) {
@@ -493,7 +505,7 @@ content_html: |-
           }
         } else {
           if (!state.runs.length) {
-            h += '{{component:empty_runs}}';
+            h += '<div class="ks-card" style="text-align:center;padding:40px 24px"><p style="font-size:13px;color:var(--ks-body);margin:0">No runs yet.</p><p style="font-size:12px;color:var(--ks-muted);margin:4px 0 0">Manual and scheduled executions appear here.</p></div>';
           } else {
             var rh = '';
             for (var ri = 0; ri < state.runs.length; ri++) {
@@ -539,8 +551,8 @@ content_html: |-
       if (pillTimer) { clearTimeout(pillTimer); pillTimer = null; }
     }
     // Chevron glyphs for live toggles (resolved at bake time).
-    var AU_CHEV_L = '{{component:icon_chev_left}}';
-    var AU_CHEV_R = '{{component:icon_chev_right}}';
+    var AU_CHEV_L = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+    var AU_CHEV_R = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
     // Live collapse: toggle the class + aria + chevrons on the EXISTING
     // nodes so the pill_css 300ms transition runs. A full render() rebuild
     // would recreate the nodes and snap instantly.
@@ -839,7 +851,19 @@ sub_pages:
     /* Terminal */
     .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
     </style><div class="ks-page">
-      {{component:pill_css}}
+      <style id="ks-automation-pills">/* Automation pills — panel PageActionsPill / PageTabsPill / PageFormActionsPill parity.
+         Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
+         these fallbacks reproduce the historic geometry when no theme sets them. */
+      .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
+      .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
+      .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+      .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
+      .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
+      .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+      @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+      @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+      @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+      </style>
       <div id="root"><div class="ks-card"><div class="ks-skeleton-bar" style="height:12px;width:40%;margin-bottom:8px"></div><div class="ks-skeleton" style="height:12px;width:65%"></div></div></div>
     </div>
     <script>
@@ -1088,7 +1112,7 @@ sub_pages:
            ks-card ks-pill-anim ks-form-actions-pill with Cancel + Save.
            Header keeps a compact Save for desktop parity; both call submit(). */
         h = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
-          + '<button type="button" id="ed-back" title="Back to automation" aria-label="Back to automation" class="ks-btn-header ks-icon-btn">{{component:icon_back}}</button>'
+          + '<button type="button" id="ed-back" title="Back to automation" aria-label="Back to automation" class="ks-btn-header ks-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg></button>'
           + '<h2 style="font-size:16px;font-weight:600;color:var(--ks-heading);margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(d.editingId !== null ? ('Edit "' + d.editingName + '"') : 'New job') + ' <span id="ed-dirty" style="font-size:11px;font-weight:400;color:var(--ks-warn)' + (dirty() ? '' : ';display:none') + '">unsaved</span></h2>'
           + '<button type="button" id="ed-save" class="ks-btn ks-btn-primary"' + (state.busy ? ' disabled style="opacity:.5"' : '') + '>' + (state.busy ? 'Saving…' : (d.editingId !== null ? 'Save' : 'Create')) + '</button>'
           + '</div>';
@@ -1156,7 +1180,7 @@ sub_pages:
           + '<button type="button" id="ed-cancel2" class="ks-btn ks-btn-ghost ks-btn-sm">Cancel</button>'
           + '<button type="button" id="ed-save2" class="ks-btn ks-btn-primary ks-btn-sm"' + (state.busy ? ' disabled style="opacity:.5"' : '') + '>' + (state.busy ? 'Saving…' : (d.editingId !== null ? 'Save' : 'Create')) + '</button>'
           + '</div>'
-          + '<button type="button" id="ed-pill-toggle" aria-label="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+          + '<button type="button" id="ed-pill-toggle" aria-label="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>' : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>') + '</button>'
           + '</div></div><div aria-hidden="true" style="height:80px"></div>';
         el('root').innerHTML = h;
         wire();
