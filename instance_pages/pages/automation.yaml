@@ -1156,7 +1156,7 @@ sub_pages:
           + '<button type="button" id="ed-cancel2" class="ks-btn ks-btn-ghost ks-btn-sm">Cancel</button>'
           + '<button type="button" id="ed-save2" class="ks-btn ks-btn-primary ks-btn-sm"' + (state.busy ? ' disabled style="opacity:.5"' : '') + '>' + (state.busy ? 'Saving…' : (d.editingId !== null ? 'Save' : 'Create')) + '</button>'
           + '</div>'
-          + '<button type="button" id="ed-pill-toggle" aria-label="Toggle save bar" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+          + '<button type="button" id="ed-pill-toggle" aria-label="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
           + '</div></div><div aria-hidden="true" style="height:80px"></div>';
         el('root').innerHTML = h;
         wire();
