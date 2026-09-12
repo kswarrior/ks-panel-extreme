@@ -75,6 +75,10 @@ function KindIcon({ kind, className = '' }: { kind: KindKey; className?: string 
       return (
         <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /> </svg>
       );
+    case 'host':
+      return (
+        <svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6v6H9z" /><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /> </svg>
+      );
     default:
       return (
         <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9 9h.01M15 9h.01M9 15h6" /> </svg>

@@ -34,7 +34,8 @@ export const TemplateRuntimeSection: React.FC<RuntimeSectionProps> = ({
 }) => {
   const runtimeTitle = kind === 'docker' ? 'Container Runtime' : 
     kind === 'kvm' ? 'KVM Runtime' : 
-    kind === 'multipass' ? 'Multipass Runtime' : 'LXD Runtime';
+    kind === 'multipass' ? 'Multipass Runtime' : 
+    kind === 'host' ? 'Host Service' : 'LXD Runtime';
 
   return (
     <>
@@ -445,6 +446,31 @@ export const TemplateRuntimeSection: React.FC<RuntimeSectionProps> = ({
                 <span className="text-sm text-gray-300">Boot Autostart</span>
               </label>
             </div>
+          </>
+        )}
+        {kind === 'host' && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Startup command (runs on the edge host)</label>
+                <input value={advanced.startup_command} onChange={(e) => onAdvancedUpdate({ startup_command: e.target.value })} placeholder="python3 app.py or ./start.sh" className={glassFieldClass} />
+              </div>
+              <div>
+                <label className={labelCls}>Stop command (optional)</label>
+                <input value={advanced.stop_command} onChange={(e) => onAdvancedUpdate({ stop_command: e.target.value })} placeholder="empty = SIGTERM the service" className={glassFieldClass} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className={labelCls}>Working directory (relative to service root)</label>
+                <input value={advanced.working_dir} onChange={(e) => onAdvancedUpdate({ working_dir: e.target.value })} placeholder="empty = service root" className={monoCls} />
+              </div>
+              <div>
+                <label className={labelCls}>Run user (informational)</label>
+                <input value={advanced.user} onChange={(e) => onAdvancedUpdate({ user: e.target.value })} placeholder="edge daemon user" className={monoCls} />
+              </div>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-2">Host services run directly on the edge host as the ksedge user with no container isolation. Files live under <code className="font-mono">host-{'<name>'}/</code> in the edge instances dir; the File Manager, Terminal and Exec all target that dir.</p>
           </>
         )}
       </div>

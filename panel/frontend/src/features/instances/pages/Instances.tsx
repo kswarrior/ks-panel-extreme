@@ -259,7 +259,7 @@ const Instances: React.FC = () => {
   ];
 
   const kindKey = (k: string): KindKey => {
-    return (['docker', 'lxd', 'kvm', 'multipass'].includes(k) ? k : 'unknown') as KindKey;
+    return (['docker', 'lxd', 'kvm', 'multipass', 'host'].includes(k) ? k : 'unknown') as KindKey;
   };
 
   const ATTENTION_STATES = useMemo(() => new Set(['errored', 'install_failed', 'creating', 'installing']), []);

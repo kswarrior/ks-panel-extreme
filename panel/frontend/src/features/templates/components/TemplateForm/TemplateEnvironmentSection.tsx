@@ -68,6 +68,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
   const runtimeLabel = kind === 'docker' ? 'Docker image (registry)' 
     : kind === 'multipass' ? 'Multipass image (e.g. ubuntu-lts)'
     : kind === 'kvm' ? 'KVM ISO path'
+    : kind === 'host' ? 'Image (optional label, host runs directly on the edge filesystem)'
     : 'LXD image (e.g. images:ubuntu/22.04)';
 
   return (
@@ -80,7 +81,7 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
           <input
             value={image}
             onChange={(e) => onImageChange?.(e.target.value)}
-            placeholder={kind === 'docker' ? 'registry.example.com/app:latest or {{IMAGE}}' : '/path/to/ubuntu.iso'}
+            placeholder={kind === 'docker' ? 'registry.example.com/app:latest or {{IMAGE}}' : kind === 'host' ? 'optional label (e.g. host-service:1.0)' : '/path/to/ubuntu.iso'}
             className={monoCls}
             readOnly={!onImageChange}
           />
@@ -96,8 +97,11 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
-          {nonDocker && (
+          {nonDocker && kind !== 'host' && (
             <p className="text-xs text-amber-500 mb-2">⚠ Non-Docker drivers: ports may require an SSH tunnel on the edge host.</p>
+          )}
+          {kind === 'host' && (
+            <p className="text-xs text-emerald-400 mb-2">Host services bind host ports directly — no container mapping needed.</p>
           )}
           <div className="space-y-3">
             {ports.map((p, i) => {
