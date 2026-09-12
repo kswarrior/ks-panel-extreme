@@ -15,6 +15,7 @@ import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import GlassCard from '@/shared/components/ui/Card';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -289,6 +290,15 @@ const AdminApiKeys: React.FC = () => {
             </svg>
           </button>
       </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filteredKeys.length}
+          total={keys.length}
+          label="API key"
+          extra={<>{keyStats.active} active · {keyStats.expired} expired</>}
+        />
+      </div>
 
        {error && keys.length > 0 && <p className="mb-3 text-sm" style={{ color: 'var(--ks-accent-danger, #f87171)' }}>{error}</p>}
        {!loading && error && keys.length === 0 && (

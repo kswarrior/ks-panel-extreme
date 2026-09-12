@@ -1475,7 +1475,7 @@ components:
 - name: terminal_pill_shell
   type: html
   description: 'Top-right action pill host (filled by renderPill JS: Add/Copy/Download/Clear/Refresh/Settings).'
-  content: <div id="ks-pill" class="ks-card" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)"></div>
+  content: <div id="ks-pill" class="ks-card ks-pill-anim ks-actions-pill" role="toolbar" aria-label="Terminal actions" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)"></div>
 - name: terminal_tabs_shell
   type: html
   description: 'Desktop terminal tab strip host (filled by renderTabs JS).'
@@ -1484,7 +1484,7 @@ components:
   type: html
   description: 'Phone pill tabs host (filled by renderPhoneTabs JS).'
   content: |-
-    <div id="ks-ptabs-wrap" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)"><span class="ks-mono" style="font-size:11px;color:var(--ks-muted);white-space:nowrap;padding-left:4px">⌨ <span id="ks-ptab-label">Terminal</span></span><div id="ks-ptabs" style="display:flex;max-width:100%;overflow:hidden"></div></div></div></div>
+    <div id="ks-ptabs-wrap" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)"><span class="ks-mono" style="font-size:11px;color:var(--ks-muted);white-space:nowrap;padding-left:4px">⌨ <span id="ks-ptab-label">Terminal</span></span><div id="ks-ptabs" role="tablist" aria-label="Terminals" style="display:flex;max-width:100%;overflow:hidden"></div></div></div></div>
 - name: icon_shortcut
   type: html
   description: Shortcuts bolt glyph for the action pill.

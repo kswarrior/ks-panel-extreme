@@ -38,6 +38,7 @@ import {
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 
 // resolve the human-facing label for a capability code on a card chip / the
@@ -554,6 +555,15 @@ return (
             </svg>
           </button>
       </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filtered.length}
+          total={mods.length}
+          label="mod"
+          extra={<>{stats.active} active · {stats.pending} pending</>}
+        />
+      </div>
 
       {!loading && error && mods.length === 0 && (
         <ErrorState

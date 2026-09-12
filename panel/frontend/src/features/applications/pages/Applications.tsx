@@ -27,6 +27,7 @@ import {
 } from '@/features/applications/types/application';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
@@ -439,6 +440,15 @@ return (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /> </svg>
           </button>
       </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filtered.length}
+          total={apps.length}
+          label="application"
+          extra={<>{stats.active} active · {stats.pending} pending</>}
+        />
+      </div>
 
       {!loading && error && apps.length === 0 && (
         <ErrorState

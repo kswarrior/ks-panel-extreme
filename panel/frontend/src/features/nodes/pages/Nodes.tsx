@@ -20,6 +20,7 @@ import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassCard from '@/shared/components/ui/Card';
 import GlassModal from '@/shared/components/ui/Modal';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -407,6 +408,15 @@ const AdminNodes: React.FC = () => {
             </svg>
           </button>
       </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filteredNodes.length}
+          total={nodes.length}
+          label="node"
+          extra={<>{nodeStats.up} up · {nodeStats.down} down</>}
+        />
+      </div>
 
       {error && nodes.length > 0 && <p className="text-red-400 mb-3">{error}</p>}
       {!loading && error && nodes.length === 0 && (

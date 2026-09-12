@@ -16,6 +16,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
 // It wires RichMenu (which owns portal + placement + scrim + submenu

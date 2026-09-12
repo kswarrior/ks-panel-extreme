@@ -14,6 +14,7 @@ import type { Instance } from '@/shared/types/instance';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
+import ListCount from '@/shared/components/ui/ListCount';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -432,6 +433,15 @@ const Instances: React.FC = () => {
           </button>
         )}
       </PageActionsPill>
+
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filtered.length}
+          total={instances.length}
+          label="instance"
+          extra={<>{stats.running} running · {stats.stopped} stopped</>}
+        />
+      </div>
 
       {error && instances.length > 0 && <p className="text-red-400 mb-3 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
       {!loading && error && instances.length === 0 && (
