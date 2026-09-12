@@ -345,10 +345,10 @@ content_html: |-
         + '<select id="pp-limit" title="Rows per page" aria-label="Rows per page" style="background:var(--ks-input-bg);border:1px solid var(--ks-input-border);color:var(--ks-body);border-radius:6px;font-size:12px;padding:5px 6px">'
         + [10, 25, 50, 100].map(function (n) { return '<option value="' + n + '"' + (n === state.limit ? ' selected' : '') + '>' + n + '</option>'; }).join('')
         + '</select>'
-        + (ro ? '' : '<button type="button" id="pp-add" title="Add port" aria-label="Add port" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (state.saving ? ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"' : '') + '><span style="display:inline-flex;align-items:center;gap:6px">{{component:icon_plus}}Add port</span></button>')
-        + '<button type="button" id="pp-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn">{{component:icon_refresh}}</button>'
+        + (ro ? '' : '<button type="button" id="pp-add" title="Add port" aria-label="Add port" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (state.saving ? ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"' : '') + '><span style="display:inline-flex;align-items:center;gap:6px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add port</span></button>')
+        + '<button type="button" id="pp-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>'
         + '</div>'
-        + '<button type="button" id="pp-pill-toggle" aria-label="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+        + '<button type="button" id="pp-pill-toggle" aria-label="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (state.pillOff ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>' : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>') + '</button>'
         + '</div></div>';
       return h;
     }
@@ -445,8 +445,8 @@ content_html: |-
     }
     var pillAutoWired = false;
     // Chevron glyphs for the live toggle (resolved at bake time).
-    var CHEV_L = '{{component:icon_chev_left}}';
-    var CHEV_R = '{{component:icon_chev_right}}';
+    var CHEV_L = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+    var CHEV_R = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
     // Live collapse: update the EXISTING pill nodes in place so the baked
     // 300ms transitions run. A full render() rebuild would snap instantly.
     function setPillOff(off) {
@@ -508,23 +508,6 @@ content_html: |-
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
-components:
-- name: icon_refresh
-  type: html
-  description: Refresh glyph for the action pill.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-- name: icon_plus
-  type: html
-  description: Plus glyph for Add port.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-- name: icon_chev_left
-  type: html
-  description: 'Pill toggle: show actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-- name: icon_chev_right
-  type: html
-  description: 'Pill toggle: hide actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>
 configure:
 - name: read_only

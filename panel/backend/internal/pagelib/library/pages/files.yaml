@@ -1164,13 +1164,13 @@ content_html: |
       var h = '<div id="fx-pill-outer" style="position:fixed;top:12px;right:12px;z-index:40">'
         + '<div id="fx-pill" class="ks-card ks-pill-anim ks-actions-pill' + off + '" role="toolbar" aria-label="File actions" style="display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px">'
         + '<div class="ks-pill-content" style="' + cs + '" aria-hidden="' + (!!off) + '">'
-        + '<button type="button" data-fx="pill-upload" title="Upload" aria-label="Upload" class="ks-btn-header ks-icon-btn">{{component:icon_upload}}</button>'
-        + '<button type="button" data-fx="pill-new" title="Create file or folder" aria-label="Create" class="ks-btn-header ks-icon-btn">{{component:icon_plus}}</button>'
-        + '<button type="button" data-fx="pill-search" title="Search on server" aria-label="Search on server" class="ks-btn-header ks-icon-btn">{{component:icon_search}}</button>'
-        + '<button type="button" data-fx="pill-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn">{{component:icon_refresh}}</button>'
+        + '<button type="button" data-fx="pill-upload" title="Upload" aria-label="Upload" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>'
+        + '<button type="button" data-fx="pill-new" title="Create file or folder" aria-label="Create" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'
+        + '<button type="button" data-fx="pill-search" title="Search on server" aria-label="Search on server" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg></button>'
+        + '<button type="button" data-fx="pill-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>'
         + (fxMsg ? '<span style="font-size:12px;color:var(--ks-ok);white-space:nowrap;padding:0 4px">' + esc(fxMsg) + '</span>' : '')
         + '</div>'
-        + '<button type="button" data-fx="pill-toggle" aria-label="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!fxPillOff) + '" title="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (fxPillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+        + '<button type="button" data-fx="pill-toggle" aria-label="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!fxPillOff) + '" title="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (fxPillOff ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>' : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>') + '</button>'
         + '</div></div>';
       if (fxShowSftp()) {
         h += '<div class="ks-tabs" role="tablist" aria-label="Files views" style="margin-bottom:10px">'
@@ -1251,8 +1251,8 @@ content_html: |
       wireFxPillAutoHide();
     }
     // Chevron glyphs for the live toggle (resolved at bake time).
-    var FX_CHEV_L = '{{component:icon_chev_left}}';
-    var FX_CHEV_R = '{{component:icon_chev_right}}';
+    var FX_CHEV_L = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+    var FX_CHEV_R = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
     // Live collapse: update the EXISTING pill nodes in place so the baked
     // 300ms transitions run. A full render() rebuild would snap instantly.
     function setFxPillOff(off) {
@@ -1397,31 +1397,6 @@ content_html: |
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
-components:
-- name: icon_refresh
-  type: html
-  description: Refresh glyph for the action pill.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-- name: icon_plus
-  type: html
-  description: Plus glyph for Create.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-- name: icon_upload
-  type: html
-  description: Upload glyph for the action pill.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-- name: icon_search
-  type: html
-  description: Search glyph for Search on server.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg>
-- name: icon_chev_left
-  type: html
-  description: 'Pill toggle: show actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-- name: icon_chev_right
-  type: html
-  description: 'Pill toggle: hide actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>
 sub_pages:
 - path: edit
