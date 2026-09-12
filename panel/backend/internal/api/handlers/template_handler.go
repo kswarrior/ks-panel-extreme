@@ -46,11 +46,14 @@ type templateDTO struct {
 
 // validKinds is the set of ksedge drivers a template may target. Kept here
 // (not in the repo) so a reject surfaces as a 400 before touching the DB.
+// "host" runs a simple shell service directly on the edge host filesystem
+// with no container/VM isolation (see ksedge drivers/host.go).
 var validKinds = map[string]bool{
 	"docker":    true,
 	"lxd":       true,
 	"kvm":       true,
 	"multipass": true,
+	"host":      true,
 }
 
 // validEnvScopes is the set of template sections an env variable may be
@@ -863,7 +866,7 @@ func validateTemplate(req templateDTO) (string, error) {
 		return "", errString("template name is required")
 	}
 	if !validKinds[req.Kind] {
-		return "", errString("kind must be one of: docker, lxd, kvm, multipass")
+		return "", errString("kind must be one of: docker, lxd, kvm, multipass, host")
 	}
 	if req.Icon != "" && len(req.Icon) > 16*1024 {
 		return "", errString("icon too large (max 16KB)")
@@ -1058,7 +1061,7 @@ func handleTemplateFileUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validKinds[kind] {
-		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass", http.StatusBadRequest)
+		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass, host", http.StatusBadRequest)
 		return
 	}
 	if icon != "" && len(icon) > 16*1024 {
@@ -1186,7 +1189,7 @@ func InstallTemplateFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validKinds[kind] {
-		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass", http.StatusBadRequest)
+		http.Error(w, "kind must be one of: docker, lxd, kvm, multipass, host", http.StatusBadRequest)
 		return
 	}
 	if icon != "" && len(icon) > 16*1024 {

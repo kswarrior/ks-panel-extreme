@@ -818,7 +818,7 @@ func aiBuildSystemPrompt(con *sql.DB, cfg *repository.AIConfig, uid int64, usern
 	if strings.TrimSpace(cfg.HostingAbout) != "" {
 		b.WriteString(" About this hosting: " + strings.TrimSpace(cfg.HostingAbout))
 	}
-	b.WriteString("\n\nPanel knowledge: this panel manages game servers and app workloads. Architecture: a central Panel plus Edge agents (ksedge) on each node. Instances are deployed from Templates (blueprints for docker, lxd, kvm or multipass drivers) onto Nodes (edge machines). Mods extend the panel, Applications are user-installable services, Tickets are support requests. You can inspect the fleet with your tools; you know instance, node and template IDs only from tool output.")
+	b.WriteString("\n\nPanel knowledge: this panel manages game servers and app workloads. Architecture: a central Panel plus Edge agents (ksedge) on each node. Instances are deployed from Templates (blueprints for docker, lxd, kvm, multipass or host drivers) onto Nodes (edge machines). Mods extend the panel, Applications are user-installable services, Tickets are support requests. You can inspect the fleet with your tools; you know instance, node and template IDs only from tool output.")
 	b.WriteString("\n\nLive context: the user is " + strconv.Quote(username) + " (role " + strconv.Quote(role) + ") with permissions [" + strings.Join(perms, ", ") + "].")
 	instN, nodeN, tmplN := aiFleetCounts(con, uid)
 	fmt.Fprintf(&b, " Fleet counts: %d instances, %d nodes, %d templates (counts only — no rows are preloaded).", instN, nodeN, tmplN)
@@ -979,9 +979,9 @@ func aiToolDefs() []aiToolDef {
 			"description": aiStrProp("short description"),
 			"spec":        aiStrProp("theme spec as a JSON object string; default {}"),
 		}, "name")),
-		mk("create_template", "APPROVAL REQUIRED: create a deployment template (docker, lxd, kvm or multipass).", obj(map[string]any{
+		mk("create_template", "APPROVAL REQUIRED: create a deployment template (docker, lxd, kvm, multipass or host).", obj(map[string]any{
 			"name":        aiStrProp("template name (required)"),
-			"kind":        aiStrProp("one of: docker, lxd, kvm, multipass (required)"),
+			"kind":        aiStrProp("one of: docker, lxd, kvm, multipass, host (required)"),
 			"description": aiStrProp("short description"),
 			"image":       aiStrProp("container image / os image"),
 			"spec":        aiStrProp("template spec as a YAML/JSON object string; default {}"),
@@ -2792,7 +2792,7 @@ func aiExecCreateTheme(a *aiCallCtx, args map[string]any) (string, error) {
 
 // create_template
 
-var aiValidKinds = map[string]bool{"docker": true, "lxd": true, "kvm": true, "multipass": true}
+var aiValidKinds = map[string]bool{"docker": true, "lxd": true, "kvm": true, "multipass": true, "host": true}
 
 func aiProposeCreateTemplate(a *aiCallCtx, args map[string]any) (string, string, error) {
 	if err := a.checker.EnsureAny(a.uid, permissions.ManageTemplatesKey, permissions.TemplatesCreateKey); err != nil {
@@ -2804,7 +2804,7 @@ func aiProposeCreateTemplate(a *aiCallCtx, args map[string]any) (string, string,
 		return "", "", fmt.Errorf("template name and kind are required")
 	}
 	if !aiValidKinds[kind] {
-		return "", "", fmt.Errorf("kind must be one of: docker, lxd, kvm, multipass")
+		return "", "", fmt.Errorf("kind must be one of: docker, lxd, kvm, multipass, host")
 	}
 	spec := aiStr(args, "spec")
 	if strings.TrimSpace(spec) == "" {
