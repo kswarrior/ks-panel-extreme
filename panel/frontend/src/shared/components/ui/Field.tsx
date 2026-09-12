@@ -12,6 +12,8 @@ interface FieldProps {
   className?: string;
   inputClassName?: string;
   labelClassName?: string;
+  error?: string;
+  required?: boolean;
 }
 
 const fieldClass =
@@ -31,21 +33,35 @@ const Field: React.FC<FieldProps> = ({
   className = '',
   inputClassName = '',
   labelClassName = '',
+  error,
+  required = false,
 }) => {
-  // Inject the field styling into the single child control. cloneElement
-  // is fine here because the only consumers are real <input>/<select>/
-  // <textarea> elements; polymorphic input components aren't part of this
-  // surface.
+  // Merge (don't clobber) any className already on the child control, then
+  // layer the error token so Theme Studio's error styling applies. Expose
+  // the error via aria-describedby + aria-invalid; fail closed: invalid
+  // state is always announced, never silently styled.
+  const childProps = (children as React.ReactElement<any>).props ?? {};
+  const errorId = error && htmlFor ? `${htmlFor}-error` : undefined;
+  const describedBy = [childProps['aria-describedby'], errorId].filter(Boolean).join(' ') || undefined;
   const child = React.cloneElement(children as React.ReactElement<any>, {
-    className: `${fieldClass} ${inputClassName}`,
+    className: `${fieldClass} ${childProps.className ?? ''} ${inputClassName} ${error ? 'ks-input-error border-red-500/50' : ''} disabled:opacity-50 disabled:cursor-not-allowed`,
+    ...(error ? { 'aria-invalid': true as const } : null),
+    ...(describedBy ? { 'aria-describedby': describedBy } : null),
+    ...(required ? { 'aria-required': true as const } : null),
   });
   return (
     <div className={`${className} ks-field`}>
       <label htmlFor={htmlFor} className={`ks-label ${labelClassName}`}>
         {label}
+        {required && <span aria-hidden="true" className="ml-1 text-red-400">*</span>}
       </label>
       {hint && <p className="ks-hint">{hint}</p>}
       {child}
+      {error && (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-red-400 break-words">
+          {error}
+        </p>
+      )}
     </div>
   );
 };

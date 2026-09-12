@@ -7,6 +7,11 @@ export interface TextInputProps {
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
+  required?: boolean;
+  disabled?: boolean;
+  error?: string;
+  name?: string;
+  autoComplete?: string;
 }
 
 const TextInput: React.FC<TextInputProps> = ({ id, label, value, onChange, placeholder, type = 'text' }) => (

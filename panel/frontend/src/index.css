@@ -1204,9 +1204,12 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 /* Phones: the instance-menu toggle must stay at 60fps on weak mobile
    GPUs. Kill the infinite idle box-shadow pulse (a permanent repaint,
    worst over the live xterm canvas), drop the stagger delays, and
-   shorten the one-shot open animations. Desktop keeps the full motion. */
+   shorten the one-shot open animations. Desktop keeps the full motion.
+   The AI chat FAB carries the same infinite idle ring
+   (ks-ai-fab-ring), so it is killed here too. */
 @media (hover: none), (max-width: 768px) {
-  .ks-card.ks-fab-toggle.is-idle {
+  .ks-card.ks-fab-toggle.is-idle,
+  .ks-ai-fab-anim.is-idle {
     animation: none;
   }
   .ks-fab-stagger > * {
