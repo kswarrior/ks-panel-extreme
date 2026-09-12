@@ -64,6 +64,21 @@ const Stacks: React.FC = () => {
   const [themeFilter, setThemeFilter] = useState<'all' | 'panel' | 'custom' | 'none'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  // Cards per page — same localStorage pattern as Templates/Roles/Users so
+  // the grid stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.stacks.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +141,8 @@ const Stacks: React.FC = () => {
     if (categoryFilter !== 'all') out = out.filter((s) => s.category === categoryFilter);
     return out;
   }, [stacks, search, activeFilter, themeFilter, categoryFilter]);
+
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
 
   const stats = useMemo(() => {
     const active = stacks.filter((s) => s.active).length;

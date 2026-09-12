@@ -460,6 +460,34 @@ content_html: |-
     function pillShow() {
       if (pillAutoTimer) { window.clearTimeout(pillAutoTimer); pillAutoTimer = null; }
     }
+    // Chevron glyphs for the live toggle (component tokens resolve at bake
+    // time; the toggle swaps them on the EXISTING button so nothing rebuilds).
+    var CHEV_L = '{{component:icon_chev_left}}';
+    var CHEV_R = '{{component:icon_chev_right}}';
+    // Live collapse: update the EXISTING pill nodes in place so the baked
+    // 300ms ks-pill-anim / ks-pill-content transitions can run. A full
+    // renderPill() rebuild would recreate the nodes and snap instantly.
+    function setPillOff(off) {
+      pillOff = off;
+      var host = el('ks-pill');
+      if (!host) return;
+      if (off) host.classList.add('ks-pill-collapsed');
+      else host.classList.remove('ks-pill-collapsed');
+      var c = host.querySelector('.ks-pill-content');
+      if (c) {
+        if (off) { c.style.maxWidth = '0'; c.style.opacity = '0'; c.style.transform = 'translateX(8px)'; c.style.pointerEvents = 'none'; c.style.visibility = 'hidden'; c.style.overflow = 'hidden'; }
+        else { c.style.maxWidth = '800px'; c.style.opacity = '1'; c.style.transform = 'none'; c.style.pointerEvents = 'auto'; c.style.visibility = 'visible'; c.style.overflow = 'visible'; }
+        c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      }
+      var tg = document.getElementById('ks-pill-toggle');
+      if (tg) {
+        tg.setAttribute('aria-label', off ? 'Show actions' : 'Hide actions');
+        tg.setAttribute('aria-expanded', off ? 'false' : 'true');
+        tg.setAttribute('title', off ? 'Show actions' : 'Hide actions');
+        tg.style.setProperty('--ks-tab-px', off ? '4px' : 'var(--ks-pill-tab-px,10px)');
+        tg.innerHTML = off ? CHEV_L : CHEV_R;
+      }
+    }
     var liveStatus = '';
     var liveActions = [];
     var liveInstall = { state: '', kind: '', actionId: '' };
@@ -986,10 +1014,10 @@ content_html: |-
       host.innerHTML = h;
       var q = function (id) { return document.getElementById(id); };
       var tg = q('ks-pill-toggle');
-      if (tg) tg.addEventListener('click', function () { pillShow(); pillOff = !pillOff; renderPill(); });
+      if (tg) tg.addEventListener('click', function () { pillShow(); setPillOff(!pillOff); });
       if (!host.getAttribute('data-hover')) {
         host.setAttribute('data-hover', '1');
-        host.addEventListener('mouseenter', function () { pillShow(); if (pillOff) { pillOff = false; renderPill(); } });
+        host.addEventListener('mouseenter', function () { pillShow(); if (pillOff) setPillOff(false); });
       }
       var scBtn = q('pill-shortcuts');
       if (scBtn) scBtn.addEventListener('click', function (e) {
@@ -1018,20 +1046,20 @@ content_html: |-
         document.addEventListener('scroll', function () {
           var p = document.getElementById('ks-pill');
           if (p && document.activeElement && p.contains(document.activeElement)) return;
-          if (!pillOff) { pillOff = true; renderPill(); }
+          if (!pillOff) setPillOff(true);
           pillShow();
-          pillAutoTimer = window.setTimeout(function () { pillOff = false; renderPill(); }, 2500);
+          pillAutoTimer = window.setTimeout(function () { setPillOff(false); }, 2500);
         }, true);
         document.addEventListener('pointerdown', function (ev) {
           var p = document.getElementById('ks-pill');
           if (!p) return;
           var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
           var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
-          if (!inside && !pillOff) { pillOff = true; renderPill(); }
+          if (!inside && !pillOff) setPillOff(true);
         });
         document.addEventListener('focusin', function (ev) {
           var p = document.getElementById('ks-pill');
-          if (p && ev.target && p.contains(ev.target)) { pillShow(); if (pillOff) { pillOff = false; renderPill(); } }
+          if (p && ev.target && p.contains(ev.target)) { pillShow(); if (pillOff) setPillOff(false); }
         });
       }
       var all = host.querySelectorAll('[data-sc]');
