@@ -835,6 +835,19 @@ func ListThemeRevisionsHandler(w http.ResponseWriter, r *http.Request) {
 	if cur, cerr := repo.GetTheme(id); cerr != nil || cur == nil {
 		http.Error(w, "theme not found", http.StatusNotFound)
 		return
+	} else if uid, _ := UserIDFromContext(r); uid != 0 && (cur.Builtin || cur.OwnerID != uid) {
+		// Ownership scope (migration 054): own-scope callers may only read
+		// history of themes they authored. Builtins and orphans
+		// (OwnerID==0) require ALL (fail closed, mirrors Update/Delete).
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				http.Error(w, "forbidden: own-scope may only read history of themes you authored", http.StatusForbidden)
+				return
+			}
+		}
 	}
 	revs, err := repo.ListRevisions(id)
 	if err != nil {
@@ -887,6 +900,20 @@ func RollbackThemeHandler(w http.ResponseWriter, r *http.Request) {
 	if cerr != nil || cur == nil {
 		http.Error(w, "theme not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope (migration 054): own-scope callers may only roll back
+	// themes they authored. Builtins and orphans (OwnerID==0) require ALL
+	// (fail closed, mirrors Update/Delete: rollback overwrites name/spec).
+	if uid, _ := UserIDFromContext(r); uid != 0 && (cur.Builtin || cur.OwnerID != uid) {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ThemesOwnKey, permissions.ThemesAllKey, permissions.ManageThemesKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				http.Error(w, "forbidden: own-scope may only roll back themes you authored", http.StatusForbidden)
+				return
+			}
+		}
 	}
 	target, terr := repo.GetRevision(id, rev)
 	if terr != nil {
