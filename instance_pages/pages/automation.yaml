@@ -214,18 +214,18 @@ content_html: |-
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
   </style><div class="ks-page">
     <style id="ks-automation-pills">/* Automation pills — panel PageActionsPill / PageTabsPill / PageFormActionsPill parity.
-       Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
-       these fallbacks reproduce the historic geometry when no theme sets them. */
-    .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
-    .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
-    .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-    .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
-    .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
-    .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-    @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
-    @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
-    </style>
+     Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
+     these fallbacks reproduce the historic geometry when no theme sets them. */
+  .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
+  .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
+  .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+  .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
+  .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
+  .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+  @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+  @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+  @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+  </style>
     <div id="root"><div class="ks-card"><div class="ks-skeleton-bar" style="height:12px;width:40%;margin-bottom:8px"></div><div class="ks-skeleton" style="height:12px;width:65%"></div></div></div>
   </div>
   <script>
@@ -852,18 +852,18 @@ sub_pages:
     .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
     </style><div class="ks-page">
       <style id="ks-automation-pills">/* Automation pills — panel PageActionsPill / PageTabsPill / PageFormActionsPill parity.
-         Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
-         these fallbacks reproduce the historic geometry when no theme sets them. */
-      .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
-      .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
-      .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-      .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
-      .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
-      .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-      @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
-      @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-      @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
-      </style>
+       Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
+       these fallbacks reproduce the historic geometry when no theme sets them. */
+    .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
+    .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
+    .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+    .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
+    .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
+    .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+    @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
+    @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+    @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
+    </style>
       <div id="root"><div class="ks-card"><div class="ks-skeleton-bar" style="height:12px;width:40%;margin-bottom:8px"></div><div class="ks-skeleton" style="height:12px;width:65%"></div></div></div>
     </div>
     <script>
