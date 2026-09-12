@@ -183,8 +183,13 @@ export const AreaChart: React.FC<AreaChartProps> = ({
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="none"
         className="w-full h-[calc(100%-1.25rem)] block"
+        role="img"
+        aria-label={label ? `${label} chart` : 'Metrics chart'}
+        tabIndex={0}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
+        onFocus={() => setHover((h) => (h == null ? dots.length - 1 : h))}
+        onBlur={() => setHover(null)}
       >
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
@@ -272,20 +277,20 @@ export const AreaChart: React.FC<AreaChartProps> = ({
       {/* Floating tooltip */}
       {hoverSample && (
         <div
-          className="absolute pointer-events-none -translate-x-1/2 -top-1 px-2 py-1 rounded bg-black/80 border border-white/10 text-[10px] text-gray-100 font-mono whitespace-nowrap"
-          style={{ left: `${((hover ?? 0) / Math.max(samples.length - 1, 1)) * 100}%` }}
+          className="absolute pointer-events-none -translate-x-1/2 -top-1 px-2 py-1 rounded bg-black/80 border border-white/10 text-[10px] text-gray-100 font-mono whitespace-nowrap max-w-[calc(100%-0.5rem)] overflow-hidden text-ellipsis"
+          style={{ left: `clamp(3rem, ${((hover ?? 0) / Math.max(samples.length - 1, 1)) * 100}%, calc(100% - 3rem))` }}
         >
           {fmtClock(hoverSample.t)} · {hoverSample.v.toFixed(1)}{unit} 
         </div>
       )}
 
       {/* X-axis time labels (first / mid / last) */}
-      <div className="flex justify-between text-[9px] text-gray-500 font-mono mt-0.5 px-0.5">
-        <span>{samples[0] ? fmtClock(samples[0].t) : '—' }</span>
-        <span>
+      <div className="flex justify-between gap-2 text-[9px] text-gray-500 font-mono mt-0.5 px-0.5 min-w-0">
+        <span className="truncate shrink-0">{samples[0] ? fmtClock(samples[0].t) : '—' }</span>
+        <span className="truncate hidden min-[360px]:inline">
           {samples.length > 2 ? fmtClock(samples[Math.floor(samples.length / 2)].t) : ''} 
         </span>
-        <span>{samples[samples.length - 1] ? fmtClock(samples[samples.length - 1].t) : '—' }</span> 
+        <span className="truncate shrink-0">{samples[samples.length - 1] ? fmtClock(samples[samples.length - 1].t) : '—' }</span> 
       </div>
     </div>
   );

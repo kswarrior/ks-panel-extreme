@@ -797,11 +797,11 @@ function buildVars(theme: Theme, opts?: ApplyOpts): string {
   --ks-card-gap-v: ${c.gap_v ?? c.gap ?? 16}px;
   --ks-card-shadow: ${c.shadow};
   --ks-card-hover-border: ${c.hover_border};
-  // Card background media layers. When bg_type is color these are 'none'
-  // so the plain --ks-card-bg fills the card. For image/gradient we layer
-  // the media on top of the color (color stays as the fallback under the
-  // opacity dimming). Video cards aren't supported via CSS background —
-  // the field is stored but only color/image/gradient render on cards.
+  /* Card background media layers. When bg_type is color these are 'none'
+     so the plain --ks-card-bg fills the card. For image/gradient we layer
+     the media on top of the color (color stays as the fallback under the
+     opacity dimming). Video cards aren't supported via CSS background —
+     the field is stored but only color/image/gradient render on cards. */
   --ks-card-bg-layer: ${cardBgLayer(c)};
   --ks-card-bg-video: ${c.bg_type === 'video' ? cssUrl(c.bg_video) : ''};
   --ks-card-bg-opacity: ${c.bg_opacity};
@@ -2893,9 +2893,11 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   load: () => {
     const p = loadPersisted();
     set({ themes: p.themes, assignments: p.assignments });
-    const pth = typeof window !== 'undefined' ? stripPanelBase(window.location.pathname) : '/';
-    const tid = resolveThemeIdByRoute(pth, p.assignments);
-    applyTheme(p.themes.find((t) => t.id === tid) || DEFAULT_THEME, { pathname: pth });
+    // Re-resolve via the merged resolver (local > global > default) so a
+    // reload on the Themes list never flashes back to Default when only a
+    // GLOBAL assignment covers this route; globalThemes are preserved by
+    // the set() above and loadGlobal() refreshes them right after.
+    if (typeof window !== 'undefined') get().applyForRoute(window.location.pathname);
   },
 
   // Fetch the admin-managed GLOBAL theme store and fold it into the resolver.

@@ -73,14 +73,16 @@ const ErrorState: React.FC<ErrorStateProps> = ({
   className = '',
   compact = false,
 }) => (
-  <div className={compact
+  <div
+    {...(variant === 'error' ? { role: 'alert' as const } : {})}
+    className={compact
     ? `flex flex-col items-center justify-center px-4 py-6 text-center animate-fade-in ${className}`
     : `flex flex-col items-center justify-center min-h-[40vh] px-4 py-10 text-center animate-fade-in ${className}`}>
     <div className="flex flex-col items-center gap-4 max-w-md w-full">
       {variant === 'error' ? <ErrorArt compact={compact} /> : <NotFoundArt compact={compact} />}
-      <p className="text-lg font-medium text-gray-300">{title}</p>
+      <h2 className="text-lg font-medium text-gray-300">{title}</h2>
       {description ? (
-        <p className="text-sm text-gray-500 break-words">{description}</p>
+        <p className="text-sm text-gray-400 break-words">{description}</p>
       ) : null}
       {onBack || onRetry ? (
         <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">

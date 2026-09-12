@@ -85,7 +85,7 @@ const Loading: React.FC<LoadingProps> = (props) => {
   };
 
   const loadingContent = (
-    <div style={themeColorStyle} className={`ks-loading-host flex flex-col items-center justify-center ${type === 'skeleton' ? 'w-full' : sizeClasses[size]} ${color} ${className}`}>
+    <div role="status" aria-live="polite" aria-label={text || 'Loading'} style={themeColorStyle} className={`ks-loading-host flex flex-col items-center justify-center ${type === 'skeleton' ? 'w-full' : sizeClasses[size]} ${color} ${className}`}>
       {type === 'cycle' && (
         <div className={`animate-spin rounded-full border-2 border-current border-t-transparent ${sizeClasses[size]}`} />
       )}

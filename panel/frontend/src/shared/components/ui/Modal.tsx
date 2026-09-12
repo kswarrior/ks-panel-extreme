@@ -58,6 +58,10 @@ const Modal: React.FC<ModalProps> = ({
     if (open && !wasOpen.current) closeRef.current?.focus();
     wasOpen.current = open;
     if (!open) return;
+    // Scroll lock: background page must not scroll behind the dialog on
+    // phone widths. Save/restore so nested close doesn't clobber.
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -65,7 +69,10 @@ const Modal: React.FC<ModalProps> = ({
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open]);
 
   if (!open) return null;

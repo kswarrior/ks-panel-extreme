@@ -59,6 +59,8 @@ const ConfirmDialog: React.FC = () => {
   useEffect(() => {
     if (!open) return;
     confirmRef.current?.focus();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -66,7 +68,10 @@ const ConfirmDialog: React.FC = () => {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
   }, [open, settle]);
 
   if (!open || !opts) return null;
