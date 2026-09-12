@@ -538,6 +538,44 @@ content_html: |-
       if (!outer) return;
       if (pillTimer) { clearTimeout(pillTimer); pillTimer = null; }
     }
+    // Chevron glyphs for live toggles (resolved at bake time).
+    var AU_CHEV_L = '{{component:icon_chev_left}}';
+    var AU_CHEV_R = '{{component:icon_chev_right}}';
+    // Live collapse: toggle the class + aria + chevrons on the EXISTING
+    // nodes so the pill_css 300ms transition runs. A full render() rebuild
+    // would recreate the nodes and snap instantly.
+    function setAuPillOff(off) {
+      state.pillOff = off;
+      var p = document.getElementById('au-pill');
+      if (!p) return;
+      if (off) p.classList.add('ks-pill-off');
+      else p.classList.remove('ks-pill-off');
+      var c = p.querySelector('.ks-pill-content');
+      if (c) c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      var t = document.getElementById('au-pill-toggle');
+      if (t) {
+        t.setAttribute('aria-label', off ? 'Show actions' : 'Hide actions');
+        t.setAttribute('aria-expanded', off ? 'false' : 'true');
+        t.setAttribute('title', off ? 'Show actions' : 'Hide actions');
+        t.innerHTML = off ? AU_CHEV_L : AU_CHEV_R;
+      }
+    }
+    function setEdPillOff(off) {
+      state.pillOff = off;
+      var p = document.getElementById('ed-savepill');
+      if (!p) return;
+      if (off) p.classList.add('ks-pill-off');
+      else p.classList.remove('ks-pill-off');
+      var c = p.querySelector('.ks-pill-content');
+      if (c) c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      var t = document.getElementById('ed-pill-toggle');
+      if (t) {
+        t.setAttribute('aria-label', off ? 'Show save bar' : 'Hide save bar');
+        t.setAttribute('aria-expanded', off ? 'false' : 'true');
+        t.setAttribute('title', off ? 'Show save bar' : 'Hide save bar');
+        t.innerHTML = off ? AU_CHEV_L : AU_CHEV_R;
+      }
+    }
     function wire() {
       var q = function (sel, fn) {
         Array.prototype.forEach.call(document.querySelectorAll(sel), function (b) { b.addEventListener('click', fn); });
@@ -545,7 +583,7 @@ content_html: |-
       q('#au-refresh', function () { load(); });
       q('#au-retry', function () { load(); });
       q('#au-new', function () { try { sdk.navigate(editUrl(null)); } catch (e) { toast('Cannot open editor', 'error'); } });
-      q('#au-pill-toggle', function () { state.pillOff = !state.pillOff; render(); });
+      q('#au-pill-toggle', function () { setAuPillOff(!state.pillOff); });
       q('[data-autab]', function () { var b = this; state.tab = b.getAttribute('data-autab'); render(); });
       q('[data-run]', function () { var j = findJob(Number(this.getAttribute('data-run'))); if (j) handleRunNow(j); });
       q('[data-edit]', function () { var id = this.getAttribute('data-edit'); try { sdk.navigate(editUrl(id)); } catch (e) { toast('Cannot open editor', 'error'); } });
@@ -567,20 +605,21 @@ content_html: |-
         if (pill && !pill.getAttribute('data-autohide')) {
           pill.setAttribute('data-autohide', '1');
           document.addEventListener('scroll', function () {
-            if (document.activeElement && pill.contains(document.activeElement)) return;
-            if (!state.pillOff) { state.pillOff = true; var p = document.getElementById('au-pill'); if (p) p.classList.add('ks-pill-off'); var t = document.getElementById('au-pill-toggle'); if (t) { t.setAttribute('aria-label', 'Show actions'); } }
+            var live = document.getElementById('au-pill');
+            if (live && document.activeElement && live.contains(document.activeElement)) return;
+            if (!state.pillOff) setAuPillOff(true);
             pillAutoHide();
             if (pillTimer) clearTimeout(pillTimer);
-            pillTimer = setTimeout(function () { state.pillOff = false; render(); }, 2500);
+            pillTimer = setTimeout(function () { setAuPillOff(false); }, 2500);
           }, true);
           document.addEventListener('pointerdown', function (ev) {
             var p = document.getElementById('au-pill');
             if (!p) return;
             var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
             var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
-            if (!inside && !state.pillOff) { state.pillOff = true; render(); }
+            if (!inside && !state.pillOff) setAuPillOff(true);
           });
-          pill.addEventListener('mouseenter', function () { if (state.pillOff) { state.pillOff = false; render(); } });
+          pill.addEventListener('mouseenter', function () { if (state.pillOff) setAuPillOff(false); });
         }
       } catch (e) {}
     }
@@ -1117,7 +1156,7 @@ sub_pages:
           + '<button type="button" id="ed-cancel2" class="ks-btn ks-btn-ghost ks-btn-sm">Cancel</button>'
           + '<button type="button" id="ed-save2" class="ks-btn ks-btn-primary ks-btn-sm"' + (state.busy ? ' disabled style="opacity:.5"' : '') + '>' + (state.busy ? 'Saving…' : (d.editingId !== null ? 'Save' : 'Create')) + '</button>'
           + '</div>'
-          + '<button type="button" id="ed-pill-toggle" aria-label="Toggle save bar" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+          + '<button type="button" id="ed-pill-toggle" aria-label="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show save bar' : 'Hide save bar') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
           + '</div></div><div aria-hidden="true" style="height:80px"></div>';
         el('root').innerHTML = h;
         wire();
@@ -1137,7 +1176,7 @@ sub_pages:
         on('ed-save', 'click', submit);
         on('ed-save2', 'click', submit);
         on('ed-cancel2', 'click', goBack);
-        on('ed-pill-toggle', 'click', function () { state.pillOff = !state.pillOff; render(); });
+        on('ed-pill-toggle', 'click', function () { setEdPillOff(!state.pillOff); });
         on('f-name', 'input', function () { d.name = el('f-name').value.slice(0, 100); paintDirty(); });
         on('f-schedule', 'input', function () { d.schedule = el('f-schedule').value.slice(0, 100); paintDirty(); });
         on('f-kind', 'change', function () { d.kind = el('f-kind').value; state.formError = ''; render(); });
