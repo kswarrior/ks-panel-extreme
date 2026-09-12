@@ -1230,23 +1230,29 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 	return out.Choices[0].Message.Content, aiParseCalls(tcRaw), usage, nil
 }
 
+// aiProviderAttemptTimeout bounds one provider attempt (primary or
+// fallback) in both chat paths. The fallback gets a fresh budget instead
+// of inheriting the primary's depleted deadline, while the caller's ctx
+// (outer 110s budget / client disconnect) still bounds both attempts.
+var aiProviderAttemptTimeout = 50 * time.Second
+
 // aiProviderChatWithFallback runs one round against the primary provider
 // and fails over to the configured fallback triple only on retryable
 // primary errors (transport failures, timeouts, HTTP 5xx, 429/rate limits
 // via aiShouldFallbackToProvider). Primary 4xx (auth/config) returns
 // directly so bad credentials are surfaced instead of masked by a fallback
-// round. Each attempt gets a fresh 50s child of the caller's ctx: a hung
-// primary must neither veto the fallback via its expired deadline nor
-// starve it of budget. The caller's ctx (outer 110s budget / client
-// disconnect) still bounds both attempts — a cancelled caller never spends
-// a fallback call. The answering provider is reported in the usage for the
-// audit log.
+// round. Each attempt gets a fresh aiProviderAttemptTimeout child of the
+// caller's ctx: a hung primary must neither veto the fallback via its
+// expired deadline nor starve it of budget. The caller's ctx (outer 110s
+// budget / client disconnect) still bounds both attempts — a cancelled
+// caller never spends a fallback call. The answering provider is reported
+// in the usage for the audit log.
 func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, model string, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, aiUsage, error) {
 	eff := *cfg
 	if strings.TrimSpace(model) != "" {
 		eff.ModelID = strings.TrimSpace(model)
 	}
-	primaryCtx, primaryCancel := context.WithTimeout(ctx, 50*time.Second)
+	primaryCtx, primaryCancel := context.WithTimeout(ctx, aiProviderAttemptTimeout)
 	text, calls, usage, err := aiProviderChat(primaryCtx, &eff, msgs, tools)
 	primaryCancel()
 	usage.Provider = "primary"
@@ -1259,7 +1265,7 @@ func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, m
 	fb := *cfg
 	fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
 		cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
-	fbCtx, fbCancel := context.WithTimeout(ctx, 50*time.Second)
+	fbCtx, fbCancel := context.WithTimeout(ctx, aiProviderAttemptTimeout)
 	text2, calls2, usage2, err2 := aiProviderChat(fbCtx, &fb, msgs, tools)
 	fbCancel()
 	usage2.Provider = "fallback"

@@ -86,11 +86,11 @@ func aiStreamWithFallback(ctx context.Context, cfg *repository.AIConfig, model s
 	}
 	var buf []string
 	buffered := func(tok string) { buf = append(buf, tok) }
-	// Fresh 50s budget per attempt (mirrors aiProviderChatWithFallback):
+	// Fresh attempt budget per try (mirrors aiProviderChatWithFallback):
 	// a hung primary must neither veto the fallback via its expired
 	// deadline nor starve it of budget. The caller's ctx (outer 110s
 	// budget / client disconnect) still bounds both attempts.
-	primaryCtx, primaryCancel := context.WithTimeout(ctx, 50*time.Second)
+	primaryCtx, primaryCancel := context.WithTimeout(ctx, aiProviderAttemptTimeout)
 	text, calls, usage, err := aiStreamProviderTokens(primaryCtx, &eff, msgs, tools, buffered)
 	primaryCancel()
 	usage.Provider = "primary"
@@ -108,7 +108,7 @@ func aiStreamWithFallback(ctx context.Context, cfg *repository.AIConfig, model s
 	fb := *cfg
 	fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
 		cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
-	fbCtx, fbCancel := context.WithTimeout(ctx, 50*time.Second)
+	fbCtx, fbCancel := context.WithTimeout(ctx, aiProviderAttemptTimeout)
 	text2, calls2, usage2, err2 := aiStreamProviderTokens(fbCtx, &fb, msgs, tools, onToken)
 	fbCancel()
 	usage2.Provider = "fallback"

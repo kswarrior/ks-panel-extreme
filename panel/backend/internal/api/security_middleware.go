@@ -42,8 +42,11 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		start := time.Now()
 		path := stripQuery(r.URL.Path)
 		isAsset := isStaticAsset(path)
-		cfg := state.Cfg()
-		clientIP := securityClientIP(r)
+	cfg := state.Cfg()
+	// Strip any RemoteAddr port suffix so telemetry stores a bare IP and
+	// per-IP aggregation/matching uses the same value the allow/deny
+	// matchers see (normalizeClientIP also trims brackets/whitespace).
+	clientIP := normalizeClientIP(securityClientIP(r))
 		// The IP allow/deny matchers work on a bare address, while
 		// clientIP may carry the RemoteAddr port suffix ("1.2.3.4:5678").
 		clientHost := clientIP
