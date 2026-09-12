@@ -595,9 +595,9 @@ return (
       )}
       {loading && <SkeletonGrid count={6} />}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && visible.length > 0 && (
          <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-mods-grid">
-           {filtered.map((m) => {
+            {visible.map((m) => {
              const approved = m.permissions.filter((p) => p.granted).length;
              const allSet = m.pending === 0;
              return (

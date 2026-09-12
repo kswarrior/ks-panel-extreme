@@ -98,6 +98,21 @@ const InstancePages: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sort, setSort] = useState<SortKey>('name');
 
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.instance-pages.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -318,6 +333,8 @@ const InstancePages: React.FC = () => {
     return sorted;
   }, [enriched, search, kindFilter, categoryFilter, sort]);
 
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
+
   const resetFilters = () => { setSearch(''); setKindFilter('all'); setCategoryFilter('all'); setSort('name'); };
 
   const filteredMarketPages = useMemo(() => {
@@ -471,9 +488,12 @@ const InstancePages: React.FC = () => {
       </PageActionsPill>
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filtered.length}
+          shown={visible.length}
           total={pages.length}
           label="instance page"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={filtered.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
         />
       </div>
       {(resyncMsg || resyncErr) && (
@@ -493,9 +513,9 @@ const InstancePages: React.FC = () => {
             onRetry={() => void load()}
           />
         )}
-        {!loading && filtered.length > 0 && (
+        {!loading && visible.length > 0 && (
           <div className="ks-card-grid grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-instancepages-grid">
-            {filtered.map((e) => {
+            {visible.map((e) => {
               const p = e.page;
               const srcMeta = SOURCE_META[e.source] ?? SOURCE_META.studio;
               return (

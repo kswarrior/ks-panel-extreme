@@ -120,6 +120,21 @@ const Themes: React.FC = () => {
   const [search, setSearch] = useState('');
   const [originFilter, setOriginFilter] = useState<'all' | 'builtin' | 'global' | 'local'>('all');
   const [assignedFilter, setAssignedFilter] = useState<'all' | 'assigned' | 'unassigned'>('all');
+
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.themes.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -180,6 +195,8 @@ const Themes: React.FC = () => {
     return out;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allThemes, search, originFilter, assignedFilter, assignments, globalAssignments]);
+
+  const visible = useMemo(() => filteredThemes.slice(0, pageSize), [filteredThemes, pageSize]);
 
   const openStudio = () => {
     beginDraft(useThemeStore.getState().active());
@@ -446,14 +463,17 @@ const Themes: React.FC = () => {
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filteredThemes.length}
+          shown={visible.length}
           total={allThemes.length}
           label="theme"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={filteredThemes.length > pageSize ? <>showing first {pageSize} — refine search to see more</> : undefined}
         />
       </div>
 
 <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-themes-grid">
-        {filteredThemes.map(({ theme: t, origin }) => {
+        {visible.map(({ theme: t, origin }) => {
           const canAssign = origin !== 'global' || canManageGlobal;
 
           return (

@@ -323,10 +323,6 @@ const UsersPage: React.FC = () => {
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-400 uppercase tracking-wide mb-1.5">Cards per page</label>
-                      <LimitSelect value={pageSize} onChange={setPageSize} ariaLabel="Users page size" />
-                    </div>
                     <div className="pt-2 border-t border-white/5 flex items-center justify-end gap-2">
                       <button
                         type="button"
