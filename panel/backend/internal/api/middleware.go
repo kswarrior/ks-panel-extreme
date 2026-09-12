@@ -314,23 +314,23 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 				}
 			}
 			// Ticket attachments accept up to 25 MiB per file (plus multipart
-		// framing). The default 10 MiB cap would silently truncate the
-		// body before the handler's MaxBytesReader can report the
-		// friendly 413, so lift these routes to 32 MiB.
-		if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
-			const attachLimit = 32 << 20 // 32 MiB
-			if limit < attachLimit {
-				limit = attachLimit
+			// framing). The default 10 MiB cap would silently truncate the
+			// body before the handler's MaxBytesReader can report the
+			// friendly 413, so lift these routes to 32 MiB.
+			if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
+				const attachLimit = 32 << 20 // 32 MiB
+				if limit < attachLimit {
+					limit = attachLimit
+				}
 			}
-		}
-		// Fail closed: MaxBytesReader surfaces over-limit reads as errors
-		// instead of LimitReader's silent truncation (which corrupted
-		// payloads mid-stream while the handler still answered 200).
-		if r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, limit)
-		}
-		next.ServeHTTP(w, r)
-		})
+			// Fail closed: MaxBytesReader surfaces over-limit reads as errors
+			// instead of LimitReader's silent truncation (which corrupted
+			// payloads mid-stream while the handler still answered 200).
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
+			}
+			next.ServeHTTP(w, r)
+			})
 	}
 }
 
