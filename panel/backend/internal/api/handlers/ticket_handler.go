@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
@@ -43,6 +45,14 @@ func isTicketStaff(con *sql.DB, uid int64) bool {
 	return false
 }
 
+// rebindTicketQuery rewrites "?" binds to the configured engine's
+// placeholders ("?" on SQLite/MySQL, "$N" on Postgres via db.Rebind).
+// pgx rejects raw "?" so handler-owned user lookups must pass through it,
+// mirroring the ticket repository's rebind (see pg_compat.go).
+func rebindTicketQuery(q string) string {
+	return db.Rebind(config.DatabaseConfig().Engine, q)
+}
+
 // ticketActorName resolves the display name for notification actor fields.
 // Prefers the request context cache, falls back to a DB lookup; empty when
 // unresolvable (Emit* tolerates an empty actor name).
@@ -53,7 +63,7 @@ func ticketActorName(r *http.Request, uid int64) string {
 	if con, err := repository.OpenDB(); err == nil {
 		defer con.Close()
 		var name string
-		_ = con.QueryRow(`SELECT username FROM users WHERE id = ?`, uid).Scan(&name)
+		_ = con.QueryRow(rebindTicketQuery(`SELECT username FROM users WHERE id = ?`), uid).Scan(&name)
 		return name
 	}
 	return ""
@@ -393,7 +403,7 @@ func CreateTicketHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// validate user exists
 			var cnt int
-			_ = con.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ?`, *req.AssignedTo).Scan(&cnt)
+			_ = con.QueryRow(rebindTicketQuery(`SELECT COUNT(*) FROM users WHERE id = ?`), *req.AssignedTo).Scan(&cnt)
 			if cnt == 0 {
 				http.Error(w, "assigned user not found", http.StatusBadRequest)
 				return
@@ -649,7 +659,7 @@ func UpdateTicketHandler(w http.ResponseWriter, r *http.Request) {
 		in.AssignedTo = req.AssignedTo
 		if req.AssignedTo != nil {
 			var cnt int
-			_ = con.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ?`, *req.AssignedTo).Scan(&cnt)
+			_ = con.QueryRow(rebindTicketQuery(`SELECT COUNT(*) FROM users WHERE id = ?`), *req.AssignedTo).Scan(&cnt)
 			if cnt == 0 {
 				http.Error(w, "assigned user not found", http.StatusBadRequest)
 				return

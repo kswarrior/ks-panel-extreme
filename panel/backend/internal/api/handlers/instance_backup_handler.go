@@ -130,7 +130,6 @@ func InitInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Make the on-disk name unique per init so resumed uploads never clash.
-	_ = time.Now().UTC()
 	dir, err := instanceBackupDir(id)
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
