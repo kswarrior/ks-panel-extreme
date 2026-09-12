@@ -260,7 +260,7 @@ content_html: |-
       rows: [], loading: true, error: '', saving: false,
       limit: 25, page: 1,
       modal: false, host: '8080', container: '80', protocol: 'tcp', ip: '',
-      formError: ''
+      formError: '', pillOff: false
     };
 
     function load() {
@@ -328,18 +328,36 @@ content_html: |-
     }
 
     function el(id) { return document.getElementById(id); }
+    /* ---- Action pill (top-right): panel PageActionsPill parity.
+       ks-card ks-pill-anim ks-actions-pill shell, ks-pill-content with inline
+       collapse geometry, ks-tab ks-pill-toggle with Pill-tab sizing vars,
+       manual chevron toggle, auto-hide on scroll / outside-tap with idle
+       restore, hover restores. Never invisible. ---- */
+    function pillHtml(ro) {
+      var off = state.pillOff ? ' ks-pill-collapsed' : '';
+      var cs = off
+        ? 'display:flex;align-items:center;gap:4px;max-width:0;opacity:0;transform:translateX(8px);pointer-events:none;visibility:hidden;overflow:hidden;padding:0;margin:0'
+        : 'display:flex;align-items:center;gap:4px;max-width:800px;opacity:1;transform:none;overflow:visible';
+      var ts = off ? '--ks-tab-px:4px' : '--ks-tab-px:var(--ks-pill-tab-px,10px)';
+      var h = '<div id="pp-pill-outer" style="position:fixed;top:12px;right:12px;z-index:40">'
+        + '<div id="pp-pill" class="ks-card ks-pill-anim ks-actions-pill' + off + '" role="toolbar" aria-label="Port actions" style="display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px">'
+        + '<div class="ks-pill-content" style="' + cs + '" aria-hidden="' + (!!off) + '">'
+        + '<select id="pp-limit" title="Rows per page" aria-label="Rows per page" style="background:var(--ks-input-bg);border:1px solid var(--ks-input-border);color:var(--ks-body);border-radius:6px;font-size:12px;padding:5px 6px">'
+        + [10, 25, 50, 100].map(function (n) { return '<option value="' + n + '"' + (n === state.limit ? ' selected' : '') + '>' + n + '</option>'; }).join('')
+        + '</select>'
+        + (ro ? '' : '<button type="button" id="pp-add" title="Add port" aria-label="Add port" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (state.saving ? ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"' : '') + '><span style="display:inline-flex;align-items:center;gap:6px">{{component:icon_plus}}Add port</span></button>')
+        + '<button type="button" id="pp-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn">{{component:icon_refresh}}</button>'
+        + '</div>'
+        + '<button type="button" id="pp-pill-toggle" aria-label="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!state.pillOff) + '" title="' + (state.pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (state.pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+        + '</div></div>';
+      return h;
+    }
     function render() {
       var ro = readOnly();
       var totalPages = Math.max(1, Math.ceil(state.rows.length / state.limit));
       if (state.page > totalPages) state.page = totalPages;
       var slice = state.rows.slice((state.page - 1) * state.limit, state.page * state.limit);
-      var h = '<div id="pp-pill" class="ks-card" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)">'
-        + '<select id="pp-limit" title="Rows per page" aria-label="Rows per page" style="background:var(--ks-input-bg);border:1px solid var(--ks-input-border);color:var(--ks-body);border-radius:6px;font-size:12px;padding:5px 6px">'
-        + [10, 25, 50, 100].map(function (n) { return '<option value="' + n + '"' + (n === state.limit ? ' selected' : '') + '>' + n + '</option>'; }).join('')
-        + '</select>'
-        + (ro ? '' : '<button type="button" id="pp-add" title="Add port" aria-label="Add port" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (state.saving ? ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"' : '') + '><span style="display:inline-flex;align-items:center;gap:6px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add port</span></button>')
-        + '<button type="button" id="pp-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>'
-        + '</div>';
+      var h = pillHtml(ro);
       if (state.loading && !state.rows.length) {
         h += '<div class="ks-card"><div class="ks-skeleton-bar" style="height:12px;width:40%;margin-bottom:8px"></div><div class="ks-skeleton" style="height:12px;width:65%"></div></div>';
       } else if (!state.loading && state.error && !state.rows.length) {
@@ -386,6 +404,7 @@ content_html: |-
         Array.prototype.forEach.call(document.querySelectorAll(sel), function (b) { b.addEventListener('click', fn); });
       };
       q('#pp-refresh', function () { load(); });
+      q('#pp-pill-toggle', function () { showPill(); state.pillOff = !state.pillOff; render(); });
       q('#pp-retry', function () { load(); });
       var lim = el('pp-limit');
       if (lim) lim.addEventListener('change', function () { state.limit = Number(lim.value) || 25; state.page = 1; render(); });
@@ -412,6 +431,42 @@ content_html: |-
         n.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
       });
       q('#pp-ok', go);
+      wirePillAutoHide();
+    }
+    var pillTimer = null;
+    function showPill() {
+      if (pillTimer) { window.clearTimeout(pillTimer); pillTimer = null; }
+    }
+    // Pill auto-hide parity with PageActionsPill: scroll / outside-tap
+    // collapses to the toggle, idle 2.5s + hover restore. Bound once.
+    function wirePillAutoHide() {
+      try {
+        var pill = document.getElementById('pp-pill');
+        if (pill && !pill.getAttribute('data-autohide')) {
+          pill.setAttribute('data-autohide', '1');
+          var scheduleShow = function () {
+            if (pillTimer) window.clearTimeout(pillTimer);
+            pillTimer = window.setTimeout(function () { state.pillOff = false; render(); }, 2500);
+          };
+          document.addEventListener('scroll', function () {
+            if (document.activeElement && pill.contains(document.activeElement)) return;
+            if (!state.pillOff) { state.pillOff = true; render(); }
+            scheduleShow();
+          }, true);
+          document.addEventListener('pointerdown', function (ev) {
+            var p = document.getElementById('pp-pill');
+            if (!p) return;
+            var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
+            var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
+            if (!inside && !state.pillOff) { state.pillOff = true; render(); }
+          });
+          document.addEventListener('focusin', function (ev) {
+            var p = document.getElementById('pp-pill');
+            if (p && ev.target && p.contains(ev.target)) { showPill(); if (state.pillOff) { state.pillOff = false; render(); } }
+          });
+          pill.addEventListener('mouseenter', function () { showPill(); if (state.pillOff) { state.pillOff = false; render(); } });
+        }
+      } catch (e) {}
     }
     function start(s) {
       sdk = s;
@@ -421,6 +476,23 @@ content_html: |-
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
+components:
+- name: icon_refresh
+  type: html
+  description: Refresh glyph for the action pill.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+- name: icon_plus
+  type: html
+  description: Plus glyph for Add port.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+- name: icon_chev_left
+  type: html
+  description: 'Pill toggle: show actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+- name: icon_chev_right
+  type: html
+  description: 'Pill toggle: hide actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>
 configure:
 - name: read_only

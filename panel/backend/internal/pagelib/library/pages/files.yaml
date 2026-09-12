@@ -1148,21 +1148,36 @@ content_html: |
       fxMsgTimer = window.setTimeout(function () { fxMsg = ''; render(); }, 1800);
     }
 
-    // ---- top chrome: action pill + explorer/SFTP tabs ----
+    // ---- top chrome: action pill + explorer/SFTP tabs (PageActionsPill /
+    // PageTabsPill parity: ks-pill-anim shells, ks-pill-content collapse,
+    // chevron toggle, auto-hide with idle restore) ----
+    var fxPillOff = false, fxPillTimer = null;
+    function fxShowPill() {
+      if (fxPillTimer) { window.clearTimeout(fxPillTimer); fxPillTimer = null; }
+    }
     function fxTopHtml() {
-      var h = '<div id="fx-pill" class="ks-card" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)">'
-        + '<button type="button" data-fx="pill-upload" title="Upload" aria-label="Upload" class="ks-btn-header ks-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></button>'
-        + '<button type="button" data-fx="pill-new" title="Create file or folder" aria-label="Create" class="ks-btn-header ks-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>'
-        + '<button type="button" data-fx="pill-search" title="Search on server" aria-label="Search on server" class="ks-btn-header ks-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg></button>'
-        + '<button type="button" data-fx="pill-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>'
+      var off = fxPillOff ? ' ks-pill-collapsed' : '';
+      var cs = off
+        ? 'display:flex;align-items:center;gap:4px;max-width:0;opacity:0;transform:translateX(8px);pointer-events:none;visibility:hidden;overflow:hidden;padding:0;margin:0'
+        : 'display:flex;align-items:center;gap:4px;max-width:800px;opacity:1;transform:none;overflow:visible';
+      var ts = off ? '--ks-tab-px:4px' : '--ks-tab-px:var(--ks-pill-tab-px,10px)';
+      var h = '<div id="fx-pill-outer" style="position:fixed;top:12px;right:12px;z-index:40">'
+        + '<div id="fx-pill" class="ks-card ks-pill-anim ks-actions-pill' + off + '" role="toolbar" aria-label="File actions" style="display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px">'
+        + '<div class="ks-pill-content" style="' + cs + '" aria-hidden="' + (!!off) + '">'
+        + '<button type="button" data-fx="pill-upload" title="Upload" aria-label="Upload" class="ks-btn-header ks-icon-btn">{{component:icon_upload}}</button>'
+        + '<button type="button" data-fx="pill-new" title="Create file or folder" aria-label="Create" class="ks-btn-header ks-icon-btn">{{component:icon_plus}}</button>'
+        + '<button type="button" data-fx="pill-search" title="Search on server" aria-label="Search on server" class="ks-btn-header ks-icon-btn">{{component:icon_search}}</button>'
+        + '<button type="button" data-fx="pill-refresh" title="Refresh" aria-label="Refresh" class="ks-btn-header ks-icon-btn">{{component:icon_refresh}}</button>'
         + (fxMsg ? '<span style="font-size:12px;color:var(--ks-ok);white-space:nowrap;padding:0 4px">' + esc(fxMsg) + '</span>' : '')
-        + '</div>';
+        + '</div>'
+        + '<button type="button" data-fx="pill-toggle" aria-label="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!fxPillOff) + '" title="' + (fxPillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (fxPillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>'
+        + '</div></div>';
       if (fxShowSftp()) {
         h += '<div class="ks-tabs" role="tablist" aria-label="Files views" style="margin-bottom:10px">'
           + '<button type="button" role="tab" aria-selected="' + (sftp.tab === 'explorer') + '" data-fx="tab-explorer" class="ks-tab' + (sftp.tab === 'explorer' ? ' ks-tab-active' : '') + '">Explorer</button>'
           + '<button type="button" role="tab" aria-selected="' + (sftp.tab === 'sftp') + '" data-fx="tab-sftp" class="ks-tab' + (sftp.tab === 'sftp' ? ' ks-tab-active' : '') + '">SFTP</button>'
           + '</div>'
-          + '<div style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)">'
+          + '<div style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card ks-pill-anim ks-tabs-pill" role="tablist" aria-label="Files views" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px);--ks-card-padding:6px">'
           + '<button type="button" data-fx="tab-explorer" class="ks-tab" style="padding:6px 12px;font-size:13px;flex-shrink:0' + (sftp.tab === 'explorer' ? ';background:var(--ks-tab-active-bg,#fff);color:var(--ks-tab-active-text,#000)' : '') + '">Explorer</button>'
           + '<button type="button" data-fx="tab-sftp" class="ks-tab" style="padding:6px 12px;font-size:13px;flex-shrink:0' + (sftp.tab === 'sftp' ? ';background:var(--ks-tab-active-bg,#fff);color:var(--ks-tab-active-text,#000)' : '') + '">SFTP</button>'
           + '</div></div></div>'
@@ -1206,6 +1221,7 @@ content_html: |
       q('[data-fx="pill-new"]', function () { state.modal = { kind: 'create', name: '', busy: false }; state.createTab = 'file'; render(); var elc = document.getElementById('create-name'); if (elc) elc.focus(); });
       q('[data-fx="pill-search"]', function () { state.modal = { kind: 'srvsearch', q: state.search || '', busy: false }; render(); var elc = document.getElementById('srvsearch-q'); if (elc) { elc.focus(); elc.select(); } });
       q('[data-fx="pill-refresh"]', function () { if (sftp.tab === 'sftp') loadSftp(); else load(state.path); });
+      q('[data-fx="pill-toggle"]', function () { fxShowPill(); fxPillOff = !fxPillOff; render(); });
       q('[data-fx="tab-explorer"]', function () { sftp.tab = 'explorer'; render(); });
       q('[data-fx="tab-sftp"]', function () { sftp.tab = 'sftp'; loadSftp(); });
       q('[data-fx="sftp-retry"]', function () { loadSftp(); });
@@ -1226,6 +1242,38 @@ content_html: |
           else fxFlash('Copy unavailable');
         } catch (e) { fxFlash('Copy failed'); }
       });
+      wireFxPillAutoHide();
+    }
+    // Pill auto-hide parity with PageActionsPill: scroll / outside-tap
+    // collapses to the toggle, idle 2.5s + hover restore. Bound once.
+    function wireFxPillAutoHide() {
+      try {
+        var pill = document.getElementById('fx-pill');
+        if (pill && !pill.getAttribute('data-autohide')) {
+          pill.setAttribute('data-autohide', '1');
+          var scheduleShow = function () {
+            if (fxPillTimer) window.clearTimeout(fxPillTimer);
+            fxPillTimer = window.setTimeout(function () { fxPillOff = false; render(); }, 2500);
+          };
+          document.addEventListener('scroll', function () {
+            if (document.activeElement && pill.contains(document.activeElement)) return;
+            if (!fxPillOff) { fxPillOff = true; render(); }
+            scheduleShow();
+          }, true);
+          document.addEventListener('pointerdown', function (ev) {
+            var p = document.getElementById('fx-pill');
+            if (!p) return;
+            var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
+            var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
+            if (!inside && !fxPillOff) { fxPillOff = true; render(); }
+          });
+          document.addEventListener('focusin', function (ev) {
+            var p = document.getElementById('fx-pill');
+            if (p && ev.target && p.contains(ev.target)) { fxShowPill(); if (fxPillOff) { fxPillOff = false; render(); } }
+          });
+          pill.addEventListener('mouseenter', function () { fxShowPill(); if (fxPillOff) { fxPillOff = false; render(); } });
+        }
+      } catch (e) {}
     }
     function confirmCopy() {
       var m = state.modal;
@@ -1317,6 +1365,31 @@ content_html: |
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
+components:
+- name: icon_refresh
+  type: html
+  description: Refresh glyph for the action pill.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+- name: icon_plus
+  type: html
+  description: Plus glyph for Create.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+- name: icon_upload
+  type: html
+  description: Upload glyph for the action pill.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+- name: icon_search
+  type: html
+  description: Search glyph for Search on server.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20L16 16"/></svg>
+- name: icon_chev_left
+  type: html
+  description: 'Pill toggle: show actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+- name: icon_chev_right
+  type: html
+  description: 'Pill toggle: hide actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>
 sub_pages:
 - path: edit

@@ -212,30 +212,13 @@ content_html: |-
   @media(min-width:641px){.ks-only-sm{display:none !important}}
   /* Terminal */
   .ks-term-bg{background:var(--ks-term-bg, #1e1e1e) !important;color:var(--ks-term-text, #d4d4d4) !important;border-color:var(--ks-term-border, rgba(255,255,255,0.10)) !important}
-  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
-  frame removed so there is no extra gap between instance context and page
-  body. html body beats the bake rule by specificity (no !important needed);
-  .ks-page stays flush (0) like .ks-react-page. */
-  html body{padding:0;margin:0}
-  .ks-page{padding:0;margin:0}
-  /* Pills reuse .ks-card for theming but need compact 6px padding — the shared
-  .ks-card rule forces var(--ks-card-padding,16px) !important, so re-assert
-  here with higher specificity. */
-  #ks-pill.ks-card,#ks-ptabs-wrap .ks-card{padding:6px !important}
-  </style><div class="ks-page">
+  </style>{{component:terminal_pill_css}}<div class="ks-page">
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
-      <div id="ks-pill" class="ks-card" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)"></div>
-      <div id="ks-tabs" role="tablist" aria-label="Terminals" style="display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:4px"></div>
+      {{component:terminal_pill_shell}}
+      {{component:terminal_tabs_shell}}
       <div id="ks-panes" style="display:flex;flex-direction:column;gap:12px"></div>
-      <div id="ks-ptabs-wrap" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none">
-        <div style="pointer-events:auto;max-width:100%">
-          <div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)">
-            <span class="ks-mono" style="font-size:11px;color:var(--ks-muted);white-space:nowrap;padding-left:4px">⌨ <span id="ks-ptab-label">Terminal</span></span>
-            <div id="ks-ptabs" style="display:flex;max-width:100%;overflow:hidden"></div>
-          </div>
-        </div>
-      </div>
+      {{component:terminal_ptabs_shell}}
       <div aria-hidden="true" style="height:72px"></div>
       <div id="ks-dialogs"></div>
     </div>
@@ -471,6 +454,12 @@ content_html: |-
     var pillMsg = '';
     var docMenuWired = false;
     var pillTimer = null;
+    // Action-pill collapse parity with PageActionsPill (manual chevron
+    // toggle + auto-hide on scroll / outside-tap with idle restore).
+    var pillOff = false, pillAutoTimer = null, pillAutoWired = false;
+    function pillShow() {
+      if (pillAutoTimer) { window.clearTimeout(pillAutoTimer); pillAutoTimer = null; }
+    }
     var liveStatus = '';
     var liveActions = [];
     var liveInstall = { state: '', kind: '', actionId: '' };
@@ -957,24 +946,33 @@ content_html: |-
     function renderPill() {
       var host = el('ks-pill');
       if (!host) return;
+      // Pill shell parity: animation + collapse classes live on the host
+      // (the static shell ships plain ks-card; the host bakes the rest).
+      host.className = 'ks-card ks-pill-anim ks-actions-pill' + (pillOff ? ' ks-pill-collapsed' : '');
+      host.setAttribute('role', 'toolbar');
+      host.setAttribute('aria-label', 'Terminal actions');
       var sc = shortcuts();
       var maxN = parseInt(cfgGet('max_terminals').trim(), 10);
       var atMax = Number.isFinite(maxN) && maxN > 0 && panes.length >= maxN;
       var canAdd = cfgBool('allow_multi', true) && !atMax;
-      var h = '';
+      var cs = pillOff
+        ? 'display:flex;align-items:center;gap:4px;max-width:0;opacity:0;transform:translateX(8px);pointer-events:none;visibility:hidden;overflow:hidden;padding:0;margin:0'
+        : 'display:flex;align-items:center;gap:4px;max-width:800px;opacity:1;transform:none;overflow:visible';
+      var ts = pillOff ? '--ks-tab-px:4px' : '--ks-tab-px:var(--ks-pill-tab-px,10px)';
+      var h = '<div class="ks-pill-content" style="' + cs + '" aria-hidden="' + (!!pillOff) + '">';
       if (sc.length > 0) {
         h += '<div style="position:relative">'
-          + '<button type="button" id="pill-shortcuts" title="Shortcuts" aria-label="Shortcuts" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>'
+          + '<button type="button" id="pill-shortcuts" title="Shortcuts" aria-label="Shortcuts" class="ks-btn-header ks-icon-btn">{{component:icon_shortcut}}</button>'
           + '<div id="pill-menu" style="display:none;position:absolute;right:0;top:110%;z-index:30;min-width:220px" class="ks-dropdown ks-menu">'
           + sc.map(function (s, i) { return '<button type="button" data-sc="' + i + '">' + esc(s.label !== '' ? s.label : s.command) + '</button>'; }).join('')
           + '</div></div>';
       }
-      h += '<button type="button" id="pill-add" title="' + (atMax ? ('Max ' + maxN + ' terminals') : 'Add terminal') + '" aria-label="Add terminal" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (canAdd ? '' : ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"') + '><span style="display:inline-flex;align-items:center;gap:6px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</span></button>';
-      h += '<button type="button" id="pill-copy" title="Copy terminal output" aria-label="Copy terminal output" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>';
-      h += '<button type="button" id="pill-dl" title="Download terminal output" aria-label="Download terminal output" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>';
-      h += '<button type="button" id="pill-clear" title="Clear scrollback" aria-label="Clear scrollback" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
-      h += '<button type="button" id="pill-refresh" title="Refresh terminal" aria-label="Refresh terminal" class="ks-btn-header ks-icon-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></button>';
-      h += '<div style="position:relative"><button type="button" id="pill-settings" title="Display settings" aria-label="Display settings" class="ks-tab" style="padding:5px 10px;font-size:13px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>' + (!showPrefix ? '<span style="display:inline-block;width:6px;height:6px;border-radius:9999px;background:var(--ks-info);margin-left:4px"></span>' : '') + '</button>'
+      h += '<button type="button" id="pill-add" title="' + (atMax ? ('Max ' + maxN + ' terminals') : 'Add terminal') + '" aria-label="Add terminal" class="ks-tab" style="padding:5px 10px;font-size:13px"' + (canAdd ? '' : ' disabled style="padding:5px 10px;font-size:13px;opacity:.4"') + '><span style="display:inline-flex;align-items:center;gap:6px">{{component:icon_plus}}Add</span></button>';
+      h += '<button type="button" id="pill-copy" title="Copy terminal output" aria-label="Copy terminal output" class="ks-btn-header ks-icon-btn">{{component:icon_copy}}</button>';
+      h += '<button type="button" id="pill-dl" title="Download terminal output" aria-label="Download terminal output" class="ks-btn-header ks-icon-btn">{{component:icon_download}}</button>';
+      h += '<button type="button" id="pill-clear" title="Clear scrollback" aria-label="Clear scrollback" class="ks-btn-header ks-icon-btn">{{component:icon_clear}}</button>';
+      h += '<button type="button" id="pill-refresh" title="Refresh terminal" aria-label="Refresh terminal" class="ks-btn-header ks-icon-btn">{{component:icon_refresh}}</button>';
+      h += '<div style="position:relative"><button type="button" id="pill-settings" title="Display settings" aria-label="Display settings" class="ks-tab" style="padding:5px 10px;font-size:13px">{{component:icon_settings}}' + (!showPrefix ? '<span style="display:inline-block;width:6px;height:6px;border-radius:9999px;background:var(--ks-info);margin-left:4px"></span>' : '') + '</button>'
         + '<div id="pill-setmenu" style="display:none;position:absolute;right:0;top:110%;z-index:30;min-width:260px" class="ks-dropdown"><div style="padding:12px;display:flex;flex-direction:column;gap:12px">'
         + '<label style="display:block;font-size:11px;color:var(--ks-muted);text-transform:uppercase;letter-spacing:.05em">Text size<select id="set-font" style="margin-top:6px;width:100%" class="ks-input">'
         + [11, 12, 13, 14, 15, 16, 18].map(function (n) { return '<option value="' + n + '"' + (n === fontSize ? ' selected' : '') + '>' + n + 'px' + (n === 13 ? ' (default)' : '') + '</option>'; }).join('')
@@ -983,8 +981,16 @@ content_html: |-
         + '<p style="font-size:11px;color:var(--ks-muted);margin:0">New lines follow at once — Refresh reloads history.</p>'
         + '</div></div></div>';
       if (pillMsg) h += '<span style="font-size:12px;color:var(--ks-ok);white-space:nowrap">' + esc(pillMsg) + '</span>';
+      h += '</div>'
+        + '<button type="button" id="ks-pill-toggle" aria-label="' + (pillOff ? 'Show actions' : 'Hide actions') + '" aria-expanded="' + (!pillOff) + '" title="' + (pillOff ? 'Show actions' : 'Hide actions') + '" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;' + ts + ';--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)">' + (pillOff ? '{{component:icon_chev_left}}' : '{{component:icon_chev_right}}') + '</button>';
       host.innerHTML = h;
       var q = function (id) { return document.getElementById(id); };
+      var tg = q('ks-pill-toggle');
+      if (tg) tg.addEventListener('click', function () { pillShow(); pillOff = !pillOff; renderPill(); });
+      if (!host.getAttribute('data-hover')) {
+        host.setAttribute('data-hover', '1');
+        host.addEventListener('mouseenter', function () { pillShow(); if (pillOff) { pillOff = false; renderPill(); } });
+      }
       var scBtn = q('pill-shortcuts');
       if (scBtn) scBtn.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -1003,6 +1009,29 @@ content_html: |-
           var m1 = document.getElementById('pill-menu'), m2 = document.getElementById('pill-setmenu');
           if (m1) m1.style.display = 'none';
           if (m2) m2.style.display = 'none';
+        });
+      }
+      // Pill auto-hide parity with PageActionsPill: scroll / outside-tap
+      // collapses to the chevron, idle 2.5s + hover restore. Bound once.
+      if (!pillAutoWired) {
+        pillAutoWired = true;
+        document.addEventListener('scroll', function () {
+          var p = document.getElementById('ks-pill');
+          if (p && document.activeElement && p.contains(document.activeElement)) return;
+          if (!pillOff) { pillOff = true; renderPill(); }
+          pillShow();
+          pillAutoTimer = window.setTimeout(function () { pillOff = false; renderPill(); }, 2500);
+        }, true);
+        document.addEventListener('pointerdown', function (ev) {
+          var p = document.getElementById('ks-pill');
+          if (!p) return;
+          var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
+          var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
+          if (!inside && !pillOff) { pillOff = true; renderPill(); }
+        });
+        document.addEventListener('focusin', function (ev) {
+          var p = document.getElementById('ks-pill');
+          if (p && ev.target && p.contains(ev.target)) { pillShow(); if (pillOff) { pillOff = false; renderPill(); } }
         });
       }
       var all = host.querySelectorAll('[data-sc]');
@@ -1427,6 +1456,71 @@ content_html: |-
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
+components:
+- name: terminal_pill_css
+  type: html
+  description: 'Terminal full-bleed + pill padding override (was inline ks-terminal-bleed style).'
+  content: |-
+    <style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
+    frame removed so there is no extra gap between instance context and page
+    body. html body beats the bake rule by specificity (no !important needed);
+    .ks-page stays flush (0) like .ks-react-page. */
+    html body{padding:0;margin:0}
+    .ks-page{padding:0;margin:0}
+    /* Pills reuse .ks-card for theming but need compact 6px padding — the shared
+    .ks-card rule forces var(--ks-card-padding,16px) !important, so re-assert
+    here with higher specificity. */
+    #ks-pill.ks-card,#ks-ptabs-wrap .ks-card{padding:6px !important}
+    </style>
+- name: terminal_pill_shell
+  type: html
+  description: 'Top-right action pill host (filled by renderPill JS: Add/Copy/Download/Clear/Refresh/Settings).'
+  content: <div id="ks-pill" class="ks-card" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)"></div>
+- name: terminal_tabs_shell
+  type: html
+  description: 'Desktop terminal tab strip host (filled by renderTabs JS).'
+  content: <div id="ks-tabs" role="tablist" aria-label="Terminals" style="display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:4px"></div>
+- name: terminal_ptabs_shell
+  type: html
+  description: 'Phone pill tabs host (filled by renderPhoneTabs JS).'
+  content: |-
+    <div id="ks-ptabs-wrap" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)"><span class="ks-mono" style="font-size:11px;color:var(--ks-muted);white-space:nowrap;padding-left:4px">⌨ <span id="ks-ptab-label">Terminal</span></span><div id="ks-ptabs" style="display:flex;max-width:100%;overflow:hidden"></div></div></div></div>
+- name: icon_shortcut
+  type: html
+  description: Shortcuts bolt glyph for the action pill.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+- name: icon_plus
+  type: html
+  description: Plus glyph for Add terminal.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+- name: icon_copy
+  type: html
+  description: Copy glyph for Copy terminal output.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+- name: icon_download
+  type: html
+  description: Download glyph for Download terminal output.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+- name: icon_clear
+  type: html
+  description: Trash glyph for Clear scrollback.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+- name: icon_refresh
+  type: html
+  description: Refresh glyph for the action pill.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+- name: icon_settings
+  type: html
+  description: Sliders glyph for Display settings.
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+- name: icon_chev_left
+  type: html
+  description: 'Pill toggle: show actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+- name: icon_chev_right
+  type: html
+  description: 'Pill toggle: hide actions.'
+  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
 configure:
 - name: allow_multi
