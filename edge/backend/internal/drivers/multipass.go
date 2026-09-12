@@ -77,20 +77,10 @@ func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
-// Kill force-stops an instance (multipass stop --force, i.e. SIGKILL
-// instead of the graceful shutdown Stop requests). --force exists since
-// multipass 1.14 for non-responsive/unknown/suspended instances where a
-// graceful stop exits 0 yet leaves the VM running. Idempotent like Stop.
+// Kill maps to a graceful stop: the multipass CLI exposes no force-stop
+// flag, so force and graceful are the same operation on this driver.
 func (d *multipass) Kill(ctx context.Context, name string) (Result, error) {
-	if err := binMissing("multipass"); err != nil {
-		return Result{}, err
-	}
-	if _, err := asExec(ctx, "", "multipass", "stop", "--force", name); err != nil {
-		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
-			return Result{}, err
-		}
-	}
-	return Result{ExternalID: name, Status: "stopped"}, nil
+	return d.Stop(ctx, name)
 }
 
 func (d *multipass) Destroy(ctx context.Context, name string) (Result, error) {

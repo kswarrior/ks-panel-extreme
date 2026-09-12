@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -567,24 +566,16 @@ func DeleteSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// Best-effort edge delete: the DB row is still removed so a stale
-	// record never becomes undeletable when the workload/edge is already
-	// gone, but an edge failure is logged instead of swallowed.
-	if _, err := ec.Snapshot(edge.SnapshotRequest{
+	_, _ = ec.Snapshot(edge.SnapshotRequest{
 		Kind: inst.Kind, Name: name, Action: "delete", SnapName: snapName,
-	}); err != nil {
-		log.Printf("DeleteSnapshot: edge delete of %q for instance %d failed (DB row still removed): %v", snapName, inst.ID, err)
-	}
+	})
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
 	defer con.Close()
-	if err := repository.NewSnapshotRepository(con).Delete(inst.ID, snapName); err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
+	_ = repository.NewSnapshotRepository(con).Delete(inst.ID, snapName)
 	auditInst(r, inst.ID, "snapshot.delete", fmt.Sprintf("deleted %q", snapName))
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/example/kspanel/internal/config"
-	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/repository"
 )
 
@@ -81,10 +79,10 @@ func hasAdminAccess(con *sql.DB, r *http.Request) bool {
 // keeps this handler independent of that package.
 func repoPermissionsForUser(con *sql.DB, uid int64) ([]string, error) {
 	rows, err := con.Query(
-		db.Rebind(config.DatabaseConfig().Engine, `SELECT p.key FROM users u
+		`SELECT p.key FROM users u
 		 JOIN role_permissions rp ON rp.role_id = u.role_id
 		 JOIN permissions p ON p.id = rp.permission_id
-		 WHERE u.id = ? ORDER BY p.key`), uid)
+		 WHERE u.id = ? ORDER BY p.key`, uid)
 	if err != nil {
 		return nil, err
 	}

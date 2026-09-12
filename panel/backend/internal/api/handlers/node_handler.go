@@ -818,7 +818,6 @@ func NodeHeartbeatsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Emit an empty JSON array (not null) when there's no history yet.
 	if len(hbs) == 0 {
-		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte("[]"))
 		return
 	}

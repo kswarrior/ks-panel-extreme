@@ -101,21 +101,7 @@ func buildKVMDeployArgs(name string, cfg map[string]any) ([]string, error) {
 	if disk == "" {
 		disk = "20"
 	}
-	// virt-install's `--disk size=N` takes N as a GB magnitude; strip a
-	// trailing GB/GiB/G (case-insensitive, surrounding whitespace
-	// tolerated) so "20G"/"20GB"/"20GiB" from the shared spec or an
-	// operator-typed "20 GB" don't reach virt-install as
-	// `--disk size=20GB` (which older libvirt's parser rejects).
-	disk = strings.TrimSpace(disk)
-	upperDisk := strings.ToUpper(disk)
-	switch {
-	case strings.HasSuffix(upperDisk, "GIB"):
-		disk = strings.TrimSpace(disk[:len(disk)-3])
-	case strings.HasSuffix(upperDisk, "GB"):
-		disk = strings.TrimSpace(disk[:len(disk)-2])
-	case strings.HasSuffix(upperDisk, "G"):
-		disk = strings.TrimSpace(disk[:len(disk)-1])
-	}
+	disk = strings.TrimSuffix(strings.TrimSuffix(disk, "G"), "g")
 
 	osv := anyToString(cfg["os_variant"]) // e.g. ubuntu22.04
 	args := []string{
@@ -189,14 +175,7 @@ func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 	// conservative – we delete the "vda" volume tied to the domain so a
 	// re-deploy with the same name doesn't collide.
 	if _, err := asExec(ctx, "", "virsh", "destroy", name); err != nil {
-		// Destroy is idempotent: a domain that isn't running ("domain
-		// is not running") or no longer exists ("failed to get
-		// domain") is already in the desired end-state. Any other
-		// error (libvirt down, permission denied, …) is real and
-		// must surface — never swallow it.
-		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
-			return Result{}, err
-		}
+		// Destroy fails if the domain isn't running; that's fine.
 	}
 	// Idempotent like docker.Destroy: undefining an already-undefined
 	// domain reports destroyed so a panel retry after a manual
@@ -229,19 +208,44 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 	_ = command
 
 	cmd := exec.CommandContext(ctx, "virsh", "console", name)
-	// Past the !tty guard above, tty is always true — run the pty
-	// console straight-line (no second branch, no non-TTY pipe path:
-	// that block was unreachable dead code).
-	size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
-	master, err := pty.StartWithSize(cmd, size)
-	if err != nil {
-		return nil, fmt.Errorf("virsh console: %w", err)
-	}
-	resize := func(c, r int) error {
-		if c <= 0 || r <= 0 {
-			return nil
+	if tty {
+		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
+		master, err := pty.StartWithSize(cmd, size)
+		if err != nil {
+			return nil, fmt.Errorf("virsh console: %w", err)
 		}
-		return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
+		resize := func(c, r int) error {
+			if c <= 0 || r <= 0 {
+				return nil
+			}
+			return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
+		}
+		waitCh := make(chan error, 1)
+		go func() { waitCh <- cmd.Wait() }()
+		wait := func() (int, error) {
+			err := <-waitCh
+			if err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					return ee.ExitCode(), err
+				}
+				return -1, err
+			}
+			return 0, nil
+		}
+		return &ExecSession{
+			Stdin: master, Stdout: master, Stderr: master,
+			Resize: resize, Wait: wait,
+			Close: func() error { return master.Close() },
+		}, nil
+	}
+	// Non-TTY: plain pipes, routed through startPiped so the parent's
+	// stdout/stderr write ends are closed right after Start — otherwise
+	// io.ReadAll on sess.Stdout blocks forever waiting on an EOF that
+	// only arrives once GC closes the leaked write fds. Mirrors the fix
+	// applied to the docker / lxd / multipass non-TTY Exec paths.
+	stdin, stdout, stderr, err := startPiped(cmd)
+	if err != nil {
+		return nil, err
 	}
 	waitCh := make(chan error, 1)
 	go func() { waitCh <- cmd.Wait() }()
@@ -256,9 +260,9 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 		return 0, nil
 	}
 	return &ExecSession{
-		Stdin: master, Stdout: master, Stderr: master,
-		Resize: resize, Wait: wait,
-		Close: func() error { return master.Close() },
+		Stdin: stdin, Stdout: stdout, Stderr: stderr,
+		Resize: func(int, int) error { return nil },
+		Wait:   wait, Close: func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil },
 	}, nil
 }
 
@@ -357,13 +361,16 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("snapshot name is required for create action")
 		}
 
-		// Create the snapshot. `snapshot-create-as` prints a human
-		// sentence ("Domain snapshot <name> created"), not a bare
-		// name — return the requested snapName as the external
-		// reference (mirrors lxd/multipass) so a later
-		// restore/delete addresses the snapshot that was created.
-		if _, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic"); err != nil {
+		// Create the snapshot
+		out, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic")
+		if err != nil {
 			return "", 0, fmt.Errorf("virsh snapshot-create failed: %w", err)
+		}
+
+		// The output contains the snapshot name
+		snapshotName := strings.TrimSpace(out)
+		if snapshotName == "" {
+			return "", 0, fmt.Errorf("virsh snapshot-create returned empty snapshot name")
 		}
 
 		// If requested, export the snapshot to a tar file
@@ -371,7 +378,7 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("tar export not implemented for KVM snapshots")
 		}
 
-		return snapName, 0, nil
+		return snapshotName, 0, nil
 
 	case "restore":
 		// Restore from a snapshot

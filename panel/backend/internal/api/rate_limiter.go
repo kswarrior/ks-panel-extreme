@@ -94,22 +94,13 @@ func (rl *RateLimiter) janitor() {
 	}
 }
 
-// bucketKey isolates attempts per (client, endpoint): login/register/other
-// windows and caps differ, so a shared client-only key let login traffic
-// consume the register bucket (and vice versa). \x00 cannot appear in an
-// IP or endpoint name, so plain concatenation is collision-free.
-func bucketKey(clientID string, endpoint string) string {
-	return clientID + "\x00" + endpoint
-}
-
 // IsAllowed checks if a client is allowed to make a request to a specific endpoint
 func (rl *RateLimiter) IsAllowed(clientID string, endpoint string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	key := bucketKey(clientID, endpoint)
-	attempts := rl.records[key]
+	attempts := rl.records[clientID]
 
 	// Clean old attempts outside the window
 	var validAttempts []time.Time
@@ -118,7 +109,7 @@ func (rl *RateLimiter) IsAllowed(clientID string, endpoint string) bool {
 			validAttempts = append(validAttempts, attempt)
 		}
 	}
-	rl.records[key] = validAttempts
+	rl.records[clientID] = validAttempts
 
 	// Check if within limits
 	maxAttempts := rl.getMaxAttempts(endpoint)
@@ -131,8 +122,7 @@ func (rl *RateLimiter) RecordAttempt(clientID string, endpoint string) {
 	defer rl.mu.Unlock()
 
 	now := time.Now()
-	key := bucketKey(clientID, endpoint)
-	rl.records[key] = append(rl.records[key], now)
+	rl.records[clientID] = append(rl.records[clientID], now)
 }
 
 // IsLocked checks if a client is temporarily locked out
@@ -140,7 +130,7 @@ func (rl *RateLimiter) IsLocked(clientID string, endpoint string) bool {
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
 
-	attempts, exists := rl.records[bucketKey(clientID, endpoint)]
+	attempts, exists := rl.records[clientID]
 	if !exists {
 		return false
 	}
@@ -161,7 +151,7 @@ func (rl *RateLimiter) GetRemainingAttempts(clientID string, endpoint string) in
 	rl.mu.RLock()
 	defer rl.mu.RUnlock()
 
-	attempts, exists := rl.records[bucketKey(clientID, endpoint)]
+	attempts, exists := rl.records[clientID]
 	if !exists {
 		return rl.getMaxAttempts(endpoint)
 	}
@@ -181,19 +171,12 @@ func (rl *RateLimiter) GetRemainingAttempts(clientID string, endpoint string) in
 	return remaining
 }
 
-// ClearRecords removes all records for a client across every endpoint
-// bucket (e.g., on successful login). Keys are per-endpoint, so it deletes
-// by client prefix rather than a single map entry.
+// ClearRecords removes all records for a client (e.g., on successful login)
 func (rl *RateLimiter) ClearRecords(clientID string) {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	prefix := clientID + "\x00"
-	for key := range rl.records {
-		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
-			delete(rl.records, key)
-		}
-	}
+	delete(rl.records, clientID)
 }
 
 // StopJanitor stops the background cleanup goroutine. Call during shutdown.
