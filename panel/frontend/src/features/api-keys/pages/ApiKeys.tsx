@@ -57,6 +57,21 @@ const AdminApiKeys: React.FC = () => {
   const filterRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
 
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.api-keys.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (filterRef.current && !filterRef.current.contains(event.target as HTMLElement)) {

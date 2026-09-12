@@ -341,10 +341,12 @@ const Stacks: React.FC = () => {
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filtered.length}
+          shown={visible.length}
           total={stacks.length}
           label="stack"
-          extra={<>{stats.active} active · {stats.pending} pending grants</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{stats.active} active · {stats.pending} pending grants{filtered.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 
@@ -360,9 +362,9 @@ const Stacks: React.FC = () => {
       )}
       {loading && <SkeletonGrid count={6} />}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && visible.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-stacks-grid">
-          {filtered.map((s) => {
+          {visible.map((s) => {
             const src = stackSourceMeta(s.source);
             const approved = s.permissions.filter((p) => p.granted).length;
             const allSet = s.pending === 0;

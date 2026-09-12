@@ -74,6 +74,21 @@ const AdminNodes: React.FC = () => {
   const [tlsFilter, setTlsFilter] = useState<'all' | 'tls' | 'plain'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const [rollingOpen, setRollingOpen] = useState(false);
+
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.nodes.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
   const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -275,6 +290,8 @@ const AdminNodes: React.FC = () => {
     return out;
   }, [nodes, search, stateFilter, tlsFilter]);
 
+  const visible = useMemo(() => filteredNodes.slice(0, pageSize), [filteredNodes, pageSize]);
+
   const resetFilters = () => { setSearch(''); setStateFilter('all'); setTlsFilter('all'); };
 
 
@@ -411,10 +428,12 @@ const AdminNodes: React.FC = () => {
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filteredNodes.length}
+          shown={visible.length}
           total={nodes.length}
           label="node"
-          extra={<>{nodeStats.up} up · {nodeStats.down} down</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{nodeStats.up} up · {nodeStats.down} down{filteredNodes.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 
@@ -435,9 +454,9 @@ const AdminNodes: React.FC = () => {
         <p className="text-[11px] mb-2" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }} aria-live="polite">Refreshing…</p>
       )}
 
-      {!loading && filteredNodes.length > 0 && (
+      {!loading && visible.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-nodes-grid" style={refreshing ? { opacity: 0.75 } : undefined}>
-          {filteredNodes.map((n) => {
+          {visible.map((n) => {
             const resolved = resolveState(n);
             const st = STATE_STYLES[resolved] || STATE_STYLES.down;
             const country = n.location_country ? countryByCode(n.location_country) : undefined;

@@ -100,6 +100,21 @@ const Instances: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.instances.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   const fmtErr = (reason: any): string => reason?.response?.data || reason?.message || 'unknown';
 
   const load = useCallback(async () => {
@@ -274,6 +289,8 @@ const Instances: React.FC = () => {
     return out;
   }, [instances, search, kindFilter, statusFilter, ATTENTION_STATES]);
 
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
+
   const resetFilters = () => {
     setSearch('');
     setKindFilter('all');
@@ -436,10 +453,12 @@ const Instances: React.FC = () => {
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filtered.length}
+          shown={visible.length}
           total={instances.length}
           label="instance"
-          extra={<>{stats.running} running · {stats.stopped} stopped</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{stats.running} running · {stats.stopped} stopped{filtered.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 
@@ -455,9 +474,9 @@ const Instances: React.FC = () => {
       )}
       {loading && <SkeletonGrid count={6} />}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && visible.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-instances-grid">
-          {filtered.map((i) => (
+          {visible.map((i) => (
             <InstanceCard
               key={i.id}
               id={`ks-instance-${i.id}`}
