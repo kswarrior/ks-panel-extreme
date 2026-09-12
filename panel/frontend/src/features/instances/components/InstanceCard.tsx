@@ -16,6 +16,7 @@ const KIND_BADGE: Record<DriverKind, string> = {
   lxd: 'bg-indigo-900/60 text-indigo-200 border-indigo-700/60',
   kvm: 'bg-orange-900/60 text-orange-200 border-orange-700/60',
   multipass: 'bg-fuchsia-900/60 text-fuchsia-200 border-fuchsia-700/60',
+  host: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60',
 };
 const kindBadgeClass = (k: string) =>
   KIND_BADGE[k as DriverKind] || 'bg-neutral-800 text-gray-300 border-neutral-700';
@@ -25,6 +26,7 @@ const KIND_TILE: Record<DriverKind, string> = {
   lxd: 'bg-indigo-900/50 border-indigo-700/50 text-indigo-200',
   kvm: 'bg-orange-900/50 border-orange-700/50 text-orange-200',
   multipass: 'bg-fuchsia-900/50 border-fuchsia-700/50 text-fuchsia-200',
+  host: 'bg-emerald-900/50 border-emerald-700/50 text-emerald-200',
 };
 const kindTileClass = (k: string) =>
   KIND_TILE[k as DriverKind] || 'bg-neutral-800 border-neutral-700 text-gray-300';
@@ -48,6 +50,7 @@ function KindIcon({ kind, className = '' }: { kind: string; className?: string }
     case 'lxd': return <svg {...common}><path d="M4 7 12 3l8 4v10l-8 4-8-4z" /><path d="M4 7l8 4 8-4" /><path d="M12 11v10" /> </svg>;
     case 'kvm': return <svg {...common}><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M7 20h10" /><path d="M9 8l4 3-4 3z" /> </svg>;
     case 'multipass': return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /> </svg>;
+    case 'host': return <svg {...common}><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M9 9h6v6H9z" /><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" /> </svg>;
     default: return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M9 9h.01M15 9h.01M9 15h6" /> </svg>;
   }
 }

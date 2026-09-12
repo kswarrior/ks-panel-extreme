@@ -2,7 +2,7 @@
 // models in internal/models/instance.go and the wire format in
 // internal/edge/client.go's LifecycleRequest.
 
-export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass';
+export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host';
 
 export interface Template {
   id: number;
