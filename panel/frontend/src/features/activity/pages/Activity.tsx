@@ -32,6 +32,21 @@ const ActivityPage: React.FC = () => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
+  // Cards per page — server fetch limit, same localStorage pattern as
+  // Templates. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.activity.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 200;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 200;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (filterRef.current && !filterRef.current.contains(event.target as HTMLElement)) {
@@ -48,14 +63,14 @@ const ActivityPage: React.FC = () => {
     setLoading(true);
     setError('');
     try {
-      const r = await listActivity(filter || undefined, 200);
+      const r = await listActivity(filter || undefined, pageSize);
       setRows(r);
     } catch (e: any) {
       setError(e?.response?.data || 'Failed to load activity');
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, pageSize]);
 
   useEffect(() => {
     load();
@@ -135,6 +150,8 @@ const ActivityPage: React.FC = () => {
           shown={rows.length}
           total={rows.length}
           label="event"
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
         />
       </div>
 

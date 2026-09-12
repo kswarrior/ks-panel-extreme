@@ -42,7 +42,20 @@ const NotificationsPage: React.FC = () => {
   const [pri, setPri] = useState<PriorityFilter>('all');
   const [read, setRead] = useState<ReadFilter>('all');
   const [page, setPage] = useState(0);
-  const limit = 12;
+  // Cards per page — server fetch limit, same localStorage pattern as
+  // Templates. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.notifications.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 12;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 12;
+  };
+  const [limit, setLimit] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(limit));
+  }, [limit]);
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -126,7 +139,7 @@ const NotificationsPage: React.FC = () => {
   }, [cat, pri, read, debouncedSearch, page, limit, setUnread]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(0); }, [cat, pri, read, debouncedSearch]);
+  useEffect(() => { setPage(0); }, [cat, pri, read, debouncedSearch, limit]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -306,6 +319,8 @@ const NotificationsPage: React.FC = () => {
           shown={rows.length}
           total={total}
           label="notification"
+          pageSize={limit}
+          onPageSizeChange={(n) => { setLimit(n); setPage(0); }}
           extra={<>page {page + 1} of {totalPages}{hasFilters ? ' · filtered' : ''}{unreadCount > 0 ? ` · ${unreadCount} unread` : ''}</>}
         />
       </div>

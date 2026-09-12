@@ -583,7 +583,7 @@ content_html: |-
       q('#au-refresh', function () { load(); });
       q('#au-retry', function () { load(); });
       q('#au-new', function () { try { sdk.navigate(editUrl(null)); } catch (e) { toast('Cannot open editor', 'error'); } });
-      q('#au-pill-toggle', function () { state.pillOff = !state.pillOff; render(); });
+      q('#au-pill-toggle', function () { setAuPillOff(!state.pillOff); });
       q('[data-autab]', function () { var b = this; state.tab = b.getAttribute('data-autab'); render(); });
       q('[data-run]', function () { var j = findJob(Number(this.getAttribute('data-run'))); if (j) handleRunNow(j); });
       q('[data-edit]', function () { var id = this.getAttribute('data-edit'); try { sdk.navigate(editUrl(id)); } catch (e) { toast('Cannot open editor', 'error'); } });
@@ -605,20 +605,21 @@ content_html: |-
         if (pill && !pill.getAttribute('data-autohide')) {
           pill.setAttribute('data-autohide', '1');
           document.addEventListener('scroll', function () {
-            if (document.activeElement && pill.contains(document.activeElement)) return;
-            if (!state.pillOff) { state.pillOff = true; var p = document.getElementById('au-pill'); if (p) p.classList.add('ks-pill-off'); var t = document.getElementById('au-pill-toggle'); if (t) { t.setAttribute('aria-label', 'Show actions'); } }
+            var live = document.getElementById('au-pill');
+            if (live && document.activeElement && live.contains(document.activeElement)) return;
+            if (!state.pillOff) setAuPillOff(true);
             pillAutoHide();
             if (pillTimer) clearTimeout(pillTimer);
-            pillTimer = setTimeout(function () { state.pillOff = false; render(); }, 2500);
+            pillTimer = setTimeout(function () { setAuPillOff(false); }, 2500);
           }, true);
           document.addEventListener('pointerdown', function (ev) {
             var p = document.getElementById('au-pill');
             if (!p) return;
             var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
             var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
-            if (!inside && !state.pillOff) { state.pillOff = true; render(); }
+            if (!inside && !state.pillOff) setAuPillOff(true);
           });
-          pill.addEventListener('mouseenter', function () { if (state.pillOff) { state.pillOff = false; render(); } });
+          pill.addEventListener('mouseenter', function () { if (state.pillOff) setAuPillOff(false); });
         }
       } catch (e) {}
     }
@@ -1175,7 +1176,7 @@ sub_pages:
         on('ed-save', 'click', submit);
         on('ed-save2', 'click', submit);
         on('ed-cancel2', 'click', goBack);
-        on('ed-pill-toggle', 'click', function () { state.pillOff = !state.pillOff; render(); });
+        on('ed-pill-toggle', 'click', function () { setEdPillOff(!state.pillOff); });
         on('f-name', 'input', function () { d.name = el('f-name').value.slice(0, 100); paintDirty(); });
         on('f-schedule', 'input', function () { d.schedule = el('f-schedule').value.slice(0, 100); paintDirty(); });
         on('f-kind', 'change', function () { d.kind = el('f-kind').value; state.formError = ''; render(); });
