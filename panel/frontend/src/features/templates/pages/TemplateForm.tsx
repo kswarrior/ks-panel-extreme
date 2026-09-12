@@ -389,7 +389,7 @@ const TemplateForm: React.FC = () => {
   const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!form.name.trim()) { setError('Name is required'); return; }
-    if (!form.image.trim()) { setError('Image is required'); return; }
+    if (form.kind !== 'host' && !form.image.trim()) { setError('Image is required'); return; }
     if (form.color && !/^#[0-9a-fA-F]{6}$/.test(form.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); return; }
     const pageErrs = validateTemplatePages(form.pages);
     if (pageErrs.length > 0) { setError(pageErrs[0]); setTab('pages'); return; }
@@ -605,8 +605,8 @@ const TemplateForm: React.FC = () => {
                 </select>
               </GlassField>
               <div>
-                <GlassField label="Image" htmlFor="image">
-                  <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest or {{IMAGE}}" required />
+                <GlassField label={form.kind === 'host' ? 'Image (optional label)' : 'Image'} htmlFor="image">
+                  <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder={form.kind === 'host' ? 'optional label (e.g. host-service:1.0)' : 'e.g. itzg/minecraft-server:latest or {{IMAGE}}'} required={form.kind !== 'host'} />
                 </GlassField>
                 <p className="text-[11px] text-gray-500 mt-1">Default runtime. {'{{IMAGE}}'} / {'${IMAGE}'} / {'$(IMAGE)'} + a select env var also works, but named runtimes below are the first-class multi-image map.</p>
               </div>
