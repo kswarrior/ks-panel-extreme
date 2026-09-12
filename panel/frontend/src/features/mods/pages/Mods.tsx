@@ -69,6 +69,21 @@ const Mods: React.FC = () => {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.mods.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   // Filter dropdown state
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -440,6 +455,8 @@ const Mods: React.FC = () => {
     return out;
   }, [mods, search, activeFilter]);
 
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
+
   const stats = useMemo(() => {
     const active = mods.filter((m) => m.active).length;
     const pending = mods.filter((m) => m.pending > 0).length;
@@ -558,10 +575,12 @@ return (
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filtered.length}
+          shown={visible.length}
           total={mods.length}
           label="mod"
-          extra={<>{stats.active} active · {stats.pending} pending</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{stats.active} active · {stats.pending} pending{filtered.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 

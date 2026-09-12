@@ -404,7 +404,6 @@ content_html: |-
         Array.prototype.forEach.call(document.querySelectorAll(sel), function (b) { b.addEventListener('click', fn); });
       };
       q('#pp-refresh', function () { load(); });
-      q('#pp-pill-toggle', function () { showPill(); state.pillOff = !state.pillOff; render(); });
       q('#pp-retry', function () { load(); });
       var lim = el('pp-limit');
       if (lim) lim.addEventListener('change', function () { state.limit = Number(lim.value) || 25; state.page = 1; render(); });
@@ -431,26 +430,61 @@ content_html: |-
         n.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
       });
       q('#pp-ok', go);
+      q('#pp-pill-toggle', function () { showPill(); setPillOff(!state.pillOff); });
+      // Hover restore rides on the CURRENT pill node (render() recreates it).
+      var curPill = el('pp-pill');
+      if (curPill && !curPill.getAttribute('data-hover')) {
+        curPill.setAttribute('data-hover', '1');
+        curPill.addEventListener('mouseenter', function () { showPill(); if (state.pillOff) setPillOff(false); });
+      }
       wirePillAutoHide();
     }
     var pillTimer = null;
     function showPill() {
       if (pillTimer) { window.clearTimeout(pillTimer); pillTimer = null; }
     }
+    var pillAutoWired = false;
+    // Chevron glyphs for the live toggle (resolved at bake time).
+    var CHEV_L = '{{component:icon_chev_left}}';
+    var CHEV_R = '{{component:icon_chev_right}}';
+    // Live collapse: update the EXISTING pill nodes in place so the baked
+    // 300ms transitions run. A full render() rebuild would snap instantly.
+    function setPillOff(off) {
+      state.pillOff = off;
+      var host = el('pp-pill');
+      if (!host) return;
+      if (off) host.classList.add('ks-pill-collapsed');
+      else host.classList.remove('ks-pill-collapsed');
+      var c = host.querySelector('.ks-pill-content');
+      if (c) {
+        if (off) { c.style.maxWidth = '0'; c.style.opacity = '0'; c.style.transform = 'translateX(8px)'; c.style.pointerEvents = 'none'; c.style.visibility = 'hidden'; c.style.overflow = 'hidden'; }
+        else { c.style.maxWidth = '800px'; c.style.opacity = '1'; c.style.transform = 'none'; c.style.pointerEvents = 'auto'; c.style.visibility = 'visible'; c.style.overflow = 'visible'; }
+        c.setAttribute('aria-hidden', off ? 'true' : 'false');
+      }
+      var tg = document.getElementById('pp-pill-toggle');
+      if (tg) {
+        tg.setAttribute('aria-label', off ? 'Show actions' : 'Hide actions');
+        tg.setAttribute('aria-expanded', off ? 'false' : 'true');
+        tg.setAttribute('title', off ? 'Show actions' : 'Hide actions');
+        tg.style.setProperty('--ks-tab-px', off ? '4px' : 'var(--ks-pill-tab-px,10px)');
+        tg.innerHTML = off ? CHEV_L : CHEV_R;
+      }
+    }
     // Pill auto-hide parity with PageActionsPill: scroll / outside-tap
-    // collapses to the toggle, idle 2.5s + hover restore. Bound once.
+    // collapses to the toggle, idle 2.5s restore. Document listeners bound
+    // once; the pill node is re-queried every time (render() recreates it).
     function wirePillAutoHide() {
+      if (pillAutoWired) return;
+      pillAutoWired = true;
       try {
-        var pill = document.getElementById('pp-pill');
-        if (pill && !pill.getAttribute('data-autohide')) {
-          pill.setAttribute('data-autohide', '1');
           var scheduleShow = function () {
             if (pillTimer) window.clearTimeout(pillTimer);
-            pillTimer = window.setTimeout(function () { state.pillOff = false; render(); }, 2500);
+            pillTimer = window.setTimeout(function () { setPillOff(false); }, 2500);
           };
           document.addEventListener('scroll', function () {
-            if (document.activeElement && pill.contains(document.activeElement)) return;
-            if (!state.pillOff) { state.pillOff = true; render(); }
+            var p = document.getElementById('pp-pill');
+            if (p && document.activeElement && p.contains(document.activeElement)) return;
+            if (!state.pillOff) setPillOff(true);
             scheduleShow();
           }, true);
           document.addEventListener('pointerdown', function (ev) {
@@ -458,14 +492,12 @@ content_html: |-
             if (!p) return;
             var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
             var inside = path.indexOf(p) >= 0 || (ev.target && p.contains(ev.target));
-            if (!inside && !state.pillOff) { state.pillOff = true; render(); }
+            if (!inside && !state.pillOff) setPillOff(true);
           });
           document.addEventListener('focusin', function (ev) {
             var p = document.getElementById('pp-pill');
-            if (p && ev.target && p.contains(ev.target)) { showPill(); if (state.pillOff) { state.pillOff = false; render(); } }
+            if (p && ev.target && p.contains(ev.target)) { showPill(); if (state.pillOff) setPillOff(false); }
           });
-          pill.addEventListener('mouseenter', function () { showPill(); if (state.pillOff) { state.pillOff = false; render(); } });
-        }
       } catch (e) {}
     }
     function start(s) {

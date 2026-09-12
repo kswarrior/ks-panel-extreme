@@ -208,6 +208,8 @@ const AdminApiKeys: React.FC = () => {
     );
   }, [keys, search]);
 
+  const visible = useMemo(() => filteredKeys.slice(0, pageSize), [filteredKeys, pageSize]);
+
   const keyStats = useMemo(() => {
     const active = keys.filter((k) => k.active).length;
     const expired = keys.filter((k) => {
@@ -308,10 +310,12 @@ const AdminApiKeys: React.FC = () => {
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filteredKeys.length}
+          shown={visible.length}
           total={keys.length}
           label="API key"
-          extra={<>{keyStats.active} active · {keyStats.expired} expired</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{keyStats.active} active · {keyStats.expired} expired{filteredKeys.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 
@@ -329,9 +333,9 @@ const AdminApiKeys: React.FC = () => {
       {loading && <SkeletonGrid count={6} />}
 
 {/* Card grid of API keys */}
-       {!loading && filteredKeys.length > 0 && (
-         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-apikeys-grid">
-           {filteredKeys.map((k) => {
+       {!loading && visible.length > 0 && (
+          <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" id="ks-apikeys-grid">
+            {visible.map((k) => {
              const owner = k.owner_name || userName(k.user_id);
              const badges = badgeFor(k);
              // Friendly label falls back to the machine name when no

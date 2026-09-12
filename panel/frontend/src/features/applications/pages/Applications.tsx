@@ -91,6 +91,21 @@ const Applications: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
+  // Cards per page — same localStorage pattern as Templates so the grid
+  // stays paginated. Tuned from the count badge's icon toggle.
+  const PAGE_SIZE_KEY = 'ks.applications.pageSize';
+  const readPageSize = (): number => {
+    if (typeof window === 'undefined') return 25;
+    const raw = window.localStorage.getItem(PAGE_SIZE_KEY);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : 25;
+  };
+  const [pageSize, setPageSize] = useState<number>(readPageSize);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(pageSize));
+  }, [pageSize]);
+
   // Filter dropdown state
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
@@ -328,6 +343,8 @@ const Applications: React.FC = () => {
     return out;
   }, [apps, search, activeFilter, categoryFilter]);
 
+  const visible = useMemo(() => filtered.slice(0, pageSize), [filtered, pageSize]);
+
   const stats = useMemo(() => {
     const active = apps.filter((a) => a.active).length;
     const pending = apps.filter((a) => a.pending > 0).length;
@@ -443,10 +460,12 @@ return (
 
       <div className="flex items-center justify-between mb-3">
         <ListCount
-          shown={filtered.length}
+          shown={visible.length}
           total={apps.length}
           label="application"
-          extra={<>{stats.active} active · {stats.pending} pending</>}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          extra={<>{stats.active} active · {stats.pending} pending{filtered.length > pageSize ? <> · showing first {pageSize}</> : null}</>}
         />
       </div>
 
@@ -465,9 +484,9 @@ return (
 
       {loading && <SkeletonGrid count={6} />}
 
-      {!loading && filtered.length > 0 && (
+      {!loading && visible.length > 0 && (
         <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-applications-grid">
-          {filtered.map((a) => {
+          {visible.map((a) => {
             return (
               <article key={a.id} id={`ks-application-${a.id}`} className={`ks-card ks-list-card group relative glass-card rounded-xl flex flex-col gap-3 transition-colors ${glassModifier}`}>
                 <CardMediaLayer />
