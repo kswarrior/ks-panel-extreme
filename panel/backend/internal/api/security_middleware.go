@@ -43,10 +43,7 @@ func SecurityMiddleware(next http.Handler) http.Handler {
 		path := stripQuery(r.URL.Path)
 		isAsset := isStaticAsset(path)
 	cfg := state.Cfg()
-	// Strip any RemoteAddr port suffix so telemetry stores a bare IP and
-	// per-IP aggregation/matching uses the same value the allow/deny
-	// matchers see (normalizeClientIP also trims brackets/whitespace).
-	clientIP := normalizeClientIP(securityClientIP(r))
+	clientIP := securityClientIP(r)
 		// The IP allow/deny matchers work on a bare address, while
 		// clientIP may carry the RemoteAddr port suffix ("1.2.3.4:5678").
 		clientHost := clientIP
@@ -386,25 +383,27 @@ func isStaticAsset(p string) bool {
 // securityClientIP is the security-side equivalent of activity_helper's
 // clientIP helper: it honours RemoteAddr first (most reliable, cannot
 // be spoofed), then X-Forwarded-For when behind a trusted proxy, then
-// X-Real-IP, and finally RemoteAddr as fallback.
+// X-Real-IP, and finally RemoteAddr as fallback. The result is always a
+// bare IP: any RemoteAddr port suffix is stripped via normalizeClientIP
+// so telemetry stores the same value the allow/deny matchers compare.
 func securityClientIP(r *http.Request) string {
 	// RemoteAddr is the most reliable source as it cannot be spoofed.
 	ip := r.RemoteAddr
 	if ip != "" {
-		return ip
+		return normalizeClientIP(ip)
 	}
 	// Fall back to X-Forwarded-For when behind a reverse proxy
 	if v := r.Header.Get("X-Forwarded-For"); v != "" {
 		if parts := strings.Split(v, ","); len(parts) > 0 {
 			ip = strings.TrimSpace(parts[0])
 			if ip != "" {
-				return ip
+				return normalizeClientIP(ip)
 			}
 		}
 	}
 	// Fall back to X-Real-IP
 	if v := r.Header.Get("X-Real-Ip"); v != "" {
-		return strings.TrimSpace(v)
+		return normalizeClientIP(strings.TrimSpace(v))
 	}
 	return ""
 }

@@ -39,11 +39,13 @@ func TestWave2Repro_CSRFFormDrain(t *testing.T) {
 	}
 }
 
-// H2: LimitReader silently truncates over-limit bodies with 200.
+// H2: over-limit bodies must surface an error (fail closed), never
+// silently truncate with 200.
 func TestWave2Repro_BodyTruncate(t *testing.T) {
 	var got []byte
+	var readErr error
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got, _ = io.ReadAll(r.Body)
+		got, readErr = io.ReadAll(r.Body)
 		w.WriteHeader(http.StatusOK)
 	})
 	h := MaxBodySize(10)(next)
@@ -51,8 +53,8 @@ func TestWave2Repro_BodyTruncate(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/x", bytes.NewReader(big))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
-	t.Logf("H2 status=%d downstream_len=%d (sent 100, cap 10)", rec.Code, len(got))
-	if rec.Code == http.StatusOK && len(got) == 10 {
+	t.Logf("H2 status=%d downstream_len=%d readErr=%v (sent 100, cap 10)", rec.Code, len(got), readErr)
+	if readErr == nil && rec.Code == http.StatusOK && len(got) == 10 {
 		t.Fatalf("H2 BUG reproduced: 100B body silently truncated to 10B with 200")
 	}
 }
