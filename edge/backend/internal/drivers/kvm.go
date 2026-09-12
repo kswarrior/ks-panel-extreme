@@ -101,7 +101,21 @@ func buildKVMDeployArgs(name string, cfg map[string]any) ([]string, error) {
 	if disk == "" {
 		disk = "20"
 	}
-	disk = strings.TrimSuffix(strings.TrimSuffix(disk, "G"), "g")
+	// virt-install's `--disk size=N` takes N as a GB magnitude; strip a
+	// trailing GB/GiB/G (case-insensitive, surrounding whitespace
+	// tolerated) so "20G"/"20GB"/"20GiB" from the shared spec or an
+	// operator-typed "20 GB" don't reach virt-install as
+	// `--disk size=20GB` (which older libvirt's parser rejects).
+	disk = strings.TrimSpace(disk)
+	upperDisk := strings.ToUpper(disk)
+	switch {
+	case strings.HasSuffix(upperDisk, "GIB"):
+		disk = strings.TrimSpace(disk[:len(disk)-3])
+	case strings.HasSuffix(upperDisk, "GB"):
+		disk = strings.TrimSpace(disk[:len(disk)-2])
+	case strings.HasSuffix(upperDisk, "G"):
+		disk = strings.TrimSpace(disk[:len(disk)-1])
+	}
 
 	osv := anyToString(cfg["os_variant"]) // e.g. ubuntu22.04
 	args := []string{
@@ -175,7 +189,14 @@ func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 	// conservative – we delete the "vda" volume tied to the domain so a
 	// re-deploy with the same name doesn't collide.
 	if _, err := asExec(ctx, "", "virsh", "destroy", name); err != nil {
-		// Destroy fails if the domain isn't running; that's fine.
+		// Destroy is idempotent: a domain that isn't running ("domain
+		// is not running") or no longer exists ("failed to get
+		// domain") is already in the desired end-state. Any other
+		// error (libvirt down, permission denied, …) is real and
+		// must surface — never swallow it.
+		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
+			return Result{}, err
+		}
 	}
 	// Idempotent like docker.Destroy: undefining an already-undefined
 	// domain reports destroyed so a panel retry after a manual
