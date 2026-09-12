@@ -296,8 +296,8 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 				limit = c.MaxBodySizeBytes
 			}
 			// Backup uploads can legitimately be very large; lift the cap
-			// for those routes so the LimitReader does not silently
-			// truncate a valid SQLite file mid-stream.
+			// for those routes so the size limit does not reject
+			// a valid SQLite file mid-stream.
 			if strings.HasPrefix(r.URL.Path, "/api/database/backups") {
 				const backupLimit = 1 << 30 // 1 GiB
 				if limit < backupLimit {
@@ -306,14 +306,14 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 			}
 			// Per-instance file-level tar backups use chunked PUT with
 			// Content-Range resume; each chunk can be large, so the same
-			// 1 GiB lift applies to avoid truncating a valid tar mid-chunk.
+			// 1 GiB lift applies to avoid rejecting a valid tar mid-chunk.
 			if strings.Contains(r.URL.Path, "/backups") && strings.HasPrefix(r.URL.Path, "/api/instances/") {
 				const chunkLimit = 1 << 30 // 1 GiB
 				if limit < chunkLimit {
 					limit = chunkLimit
 				}
 			}
-		// Ticket attachments accept up to 25 MiB per file (plus multipart
+			// Ticket attachments accept up to 25 MiB per file (plus multipart
 		// framing). The default 10 MiB cap would silently truncate the
 		// body before the handler's MaxBytesReader can report the
 		// friendly 413, so lift these routes to 32 MiB.
