@@ -209,9 +209,13 @@ func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 			Add(id, previousHash, resolvePasswordHistoryConfig().MaxHistory); err != nil {
 			log.Println("password_history add:", err)
 		}
+	}
+	if hash != "" {
 		// A password reset is the "kick the attacker out" action: revoke the
 		// target's tracked sessions so existing bearer/cookie tokens stop
 		// working immediately (mirrors the self-service change-password path).
+		// Unconditional on password-history config — history disabled must
+		// not leave stolen sessions alive.
 		auth.InvalidateUserSessions(id)
 	}
 	RecordActivity(r, repository.ActivityInput{

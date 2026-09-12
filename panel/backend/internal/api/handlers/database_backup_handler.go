@@ -427,7 +427,14 @@ func fetchBackupFromURL(ctx context.Context, raw string) (*url.URL, []byte, stri
 		},
 	}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: backupURLFetchTimeout}
+	// Refuse redirects so a 302 to a private host can't bypass the
+	// public-IP check above (mirrors instancePagePinnedClient). The
+	// non-2xx status check below then fails the fetch closed.
+	client := &http.Client{Transport: transport, Timeout: backupURLFetchTimeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 	req, err := http.NewRequestWithContext(dialCtx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, nil, "", &backupAllowedURLError{http.StatusBadRequest, "invalid URL: " + err.Error()}
