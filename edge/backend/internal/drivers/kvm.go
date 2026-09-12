@@ -229,44 +229,19 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 	_ = command
 
 	cmd := exec.CommandContext(ctx, "virsh", "console", name)
-	if tty {
-		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
-		master, err := pty.StartWithSize(cmd, size)
-		if err != nil {
-			return nil, fmt.Errorf("virsh console: %w", err)
-		}
-		resize := func(c, r int) error {
-			if c <= 0 || r <= 0 {
-				return nil
-			}
-			return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
-		}
-		waitCh := make(chan error, 1)
-		go func() { waitCh <- cmd.Wait() }()
-		wait := func() (int, error) {
-			err := <-waitCh
-			if err != nil {
-				if ee, ok := err.(*exec.ExitError); ok {
-					return ee.ExitCode(), err
-				}
-				return -1, err
-			}
-			return 0, nil
-		}
-		return &ExecSession{
-			Stdin: master, Stdout: master, Stderr: master,
-			Resize: resize, Wait: wait,
-			Close: func() error { return master.Close() },
-		}, nil
-	}
-	// Non-TTY: plain pipes, routed through startPiped so the parent's
-	// stdout/stderr write ends are closed right after Start — otherwise
-	// io.ReadAll on sess.Stdout blocks forever waiting on an EOF that
-	// only arrives once GC closes the leaked write fds. Mirrors the fix
-	// applied to the docker / lxd / multipass non-TTY Exec paths.
-	stdin, stdout, stderr, err := startPiped(cmd)
+	// Past the !tty guard above, tty is always true — run the pty
+	// console straight-line (no second branch, no non-TTY pipe path:
+	// that block was unreachable dead code).
+	size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
+	master, err := pty.StartWithSize(cmd, size)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("virsh console: %w", err)
+	}
+	resize := func(c, r int) error {
+		if c <= 0 || r <= 0 {
+			return nil
+		}
+		return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
 	}
 	waitCh := make(chan error, 1)
 	go func() { waitCh <- cmd.Wait() }()
@@ -281,9 +256,9 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 		return 0, nil
 	}
 	return &ExecSession{
-		Stdin: stdin, Stdout: stdout, Stderr: stderr,
-		Resize: func(int, int) error { return nil },
-		Wait:   wait, Close: func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil },
+		Stdin: master, Stdout: master, Stderr: master,
+		Resize: resize, Wait: wait,
+		Close: func() error { return master.Close() },
 	}, nil
 }
 
@@ -382,16 +357,13 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("snapshot name is required for create action")
 		}
 
-		// Create the snapshot
-		out, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic")
-		if err != nil {
+		// Create the snapshot. `snapshot-create-as` prints a human
+		// sentence ("Domain snapshot <name> created"), not a bare
+		// name — return the requested snapName as the external
+		// reference (mirrors lxd/multipass) so a later
+		// restore/delete addresses the snapshot that was created.
+		if _, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic"); err != nil {
 			return "", 0, fmt.Errorf("virsh snapshot-create failed: %w", err)
-		}
-
-		// The output contains the snapshot name
-		snapshotName := strings.TrimSpace(out)
-		if snapshotName == "" {
-			return "", 0, fmt.Errorf("virsh snapshot-create returned empty snapshot name")
 		}
 
 		// If requested, export the snapshot to a tar file
@@ -399,7 +371,7 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("tar export not implemented for KVM snapshots")
 		}
 
-		return snapshotName, 0, nil
+		return snapName, 0, nil
 
 	case "restore":
 		// Restore from a snapshot

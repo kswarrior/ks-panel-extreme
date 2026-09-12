@@ -14,9 +14,10 @@ import (
 )
 
 // lxd wraps the local `lxc` CLI. We treat the instance name as the panel-
-// supplied identifier; on deploy we hand it as an explicit --instance flag
-// (newer 5.x lxc) instead of as a positional, since positional semantics
-// vary across versions.
+// supplied identifier; on deploy we pass it as the positional instance
+// argument (`lxc launch <image> <instance>`, per the 5.x/6.x manpage —
+// there is no `--instance` flag), with profiles via repeatable
+// `-p/--profile` and keys via `-c/--config`.
 type lxd struct{}
 
 func newLXD() Driver { return &lxd{} }
