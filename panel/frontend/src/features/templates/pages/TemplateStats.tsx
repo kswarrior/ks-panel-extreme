@@ -11,13 +11,14 @@ import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { parseSpecDocument } from '@/features/templates/utils/templateSpecYaml';
 
-type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
+type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host' | 'unknown';
 
 const KIND_META: Record<KindKey, { label: string; badge: string; dot: string; color: string }> = {
   docker: { label: 'Docker', badge: 'bg-sky-900/60 text-sky-200 border-sky-700/60', dot: 'bg-sky-400', color: '#38bdf8' },
   lxd: { label: 'LXD', badge: 'bg-indigo-900/60 text-indigo-200 border-indigo-700/60', dot: 'bg-indigo-400', color: '#a78bfa' },
   kvm: { label: 'KVM', badge: 'bg-orange-900/60 text-orange-200 border-orange-700/60', dot: 'bg-orange-400', color: '#f97316' },
   multipass: { label: 'Multipass', badge: 'bg-fuchsia-900/60 text-fuchsia-200 border-fuchsia-700/60', dot: 'bg-fuchsia-400', color: '#ec4899' },
+  host: { label: 'Host', badge: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60', dot: 'bg-emerald-400', color: '#34d399' },
   unknown: { label: 'UNKNOWN', badge: 'bg-neutral-800 text-gray-300 border-neutral-700', dot: 'bg-gray-500', color: '#9ca3af' },
 };
 

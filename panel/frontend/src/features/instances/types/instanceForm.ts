@@ -5,13 +5,14 @@ import type { InstancePageSubPage } from '@/features/instance-pages/types/instan
 import type { InstanceControls } from '@/features/instances/utils/instanceControls';
 import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
 
-export type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
+export type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host' | 'unknown';
 
 export const KIND_META: Record<KindKey, { label: string; badge: string; dot: string; icon: string }> = {
   docker: { label: 'Docker', badge: 'bg-sky-900/60 text-sky-200 border-sky-700/60', dot: 'bg-sky-400', icon: 'container' },
   lxd: { label: 'LXD', badge: 'bg-indigo-900/60 text-indigo-200 border-indigo-700/60', dot: 'bg-indigo-400', icon: 'lxd' },
   kvm: { label: 'KVM', badge: 'bg-orange-900/60 text-orange-200 border-orange-700/60', dot: 'bg-orange-400', icon: 'kvm' },
   multipass: { label: 'Multipass', badge: 'bg-fuchsia-900/60 text-fuchsia-200 border-fuchsia-700/60', dot: 'bg-fuchsia-400', icon: 'multipass' },
+  host: { label: 'Host', badge: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60', dot: 'bg-emerald-400', icon: 'host' },
   unknown: { label: 'UNKNOWN', badge: 'bg-neutral-800 text-gray-300 border-neutral-700', dot: 'bg-gray-500', icon: 'unknown' },
 };
 
@@ -363,6 +364,7 @@ export function driverEnabled(n: { driver_docker?: boolean; driver_lxd?: boolean
     case 'lxd': return n.driver_lxd ?? false;
     case 'kvm': return n.driver_kvm ?? false;
     case 'multipass': return n.driver_multipass ?? false;
+    case 'host': return true;
     default: return true;
   }
 }

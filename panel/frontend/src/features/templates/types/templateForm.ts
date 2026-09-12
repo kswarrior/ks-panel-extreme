@@ -4,7 +4,7 @@ import type { InstancePageSubPage } from '@/features/instance-pages/types/instan
 import type { InstanceControls } from '@/features/instances/utils/instanceControls';
 import { DEFAULT_INSTANCE_CONTROLS } from '@/features/instances/utils/instanceControls';
 
-export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass';
+export type DriverKind = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host';
 
 export function stripUnit(v: string): string {
   // Strip memory units (M/G, optional B/iB suffix) AND a trailing time

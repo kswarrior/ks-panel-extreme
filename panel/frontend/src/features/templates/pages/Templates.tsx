@@ -24,7 +24,7 @@ import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 
-type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
+type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host' | 'unknown';
 type SortKey = 'name' | 'kind' | 'updated' | 'newest';
 
 const KIND_META: Record<KindKey, { label: string; badge: string; dot: string; icon: string }> = {
@@ -32,6 +32,7 @@ const KIND_META: Record<KindKey, { label: string; badge: string; dot: string; ic
   lxd: { label: 'LXD', badge: 'bg-indigo-900/60 text-indigo-200 border-indigo-700/60', dot: 'bg-indigo-400', icon: 'lxd' },
   kvm: { label: 'KVM', badge: 'bg-orange-900/60 text-orange-200 border-orange-700/60', dot: 'bg-orange-400', icon: 'kvm' },
   multipass: { label: 'Multipass', badge: 'bg-fuchsia-900/60 text-fuchsia-200 border-fuchsia-700/60', dot: 'bg-fuchsia-400', icon: 'multipass' },
+  host: { label: 'Host', badge: 'bg-emerald-900/60 text-emerald-200 border-emerald-700/60', dot: 'bg-emerald-400', icon: 'host' },
   unknown: { label: 'UNKNOWN', badge: 'bg-neutral-800 text-gray-300 border-neutral-700', dot: 'bg-gray-500', icon: 'unknown' },
 };
 

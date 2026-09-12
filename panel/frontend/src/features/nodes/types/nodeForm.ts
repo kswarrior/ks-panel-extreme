@@ -119,6 +119,7 @@ export const ALL_KINDS: { key: string; label: string; color: string }[] = [
   { key: 'kvm', label: 'KVM', color: '#34d399' },
   { key: 'multipass', label: 'Multipass', color: '#fbbf24' },
   { key: 'lxd', label: 'LXD', color: '#f472b6' },
+  { key: 'host', label: 'Host', color: '#34d399' },
 ];
 
 export type NodeFormTabId = 'general' | 'health' | 'limits' | 'location';

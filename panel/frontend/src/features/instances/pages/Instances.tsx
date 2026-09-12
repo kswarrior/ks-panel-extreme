@@ -22,7 +22,7 @@ import { PermissionKey, PERMISSION_AREAS, hasAreaAccess } from '@/shared/types/p
 import { useConfirm } from '@/shared/stores/confirmStore';
 
 // ── Types ────────────────────────────────────────────────────────────────
-type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'unknown';
+type KindKey = 'docker' | 'lxd' | 'kvm' | 'multipass' | 'host' | 'unknown';
 type StatusKey = 'all' | 'running' | 'stopped' | 'creating' | 'installing' | 'errored' | 'install_failed' | 'destroyed' | 'suspended' | 'attention';
 
 const EmptyStateIllustration: React.FC = () => (
