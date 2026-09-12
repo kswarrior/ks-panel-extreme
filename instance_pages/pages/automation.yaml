@@ -1245,52 +1245,6 @@ sub_pages:
     </script>
   content_markdown: ''
   content_blocks: ''
-components:
-- name: pill_css
-  type: html
-  description: 'Pill fallback CSS: action/tabs/save pill geometry when the host theme has no Pill tab vars.'
-  content: |-
-    <style id="ks-automation-pills">/* Automation pills — panel PageActionsPill / PageTabsPill / PageFormActionsPill parity.
-       Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
-       these fallbacks reproduce the historic geometry when no theme sets them. */
-    .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
-    .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
-    .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-    .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
-    .ks-pill-off .ks-pill-content{max-width:0 !important;opacity:0 !important;pointer-events:none !important;visibility:hidden !important;overflow:hidden !important;padding:0 !important;margin:0 !important}
-    .au-tabbtn{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
-    @keyframes ks-overlay-in{from{opacity:0}to{opacity:1}}
-    @keyframes ks-modal-in{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
-    @keyframes ks-skeleton-p{0%,100%{opacity:1}50%{opacity:.45}}
-    </style>
-- name: icon_refresh
-  type: html
-  description: Refresh glyph for the action pill.
-  content: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-- name: icon_plus
-  type: html
-  description: Plus glyph for New job.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-- name: icon_back
-  type: html
-  description: Back chevron for the editor header.
-  content: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-- name: icon_chev_left
-  type: html
-  description: 'Pill toggle: show actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-- name: icon_chev_right
-  type: html
-  description: 'Pill toggle: hide actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-- name: empty_tasks
-  type: html
-  description: Empty state when no automation jobs exist.
-  content: <div class="ks-card" style="text-align:center;padding:40px 24px"><p style="font-size:13px;color:var(--ks-body);margin:0">No automation jobs yet.</p><p style="font-size:12px;color:var(--ks-muted);margin:4px 0 0">Click New job to schedule a command inside this instance.</p></div>
-- name: empty_runs
-  type: html
-  description: Empty state when no runs recorded.
-  content: <div class="ks-card" style="text-align:center;padding:40px 24px"><p style="font-size:13px;color:var(--ks-body);margin:0">No runs yet.</p><p style="font-size:12px;color:var(--ks-muted);margin:4px 0 0">Manual and scheduled executions appear here.</p></div>
 configure:
 - name: read_only
   label: Read-only

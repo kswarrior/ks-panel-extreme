@@ -508,23 +508,6 @@ content_html: |-
     else window.addEventListener('ks-page-sdk-ready', function () { start(window.KSPageSDK); }, { once: true });
   })();
   </script>
-components:
-- name: icon_refresh
-  type: html
-  description: Refresh glyph for the action pill.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-- name: icon_plus
-  type: html
-  description: Plus glyph for Add port.
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-- name: icon_chev_left
-  type: html
-  description: 'Pill toggle: show actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-- name: icon_chev_right
-  type: html
-  description: 'Pill toggle: hide actions.'
-  content: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
 icon_svg: <rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>
 configure:
 - name: read_only
