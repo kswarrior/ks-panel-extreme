@@ -22,6 +22,7 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { cardTimeMs, formatCardDate } from '@/shared/utils/cardDate';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
+import ListCount from '@/shared/components/ui/ListCount';
 import { useThemeStore } from '@/shared/stores/themeStore';
 
 type SortKey = 'name' | 'kind' | 'category' | 'updated' | 'newest';
@@ -468,6 +469,13 @@ const InstancePages: React.FC = () => {
             </svg>
           </button>
       </PageActionsPill>
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filtered.length}
+          total={pages.length}
+          label="instance page"
+        />
+      </div>
       {(resyncMsg || resyncErr) && (
         <div className={`text-xs rounded px-3 py-2 border ${resyncErr ? 'text-red-300 border-red-700/40 bg-red-900/20' : 'text-emerald-300 border-emerald-700/40 bg-emerald-900/20'}`}>
           {resyncBusy ? 'Updating market pages…' : resyncMsg}

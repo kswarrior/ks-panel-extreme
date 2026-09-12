@@ -4,6 +4,7 @@ import type { ActivityLog, ActivityCategory } from '@/features/activity/types/ac
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
+import ListCount from '@/shared/components/ui/ListCount';
 import ActivityCards from '../components/ActivityCards';
 
 // CategoryStyle entry for the filter row — keeps the icon + label + count
@@ -128,13 +129,14 @@ const ActivityPage: React.FC = () => {
         </div>
       </PageActionsPill>
 
-      {/* Count + last refresh line */}
-      {rows.length > 0 && (
-        <div className="mb-3 text-xs text-gray-500">
-          showing {rows.length} event{rows.length === 1 ? '' : 's'}
-          {filter && ` · filtered to "${filter}"`}
-        </div>
-      )}
+      {/* Count badge */}
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={rows.length}
+          total={rows.length}
+          label="event"
+        />
+      </div>
 
       {error && rows.length > 0 && <p className="text-red-400 mb-3 text-sm">{error}</p>}
       {!loading && error && rows.length === 0 && (

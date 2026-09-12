@@ -7,6 +7,7 @@ import NotificationCard from '../components/NotificationCard';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import ListCount from '@/shared/components/ui/ListCount';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import client from '@/shared/api/client';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -299,9 +300,14 @@ const NotificationsPage: React.FC = () => {
           )}
       </PageActionsPill>
 
-      {/* Action bar */}
+      {/* Count badge */}
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-gray-500">{total} notification{total === 1 ? '' : 's'} · page {page + 1} of {totalPages}{hasFilters ? ' · filtered' : ''}</p>
+        <ListCount
+          shown={rows.length}
+          total={total}
+          label="notification"
+          extra={<>page {page + 1} of {totalPages}{hasFilters ? ' · filtered' : ''}{unreadCount > 0 ? ` · ${unreadCount} unread` : ''}</>}
+        />
       </div>
 
       {/* Delivery prefs: realtime = WS push + immediate email, digest = WS push + daily email, off = inbox only */}

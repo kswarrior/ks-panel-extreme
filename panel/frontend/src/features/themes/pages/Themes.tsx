@@ -444,6 +444,14 @@ const Themes: React.FC = () => {
           </button>
       </PageActionsPill>
 
+      <div className="flex items-center justify-between mb-3">
+        <ListCount
+          shown={filteredThemes.length}
+          total={allThemes.length}
+          label="theme"
+        />
+      </div>
+
 <div className="ks-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" id="ks-themes-grid">
         {filteredThemes.map(({ theme: t, origin }) => {
           const canAssign = origin !== 'global' || canManageGlobal;
