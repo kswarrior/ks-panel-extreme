@@ -181,7 +181,7 @@ export const Toggle: React.FC<ToggleProps> = ({ checked, onChange, label }) => (
   </label>
 );
 
-export const TemplateTabs = <T extends string>({ tab, onChange, tabs }: { tab: T; onChange: (id: T) => void; tabs?: Array<{ id: string; label: string }> }) => {
+export const TemplateTabs = <T extends string>({ tab, onChange, tabs, tabsPillOuterClassName, tabsPillOuterStyle, tabsPillClassName }: { tab: T; onChange: (id: T) => void; tabs?: Array<{ id: string; label: string }>; tabsPillOuterClassName?: string; tabsPillOuterStyle?: React.CSSProperties; tabsPillClassName?: string }) => {
   const meta = {
     general: { label: 'General', hint: 'Name, image, kind, category', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/> </svg> },
     environment: { label: 'Environment', hint: 'Ports, mounts, limits, caps', icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/> </svg> },
@@ -230,7 +230,7 @@ export const TemplateTabs = <T extends string>({ tab, onChange, tabs }: { tab: T
           single line (whitespace-nowrap) so "Env Variables" / "Spec Preview"
           never wrap to two lines and stretch the bar height — the row scrolls
           horizontally instead. No spacer here: callers render their own. */}
-      <PageTabsPill ariaLabel="Template form sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label}>
+      <PageTabsPill ariaLabel="Template form sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label} outerClassName={tabsPillOuterClassName} outerStyle={tabsPillOuterStyle} className={tabsPillClassName ?? ''}>
         {items.map((t) => (
           <button
             key={t.id}
