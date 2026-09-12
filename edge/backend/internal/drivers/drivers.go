@@ -1,12 +1,14 @@
 // Package drivers implements the per-instance lifecycle backends: docker,
-// lxd, kvm, multipass. Each driver is a thin shell-out layer – they don't
+// lxd, kvm, multipass and host. Each driver is a thin shell-out layer – they don't
 // reinvent the local CLI; they invoke the real binary on the host (docker,
-// lxc, virsh, multipass). The advantage is each driver inherits whatever
+// lxc, virsh, multipass). The host driver is the exception: it runs a
+// simple shell service directly on the edge host filesystem with no
+// container/VM isolation. The advantage is each driver inherits whatever
 // version semantics the local install provides, so an operator can update
 // the daemon and ksedge keeps working unchanged.
 //
 // Every driver implements the same `Driver` interface; ksedge picks one at
-// runtime using the kind the panel sent (docker | lxd | kvm | multipass).
+// runtime using the kind the panel sent (docker | lxd | kvm | multipass | host).
 package drivers
 
 import (
@@ -174,12 +176,14 @@ func binMissing(bin string) error {
 	return err
 }
 
-// init registers the four bundled drivers. They always attempt the local
+// init registers the five bundled drivers. They always attempt the local
 // CLI; missing CLIs surface as binMissing() errors at call time, not at
-// startup, so ksedge bootstraps cleanly on minimal containers.
+// startup, so ksedge bootstraps cleanly on minimal containers. The host
+// driver needs no CLI (/bin/sh only) so it is always available.
 func init() {
 	Register(newDocker())
 	Register(newLXD())
 	Register(newKVM())
 	Register(newMultipass())
+	Register(newHost())
 }
