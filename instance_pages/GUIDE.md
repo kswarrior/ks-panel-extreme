@@ -640,7 +640,7 @@ KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app
 * Adding a new page: create `pages/<id>.yaml`, add entry to `marketplace.json` with matching `id`, run `rebuild.sh` (which embeds it), commit + push so raw URL serves it.
 * Read via `pagelib.ReadCatalog()` (`pagelib.go:117` disk first, embedded fallback). Frontend imports via `POST /api/instance-pages/import/marketplace {page_id}`.
 
-Shipped catalog currently lists 1 entry: `mc-properties` (`marketplace.json:1`). Add more pages via the Studio, then add a catalog entry per page.
+Shipped catalog currently lists 7 entries: `react-dashboard`, `automation`, `ports`, `env`, `files`, `terminal` (id = file stem) plus `mc-properties` (id = page slug, file `minecraft-properties.yaml`). Add more pages via the Studio, then add a catalog entry per page.
 
 ---
 
