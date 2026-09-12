@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -157,12 +159,34 @@ func CSRFMiddleware(ctm *CSRFTokenManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Get CSRF token from header
-			csrfToken := r.Header.Get("X-CSRF-Token")
-			if csrfToken == "" {
-				// Try to get from form data
-				csrfToken = r.FormValue("csrf_token")
+		// Get CSRF token from header
+		csrfToken := r.Header.Get("X-CSRF-Token")
+		if csrfToken == "" {
+			// FormValue parses + drains the body for form posts, which
+			// would starve downstream handlers (multipart avatar/logo
+			// uploads, urlencoded forms). r.Body is already size-bounded
+			// by DynamicMaxBodySize (mounted before this middleware), so
+			// buffering it is bounded. Restore after the parse, including
+			// GetBody, mirroring internal/auth body-restore pattern.
+			var body []byte
+			if r.Body != nil {
+				var readErr error
+				body, readErr = io.ReadAll(r.Body)
+				if readErr != nil {
+					http.Error(w, "invalid request body", http.StatusBadRequest)
+					return
+				}
+				r.Body = io.NopCloser(bytes.NewReader(body))
 			}
+			csrfToken = r.FormValue("csrf_token")
+			if body != nil {
+				r.Body = io.NopCloser(bytes.NewReader(body))
+				br := body
+				r.GetBody = func() (io.ReadCloser, error) {
+					return io.NopCloser(bytes.NewReader(br)), nil
+				}
+			}
+		}
 
 			if csrfToken == "" || !ctm.ValidateToken(csrfToken) {
 				http.Error(w, "invalid CSRF token", http.StatusForbidden)

@@ -264,12 +264,17 @@ func requireUmbrellaOrAction(group permissions.Group, action permissions.Action)
 }
 
 // MaxBodySize returns middleware that limits the request body size.
-// This prevents DoS attacks via large request bodies.
+// Fail closed: http.MaxBytesReader makes over-limit reads fail with
+// "request body too large" instead of silently truncating the stream
+// (io.LimitReader truncation corrupted backup/file payloads mid-stream
+// while the handler still answered 200).
 func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Limit the request body size
-			r.Body = io.NopCloser(io.LimitReader(r.Body, maxBytes))
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -309,18 +314,23 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = chunkLimit
 				}
 			}
-			// Ticket attachments accept up to 25 MiB per file (plus multipart
-			// framing). The default 10 MiB cap would silently truncate the
-			// body before the handler's MaxBytesReader can report the
-			// friendly 413, so lift these routes to 32 MiB.
-			if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
-				const attachLimit = 32 << 20 // 32 MiB
-				if limit < attachLimit {
-					limit = attachLimit
-				}
+		// Ticket attachments accept up to 25 MiB per file (plus multipart
+		// framing). The default 10 MiB cap would silently truncate the
+		// body before the handler's MaxBytesReader can report the
+		// friendly 413, so lift these routes to 32 MiB.
+		if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
+			const attachLimit = 32 << 20 // 32 MiB
+			if limit < attachLimit {
+				limit = attachLimit
 			}
-			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
-			next.ServeHTTP(w, r)
+		}
+		// Fail closed: MaxBytesReader surfaces over-limit reads as errors
+		// instead of LimitReader's silent truncation (which corrupted
+		// payloads mid-stream while the handler still answered 200).
+		if r.Body != nil {
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+		}
+		next.ServeHTTP(w, r)
 		})
 	}
 }
