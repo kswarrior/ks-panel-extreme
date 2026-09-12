@@ -360,8 +360,14 @@ const InstanceForm: React.FC = () => {
   return (
     <>
       {/* Bottom-right form actions — undo / redo + Deploy;
-          fixed, auto-hide on scroll (node pattern). */}
-      <PageFormActionsPill spacer={false}>
+          fixed, auto-hide on scroll (node pattern).
+          Corner-anchored (right-4, w-auto) so the phone Tabs pill shares
+          the same bottom line on the left instead of floating above with
+          an empty gap underneath (no ks-tabs-pill-wrap lift). */}
+      <PageFormActionsPill
+        spacer={false}
+        outerClassName="fixed right-4 sm:right-6 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-end w-auto max-w-[calc(100vw-2rem)]"
+      >
           <PillHistoryControls hist={hist} />
           <button
             type="button"
@@ -405,7 +411,16 @@ const InstanceForm: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
-        <TemplateTabs tab={tab} onChange={setTab} tabs={TEMPLATE_TABS} />
+        {/* Phone tabs sit bottom-LEFT on the same bottom line as the Deploy
+            actions (bottom-right) — corner-anchored w-auto with no
+            ks-tabs-pill-wrap class, so the global "lift above the form bar"
+            rule never applies and no empty gap is left underneath. */}
+        <TemplateTabs
+          tab={tab}
+          onChange={setTab}
+          tabs={TEMPLATE_TABS}
+          tabsPillOuterClassName="lg:hidden fixed left-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex justify-start w-auto max-w-[calc(100vw-2rem)] ks-tabs-pill-wrap-below"
+        />
         <div className="space-y-6 mt-2 min-w-0 max-w-full">
           {tab === 'general' && (
           <>
@@ -720,6 +735,9 @@ const InstanceForm: React.FC = () => {
         </div>
       </div>
     </FormPage>
+      {/* Spacer — single bottom-pill row clearance (tabs left + Deploy
+          right share one line, node/template pattern). */}
+      <div aria-hidden="true" className="h-20 lg:hidden" />
 
       {/* ---- Icon & colour sub-page (Mods → Install Mod modal pattern) ---- */}
       <GlassModal
