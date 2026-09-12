@@ -101,10 +101,6 @@ func Handler(token string) http.Handler {
 			http.Error(w, "kind and name are required", http.StatusBadRequest)
 			return
 		}
-		if kind != "docker" {
-			http.Error(w, "file manager only supports docker instances today", http.StatusBadRequest)
-			return
-		}
 		// Normalise the path: clients send absolute container paths. We
 		// resolve "." and ".." so a path can never escape the container FS
 		// (docker exec runs inside the container namespace anyway, so this
@@ -115,6 +111,16 @@ func Handler(token string) http.Handler {
 		}
 		if !strings.HasPrefix(path, "/") {
 			path = "/" + path
+		}
+		// Host instances live directly on the edge filesystem under
+		// <instances>/host-<name>/ — serve them off disk without docker.
+		if kind == "host" {
+			hostInstanceDispatcher(w, r, op, name, path)
+			return
+		}
+		if kind != "docker" {
+			http.Error(w, "file manager only supports docker and host instances today", http.StatusBadRequest)
+			return
 		}
 
 		// Reads + small writes get the standard 30s timeout; uploads use
