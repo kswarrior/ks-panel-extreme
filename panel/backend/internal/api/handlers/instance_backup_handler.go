@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/example/kspanel/internal/backup"
 	"github.com/example/kspanel/internal/config"
@@ -135,7 +134,7 @@ func InitInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	// Prefix with timestamp to keep List newest-first stable on disk too.
+	// Same filename re-uploaded: version it rather than clobbering.
 	stored := filename
 	dst := filepath.Join(dir, stored)
 	if _, err := os.Stat(dst); err == nil {

@@ -1005,7 +1005,7 @@ func AssignTicketHandler(w http.ResponseWriter, r *http.Request) {
 	repo := repository.NewTicketRepository(con)
 	if req.AssignedTo != nil {
 		var cnt int
-		_ = con.QueryRow(`SELECT COUNT(*) FROM users WHERE id = ?`, *req.AssignedTo).Scan(&cnt)
+		_ = con.QueryRow(rebindTicketQuery(`SELECT COUNT(*) FROM users WHERE id = ?`), *req.AssignedTo).Scan(&cnt)
 		if cnt == 0 {
 			http.Error(w, "assigned user not found", http.StatusBadRequest)
 			return
