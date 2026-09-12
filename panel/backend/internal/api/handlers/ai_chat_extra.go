@@ -86,7 +86,13 @@ func aiStreamWithFallback(ctx context.Context, cfg *repository.AIConfig, model s
 	}
 	var buf []string
 	buffered := func(tok string) { buf = append(buf, tok) }
-	text, calls, usage, err := aiStreamProviderTokens(ctx, &eff, msgs, tools, buffered)
+	// Fresh 50s budget per attempt (mirrors aiProviderChatWithFallback):
+	// a hung primary must neither veto the fallback via its expired
+	// deadline nor starve it of budget. The caller's ctx (outer 110s
+	// budget / client disconnect) still bounds both attempts.
+	primaryCtx, primaryCancel := context.WithTimeout(ctx, 50*time.Second)
+	text, calls, usage, err := aiStreamProviderTokens(primaryCtx, &eff, msgs, tools, buffered)
+	primaryCancel()
 	usage.Provider = "primary"
 	if err == nil {
 		if onToken != nil {
@@ -102,7 +108,9 @@ func aiStreamWithFallback(ctx context.Context, cfg *repository.AIConfig, model s
 	fb := *cfg
 	fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
 		cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
-	text2, calls2, usage2, err2 := aiStreamProviderTokens(ctx, &fb, msgs, tools, onToken)
+	fbCtx, fbCancel := context.WithTimeout(ctx, 50*time.Second)
+	text2, calls2, usage2, err2 := aiStreamProviderTokens(fbCtx, &fb, msgs, tools, onToken)
+	fbCancel()
 	usage2.Provider = "fallback"
 	if err2 != nil {
 		return "", nil, usage2, fmt.Errorf("primary failed (%s); fallback failed (%s)",
@@ -501,14 +509,13 @@ func AIChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 		onToken := func(tok string) {
 			aiSSEWrite(w, map[string]any{"token": tok})
 		}
-		// Per-round deadline as a CHILD of the outer ctx (not r.Context),
-		// same rationale as aiRunChatLoop: one slow round must not starve
-		// the rest, and the outer 110s budget still cancels an in-flight
-		// round. Client disconnect cancels both (outer derives from it).
-		// Kept at 50s to match aiRunChatLoop so JSON + SSE share one budget.
-		roundCtx, roundCancel := context.WithTimeout(ctx, 50*time.Second)
-		text, calls, usage, serr := aiStreamWithFallback(roundCtx, cfg, model, msgs, defs, onToken)
-		roundCancel()
+		// Per-attempt deadlines live inside aiStreamWithFallback (fresh 50s
+		// child per attempt), same rationale as aiRunChatLoop: one slow
+		// primary must not starve the fallback, and the outer 110s budget
+		// still cancels an in-flight attempt. Client disconnect cancels
+		// both (outer derives from it). Kept at 50s to match the JSON path
+		// so JSON + SSE share one budget.
+		text, calls, usage, serr := aiStreamWithFallback(ctx, cfg, model, msgs, defs, onToken)
 		acc.add(usage)
 		if serr != nil {
 			if lastText != "" {

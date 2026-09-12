@@ -388,8 +388,19 @@ export const useAIChatStore = create<AIChatState>((set, get) => ({
   },
 }));
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((r) => {
+    if (signal?.aborted) return r();
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      r();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      r();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 // runPrompt performs one assistant turn for an already-recorded user prompt:
@@ -540,7 +551,7 @@ async function runPrompt(
           set((s) => ({
             messages: s.messages.map((m) => (m.id === streamId ? { ...m, content: '' } : m)),
           }));
-          await sleep(backoff * 1000);
+          await sleep(backoff * 1000, signal);
           if (signal.aborted) {
             settleCancel();
             return;

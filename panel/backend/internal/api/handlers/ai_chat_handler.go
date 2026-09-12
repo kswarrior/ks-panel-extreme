@@ -748,14 +748,13 @@ func aiRunChatLoop(ctx context.Context, actx *aiCallCtx, cfg *repository.AIConfi
 		if ctx.Err() != nil {
 			return lastText, nil, ctx.Err()
 		}
-		// Per-round deadline as a CHILD of the outer ctx (not r.Context):
-		// round 1 consuming 40s must not starve rounds 2-5 into spurious
-		// ctx.Err, and the outer 110s budget still cancels an in-flight
-		// round. The server WriteTimeout (120s) caps the worst case.
-		// Client disconnect cancels both (outer ctx derives from r.Context).
-		roundCtx, roundCancel := context.WithTimeout(ctx, 50*time.Second)
-		text, calls, usage, err := aiProviderChatWithFallback(roundCtx, cfg, model, msgs, defs)
-		roundCancel()
+		// Per-attempt deadlines live inside aiProviderChatWithFallback
+		// (fresh 50s child per attempt): a hung primary must not starve
+		// the fallback attempt of budget, and the outer 110s budget
+		// still cancels an in-flight attempt. The server WriteTimeout
+		// (120s) caps the worst case. Client disconnect cancels both
+		// (outer ctx derives from r.Context).
+		text, calls, usage, err := aiProviderChatWithFallback(ctx, cfg, model, msgs, defs)
 		acc.add(usage)
 		if err != nil {
 			if lastText != "" {
@@ -1233,16 +1232,23 @@ func aiProviderChat(ctx context.Context, cfg *repository.AIConfig, msgs []aiMsg,
 
 // aiProviderChatWithFallback runs one round against the primary provider
 // and fails over to the configured fallback triple only on retryable
-// primary errors (transport failures, HTTP 5xx, 429/rate limits via
-// aiShouldFallbackToProvider). Primary 4xx (auth/config) returns directly
-// so bad credentials are surfaced instead of masked by a fallback round.
-// The answering provider is reported in the usage for the audit log.
+// primary errors (transport failures, timeouts, HTTP 5xx, 429/rate limits
+// via aiShouldFallbackToProvider). Primary 4xx (auth/config) returns
+// directly so bad credentials are surfaced instead of masked by a fallback
+// round. Each attempt gets a fresh 50s child of the caller's ctx: a hung
+// primary must neither veto the fallback via its expired deadline nor
+// starve it of budget. The caller's ctx (outer 110s budget / client
+// disconnect) still bounds both attempts — a cancelled caller never spends
+// a fallback call. The answering provider is reported in the usage for the
+// audit log.
 func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, model string, msgs []aiMsg, tools []aiToolDef) (string, []aiToolCall, aiUsage, error) {
 	eff := *cfg
 	if strings.TrimSpace(model) != "" {
 		eff.ModelID = strings.TrimSpace(model)
 	}
-	text, calls, usage, err := aiProviderChat(ctx, &eff, msgs, tools)
+	primaryCtx, primaryCancel := context.WithTimeout(ctx, 50*time.Second)
+	text, calls, usage, err := aiProviderChat(primaryCtx, &eff, msgs, tools)
+	primaryCancel()
 	usage.Provider = "primary"
 	if err == nil {
 		return text, calls, usage, nil
@@ -1253,7 +1259,9 @@ func aiProviderChatWithFallback(ctx context.Context, cfg *repository.AIConfig, m
 	fb := *cfg
 	fb.BaseURL, fb.APIKey, fb.ModelID, fb.OllamaMode =
 		cfg.FallbackBaseURL, cfg.FallbackAPIKey, cfg.FallbackModelID, cfg.FallbackOllamaMode
-	text2, calls2, usage2, err2 := aiProviderChat(ctx, &fb, msgs, tools)
+	fbCtx, fbCancel := context.WithTimeout(ctx, 50*time.Second)
+	text2, calls2, usage2, err2 := aiProviderChat(fbCtx, &fb, msgs, tools)
+	fbCancel()
 	usage2.Provider = "fallback"
 	if err2 != nil {
 		return "", nil, usage2, fmt.Errorf("primary failed (%s); fallback failed (%s)",
