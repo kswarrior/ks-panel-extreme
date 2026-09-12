@@ -400,7 +400,9 @@ func (h *jailHandler) Filecmd(r *sftp.Request) error {
 			return nil
 		}
 		if r.AttrFlags().Permissions {
-			_ = os.Chmod(host, attrs.FileMode())
+			// Mask to 0777: FileMode carries setuid/setgid/sticky bits
+			// and the file-manager chmod paths reject those fail-closed.
+			_ = os.Chmod(host, attrs.FileMode().Perm())
 		}
 		// Size truncate honoured; uid/gid + times intentionally ignored
 		// (the edge has no reason to chown on behalf of an SFTP user).
