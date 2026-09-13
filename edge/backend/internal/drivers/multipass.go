@@ -45,7 +45,8 @@ func isUnknownFlagErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "unknown option")
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unknown option") && strings.Contains(msg, "--force")
 }
 
 // Attach is not implemented for Multipass: there is no guest-main-process

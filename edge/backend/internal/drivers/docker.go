@@ -1123,8 +1123,8 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 		if strings.TrimSpace(snapName) == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for %s action", action)
 		}
-		if strings.ContainsAny(snapName, "/\\") || strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
-			return "", 0, fmt.Errorf("invalid snapshot name %q (must not contain path separators or be flag-shaped)", snapName)
+		if strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
+			return "", 0, fmt.Errorf("invalid snapshot name %q (must not be flag-shaped)", snapName)
 		}
 	}
 

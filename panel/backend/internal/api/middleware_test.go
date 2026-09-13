@@ -45,6 +45,49 @@ func TestDynamicMaxBodySizePinned(t *testing.T) {
 	}
 }
 
+// TestDynamicMaxBodySizeStacksTokenBodiesExcluded proves the /api/stacks
+// 64 MiB lift does not widen token-body endpoints: an 11 MiB POST to
+// heartbeat, announce, or token/* still 413s on the default 10 MiB cap
+// (small JSON with the pairing token in body needs no lift), while the
+// package-upload paths still pass through intact.
+func TestDynamicMaxBodySizeStacksTokenBodiesExcluded(t *testing.T) {
+	echo := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	})
+	h := DynamicMaxBodySize()(echo)
+
+	// 11 MiB sits between the 10 MiB default and the 64 MiB stack lift,
+	// so it must 413 exactly where the lift is skipped.
+	eleven := bytes.Repeat([]byte("a"), (11 << 20))
+	for _, path := range []string{"/api/stacks/heartbeat", "/api/stacks/announce", "/api/stacks/token/me"} {
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(eleven))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("POST %s 11MiB = %d, want 413", path, rec.Code)
+		}
+	}
+
+	// Upload paths keep the lift: 11 MiB still passes through intact.
+	for _, path := range []string{"/api/stacks", "/api/stacks/url"} {
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(eleven))
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST %s 11MiB = %d, want 200", path, rec.Code)
+		}
+		if rec.Body.Len() != len(eleven) {
+			t.Fatalf("POST %s echo = %d bytes, want %d", path, rec.Body.Len(), len(eleven))
+		}
+	}
+}
+
 // zeroReader streams 'a' bytes without allocating the full body, so the
 // over-lift 413 case below does not need a 64 MiB string in memory.
 type zeroReader struct{}
