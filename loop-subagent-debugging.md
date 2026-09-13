@@ -3,11 +3,6 @@
 Use this together with `loop.md` (single-task rules) and `map.md`
 (repo structure). Order: `map.md` → `loop.md` → this file.
 
-**Map rule:** read `map.md` FIRST for the idea of where everything lives
-(backend/frontend/edge/instance-pages/components). If a wave adds, moves,
-renames or deletes any main part/folder/flow, the MAIN agent must update
-`map.md` in the same wave so it never goes stale.
-
 **Goal:** Find and fix every real bug through repeated multi-agent debugging. Never trust an agent's claim without real evidence.
 
 ## 0. MODEL COMPATIBILITY
@@ -41,7 +36,7 @@ git log --oneline -5
 git diff --stat
 ```
 
-1. Read `map.md` FIRST for the idea of the repo, then `loop.md` §0–§1 (paths, blast radius, duplicates). If the wave changed repo structure, update `map.md` before closing the wave.
+1. Read `map.md`, then `loop.md` §0–§1 (paths, blast radius, duplicates).
 2. Confirm which files are **real** (imported/built) vs duplicate/dead —
    never guess filenames, never edit `internal/dist/`, `*.db*`,
    shipped migrations, or release artifacts.

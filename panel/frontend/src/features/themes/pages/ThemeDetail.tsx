@@ -91,9 +91,7 @@ const ThemeDetail: React.FC = () => {
       const a = document.createElement('a');
       a.href = url;
       a.download = `${theme.id}.toml`;
-      document.body.appendChild(a);
       a.click();
-      a.remove();
       URL.revokeObjectURL(url);
     } catch (e: any) {
       alert(getErrorMessage(e, 'Download failed'));

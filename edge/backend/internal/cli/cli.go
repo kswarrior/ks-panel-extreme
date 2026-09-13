@@ -33,7 +33,6 @@ import (
 	"github.com/example/ksedge/internal/snapshot"
 	"github.com/example/ksedge/internal/tunnel"
 	"github.com/example/ksedge/internal/update"
-	"github.com/example/ksedge/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -55,34 +54,7 @@ verbatim onto the edge machine.`,
 	root.AddCommand(launchCmd())
 	root.AddCommand(superviseCmd())
 	root.AddCommand(updateCmd())
-	root.AddCommand(versionCmd())
 	return root
-}
-
-// versionCmd prints the edge build identity from version.Snapshot().
-func versionCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "version",
-		Short: "Print the edge build version",
-		RunE:  runVersion,
-	}
-	cmd.Flags().Bool("json", false, "Output version as JSON")
-	return cmd
-}
-
-func runVersion(cmd *cobra.Command, args []string) error {
-	asJSON, err := cmd.Flags().GetBool("json")
-	if err != nil {
-		return err
-	}
-	info := version.Snapshot()
-	if asJSON {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetEscapeHTML(false)
-		return enc.Encode(info)
-	}
-	fmt.Printf("ksedge %s (commit %s, built %s)\n", info.Version, info.Commit, info.BuildDate)
-	return nil
 }
 
 // launchCmd starts the edge: load config, start the heartbeat sender, and run
