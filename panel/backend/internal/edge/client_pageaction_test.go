@@ -80,3 +80,24 @@ func TestPageActionCtxCancel(t *testing.T) {
 		t.Fatal("expected ctx error, got nil")
 	}
 }
+
+// "/api/edge/ports/update" contains "/update": the node branch must not win
+// over the instance branch or the ports reconcile rides the wrong per-task
+// channel when transports diverge.
+func TestTaskForPathPortsUpdate(t *testing.T) {
+	if got := TaskForPath("/api/edge/ports/update"); got != TaskInstance {
+		t.Fatalf("ports/update task = %q, want %q", got, TaskInstance)
+	}
+	if got := TaskForPath("/api/edge/page-action"); got != TaskInstance {
+		t.Fatalf("page-action task = %q, want %q", got, TaskInstance)
+	}
+	if got := TaskForPath("/api/edge/update-info"); got != TaskNode {
+		t.Fatalf("update-info task = %q, want %q", got, TaskNode)
+	}
+	if got := TaskForPath("/api/edge/update-apply"); got != TaskNode {
+		t.Fatalf("update-apply task = %q, want %q", got, TaskNode)
+	}
+	if got := TaskForPath("/api/edge/inspect"); got != TaskNode {
+		t.Fatalf("inspect task = %q, want %q", got, TaskNode)
+	}
+}

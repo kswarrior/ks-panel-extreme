@@ -431,6 +431,40 @@ function componentToHtml(comp: PageComponentDef): string {
   }
 }
 
+// mdEscapeHtml escapes text for interpolation into markdownToHtml output.
+// The stack file preview renders that output via dangerouslySetInnerHTML in
+// the HOST origin, so raw file markup (<script>, <img onerror>, …) must be
+// inert — same rule as renderSdkMarkdown's sdkMdEscape in customPageSdk.ts.
+function mdEscapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// mdInline renders the inline subset (**bold**, *italic*, `code`,
+// [text](url)) to an HTML string. Each span is escaped INDIVIDUALLY and link
+// targets go through safeUrl — mirrors renderSdkMarkdown's inline() so
+// hostile markup and javascript: URLs stay inert.
+function mdInline(text: string): string {
+  const parts: string[] = [];
+  const re = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    parts.push(mdEscapeHtml(text.slice(last, m.index)));
+    if (m[2] !== undefined) parts.push(`<strong>${mdEscapeHtml(m[2])}</strong>`);
+    else if (m[3] !== undefined) parts.push(`<em>${mdEscapeHtml(m[3])}</em>`);
+    else if (m[4] !== undefined) parts.push(`<code>${mdEscapeHtml(m[4])}</code>`);
+    else parts.push(`<a href="${mdEscapeHtml(safeUrl(m[6]))}" target="_blank" rel="noreferrer">${mdEscapeHtml(m[5])}</a>`);
+    last = m.index + m[0].length;
+  }
+  parts.push(mdEscapeHtml(text.slice(last)));
+  return parts.join('');
+}
+
 // Minimal markdown-to-HTML converter for component content.
 // Mirrors the subset handled by renderMarkdown but outputs HTML string.
 // Exported for the stack file editor's Markdown preview (same renderer the
@@ -441,18 +475,14 @@ export function markdownToHtml(md: string): string {
     .split('\n')
     .map(line => {
       const trimmed = line.trim();
-      if (/^###\s/.test(trimmed)) return `<h3>${trimmed.replace(/^###\s/, '')}</h3>`;
-      if (/^##\s/.test(trimmed)) return `<h2>${trimmed.replace(/^##\s/, '')}</h2>`;
-      if (/^#\s/.test(trimmed)) return `<h1>${trimmed.replace(/^#\s/, '')}</h1>`;
-      if (/^[-*]\s/.test(trimmed)) return `<li>${trimmed.replace(/^[-*]\s/, '')}</li>`;
-      if (/^\d+\.\s/.test(trimmed)) return `<li>${trimmed.replace(/^\d+\.\s/, '')}</li>`;
+      if (/^###\s/.test(trimmed)) return `<h3>${mdInline(trimmed.replace(/^###\s/, ''))}</h3>`;
+      if (/^##\s/.test(trimmed)) return `<h2>${mdInline(trimmed.replace(/^##\s/, ''))}</h2>`;
+      if (/^#\s/.test(trimmed)) return `<h1>${mdInline(trimmed.replace(/^#\s/, ''))}</h1>`;
+      if (/^[-*]\s/.test(trimmed)) return `<li>${mdInline(trimmed.replace(/^[-*]\s/, ''))}</li>`;
+      if (/^\d+\.\s/.test(trimmed)) return `<li>${mdInline(trimmed.replace(/^\d+\.\s/, ''))}</li>`;
       if (trimmed === '') return '';
       // Inline: **bold**, *italic*, `code`, [text](url)
-      return `<p>${trimmed
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')}</p>`;
+      return `<p>${mdInline(trimmed)}</p>`;
     })
     .join('\n')
     .replace(/(<li>.*<\/li>)/g, '<ul>$1</ul>')

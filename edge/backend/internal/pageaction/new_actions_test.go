@@ -336,3 +336,118 @@ func TestHandlerNewTypesUnknownDriver(t *testing.T) {
 		t.Fatalf("unknown driver must 400, got %d %+v", code, out)
 	}
 }
+
+// Stored shell argv must reach the dispatched program as shell words. The
+// previous `append(cmd, args…)` passed them as sh $0/$1… which the -lc
+// program never reads, so `args: ["-x"]` was silently dropped.
+func TestHandlerShellArgsHonored(t *testing.T) {
+	fd := &fakeDriver{responses: []fakeResp{{stdout: "ok\n"}}}
+	withFakeDriver(t, fd)
+	h := Handler("sekret")
+	code, out := postAction(t, h, `{"token":"sekret","kind":"pafake","name":"i","type":"shell","command":"df -h","args":["-x"]}`)
+	if code != http.StatusOK || !out.OK {
+		t.Fatalf("status = %d (%+v)", code, out)
+	}
+	if len(fd.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fd.calls))
+	}
+	prog := strings.Join(fd.calls[0], " ")
+	if !strings.Contains(prog, "df -h") || !strings.Contains(prog, "'-x'") {
+		t.Fatalf("dispatched program must contain command + quoted arg, got %q", prog)
+	}
+}
+
+// Hostile shell metacharacters in stored argv must stay quoted, never split
+// the -lc program.
+func TestHandlerShellArgsQuoted(t *testing.T) {
+	fd := &fakeDriver{responses: []fakeResp{{}}}
+	withFakeDriver(t, fd)
+	h := Handler("sekret")
+	_, out := postAction(t, h, `{"token":"sekret","kind":"pafake","name":"i","type":"shell","command":"echo hi","args":["a; rm -rf /"]}`)
+	if !out.OK && len(fd.calls) == 0 {
+		t.Skip("rejected before exec is also safe")
+	}
+	if len(fd.calls) != 1 {
+		t.Fatalf("calls = %d, want 1", len(fd.calls))
+	}
+	prog := strings.Join(fd.calls[0], " ")
+	if !strings.Contains(prog, "'a; rm -rf /'") {
+		t.Fatalf("arg must stay a single quoted word, got %q", prog)
+	}
+}
+
+// Invalid env keys must fail before any container exec (execstage.Script
+// silently skips them, which would otherwise run a different environment
+// than the pinned definition with no error).
+func TestHandlerShellBadEnvRejected(t *testing.T) {
+	fd := &fakeDriver{}
+	withFakeDriver(t, fd)
+	h := Handler("sekret")
+	_, out := postAction(t, h, `{"token":"sekret","kind":"pafake","name":"i","type":"shell","command":"echo hi","env":{"BAD-NAME":"1"}}`)
+	if out.OK {
+		t.Fatal("bad env name must fail")
+	}
+	if len(fd.calls) != 0 {
+		t.Fatal("env validation must precede exec")
+	}
+}
+
+// Legacy file-op paths share the new-type length/NUL gate so a crafted
+// saved action cannot wedge the edge shell line with a megabyte path.
+func TestHandlerFileOpPathCaps(t *testing.T) {
+	big := strings.Repeat("a", maxActionPathLen+1)
+	cases := []string{
+		`{"token":"sekret","kind":"pafake","name":"i","type":"read_file","path":"/` + big + `"}`,
+		`{"token":"sekret","kind":"pafake","name":"i","type":"write_file","path":"/` + big + `","content":"x"}`,
+		`{"token":"sekret","kind":"pafake","name":"i","type":"list_files","path":"/` + big + `"}`,
+		"{\"token\":\"sekret\",\"kind\":\"pafake\",\"name\":\"i\",\"type\":\"read_file\",\"path\":\"/data/x\x00y\"}",
+	}
+	for _, body := range cases {
+		fd := &fakeDriver{}
+		withFakeDriver(t, fd)
+		h := Handler("sekret")
+		_, out := postAction(t, h, body)
+		if out.OK {
+			t.Fatalf("oversize/NUL path must fail: %.60q", body)
+		}
+		if len(fd.calls) != 0 {
+			t.Fatalf("path validation must precede exec: %.60q", body)
+		}
+	}
+}
+
+// A failed size probe must fail the extract closed instead of skipping the
+// unpacked-bytes bomb cap and extracting unbounded.
+func TestHandlerExtractSizeProbeFailed(t *testing.T) {
+	fd := &fakeDriver{responses: []fakeResp{
+		{stdout: "level.dat\n"}, // member listing
+		{stdout: "", stderr: "tar: corrupt", code: 2}, // size probe fails
+	}}
+	withFakeDriver(t, fd)
+	h := Handler("sekret")
+	_, out := postAction(t, h, `{"token":"sekret","kind":"pafake","name":"i","type":"extract","path":"/tmp/a.tar.gz"}`)
+	if out.OK {
+		t.Fatal("failed size probe must fail closed")
+	}
+	if len(fd.calls) != 2 {
+		t.Fatalf("must stop after the size probe, calls = %d", len(fd.calls))
+	}
+}
+
+// A zip size listing without a parseable total is unknown, not zero: it
+// must fail closed rather than bypass the 4 GiB cap.
+func TestHandlerExtractUnknownSizeFailed(t *testing.T) {
+	fd := &fakeDriver{responses: []fakeResp{
+		{stdout: "level.dat\n"},   // member listing
+		{stdout: "weird output\n"}, // size probe succeeds but total unparseable
+	}}
+	withFakeDriver(t, fd)
+	h := Handler("sekret")
+	_, out := postAction(t, h, `{"token":"sekret","kind":"pafake","name":"i","type":"extract","path":"/tmp/a.zip"}`)
+	if out.OK {
+		t.Fatal("unknown unpacked size must fail closed")
+	}
+	if len(fd.calls) != 2 {
+		t.Fatalf("must stop after the size probe, calls = %d", len(fd.calls))
+	}
+}
