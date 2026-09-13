@@ -38,13 +38,15 @@ var pagesDirs = []string{"pages", "."}
 // the YAML authoring format first, legacy JSON last.
 var pageExts = []string{".yaml", ".yml", ".json"}
 
-// excluded names are metadata, not importable page definitions.
+// excluded names are metadata, not importable page definitions (keys are
+// lower-cased: ListNames looks them up with strings.ToLower for
+// case-insensitive filesystems).
 var excluded = map[string]bool{
 	"marketplace.json": true,
 	"marketplace.yaml": true,
 	"marketplace.yml":  true,
-	"README.md":        true,
-	"GUIDE.md":         true,
+	"readme.md":        true,
+	"guide.md":         true,
 }
 
 // pageStem splits a page filename into its stem and whether it carries a

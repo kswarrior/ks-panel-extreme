@@ -119,16 +119,16 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 					fail(fmt.Sprintf("sub-page %q: source_tsx is required for react pages", subs[i].Path))
 					return
 				}
-			if verr := validateReactSource(src); verr != nil {
-				fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, verr.Error()))
-				return
-			}
-			// Module graph per sub-page, mirroring the save gate so a
-			// sub importing a missing/circular module fails the build.
-			if merr := validateReactModules(src, reactModulesFromComponents(page.Components)); merr != nil {
-				fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, merr.Error()))
-				return
-			}
+				if verr := validateReactSource(src); verr != nil {
+					fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, verr.Error()))
+					return
+				}
+				// Module graph per sub-page, mirroring the save gate so a
+				// sub importing a missing/circular module fails the build.
+				if merr := validateReactModules(src, reactModulesFromComponents(page.Components)); merr != nil {
+					fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, merr.Error()))
+					return
+				}
 				if subs[i].BundleJS != src {
 					subs[i].BundleJS = src
 					changed = true
