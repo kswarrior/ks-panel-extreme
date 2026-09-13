@@ -295,7 +295,7 @@ func isCSRFExemptPath(path string) bool {
 	// /api/auth/* endpoint must be listed explicitly above — a blanket
 	// /api/auth/ prefix would silently exempt future authenticated
 	// mutations (fail closed).
-	if len(path) >= 17 && path[:17] == "/api/auth/oauth/" {
+	if len(path) >= 16 && path[:16] == "/api/auth/oauth/" {
 		return true
 	}
 	if len(path) >= 16 && path[:16] == "/api/edge/tunnel" {
