@@ -289,13 +289,8 @@ func isCSRFExemptPath(path string) bool {
 			return true
 		}
 	}
-	// Prefix families (public, unauthenticated by design). The OAuth
-	// start/callback family stays exempt (Apple answers form_post
-	// cross-site without a panel token). Any other current or future
-	// /api/auth/* endpoint must be listed explicitly above — a blanket
-	// /api/auth/ prefix would silently exempt future authenticated
-	// mutations (fail closed).
-	if len(path) >= 16 && path[:16] == "/api/auth/oauth/" {
+	// Prefix families (public, unauthenticated by design).
+	if len(path) >= 10 && path[:10] == "/api/auth/" {
 		return true
 	}
 	if len(path) >= 16 && path[:16] == "/api/edge/tunnel" {

@@ -18,21 +18,6 @@ import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import ListCount from '@/shared/components/ui/ListCount';
 
-function getErrorMessage(e: any, fallback: string): string {
-  const data = e?.response?.data;
-  if (typeof data === 'string' && data.trim()) return data;
-  if (data && typeof data === 'object' && !(data instanceof Blob)) {
-    if (typeof (data as any).error === 'string' && (data as any).error.trim()) return (data as any).error;
-    if (typeof (data as any).message === 'string' && (data as any).message.trim()) return (data as any).message;
-    try {
-      const json = JSON.stringify(data);
-      if (json && json !== '{}') return json;
-    } catch { /* fall through */ }
-  }
-  if (typeof e?.message === 'string' && e.message.trim()) return e.message;
-  return fallback;
-}
-
 // ApplyToRichMenu is the "Apply to…" dropdown for a single theme card.
 // It wires RichMenu (which owns portal + placement + scrim + submenu
 // logic) to the `useThemeAssignItems` builder, so the Themes page no
@@ -286,15 +271,15 @@ const Themes: React.FC = () => {
       a.download = `${t.name}.toml`;
       document.body.appendChild(a);
       a.click();
-      a.remove();
       window.URL.revokeObjectURL(url);
+      a.remove();
     } catch (e: any) {
       let msg = 'Failed to download theme';
       const data = e?.response?.data;
       if (data instanceof Blob) {
         try { msg = await data.text(); } catch { /* keep default */ }
-      } else {
-        msg = getErrorMessage(e, msg);
+      } else if (typeof data === 'string' && data) {
+        msg = data;
       }
       alert(msg);
     }
@@ -340,7 +325,7 @@ const Themes: React.FC = () => {
       setUploadParsed(null);
       // The theme store will auto-refresh via the global listener
     } catch (e: any) {
-      setUploadError(getErrorMessage(e, 'Upload failed'));
+      setUploadError(e?.response?.data || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -356,7 +341,7 @@ const Themes: React.FC = () => {
       setUrlInput('');
       // The theme store will auto-refresh
     } catch (e: any) {
-      setUrlError(getErrorMessage(e, 'Install failed'));
+      setUrlError(e?.response?.data || 'Install failed');
     } finally {
       setUrlBusy(false);
     }

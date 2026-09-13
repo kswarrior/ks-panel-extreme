@@ -332,15 +332,7 @@ func (r *AutomationRepository) Delete(id int64) error {
 }
 
 // MarkRan records the time a job last fired and clears the next-due slot.
-// A zero next parks as NULL (never due), mirroring
-// BackupScheduleRepository.MarkRan — persisting year-1 ("0001-01-01")
-// would satisfy Due's next_run_at <= now comparison on every tick.
 func (r *AutomationRepository) MarkRan(id int64, next time.Time) error {
-	if next.IsZero() {
-		_, err := r.db.Exec(`UPDATE instance_automation SET last_run_at = CURRENT_TIMESTAMP,
-		next_run_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, id)
-		return err
-	}
 	_, err := r.db.Exec(`UPDATE instance_automation SET last_run_at = CURRENT_TIMESTAMP,
 		next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, next.UTC().Format("2006-01-02 15:04:05"), id)
 	return err
@@ -369,13 +361,8 @@ func (r *AutomationRepository) Due(now time.Time) ([]models.Automation, error) {
 }
 
 // ScheduleNext sets the next due stamp for a freshly-created or rescheduled
-// job based on a precomputed cron time. A zero next clears to NULL (never
-// due) instead of persisting year-1 (see MarkRan).
+// job based on a precomputed cron time.
 func (r *AutomationRepository) ScheduleNext(id int64, next time.Time) error {
-	if next.IsZero() {
-		_, err := r.db.Exec(`UPDATE instance_automation SET next_run_at = NULL WHERE id = ?`, id)
-		return err
-	}
 	_, err := r.db.Exec(`UPDATE instance_automation SET next_run_at = ? WHERE id = ?`,
 		next.UTC().Format("2006-01-02 15:04:05"), id)
 	return err

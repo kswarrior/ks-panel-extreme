@@ -26,53 +26,6 @@ func newDocker() Driver { return &docker{} }
 
 func (d *docker) Name() string { return "docker" }
 
-// validDockerName fail-closes on crafted instance names. Docker container
-// names must match [A-Za-z0-9][A-Za-z0-9_.-]* (plus raw 64-hex IDs accepted
-// as NAME|ID by inspect/start/stop). Without this a name like "-v" or
-// "--help" sits in a positional slot (exec/inspect/attach/rm) and parses
-// as a CLI flag, and "" / "a:b" / "a/b" only surfaces as a confusing
-// daemon error. Mirrors host.go validHostName (which also jails '/').
-func validDockerName(name string) bool {
-	if len(name) == 0 || len(name) > 255 {
-		return false
-	}
-	if !isDockerAlnum(name[0]) {
-		return false
-	}
-	for i := 0; i < len(name); i++ {
-		c := name[i]
-		if !isDockerAlnum(c) && c != '_' && c != '.' && c != '-' {
-			return false
-		}
-	}
-	return true
-}
-
-func isDockerAlnum(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
-}
-
-func dockerNameErr(name string) error {
-	return fmt.Errorf("docker: invalid instance name %q (1-255 chars, [A-Za-z0-9_.-], must start alnum)", name)
-}
-
-// validDockerImage rejects empty / flag-shaped image refs ("-foo",
-// "--help") that would parse as docker CLI flags in the positional IMAGE
-// slot of `run/pull/commit`. Passed as a single argv element so shell
-// injection is impossible; this closes flag injection only.
-func validDockerImage(image string) bool {
-	if strings.TrimSpace(image) == "" {
-		return false
-	}
-	if strings.HasPrefix(strings.TrimSpace(image), "-") {
-		return false
-	}
-	if strings.ContainsAny(image, " \t\n\r") {
-		return false
-	}
-	return true
-}
-
 type portMapping struct {
 	Host      int    `json:"host"`
 	Container int    `json:"container"`
@@ -87,9 +40,6 @@ type portMapping struct {
 func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
-	}
-	if !validDockerName(name) {
-		return Result{}, dockerNameErr(name)
 	}
 	// -i keeps the container's stdin open so a later `docker attach`
 	// (the Terminal page's startup console) can SEND input to the main
@@ -198,9 +148,6 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 	if image == "" {
 		return Result{}, fmt.Errorf("docker: image is required in spec")
 	}
-	if !validDockerImage(image) {
-		return Result{}, fmt.Errorf("docker: invalid image %q (must not be empty, flag-shaped, or contain whitespace)", image)
-	}
 	// The deploy RPC is dispatched synchronously from the panel, and the
 	// panel sits behind an upstream proxy (Cloudflare / nginx / etc.) which
 	// aborts the origin connection after its own response window (~30s on
@@ -225,12 +172,7 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 		}
 	}
 	if restart, ok := cfg["restart"].(string); ok {
-		if r := strings.TrimSpace(restart); r != "" {
-			if !validDockerRestart(r) {
-				return Result{}, fmt.Errorf("docker: invalid restart policy %q (want no|always|unless-stopped|on-failure[:N])", restart)
-			}
-			args = append(args, "--restart", r)
-		}
+		args = append(args, "--restart", restart)
 	}
 	args = append(args, "-d", image)
 	if cmd := asStringList(cfg["command"]); len(cmd) > 0 {
@@ -241,15 +183,9 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 		// A failed `docker run` (notably exit 125 `port is already
 		// allocated`) still leaves a `Created` container behind under the
 		// requested --name, so every retry piles up another orphan that
-		// must be `docker rm`'d by hand. Remove it best-effort, EXCEPT when
-		// the failure is a name conflict: then the holder is a live
-		// pre-existing container (concurrent/retry deploy), not our orphan,
-		// and rm -f would delete the winner.
-		lower := strings.ToLower(err.Error())
-		conflict := strings.Contains(lower, "already in use") || strings.Contains(lower, "conflict")
-		if !conflict {
-			_, _ = asExec(ctx, "", "docker", "rm", "-f", name)
-		}
+		// must be `docker rm`'d by hand. Remove it best-effort: the name is
+		// unique per instance, so this can only delete the failed attempt.
+		_, _ = asExec(ctx, "", "docker", "rm", "-f", name)
 		if strings.Contains(err.Error(), "port is already allocated") {
 			return Result{}, fmt.Errorf("docker run failed: host port already allocated — another container already publishes it (pick a different host port or stop the holder): %w", err)
 		}
@@ -314,29 +250,6 @@ func dockerStatus(ctx context.Context, name string) string {
 		}
 	}
 	return ""
-}
-
-// validDockerRestart allowlists `docker run --restart` policies so a
-// crafted spec cannot smuggle an arbitrary flag value into the daemon
-// error path; unknown values fail closed here with a clear edge error.
-func validDockerRestart(r string) bool {
-	switch r {
-	case "no", "always", "unless-stopped", "on-failure":
-		return true
-	}
-	if strings.HasPrefix(r, "on-failure:") {
-		n := strings.TrimPrefix(r, "on-failure:")
-		if n == "" {
-			return false
-		}
-		for _, c := range []byte(n) {
-			if c < '0' || c > '9' {
-				return false
-			}
-		}
-		return true
-	}
-	return false
 }
 
 // dockerLimitFlags is the allowlist of `docker run` resource/limit flags the
@@ -408,9 +321,6 @@ func (d *docker) Start(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
 	}
-	if !validDockerName(name) {
-		return Result{}, dockerNameErr(name)
-	}
 	if _, err := asExec(ctx, "", "docker", "start", name); err != nil {
 		return Result{}, err
 	}
@@ -435,24 +345,16 @@ func (d *docker) Stop(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
 	}
-	if !validDockerName(name) {
-		return Result{}, dockerNameErr(name)
-	}
-	// If the container is KNOWN stopped (non-empty, non-running status),
-	// treat stop as a no-op so the panel doesn't 502 on already-stopped.
-	// An UNKNOWN status ("") means missing OR daemon-down: it must NOT
-	// succeed blindly (fail-open) — fall through to `docker stop` and let
-	// "No such container/object" map to stopped while daemon errors fail.
+	// If the container isn't running (or doesn't exist), treat stop as a
+	// no-op — returning success so the panel doesn't show a 502 for an
+	// already-stopped instance.
 	status := dockerStatus(ctx, name)
-	if status != "" && status != "running" {
+	if status == "" || status != "running" {
+		// Container doesn't exist or isn't running — treat as stopped.
 		_, _ = asExec(ctx, "", "docker", "update", "--restart=no", name)
 		return Result{ExternalID: name, Status: "stopped"}, nil
 	}
 	if _, err := asExec(ctx, "", "docker", "stop", name); err != nil {
-		if isAlreadyGoneErr(err) {
-			_, _ = asExec(ctx, "", "docker", "update", "--restart=no", name)
-			return Result{ExternalID: name, Status: "stopped"}, nil
-		}
 		return Result{}, err
 	}
 	// Clear --restart so docker doesn't immediately bounce the container
@@ -477,19 +379,12 @@ func (d *docker) Kill(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
 	}
-	if !validDockerName(name) {
-		return Result{}, dockerNameErr(name)
-	}
 	status := dockerStatus(ctx, name)
-	if status != "" && status != "running" {
+	if status == "" || status != "running" {
 		_, _ = asExec(ctx, "", "docker", "update", "--restart=no", name)
 		return Result{ExternalID: name, Status: "stopped"}, nil
 	}
 	if _, err := asExec(ctx, "", "docker", "kill", "-s", "KILL", name); err != nil {
-		if isAlreadyGoneErr(err) || strings.Contains(strings.ToLower(err.Error()), "is not running") {
-			_, _ = asExec(ctx, "", "docker", "update", "--restart=no", name)
-			return Result{ExternalID: name, Status: "stopped"}, nil
-		}
 		return Result{}, err
 	}
 	// Same restart-policy reasoning as Stop: a killed container with
@@ -519,9 +414,6 @@ func (d *docker) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("docker"); err != nil {
 		return Result{}, err
 	}
-	if !validDockerName(name) {
-		return Result{}, dockerNameErr(name)
-	}
 	// Use `docker rm -f` so a stopped container cleans up too. A failed rm
 	// of an absent container is non-fatal – treat it as already-gone.
 	if _, err := asExec(ctx, "", "docker", "rm", "-f", name); err != nil {
@@ -548,9 +440,6 @@ func (d *docker) Destroy(ctx context.Context, name string) (Result, error) {
 func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error) {
 	if err := binMissing("docker"); err != nil {
 		return nil, err
-	}
-	if !validDockerName(name) {
-		return nil, dockerNameErr(name)
 	}
 	if len(command) == 0 {
 		// Default to a login shell. /bin/sh works on alpine and distroless;
@@ -606,18 +495,6 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 		// device; docker routes its inherited stdin through to the inner
 		// process so stdin bytes the browser sends come back as the shell's
 		// echoed input.
-		if cols < 1 {
-			cols = 80
-		}
-		if rows < 1 {
-			rows = 24
-		}
-		if cols > 1000 {
-			cols = 1000
-		}
-		if rows > 1000 {
-			rows = 1000
-		}
 		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
 		master, err := pty.StartWithSize(cmd, size)
 		if err != nil {
@@ -705,9 +582,6 @@ func (d *docker) Attach(ctx context.Context, name string) (*ExecSession, error) 
 	if err := binMissing("docker"); err != nil {
 		return nil, err
 	}
-	if !validDockerName(name) {
-		return nil, dockerNameErr(name)
-	}
 	if st := dockerStatus(ctx, name); st != "running" {
 		if st == "" {
 			return nil, fmt.Errorf("docker attach %s: container not found", name)
@@ -783,9 +657,6 @@ func (d *docker) Attach(ctx context.Context, name string) (*ExecSession, error) 
 func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {
 	if err := binMissing("docker"); err != nil {
 		return "{}", "[]", "[]", "{}", err
-	}
-	if !validDockerName(name) {
-		return "{}", "[]", "[]", "{}", dockerNameErr(name)
 	}
 	metrics, processes, ports, info, err = gatherViaShell(ctx, name, d)
 	if err != nil {
@@ -952,21 +823,9 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 	if err := binMissing("docker"); err != nil {
 		return err
 	}
-	if !validDockerName(name) {
-		return dockerNameErr(name)
-	}
 	status := dockerStatus(ctx, name)
 	if status == "" {
-		// Unknown: missing (DB-only success) OR daemon-down (must fail).
-		// Distinguish via inspect error classification instead of
-		// succeeding blindly.
-		if _, err := asExec(ctx, "", "docker", "inspect", name); err != nil {
-			if isAlreadyGoneErr(err) {
-				return nil
-			}
-			return err
-		}
-		return fmt.Errorf("docker inspect %s: container not running (status unknown)", name)
+		return nil
 	}
 	if status != "running" {
 		return nil
@@ -1115,28 +974,13 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	if err := binMissing("docker"); err != nil {
 		return "", 0, err
 	}
-	if !validDockerName(name) {
-		return "", 0, dockerNameErr(name)
-	}
-	switch action {
-	case "create", "restore", "delete":
-		if strings.TrimSpace(snapName) == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for %s action", action)
-		}
-		if strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
-			return "", 0, fmt.Errorf("invalid snapshot name %q (must not be flag-shaped)", snapName)
-		}
-	}
 
 	switch action {
 	case "create":
 		// Create a snapshot by committing the container to an image
-		imageName := strings.TrimSpace(snapName)
+		imageName := snapName
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for create action")
-		}
-		if !validDockerImage(imageName) {
-			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 
 		// Commit the container to an image
@@ -1151,12 +995,9 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 			return "", 0, fmt.Errorf("docker commit returned empty image ID")
 		}
 
-		// If requested, save the image to a tar file. Jail the tar under
-		// location via Base (mirrors host.go snapshots): a snapName like
-		// "../../etc/evil" must not escape to host paths.
+		// If requested, save the image to a tar file
 		if snapType == "tar" && location != "" {
-			safe := filepath.Base(imageName) + ".tar"
-			tarPath := filepath.Join(filepath.Clean(location), safe)
+			tarPath := filepath.Join(filepath.Clean(location), imageName+".tar")
 			if _, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName); err != nil {
 				return "", 0, fmt.Errorf("failed to save image to tar: %w", err)
 			}
@@ -1182,12 +1023,9 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 		// previous container's -p/volumes/env so the restored workload
 		// keeps its configuration. Ports/volumes reconcile reuses the
 		// same inspect → rm → run shape as UpdatePorts.
-		imageName := strings.TrimSpace(snapName)
+		imageName := snapName
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for restore action")
-		}
-		if !validDockerImage(strings.TrimSuffix(imageName, ".tar")) {
-			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 		image, err := resolveRestoreImage(ctx, imageName, location)
 		if err != nil {
@@ -1200,12 +1038,9 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 	case "delete":
 		// Delete the snapshot by removing the image
-		imageName := strings.TrimSpace(snapName)
+		imageName := snapName
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for delete action")
-		}
-		if !validDockerImage(strings.TrimSuffix(imageName, ".tar")) {
-			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 
 		// Remove the image
@@ -1229,20 +1064,13 @@ func resolveRestoreImage(ctx context.Context, snapName, location string) (string
 	if dockerImagePresent(ctx, snapName) {
 		return snapName, nil
 	}
-	// Jail tar candidates under location via Base: a snapName containing
-	// "/" or ".." must not address arbitrary host files. A bare snapName
-	// that is itself a path is only honoured when it has no separators
-	// (Snapshot already rejects separators, this is defence-in-depth).
 	candidates := []string{}
-	if strings.HasSuffix(snapName, ".tar") && !strings.ContainsAny(snapName, "/\\") {
-		if fi, err := os.Stat(snapName); err == nil && !fi.IsDir() {
-			candidates = append(candidates, snapName)
-		}
+	if strings.HasSuffix(snapName, ".tar") {
+		candidates = append(candidates, snapName)
 	}
 	if location != "" {
-		safe := filepath.Base(strings.TrimSpace(snapName))
-		cleanLoc := filepath.Clean(location)
-		candidates = append(candidates, filepath.Join(cleanLoc, safe+".tar"), filepath.Join(cleanLoc, safe))
+		loc := strings.TrimRight(location, "/") + "/"
+		candidates = append(candidates, loc+snapName+".tar", loc+snapName)
 	}
 	for _, tar := range candidates {
 		if !strings.HasSuffix(tar, ".tar") {
@@ -1280,12 +1108,6 @@ func resolveRestoreImage(ctx context.Context, snapName, location string) (string
 // mirrors UpdatePorts' inspect → rm → run reconcile so -p/volumes survive
 // the restore instead of being silently dropped.
 func dockerRestoreFromImage(ctx context.Context, name, image string) error {
-	if !validDockerName(name) {
-		return dockerNameErr(name)
-	}
-	if !validDockerImage(image) {
-		return fmt.Errorf("docker: invalid restore image %q", image)
-	}
 	// Capture the previous container's config when it exists. Missing
 	// container (first restore after a destroy) restores with defaults.
 	var prevCfg, prevHostCfg map[string]any

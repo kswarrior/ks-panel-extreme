@@ -113,6 +113,7 @@ export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
     [/^\/applications\/[^/]+\/edit$/, { parent: 'Applications', parentTo: '/applications', current: 'Edit Application', icon: 'Applications' }],
     [/^\/applications\/[^/]+\/configure$/, { parent: 'Applications', parentTo: '/applications', current: 'Configure', icon: 'Applications' }],
     [/^\/stacks$/, { parent: 'Stacks', parentTo: '/stacks', icon: 'Stacks' }],
+    [/^\/stacks\/studio$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Studio', icon: 'Stacks' }],
     [/^\/stacks\/stats$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Statistics', icon: 'Stacks' }],
     [/^\/stacks\/schedules$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Schedules', icon: 'Stacks' }],
     [/^\/stack\/[^/]+$/, { parent: 'Stacks', parentTo: '/stacks', current: 'Detail', icon: 'Stacks' }],

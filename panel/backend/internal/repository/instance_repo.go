@@ -448,14 +448,26 @@ type InstanceSuspensionRecord struct {
 // If suspendedUntil is nil, the suspension is indefinite (until admin unsuspends).
 // Returns the new suspension count.
 func (r *InstanceRepository) SuspendInstance(id int64, suspendedUntil *time.Time, reason string, adminID int64, adminName string) (int, error) {
-	// Build the new record once; every attempt appends this same record to
-	// the freshly-read history so a concurrent winner is never overwritten.
+	// Get current instance to read existing history
+	inst, err := r.Get(id)
+	if err != nil {
+		return 0, err
+	}
+
+	// Parse existing history
+	var history []InstanceSuspensionRecord
+	if inst.SuspensionHistory != "" {
+		_ = json.Unmarshal([]byte(inst.SuspensionHistory), &history)
+	}
+
+	// Create new suspension record
 	var durationStr string
 	if suspendedUntil != nil {
 		durationStr = "auto:" + suspendedUntil.Format("2006-01-02 15:04:05")
 	} else {
 		durationStr = "until_admin"
 	}
+
 	record := InstanceSuspensionRecord{
 		Timestamp: time.Now().Format("2006-01-02 15:04:05"),
 		Reason:    reason,
@@ -463,66 +475,33 @@ func (r *InstanceRepository) SuspendInstance(id int64, suspendedUntil *time.Time
 		AdminID:   adminID,
 		AdminName: adminName,
 	}
+	history = append(history, record)
 
-	// Compare-and-swap retry: the read (Get) and the write (Exec) are
-	// separate statements, so concurrent suspends used to read the same base
-	// row and the last writer silently dropped the other's history entry and
-	// count bump. Guarding the UPDATE with WHERE suspension_count =
-	// <observed> turns a lost update into an observable 0-row write; the
-	// loser re-reads the winner's row and retries. Plain SQL, portable
-	// across SQLite/MySQL/Postgres (no RETURNING, no FOR UPDATE).
-	const maxAttempts = 8
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		// Get current instance to read existing history
-		inst, err := r.Get(id)
-		if err != nil {
-			return 0, err
-		}
-
-		// Parse existing history
-		var history []InstanceSuspensionRecord
-		if inst.SuspensionHistory != "" {
-			_ = json.Unmarshal([]byte(inst.SuspensionHistory), &history)
-		}
-		history = append(history, record)
-
-		// Marshal updated history
-		historyJSON, err := json.Marshal(history)
-		if err != nil {
-			return 0, err
-		}
-
-		newCount := inst.SuspensionCount + 1
-
-		// Build the update query
-		var query string
-		var args []any
-		if suspendedUntil != nil {
-			query = `UPDATE instances SET suspended = 1, suspended_until = ?, suspension_count = ?, suspension_history = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND suspension_count = ?`
-			args = []any{suspendedUntil.Format("2006-01-02 15:04:05"), newCount, string(historyJSON), id, inst.SuspensionCount}
-		} else {
-			query = `UPDATE instances SET suspended = 1, suspended_until = NULL, suspension_count = ?, suspension_history = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND suspension_count = ?`
-			args = []any{newCount, string(historyJSON), id, inst.SuspensionCount}
-		}
-
-		res, err := r.db.Exec(query, args...)
-		if err != nil {
-			return 0, err
-		}
-		n, err := res.RowsAffected()
-		if err != nil {
-			return 0, err
-		}
-		if n == 0 {
-			// Another suspend won the race (or the row vanished, which the
-			// next Get reports as not found). Retry on fresh state.
-			continue
-		}
-
-		return newCount, nil
+	// Marshal updated history
+	historyJSON, err := json.Marshal(history)
+	if err != nil {
+		return 0, err
 	}
 
-	return 0, fmt.Errorf("suspend conflicted, please retry")
+	newCount := inst.SuspensionCount + 1
+
+	// Build the update query
+	var query string
+	var args []any
+	if suspendedUntil != nil {
+		query = `UPDATE instances SET suspended = 1, suspended_until = ?, suspension_count = ?, suspension_history = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+		args = []any{suspendedUntil.Format("2006-01-02 15:04:05"), newCount, string(historyJSON), id}
+	} else {
+		query = `UPDATE instances SET suspended = 1, suspended_until = NULL, suspension_count = ?, suspension_history = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+		args = []any{newCount, string(historyJSON), id}
+	}
+
+	_, err = r.db.Exec(query, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	return newCount, nil
 }
 
 // UnsuspendInstance unsuspends an instance.

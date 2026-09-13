@@ -741,8 +741,8 @@ func TriggerRunHandler(w http.ResponseWriter, r *http.Request) {
 // cronNext returns the next due time for an expression. Empty schedule is
 // on-demand (zero-time → next_run_at NULL). Parse failure or a schedule
 // that never occurs (e.g. Feb 30) parks far in the future instead of zero
-// — MarkRan/ScheduleNext park zero as NULL (never due).
-// Mirrors scheduler.nextRun.
+// — MarkRan/ScheduleNext persist zero as year-1, which Due matches on
+// every tick (per-minute refire loop). Mirrors scheduler.nextRun.
 func cronNext(schedule string, from time.Time) time.Time {
 	if schedule == "" {
 		return time.Time{}

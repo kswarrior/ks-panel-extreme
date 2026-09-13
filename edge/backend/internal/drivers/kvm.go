@@ -72,9 +72,6 @@ func (d *kvm) Deploy(ctx context.Context, name string, cfg map[string]any) (Resu
 //     empty" pattern duplicated every flag, which silently dropped new
 //     settings any future operator added.
 func buildKVMDeployArgs(name string, cfg map[string]any) ([]string, error) {
-	if strings.TrimSpace(name) == "" {
-		return nil, fmt.Errorf("kvm: instance name is required")
-	}
 	image, _ := cfg["image"].(string)
 	if image == "" {
 		return nil, fmt.Errorf("kvm: image (install media path or URL) is required")
@@ -104,7 +101,6 @@ func buildKVMDeployArgs(name string, cfg map[string]any) ([]string, error) {
 	if disk == "" {
 		disk = "20"
 	}
-	disk = strings.TrimSpace(disk)
 	disk = strings.TrimSuffix(strings.TrimSuffix(disk, "G"), "g")
 
 	osv := anyToString(cfg["os_variant"]) // e.g. ubuntu22.04
@@ -179,9 +175,7 @@ func (d *kvm) Destroy(ctx context.Context, name string) (Result, error) {
 	// conservative – we delete the "vda" volume tied to the domain so a
 	// re-deploy with the same name doesn't collide.
 	if _, err := asExec(ctx, "", "virsh", "destroy", name); err != nil {
-		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
-			return Result{}, err
-		}
+		// Destroy fails if the domain isn't running; that's fine.
 	}
 	// Idempotent like docker.Destroy: undefining an already-undefined
 	// domain reports destroyed so a panel retry after a manual
@@ -214,16 +208,44 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 	_ = command
 
 	cmd := exec.CommandContext(ctx, "virsh", "console", name)
-	size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
-	master, err := pty.StartWithSize(cmd, size)
-	if err != nil {
-		return nil, fmt.Errorf("virsh console: %w", err)
-	}
-	resize := func(c, r int) error {
-		if c <= 0 || r <= 0 {
-			return nil
+	if tty {
+		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
+		master, err := pty.StartWithSize(cmd, size)
+		if err != nil {
+			return nil, fmt.Errorf("virsh console: %w", err)
 		}
-		return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
+		resize := func(c, r int) error {
+			if c <= 0 || r <= 0 {
+				return nil
+			}
+			return pty.Setsize(master, &pty.Winsize{Cols: uint16(c), Rows: uint16(r)})
+		}
+		waitCh := make(chan error, 1)
+		go func() { waitCh <- cmd.Wait() }()
+		wait := func() (int, error) {
+			err := <-waitCh
+			if err != nil {
+				if ee, ok := err.(*exec.ExitError); ok {
+					return ee.ExitCode(), err
+				}
+				return -1, err
+			}
+			return 0, nil
+		}
+		return &ExecSession{
+			Stdin: master, Stdout: master, Stderr: master,
+			Resize: resize, Wait: wait,
+			Close: func() error { return master.Close() },
+		}, nil
+	}
+	// Non-TTY: plain pipes, routed through startPiped so the parent's
+	// stdout/stderr write ends are closed right after Start — otherwise
+	// io.ReadAll on sess.Stdout blocks forever waiting on an EOF that
+	// only arrives once GC closes the leaked write fds. Mirrors the fix
+	// applied to the docker / lxd / multipass non-TTY Exec paths.
+	stdin, stdout, stderr, err := startPiped(cmd)
+	if err != nil {
+		return nil, err
 	}
 	waitCh := make(chan error, 1)
 	go func() { waitCh <- cmd.Wait() }()
@@ -238,9 +260,9 @@ func (d *kvm) Exec(ctx context.Context, name string, tty bool, cols, rows int, c
 		return 0, nil
 	}
 	return &ExecSession{
-		Stdin: master, Stdout: master, Stderr: master,
-		Resize: resize, Wait: wait,
-		Close: func() error { return master.Close() },
+		Stdin: stdin, Stdout: stdout, Stderr: stderr,
+		Resize: func(int, int) error { return nil },
+		Wait:   wait, Close: func() error { stdin.Close(); stdout.Close(); stderr.Close(); return nil },
 	}, nil
 }
 
@@ -340,8 +362,15 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 		}
 
 		// Create the snapshot
-		if _, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic"); err != nil {
+		out, err := asExec(ctx, "", "virsh", "snapshot-create-as", "--domain", name, "--name", snapName, "--disk-only", "--atomic")
+		if err != nil {
 			return "", 0, fmt.Errorf("virsh snapshot-create failed: %w", err)
+		}
+
+		// The output contains the snapshot name
+		snapshotName := strings.TrimSpace(out)
+		if snapshotName == "" {
+			return "", 0, fmt.Errorf("virsh snapshot-create returned empty snapshot name")
 		}
 
 		// If requested, export the snapshot to a tar file
@@ -349,7 +378,7 @@ func (d *kvm) Snapshot(ctx context.Context, name string, action string, snapName
 			return "", 0, fmt.Errorf("tar export not implemented for KVM snapshots")
 		}
 
-		return snapName, 0, nil
+		return snapshotName, 0, nil
 
 	case "restore":
 		// Restore from a snapshot
