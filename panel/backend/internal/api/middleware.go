@@ -319,8 +319,11 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = attachLimit
 				}
 			}
-			r.Body = io.NopCloser(io.LimitReader(r.Body, limit))
-			next.ServeHTTP(w, r)
+		// Fail closed on oversize: MaxBytesReader surfaces a read error
+		// ("http: request body too large") so handlers reject the
+		// request instead of acting on a silently truncated body.
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
+		next.ServeHTTP(w, r)
 		})
 	}
 }
