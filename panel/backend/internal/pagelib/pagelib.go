@@ -84,11 +84,14 @@ func diskRoot() string {
 // (ports.yaml + legacy ports.json) resolve to the canonical YAML name;
 // order is by stem so the admin UI renders a deterministic list.
 func ListNames() []string {
+	// seen tracks emitted stems (lower-cased): disk entries win over
+	// embedded-only ones sharing the stem, so the same page never
+	// surfaces twice across sources.
 	seen := map[string]bool{}
 	best := map[string]string{}
 	consider := func(name string) {
 		stem, ok := pageStem(name)
-		if !ok || excluded[name] {
+		if !ok || excluded[strings.ToLower(name)] {
 			return
 		}
 		key := strings.ToLower(stem)
@@ -104,8 +107,8 @@ func ListNames() []string {
 		sort.Strings(stems)
 		for _, stem := range stems {
 			name := best[stem]
-			if !seen[name] {
-				seen[name] = true
+			if !seen[stem] {
+				seen[stem] = true
 				*out = append(*out, name)
 			}
 		}

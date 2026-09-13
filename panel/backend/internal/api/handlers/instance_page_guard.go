@@ -26,11 +26,13 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/specyaml"
@@ -85,25 +87,42 @@ func guardInstancePage(w http.ResponseWriter, r *http.Request, pageSlug string) 
 // WHITELIST semantics per slug). On denial it writes the identical
 // structured 403 JSON, listing every slug that was tried.
 func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...string) bool {
+	con, inst, ok := fetchGuardInstance(w, r)
+	if !ok {
+		return false
+	}
+	defer con.Close()
+	return allowGuardPages(w, r, con, inst, pageSlugs...)
+}
+
+// fetchGuardInstance parses the instance id from the route and loads its row
+// (single DB open per guarded request; caller owns con and must Close it).
+// Error shapes match the historical guard responses (400/500/404).
+func fetchGuardInstance(w http.ResponseWriter, r *http.Request) (*sql.DB, *models.Instance, bool) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "invalid instance id"})
-		return false
+		return nil, nil, false
 	}
 	con, err := repository.OpenDB()
 	if err != nil {
 		writeJSONStatus(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
-		return false
+		return nil, nil, false
 	}
-	defer con.Close()
-
 	inst, err := repository.NewInstanceRepository(con).Get(id)
 	if err != nil || inst == nil {
+		con.Close()
 		writeJSONStatus(w, http.StatusNotFound, map[string]any{"error": "instance not found"})
-		return false
+		return nil, nil, false
 	}
+	return con, inst, true
+}
 
+// allowGuardPages runs the ownership scope check and the EMPTY-BY-DEFAULT /
+// WHITELIST page check against an already-loaded instance. On denial it
+// writes the identical structured 403 JSON, listing every slug tried.
+func allowGuardPages(w http.ResponseWriter, r *http.Request, con *sql.DB, inst *models.Instance, pageSlugs ...string) bool {
 	// Ownership scope: Own without All may only reach own instances.
 	// Legacy callers with neither scope keep the old full-access behaviour.
 	// Fail closed on checker errors so a DB blip never opens another owner's instance.
@@ -150,28 +169,16 @@ func guardInstancePageAny(w http.ResponseWriter, r *http.Request, pageSlugs ...s
 // guardInstancePageAny, including the original_slug branch for legacy
 // renamed rows).
 func guardAutomationPage(w http.ResponseWriter, r *http.Request) bool {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
-		writeJSONStatus(w, http.StatusBadRequest, map[string]any{"error": "invalid instance id"})
-		return false
-	}
-	con, err := repository.OpenDB()
-	if err != nil {
-		writeJSONStatus(w, http.StatusInternalServerError, map[string]any{"error": "server error"})
+	con, inst, ok := fetchGuardInstance(w, r)
+	if !ok {
 		return false
 	}
 	defer con.Close()
-	inst, err := repository.NewInstanceRepository(con).Get(id)
-	if err != nil || inst == nil {
-		writeJSONStatus(w, http.StatusNotFound, map[string]any{"error": "instance not found"})
-		return false
-	}
 	custom := automationCustomSlug(inst.Config)
 	if custom == "" || custom == "automation" {
-		return guardInstancePageAny(w, r, "automation")
+		return allowGuardPages(w, r, con, inst, "automation")
 	}
-	return guardInstancePageAny(w, r, "automation", custom)
+	return allowGuardPages(w, r, con, inst, "automation", custom)
 }
 
 // automationCustomSlug reads the configured automation family slug from the
@@ -241,13 +248,19 @@ func instancePageSpecEnabled(specJSON, pageSlug string) bool {
 		if pm["enabled"] == false {
 			continue
 		}
-		if s, _ := pm["slug"].(string); s == pageSlug {
+		// Trimmed like the frontend (String(p.slug).trim()) and like
+		// parseSpecRows, so padded slugs agree on every gate.
+		if s, _ := pm["slug"].(string); strings.TrimSpace(s) != "" && strings.TrimSpace(s) == pageSlug {
 			return true
 		}
-		if os, _ := pm["original_slug"].(string); os == pageSlug {
+		if os, _ := pm["original_slug"].(string); strings.TrimSpace(os) != "" && strings.TrimSpace(os) == pageSlug {
 			// Renamed builtin (terminal→console) still grants access to
-			// the backend route of its component.
-			return true
+			// the backend route of its component — but only when the row
+			// actually carries content, mirroring frontend isPageAllowed:
+			// an empty row would render a blank page, so it grants nothing.
+			if ct, _ := pm["content_type"].(string); ct != "" {
+				return true
+			}
 		}
 	}
 	return false
