@@ -102,6 +102,9 @@ func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
 		return Result{}, err
 	}
+	if err := checkMultipassName("instance", name); err != nil {
+		return Result{}, err
+	}
 	// Idempotent like the other drivers: stopping a stopped/missing
 	// instance reports stopped so a panel retry doesn't 502. multipass
 	// phrases it as "not running"/"stopped"/"does not exist" depending
@@ -114,14 +117,42 @@ func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
-// Kill maps to a graceful stop: the multipass CLI exposes no force-stop
-// flag, so force and graceful are the same operation on this driver.
+// Kill force-stops an instance via `multipass stop --force` (available
+// since multipass 1.14): a hung or suspended guest ignores the graceful
+// ACPI shutdown Stop requests, and the daemon answers that case with
+// FAILED_PRECONDITION ("Use --force to power it off"), so mapping Kill to a
+// plain Stop left hung VMs unkillable from the panel. Idempotent like Stop.
+// Pre-1.14 daemons reject the unknown --force flag; fall back to a plain
+// stop there so Kill keeps its historical graceful behaviour instead of
+// newly erroring on old hosts.
 func (d *multipass) Kill(ctx context.Context, name string) (Result, error) {
-	return d.Stop(ctx, name)
+	if err := binMissing("multipass"); err != nil {
+		return Result{}, err
+	}
+	if err := checkMultipassName("instance", name); err != nil {
+		return Result{}, err
+	}
+	if _, err := asExec(ctx, "", "multipass", "stop", "--force", name); err != nil {
+		if isUnknownFlagErr(err) {
+			if _, ferr := asExec(ctx, "", "multipass", "stop", name); ferr != nil {
+				if !isAlreadyStoppedErr(ferr) && !isNotFoundErr(ferr) {
+					return Result{}, ferr
+				}
+			}
+			return Result{ExternalID: name, Status: "stopped"}, nil
+		}
+		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
+			return Result{}, err
+		}
+	}
+	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
 func (d *multipass) Destroy(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
+		return Result{}, err
+	}
+	if err := checkMultipassName("instance", name); err != nil {
 		return Result{}, err
 	}
 	// multipass offers `delete --purge` which both stops and removes the
@@ -143,6 +174,9 @@ func (d *multipass) Destroy(ctx context.Context, name string) (Result, error) {
 // non-tty mode we fall back to plain pipes for byte-only streams.
 func (d *multipass) Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error) {
 	if err := binMissing("multipass"); err != nil {
+		return nil, err
+	}
+	if err := checkMultipassName("instance", name); err != nil {
 		return nil, err
 	}
 	if len(command) == 0 {
@@ -241,12 +275,15 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 	if err := binMissing("multipass"); err != nil {
 		return "", 0, err
 	}
+	if err := checkMultipassName("instance", name); err != nil {
+		return "", 0, err
+	}
 
 	switch action {
 	case "create":
 		// Create a snapshot of the VM
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for create action")
+		if err := checkMultipassName("snapshot", snapName); err != nil {
+			return "", 0, err
 		}
 
 		// Create the snapshot. multipass takes the snapshot name via the
@@ -269,8 +306,8 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 
 	case "restore":
 		// Restore from a snapshot
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for restore action")
+		if err := checkMultipassName("snapshot", snapName); err != nil {
+			return "", 0, err
 		}
 
 		// Restore the snapshot. multipass addresses snapshots as
@@ -288,8 +325,8 @@ func (d *multipass) Snapshot(ctx context.Context, name string, action string, sn
 
 	case "delete":
 		// Delete the snapshot
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for delete action")
+		if err := checkMultipassName("snapshot", snapName); err != nil {
+			return "", 0, err
 		}
 
 		// Delete the snapshot. multipass addresses snapshots as
