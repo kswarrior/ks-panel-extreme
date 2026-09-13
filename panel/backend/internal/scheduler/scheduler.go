@@ -495,8 +495,7 @@ func nextRun(schedule string, from time.Time) time.Time {
 	sched, err := cron.Parse(schedule)
 	if err != nil {
 		// Corrupt row that slipped past API validation: park far in the
-		// future instead of zero — MarkRan persists zero as year-1, which
-		// Due matches on every tick (per-minute refire loop).
+		// future instead of zero — MarkRan parks zero as NULL (never due).
 		return from.AddDate(100, 0, 0)
 	}
 	if n := sched.Next(from); !n.IsZero() {

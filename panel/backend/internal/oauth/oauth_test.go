@@ -440,3 +440,33 @@ func unescape(t *testing.T, s string) string {
 	}
 	return v
 }
+
+// TestRedirectURIForHostSanitizationPinned locks sanitizeCallbackHost via
+// RedirectURIFor: a poisoned Host must not leak path/query/fragment into
+// the URI, an empty host falls back to localhost, and an explicit
+// provider RedirectURI override still wins.
+func TestRedirectURIForHostSanitizationPinned(t *testing.T) {
+	p := models.AuthorityProvider{ID: models.AuthorityProviderGoogle}
+
+	evil := httptest.NewRequest(http.MethodGet, "http://example.com/api/auth/oauth/google/start", nil)
+	evil.Host = "evil.example/path?x=1#frag"
+	got := RedirectURIFor(evil, p)
+	if want := "http://evil.example/api/auth/oauth/google/callback"; got != want {
+		t.Fatalf("poisoned host URI = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "/path") || strings.Contains(got, "?x=1") || strings.Contains(got, "#frag") {
+		t.Fatalf("poisoned host leaked path/query/fragment into %q", got)
+	}
+
+	empty := httptest.NewRequest(http.MethodGet, "http://example.com/x", nil)
+	empty.Host = ""
+	if got := RedirectURIFor(empty, p); got != "http://localhost/api/auth/oauth/google/callback" {
+		t.Fatalf("empty host URI = %q, want localhost fallback", got)
+	}
+
+	p.RedirectURI = "https://override.example/cb"
+	evil.Host = "evil.example/path?x=1#frag"
+	if got := RedirectURIFor(evil, p); got != "https://override.example/cb" {
+		t.Fatalf("override URI = %q, want exact override", got)
+	}
+}
