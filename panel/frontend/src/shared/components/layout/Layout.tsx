@@ -27,7 +27,7 @@ const Layout: React.FC = () => {
   }, [collapsed]);
 
   const inInstancePanel = useMemo(() => {
-    return /^\/instances\/\d+/.test(location.pathname);
+    return /^\/instances\/\d+(?:\/|$)/.test(location.pathname);
   }, [location.pathname]);
 
   // The main thing of an instance lives in the floating draggable menu

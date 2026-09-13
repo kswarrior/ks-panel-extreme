@@ -16,6 +16,21 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ChatFab from '@/features/ai-chat/components/ChatFab';
 import ChatPanel from '@/features/ai-chat/components/ChatPanel';
 
+// AppResetBoundary lives inside <BrowserRouter> so it can key the app-level
+// ErrorBoundary on the route. Without a resetKey the app shell stays crashed
+// across navigations until a manual reload (Layout's page boundary already
+// resets on pathname; the app boundary never did).
+// Hoisted to module scope: defining it inside App recreated the component
+// type on every App render, forcing React to unmount/remount Router subtree.
+const AppResetBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
+  return (
+    <ErrorBoundary label="app" resetKey={location.pathname + location.search}>
+      {children}
+    </ErrorBoundary>
+  );
+};
+
 const App: React.FC = () => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const clearAuth = useAuthStore((s) => s.clearAuth);
@@ -137,19 +152,7 @@ const App: React.FC = () => {
     loadGlobalThemes();
   }, [user?.id, loadGlobalThemes]);
 
-// AppResetBoundary lives inside <BrowserRouter> so it can key the app-level
-// ErrorBoundary on the route. Without a resetKey the app shell stays crashed
-// across navigations until a manual reload (Layout's page boundary already
-// resets on pathname; the app boundary never did).
-const AppResetBoundary: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const location = useLocation();
-  return (
-    <ErrorBoundary label="app" resetKey={location.pathname + location.search}>
-      {children}
-    </ErrorBoundary>
-  );
-};
-
+  // AppResetBoundary is module-scoped (see above).
   return (
     <BrowserRouter basename={panelBasename}>
       <InstanceNavProvider>
