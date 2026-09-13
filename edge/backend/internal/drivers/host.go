@@ -425,8 +425,7 @@ func (d *host) Stop(ctx context.Context, name string) (Result, error) {
 		writeHostStatus(dir, "stopped")
 		return Result{ExternalID: name, Status: "stopped"}, nil
 	}
-	_ = ctx
-	stopHostPid(pid, 10*time.Second)
+	stopHostPid(ctx, pid, 10*time.Second)
 	_ = os.Remove(hostPidPath(dir))
 	writeHostStatus(dir, "stopped")
 	return Result{ExternalID: name, Status: "stopped"}, nil
@@ -462,14 +461,37 @@ func (d *host) Destroy(ctx context.Context, name string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	_ = ctx
 	if pid, err := readHostPid(dir); err == nil && pidAlive(pid) {
-		stopHostPid(pid, 5*time.Second)
+		stopHostPid(ctx, pid, 5*time.Second)
 	}
 	if err := os.RemoveAll(dir); err != nil {
 		return Result{}, fmt.Errorf("host: remove dir: %w", err)
 	}
 	return Result{ExternalID: name, Status: "destroyed"}, nil
+}
+
+// buildExecEnv returns the minimal safe env for Exec: base PATH/HOME/TMPDIR
+// plus the instance's persisted env. PTY sessions default TERM to
+// xterm-256color so vim/top/tput work; a persisted TERM wins.
+func buildExecEnv(dir string, hostEnv map[string]string, tty bool) []string {
+	env := append([]string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + dir,
+		"TMPDIR=" + dir,
+	}, flattenHostEnv(hostEnv)...)
+	if tty {
+		hasTerm := false
+		for _, kv := range env {
+			if strings.HasPrefix(kv, "TERM=") {
+				hasTerm = true
+				break
+			}
+		}
+		if !hasTerm {
+			env = append(env, "TERM=xterm-256color")
+		}
+	}
+	return env
 }
 
 // Exec runs a command inside the instance dir on the host. tty=true gets a
@@ -489,6 +511,14 @@ func (d *host) Exec(ctx context.Context, name string, tty bool, cols, rows int, 
 	}
 	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.Dir = dir
+	// Never inherit the daemon process env (it carries the edge token and
+	// operator environment). Mirror startHostProcess: minimal safe base
+	// plus the instance's persisted env, best-effort when config exists.
+	hostEnv := map[string]string{}
+	if hc, herr := readHostConfig(dir); herr == nil {
+		hostEnv = hc.Env
+	}
+	cmd.Env = buildExecEnv(dir, hostEnv, tty)
 	if tty {
 		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
 		master, err := pty.StartWithSize(cmd, size)
@@ -679,7 +709,7 @@ func (d *host) Snapshot(ctx context.Context, name string, action string, snapNam
 		}
 		// Stop the service before overwriting its tree.
 		if pid, perr := readHostPid(dir); perr == nil && pidAlive(pid) {
-			stopHostPid(pid, 5*time.Second)
+			stopHostPid(ctx, pid, 5*time.Second)
 			_ = os.Remove(hostPidPath(dir))
 		}
 		if _, err := asExec(ctx, dir, "tar", "-xzf", src, "-C", dir); err != nil {
