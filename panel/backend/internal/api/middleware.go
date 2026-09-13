@@ -332,8 +332,14 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 			}
 			// Stack packages (.ksps, handler cap stackPackageMaxBytes=64 MiB)
 			// have the same shape: the handler enforces its own cap after
-			// this middleware, so lift these routes to 64 MiB.
-			if strings.HasPrefix(r.URL.Path, "/api/stacks") {
+			// this middleware, so lift these routes to 64 MiB. Token-body
+			// endpoints (heartbeat, announce, token/*) carry only small
+			// JSON with the pairing token in the body, so they skip the
+			// lift and stay on the default/operator cap.
+			if strings.HasPrefix(r.URL.Path, "/api/stacks") &&
+				!strings.HasPrefix(r.URL.Path, "/api/stacks/heartbeat") &&
+				!strings.HasPrefix(r.URL.Path, "/api/stacks/announce") &&
+				!strings.HasPrefix(r.URL.Path, "/api/stacks/token/") {
 				const stackLimit = 64 << 20 // 64 MiB
 				if limit < stackLimit {
 					limit = stackLimit
