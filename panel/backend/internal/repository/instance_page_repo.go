@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/example/kspanel/internal/models"
 )
@@ -86,8 +87,11 @@ func (r *InstancePageRepository) Get(id int64) (*models.InstancePage, error) {
 		COALESCE(p.market_version, '')
 		FROM instance_pages p WHERE p.id = ?`, id).Scan(
 		&pid, &name, &slug, &kind, &category, &pageType, &desc, &contentType, &contentHTML, &contentMarkdown, &contentBlocks, &iconSVG, &iconColor, &actions, &subPages, &components, &configure, &sourceTSX, &bundleJS, &bundleCSS, &buildStatus, &buildLog, &created, &updated, &ownerID, &ownerName, &source, &marketID, &marketVersion)
-	if err != nil || !pid.Valid {
+	if err == sql.ErrNoRows || (err == nil && !pid.Valid) {
 		return nil, fmt.Errorf("instance page not found")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get instance page: %w", err)
 	}
 	p.ID = pid.Int64
 	p.Name = name.String
@@ -192,7 +196,10 @@ func (r *InstancePageRepository) Create(in InstancePageInput) (int64, error) {
 			in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.SourceTSX, in.BundleJS, in.BundleCSS, in.BuildStatus, in.BuildLog, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion)
 	}
 	if err != nil {
-		return 0, err
+		if isInstancePageConflict(err) {
+			return 0, fmt.Errorf("a page with slug %q already exists", in.Slug)
+		}
+		return 0, fmt.Errorf("create instance page: %w", err)
 	}
 	return res.LastInsertId()
 }
