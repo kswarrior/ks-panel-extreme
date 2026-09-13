@@ -309,16 +309,45 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = chunkLimit
 				}
 			}
-			// Ticket attachments accept up to 25 MiB per file (plus multipart
-			// framing). The default 10 MiB cap would silently truncate the
-			// body before the handler's MaxBytesReader can report the
-			// friendly 413, so lift these routes to 32 MiB.
-			if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
-				const attachLimit = 32 << 20 // 32 MiB
-				if limit < attachLimit {
-					limit = attachLimit
-				}
+		// Ticket attachments accept up to 25 MiB per file (plus multipart
+		// framing). The default 10 MiB cap would silently truncate the
+		// body before the handler's MaxBytesReader can report the
+		// friendly 413, so lift these routes to 32 MiB.
+		if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
+			const attachLimit = 32 << 20 // 32 MiB
+			if limit < attachLimit {
+				limit = attachLimit
 			}
+		}
+		// Mod packages (.kspm, handler cap modPackageMaxBytes=64 MiB)
+		// arrive as multipart bodies; the handler wraps its own
+		// MaxBytesReader AFTER this middleware, so without a lift the
+		// generic 10 MiB cap would 413 a legitimate upload before the
+		// handler ever sees it.
+		if strings.HasPrefix(r.URL.Path, "/api/mods") {
+			const modLimit = 64 << 20 // 64 MiB
+			if limit < modLimit {
+				limit = modLimit
+			}
+		}
+		// Stack packages (.ksps, handler cap stackPackageMaxBytes=64 MiB)
+		// have the same shape: the handler enforces its own cap after
+		// this middleware, so lift these routes to 64 MiB.
+		if strings.HasPrefix(r.URL.Path, "/api/stacks") {
+			const stackLimit = 64 << 20 // 64 MiB
+			if limit < stackLimit {
+				limit = stackLimit
+			}
+		}
+		// Instance page module uploads call ParseMultipartForm(100<<20),
+		// so lift these routes to 100 MiB to match what the handler
+		// legitimately accepts.
+		if strings.HasPrefix(r.URL.Path, "/api/instance-page-modules") {
+			const pageModuleLimit = 100 << 20 // 100 MiB
+			if limit < pageModuleLimit {
+				limit = pageModuleLimit
+			}
+		}
 		// Fail closed on oversize: MaxBytesReader surfaces a read error
 		// ("http: request body too large") so handlers reject the
 		// request instead of acting on a silently truncated body.
