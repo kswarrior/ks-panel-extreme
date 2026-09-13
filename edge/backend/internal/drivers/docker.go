@@ -225,7 +225,12 @@ func (d *docker) Deploy(ctx context.Context, name string, cfg map[string]any) (R
 		}
 	}
 	if restart, ok := cfg["restart"].(string); ok {
-		args = append(args, "--restart", restart)
+		if r := strings.TrimSpace(restart); r != "" {
+			if !validDockerRestart(r) {
+				return Result{}, fmt.Errorf("docker: invalid restart policy %q (want no|always|unless-stopped|on-failure[:N])", restart)
+			}
+			args = append(args, "--restart", r)
+		}
 	}
 	args = append(args, "-d", image)
 	if cmd := asStringList(cfg["command"]); len(cmd) > 0 {
@@ -309,6 +314,29 @@ func dockerStatus(ctx context.Context, name string) string {
 		}
 	}
 	return ""
+}
+
+// validDockerRestart allowlists `docker run --restart` policies so a
+// crafted spec cannot smuggle an arbitrary flag value into the daemon
+// error path; unknown values fail closed here with a clear edge error.
+func validDockerRestart(r string) bool {
+	switch r {
+	case "no", "always", "unless-stopped", "on-failure":
+		return true
+	}
+	if strings.HasPrefix(r, "on-failure:") {
+		n := strings.TrimPrefix(r, "on-failure:")
+		if n == "" {
+			return false
+		}
+		for _, c := range []byte(n) {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // dockerLimitFlags is the allowlist of `docker run` resource/limit flags the
@@ -1090,13 +1118,14 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	if !validDockerName(name) {
 		return "", 0, dockerNameErr(name)
 	}
-	if strings.TrimSpace(snapName) == "" && action != "" {
-		// Per-action checks below emit the precise message; this guards
-		// whitespace-only names that `== ""` misses.
-		return "", 0, fmt.Errorf("snapshot name is required for %s action", action)
-	}
-	if strings.ContainsAny(snapName, "/\\") || strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
-		return "", 0, fmt.Errorf("invalid snapshot name %q (must not contain path separators or be flag-shaped)", snapName)
+	switch action {
+	case "create", "restore", "delete":
+		if strings.TrimSpace(snapName) == "" {
+			return "", 0, fmt.Errorf("snapshot name is required for %s action", action)
+		}
+		if strings.ContainsAny(snapName, "/\\") || strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
+			return "", 0, fmt.Errorf("invalid snapshot name %q (must not contain path separators or be flag-shaped)", snapName)
+		}
 	}
 
 	switch action {
@@ -1251,6 +1280,12 @@ func resolveRestoreImage(ctx context.Context, snapName, location string) (string
 // mirrors UpdatePorts' inspect → rm → run reconcile so -p/volumes survive
 // the restore instead of being silently dropped.
 func dockerRestoreFromImage(ctx context.Context, name, image string) error {
+	if !validDockerName(name) {
+		return dockerNameErr(name)
+	}
+	if !validDockerImage(image) {
+		return fmt.Errorf("docker: invalid restore image %q", image)
+	}
 	// Capture the previous container's config when it exists. Missing
 	// container (first restore after a destroy) restores with defaults.
 	var prevCfg, prevHostCfg map[string]any

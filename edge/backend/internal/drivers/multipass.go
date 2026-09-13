@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/creack/pty"
 )
@@ -17,6 +18,36 @@ func newMultipass() Driver { return &multipass{} }
 
 func (d *multipass) Name() string { return "multipass" }
 
+// checkMultipassName fails closed on empty or option-like instance and
+// snapshot names. Multipass documents instance names as [A-Za-z0-9-] that
+// must start with a letter, so rejecting "" and a leading "-" can never
+// reject a real instance — but without it a crafted name such as "--all"
+// reaches the CLI as a flag: `multipass stop --all` stops every instance on
+// the host and `multipass delete --purge --all` permanently deletes them
+// all. exec.CommandContext passes no shell, so this is flag injection
+// rather than shell injection; the lifecycle/exec/snapshot handlers only
+// reject empty names, so the driver is where it must fail closed.
+func checkMultipassName(what, name string) error {
+	if name == "" {
+		return fmt.Errorf("multipass: %s name is required", what)
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("multipass: invalid %s name %q (must not start with '-')", what, name)
+	}
+	return nil
+}
+
+// isUnknownFlagErr reports whether the CLI rejected the call because a flag
+// we passed does not exist on the installed version (Qt prints
+// "Unknown option '...'"). Kill uses it to fall back from `stop --force`
+// (multipass >= 1.14) to a plain stop on older daemons.
+func isUnknownFlagErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unknown option")
+}
+
 // Attach is not implemented for Multipass: there is no guest-main-process
 // stdio bridge wired yet. Fail closed so a startup console pane shows a
 // clear error instead of a dead shell.
@@ -26,6 +57,9 @@ func (d *multipass) Attach(_ context.Context, _ string) (*ExecSession, error) {
 
 func (d *multipass) Deploy(ctx context.Context, name string, cfg map[string]any) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
+		return Result{}, err
+	}
+	if err := checkMultipassName("instance", name); err != nil {
 		return Result{}, err
 	}
 	image, _ := cfg["image"].(string)
@@ -53,6 +87,9 @@ func (d *multipass) Deploy(ctx context.Context, name string, cfg map[string]any)
 
 func (d *multipass) Start(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("multipass"); err != nil {
+		return Result{}, err
+	}
+	if err := checkMultipassName("instance", name); err != nil {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "multipass", "start", name); err != nil {
