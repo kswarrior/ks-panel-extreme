@@ -46,6 +46,7 @@ import {
   configureRowsFromJSON,
   configureToJSON,
   validateConfigureRows,
+  validateActionRows,
 } from '@/features/instance-pages/utils/pageStudioUtils';
 import {
   PageStudioTabs,
@@ -294,6 +295,10 @@ const InstancePageStudio: React.FC = () => {
     if (!isEdit || pageId == null) { setError('Save the page first to build it.'); return; }
     const subErr = validateSubRows(subs);
     if (subErr) { setError(subErr); return; }
+    // Build persists the draft first, so action rows must validate here too
+    // (same gate as handleSave) instead of failing inside the pre-save.
+    const buildActionErr = validateActionRows(actions);
+    if (buildActionErr) { setError(buildActionErr); return; }
     if ((page.content_type as string) === 'react' && !((page as any).source_tsx ?? '').trim()) {
       setError('React pages need source before building (React tab → Starter).');
       return;
@@ -572,6 +577,12 @@ const InstancePageStudio: React.FC = () => {
     setError('');
     if (isBuiltin) { setError('Built-in pages cannot be edited. Create a custom page instead.'); return; }
     if (!page.name?.trim() || !page.slug?.trim()) { setError('Name and slug are required before saving.'); return; }
+    // Length caps mirror validateInstancePage server-side
+    // (instance_page_handler.go: maxInstancePageNameLen/maxInstancePageDescLen).
+    if (page.name.trim().length > 200) { setError('Name too long (max 200 characters).'); return; }
+    if ((page.description ?? '').length > 500) { setError('Description too long (max 500 characters).'); return; }
+    if ((page.category ?? '').length > 500) { setError('Category too long (max 500 characters).'); return; }
+    if ((page.type ?? '').length > 500) { setError('Type too long (max 500 characters).'); return; }
     if (page.slug.trim() !== '.' && !/^[a-z0-9][a-z0-9-._]*$/i.test(page.slug.trim())) { setError('Slug may contain letters, numbers, dots, dashes and underscores only ("." is the reserved Home slug).'); return; }
     if (page.slug?.trim().includes('..')) { setError('Slug must not contain ".." (path traversal).'); return; }
     if (page.slug && page.slug.trim().length > 64) { setError('Slug too long (max 64 characters).'); return; }
@@ -583,6 +594,8 @@ const InstancePageStudio: React.FC = () => {
     if (compErr) { setError(compErr); return; }
     const cfgErr = validateConfigureRows(configure);
     if (cfgErr) { setError(cfgErr); return; }
+    const actionErr = validateActionRows(actions);
+    if (actionErr) { setError(actionErr); return; }
     if ((page.content_type as string) === 'react' && !((page as any).source_tsx ?? '').trim()) {
       setError('React pages need source before saving (React tab → Starter).');
       return;

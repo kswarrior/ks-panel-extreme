@@ -102,6 +102,57 @@ export function defsToActions(json: string | undefined): ActionRow[] {
   }));
 }
 
+// validateActionRows mirrors the backend's validatePageActions rules
+// client-side (instance_page_handler.go:2536) so the operator gets a precise
+// message before a round-trip. Rows without a name are dropped on save by
+// actionsToDefs, so a half-filled unnamed row errors instead of vanishing.
+export function validateActionRows(rows: ActionRow[]): string {
+  const seen = new Set<string>();
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const name = r.name.trim();
+    const touched =
+      name !== '' ||
+      r.command.trim() !== '' ||
+      r.path.trim() !== '' ||
+      r.content.trim() !== '' ||
+      r.args.trim() !== '' ||
+      r.description.trim() !== '' ||
+      r.mode.trim() !== '' ||
+      r.names.trim() !== '' ||
+      r.dest.trim() !== '';
+    if (!touched) continue; // untouched row
+    if (name === '') return `Action #${i + 1} needs a name before saving (unnamed actions are dropped).`;
+    if (seen.has(name)) return `Duplicate action name "${name}".`;
+    seen.add(name);
+    if (!['shell', 'read_file', 'write_file', 'list_files', 'docker', 'kvm', 'lxd', 'stat', 'chmod', 'archive', 'extract'].includes(r.type)) {
+      return `Action "${name}" has an unknown type "${r.type}".`;
+    }
+    if ((r.type === 'stat' || r.type === 'chmod' || r.type === 'archive') && r.path.trim() === '') {
+      return `Action "${name}" (${r.type}) requires a path.`;
+    }
+    if (r.type === 'chmod') {
+      const mode = r.mode.trim();
+      if (!/^[0-7]{3,4}$/.test(mode) || parseInt(mode, 8) > 0o777) {
+        return `Action "${name}" (chmod) requires mode 000-777.`;
+      }
+    }
+    if (r.type === 'archive') {
+      const dest = r.dest.trim().toLowerCase();
+      if (!(dest.endsWith('.zip') || dest.endsWith('.tar.gz') || dest.endsWith('.tgz'))) {
+        return `Action "${name}" (archive) requires dest ending with .zip or .tar.gz.`;
+      }
+    }
+    if (r.type === 'extract') {
+      const path = r.path.trim().toLowerCase();
+      if (!(path.endsWith('.zip') || path.endsWith('.tar.gz') || path.endsWith('.tgz'))) {
+        return `Action "${name}" (extract) requires path ending with .zip or .tar.gz.`;
+      }
+    }
+  }
+  return '';
+}
+
 // ---------------------------------------------------------------------------
 // Sub-page rows — extra routes that ship with this page
 // ---------------------------------------------------------------------------
@@ -159,6 +210,10 @@ export function subsToJSON(rows: SubPageRow[]): string {
 // validateSubRows mirrors the backend's sub_pages rules client-side so the
 // operator gets a precise message before a round-trip.
 export function validateSubRows(rows: SubPageRow[]): string {
+  // Blank rows are dropped on save (subsToJSON), so only count rows that
+  // persist — same population the backend's max-sub-pages gate sees.
+  const kept = rows.filter((r) => r.path.trim() !== '' || r.name.trim() !== '');
+  if (kept.length > 20) return `Too many sub-pages (${kept.length}, max 20).`;
   const seen = new Set<string>();
   for (const r of rows) {
     const path = r.path.trim();
@@ -214,6 +269,10 @@ export function compsToJSON(rows: ComponentRow[]): string {
 }
 
 export function validateCompRows(rows: ComponentRow[]): string {
+  // Blank rows are dropped on save (compsToJSON), so only count rows that
+  // persist — same population the backend's max-components gate sees.
+  const kept = rows.filter((r) => r.name.trim() !== '');
+  if (kept.length > 50) return `Too many components (${kept.length}, max 50).`;
   const seen = new Set<string>();
   let modules = 0;
   for (const r of rows) {
@@ -332,6 +391,10 @@ export function configureToJSON(rows: ConfigureRow[]): string {
 }
 
 export function validateConfigureRows(rows: ConfigureRow[]): string {
+  // Blank rows are dropped on save (configureToJSON), so only count rows
+  // that persist — same population the backend's max-configure gate sees.
+  const kept = rows.filter((r) => r.name.trim() !== '');
+  if (kept.length > 50) return `Too many configure variables (${kept.length}, max 50).`;
   const seen = new Set<string>();
   for (const r of rows) {
     const name = r.name.trim();
