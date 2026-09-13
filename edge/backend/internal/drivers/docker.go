@@ -521,6 +521,9 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 	if err := binMissing("docker"); err != nil {
 		return nil, err
 	}
+	if !validDockerName(name) {
+		return nil, dockerNameErr(name)
+	}
 	if len(command) == 0 {
 		// Default to a login shell. /bin/sh works on alpine and distroless;
 		// bash users get an interactive shell by passing ["bash"] from the
@@ -575,6 +578,18 @@ func (d *docker) Exec(ctx context.Context, name string, tty bool, cols, rows int
 		// device; docker routes its inherited stdin through to the inner
 		// process so stdin bytes the browser sends come back as the shell's
 		// echoed input.
+		if cols < 1 {
+			cols = 80
+		}
+		if rows < 1 {
+			rows = 24
+		}
+		if cols > 1000 {
+			cols = 1000
+		}
+		if rows > 1000 {
+			rows = 1000
+		}
 		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
 		master, err := pty.StartWithSize(cmd, size)
 		if err != nil {
@@ -662,6 +677,9 @@ func (d *docker) Attach(ctx context.Context, name string) (*ExecSession, error) 
 	if err := binMissing("docker"); err != nil {
 		return nil, err
 	}
+	if !validDockerName(name) {
+		return nil, dockerNameErr(name)
+	}
 	if st := dockerStatus(ctx, name); st != "running" {
 		if st == "" {
 			return nil, fmt.Errorf("docker attach %s: container not found", name)
@@ -737,6 +755,9 @@ func (d *docker) Attach(ctx context.Context, name string) (*ExecSession, error) 
 func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {
 	if err := binMissing("docker"); err != nil {
 		return "{}", "[]", "[]", "{}", err
+	}
+	if !validDockerName(name) {
+		return "{}", "[]", "[]", "{}", dockerNameErr(name)
 	}
 	metrics, processes, ports, info, err = gatherViaShell(ctx, name, d)
 	if err != nil {
@@ -903,9 +924,21 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 	if err := binMissing("docker"); err != nil {
 		return err
 	}
+	if !validDockerName(name) {
+		return dockerNameErr(name)
+	}
 	status := dockerStatus(ctx, name)
 	if status == "" {
-		return nil
+		// Unknown: missing (DB-only success) OR daemon-down (must fail).
+		// Distinguish via inspect error classification instead of
+		// succeeding blindly.
+		if _, err := asExec(ctx, "", "docker", "inspect", name); err != nil {
+			if isAlreadyGoneErr(err) {
+				return nil
+			}
+			return err
+		}
+		return fmt.Errorf("docker inspect %s: container not running (status unknown)", name)
 	}
 	if status != "running" {
 		return nil
@@ -1054,13 +1087,27 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	if err := binMissing("docker"); err != nil {
 		return "", 0, err
 	}
+	if !validDockerName(name) {
+		return "", 0, dockerNameErr(name)
+	}
+	if strings.TrimSpace(snapName) == "" && action != "" {
+		// Per-action checks below emit the precise message; this guards
+		// whitespace-only names that `== ""` misses.
+		return "", 0, fmt.Errorf("snapshot name is required for %s action", action)
+	}
+	if strings.ContainsAny(snapName, "/\\") || strings.TrimSpace(snapName) == "." || strings.TrimSpace(snapName) == ".." || strings.HasPrefix(strings.TrimSpace(snapName), "-") {
+		return "", 0, fmt.Errorf("invalid snapshot name %q (must not contain path separators or be flag-shaped)", snapName)
+	}
 
 	switch action {
 	case "create":
 		// Create a snapshot by committing the container to an image
-		imageName := snapName
+		imageName := strings.TrimSpace(snapName)
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for create action")
+		}
+		if !validDockerImage(imageName) {
+			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 
 		// Commit the container to an image
@@ -1075,9 +1122,12 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 			return "", 0, fmt.Errorf("docker commit returned empty image ID")
 		}
 
-		// If requested, save the image to a tar file
+		// If requested, save the image to a tar file. Jail the tar under
+		// location via Base (mirrors host.go snapshots): a snapName like
+		// "../../etc/evil" must not escape to host paths.
 		if snapType == "tar" && location != "" {
-			tarPath := filepath.Join(filepath.Clean(location), imageName+".tar")
+			safe := filepath.Base(imageName) + ".tar"
+			tarPath := filepath.Join(filepath.Clean(location), safe)
 			if _, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName); err != nil {
 				return "", 0, fmt.Errorf("failed to save image to tar: %w", err)
 			}
@@ -1103,9 +1153,12 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 		// previous container's -p/volumes/env so the restored workload
 		// keeps its configuration. Ports/volumes reconcile reuses the
 		// same inspect → rm → run shape as UpdatePorts.
-		imageName := snapName
+		imageName := strings.TrimSpace(snapName)
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for restore action")
+		}
+		if !validDockerImage(strings.TrimSuffix(imageName, ".tar")) {
+			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 		image, err := resolveRestoreImage(ctx, imageName, location)
 		if err != nil {
@@ -1118,9 +1171,12 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 	case "delete":
 		// Delete the snapshot by removing the image
-		imageName := snapName
+		imageName := strings.TrimSpace(snapName)
 		if imageName == "" {
 			return "", 0, fmt.Errorf("snapshot name is required for delete action")
+		}
+		if !validDockerImage(strings.TrimSuffix(imageName, ".tar")) {
+			return "", 0, fmt.Errorf("invalid snapshot name %q", snapName)
 		}
 
 		// Remove the image
@@ -1144,13 +1200,20 @@ func resolveRestoreImage(ctx context.Context, snapName, location string) (string
 	if dockerImagePresent(ctx, snapName) {
 		return snapName, nil
 	}
+	// Jail tar candidates under location via Base: a snapName containing
+	// "/" or ".." must not address arbitrary host files. A bare snapName
+	// that is itself a path is only honoured when it has no separators
+	// (Snapshot already rejects separators, this is defence-in-depth).
 	candidates := []string{}
-	if strings.HasSuffix(snapName, ".tar") {
-		candidates = append(candidates, snapName)
+	if strings.HasSuffix(snapName, ".tar") && !strings.ContainsAny(snapName, "/\\") {
+		if fi, err := os.Stat(snapName); err == nil && !fi.IsDir() {
+			candidates = append(candidates, snapName)
+		}
 	}
 	if location != "" {
-		loc := strings.TrimRight(location, "/") + "/"
-		candidates = append(candidates, loc+snapName+".tar", loc+snapName)
+		safe := filepath.Base(strings.TrimSpace(snapName))
+		cleanLoc := filepath.Clean(location)
+		candidates = append(candidates, filepath.Join(cleanLoc, safe+".tar"), filepath.Join(cleanLoc, safe))
 	}
 	for _, tar := range candidates {
 		if !strings.HasSuffix(tar, ".tar") {
