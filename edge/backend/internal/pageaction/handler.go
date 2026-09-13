@@ -164,19 +164,32 @@ func executeShell(ctx context.Context, drv drivers.Driver, name, command string,
 	if strings.TrimSpace(command) == "" {
 		return Output{OK: false, Error: "command is required"}
 	}
+	// Fail closed on hostile env keys: execstage.Script silently SKIPS
+	// non-POSIX names (and the reserved STAGE), so forwarding without a
+	// check would run a different environment than the pinned definition
+	// with no error. Keys are author-controlled (allow-listed by the
+	// panel), values stay single-quote-escaped inside Script.
+	for k := range env {
+		if k == "STAGE" || !execstage.IsEnvName(k) {
+			return Output{OK: false, Error: fmt.Sprintf("invalid env name %q", k)}
+		}
+	}
 	// Honor Env via the shared staging builder (env exports + command,
-	// no files): the previous code accepted Env from the panel and then
-	// silently dropped it, so automation relying on vaulted secrets saw
-	// empty vars with no error. execstage validates names (POSIX
-	// identifiers) and single-quote-escapes values.
+	// no files). execstage single-quote-escapes values; names are
+	// pre-validated above because Script silently skips bad ones.
 	script, serr := execstage.Script(env, nil, command)
 	if serr != nil {
 		return Output{OK: false, Error: serr.Error()}
 	}
-	cmd := []string{"/bin/sh", "-lc", script}
+	// Stored argv are shell words, not sh positional params: appending them
+	// to the -lc program runs `cmd arg…`. The previous `append(cmd,
+	// args…)` passed them as $0/$1… which the program never reads, so a
+	// saved `args: ["-x"]` was silently ignored (execution diverged from
+	// the allow-listed definition with no error).
 	if len(args) > 0 {
-		cmd = append(cmd, args...)
+		script += " " + shellQuoteArgs(args)
 	}
+	cmd := []string{"/bin/sh", "-lc", script}
 
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
 	if err != nil {
@@ -192,7 +205,7 @@ func executeShell(ctx context.Context, drv drivers.Driver, name, command string,
 }
 
 func executeReadFile(ctx context.Context, drv drivers.Driver, name, path string) Output {
-	if path == "" {
+	if !validActionPath(path) {
 		return Output{OK: false, Error: "path is required"}
 	}
 	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("cat %s", shellQuote(path))}
@@ -213,7 +226,7 @@ func executeReadFile(ctx context.Context, drv drivers.Driver, name, path string)
 }
 
 func executeWriteFile(ctx context.Context, drv drivers.Driver, name, path, content string) Output {
-	if path == "" {
+	if !validActionPath(path) {
 		return Output{OK: false, Error: "path is required"}
 	}
 	// Quoted heredoc so the content lands verbatim (no $ expansion). The
@@ -262,6 +275,9 @@ func newHeredocMarker() (string, error) {
 func executeListFiles(ctx context.Context, drv drivers.Driver, name, path string) Output {
 	if path == "" {
 		path = "/"
+	}
+	if !validActionPath(path) {
+		return Output{OK: false, Error: "path is required"}
 	}
 	cmd := []string{"/bin/sh", "-lc", fmt.Sprintf("ls -la %s", shellQuote(path))}
 	sess, err := drv.Exec(ctx, name, false, 0, 0, cmd)
@@ -663,14 +679,24 @@ func executeExtract(ctx context.Context, drv drivers.Driver, name, src, dest str
 	if serr != nil {
 		return Output{OK: false, Error: serr.Error()}
 	}
-	if sizeCode == 0 {
+	// Fail closed when the size probe itself fails: skipping the byte cap
+	// on a non-zero sizing exit would let an oversized archive through
+	// unbounded (the listing above only gates entry COUNT).
+	if sizeCode != 0 {
+		msg := strings.TrimSpace(sizeErr)
+		if msg == "" {
+			msg = "archive size check failed"
+		}
+		return Output{OK: false, ExitCode: sizeCode, Error: msg}
+	}
+	{
 		var total int64
 		if isZipName(src) {
-			if t, ok := parseUnzipListTotal(rawSize); ok {
-				total = t
-			} else {
-				_ = sizeErr
+			t, ok := parseUnzipListTotal(rawSize)
+			if !ok {
+				return Output{OK: false, Error: "archive size check failed: unable to determine unpacked size"}
 			}
+			total = t
 		} else {
 			total = parseTarListTotal(rawSize)
 		}

@@ -95,12 +95,9 @@ func TaskForPath(path string) string {
 	switch {
 	case strings.Contains(p, "/files") || strings.Contains(p, "/sftp"):
 		return TaskFiles
-	case strings.Contains(p, "/health"),
-		strings.Contains(p, "/inspect"),
-		strings.Contains(p, "/heartbeat"),
-		strings.Contains(p, "/update"),
-		strings.Contains(p, "/reinstall"):
-		return TaskNode
+	// Instance first: "/api/edge/ports/update" contains "/update", so the
+	// node check below would otherwise misroute the ports reconcile onto
+	// the node channel (wrong transport when per-task channels diverge).
 	case strings.Contains(p, "/lifecycle"),
 		strings.Contains(p, "/install"),
 		strings.Contains(p, "/exec"),
@@ -109,6 +106,12 @@ func TaskForPath(path string) string {
 		strings.Contains(p, "/ports"),
 		strings.Contains(p, "/page-action"):
 		return TaskInstance
+	case strings.Contains(p, "/health"),
+		strings.Contains(p, "/inspect"),
+		strings.Contains(p, "/heartbeat"),
+		strings.Contains(p, "/update"),
+		strings.Contains(p, "/reinstall"):
+		return TaskNode
 	default:
 		return TaskAll
 	}
