@@ -470,6 +470,30 @@ func (d *host) Destroy(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "destroyed"}, nil
 }
 
+// buildExecEnv returns the minimal safe env for Exec: base PATH/HOME/TMPDIR
+// plus the instance's persisted env. PTY sessions default TERM to
+// xterm-256color so vim/top/tput work; a persisted TERM wins.
+func buildExecEnv(dir string, hostEnv map[string]string, tty bool) []string {
+	env := append([]string{
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+		"HOME=" + dir,
+		"TMPDIR=" + dir,
+	}, flattenHostEnv(hostEnv)...)
+	if tty {
+		hasTerm := false
+		for _, kv := range env {
+			if strings.HasPrefix(kv, "TERM=") {
+				hasTerm = true
+				break
+			}
+		}
+		if !hasTerm {
+			env = append(env, "TERM=xterm-256color")
+		}
+	}
+	return env
+}
+
 // Exec runs a command inside the instance dir on the host. tty=true gets a
 // real PTY (terminal WS); tty=false gets plain pipes (one-shot exec-rpc,
 // install steps, metrics gathering). The working directory is always the
@@ -494,11 +518,7 @@ func (d *host) Exec(ctx context.Context, name string, tty bool, cols, rows int, 
 	if hc, herr := readHostConfig(dir); herr == nil {
 		hostEnv = hc.Env
 	}
-	cmd.Env = append([]string{
-		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-		"HOME=" + dir,
-		"TMPDIR=" + dir,
-	}, flattenHostEnv(hostEnv)...)
+	cmd.Env = buildExecEnv(dir, hostEnv, tty)
 	if tty {
 		size := &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
 		master, err := pty.StartWithSize(cmd, size)

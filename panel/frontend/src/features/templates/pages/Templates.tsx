@@ -43,7 +43,7 @@ function kindKey(k: string): KindKey {
 function getErrorMessage(e: any, fallback: string): string {
   const data = e?.response?.data;
   if (typeof data === 'string' && data.trim()) return data;
-  if (data && typeof data === 'object') {
+  if (data && typeof data === 'object' && !(data instanceof Blob)) {
     if (typeof (data as any).error === 'string' && (data as any).error.trim()) return (data as any).error;
     if (typeof (data as any).message === 'string' && (data as any).message.trim()) return (data as any).message;
     try {
@@ -165,7 +165,14 @@ const Templates: React.FC = () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(getErrorMessage(e, 'Failed to download template'));
+      let msg = 'Failed to download template';
+      const data = e?.response?.data;
+      if (data instanceof Blob) {
+        try { msg = await data.text(); } catch { /* keep default */ }
+      } else {
+        msg = getErrorMessage(e, msg);
+      }
+      alert(msg);
     }
   };
 

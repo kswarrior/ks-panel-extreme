@@ -188,8 +188,8 @@ const CallbackPath = "/api/auth/oauth/%s/callback"
 // RedirectURIFor returns the redirect URI a flow uses: the operator's
 // explicit override when set, otherwise derived from the incoming request
 // so the panel works behind any host/tunnel without extra config. The
-// Host header is sanitized (cut at the first whitespace/control or
-// path/query/fragment delimiter) so a poisoned Host can neither inject
+// Host header is sanitized (cut at the first whitespace/control,
+// path/query/fragment delimiter, '@', or '\') so a poisoned Host can neither inject
 // path segments nor response-splitting bytes into the redirect URI the
 // provider is asked to call back (fail closed on parse).
 func RedirectURIFor(r *http.Request, p models.AuthorityProvider) string {
@@ -204,14 +204,16 @@ func RedirectURIFor(r *http.Request, p models.AuthorityProvider) string {
 }
 
 // sanitizeCallbackHost keeps the Host-derived redirect target to a bare
-// authority: anything from the first space, control byte, '/', '?', or '#'
-// on is attacker-controlled path injection, not a hostname.
+// authority: anything from the first space, control byte, '/', '?', '#',
+// '@', or '\' on is attacker-controlled path/userinfo injection, not a
+// hostname. ':' '[' ']' '.' '-' '%' pass through so ports, IPv6 literals,
+// hostnames, and pct-encoded hosts keep working.
 func sanitizeCallbackHost(host string) string {
 	host = strings.TrimSpace(host)
 	cut := len(host)
 	for i := 0; i < len(host); i++ {
 		c := host[i]
-		if c <= 0x20 || c == 0x7f || c == '/' || c == '?' || c == '#' {
+		if c <= 0x20 || c == 0x7f || c == '/' || c == '?' || c == '#' || c == '@' || c == '\\' {
 			cut = i
 			break
 		}

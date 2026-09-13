@@ -71,6 +71,44 @@ func TestWriteHostRunScriptSkipsHostileEnvKeys(t *testing.T) {
 	}
 }
 
+func TestBuildExecEnvTerm(t *testing.T) {
+	dir := t.TempDir()
+	has := func(env []string, kv string) bool {
+		for _, e := range env {
+			if e == kv {
+				return true
+			}
+		}
+		return false
+	}
+	hasKey := func(env []string, key string) bool {
+		for _, e := range env {
+			if strings.HasPrefix(e, key+"=") {
+				return true
+			}
+		}
+		return false
+	}
+	// tty defaults TERM when instance env is silent.
+	if got := buildExecEnv(dir, map[string]string{}, true); !has(got, "TERM=xterm-256color") {
+		t.Fatalf("tty exec env missing default TERM (got %v)", got)
+	}
+	// Non-tty stays minimal unless the instance sets TERM.
+	if got := buildExecEnv(dir, map[string]string{}, false); hasKey(got, "TERM") {
+		t.Fatalf("non-tty exec env must not set TERM (got %v)", got)
+	}
+	// Persisted TERM wins over the PTY default.
+	if got := buildExecEnv(dir, map[string]string{"TERM": "vt100"}, true); !has(got, "TERM=vt100") {
+		t.Fatalf("tty exec env must respect instance TERM (got %v)", got)
+	} else if has(got, "TERM=xterm-256color") {
+		t.Fatalf("tty exec env must not duplicate TERM (got %v)", got)
+	}
+	// Persisted TERM also flows through to non-tty sessions.
+	if got := buildExecEnv(dir, map[string]string{"TERM": "vt100"}, false); !has(got, "TERM=vt100") {
+		t.Fatalf("non-tty exec env missing instance TERM (got %v)", got)
+	}
+}
+
 func TestFlattenHostEnvSkipsHostileKeys(t *testing.T) {
 	env := map[string]string{
 		"FOO":                    "bar",
