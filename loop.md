@@ -7,6 +7,8 @@ This loop repeats as many times as needed. Giving up is not an option; being blo
 requires written proof of exactly what is blocked and why.
 
 ## 0. Paths & Scope Discipline
+- Map first: read `map.md` FIRST for the full idea of the repo (where backend/frontend/edge/instance-pages/components live). Do not guess structure.
+- Map maintenance: if your change adds, moves, renames or deletes any main part/folder/flow (backend package, frontend feature, edge module, instance-pages YAML, components location), update `map.md` in the same task so it stays true.
 - Backend:  /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend
 - Frontend: /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/frontend
 - Edge:     /home/runner/work/ks-panel-extreme/ks-panel-extreme/edge/backend
