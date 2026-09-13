@@ -14,12 +14,42 @@ import (
 )
 
 // lxd wraps the local `lxc` CLI. We treat the instance name as the panel-
-// supplied identifier; on deploy we hand it as an explicit --instance flag
-// (newer 5.x lxc) instead of as a positional, since positional semantics
-// vary across versions.
+// supplied identifier; on deploy we hand it as the `lxc launch <image>
+// <name>` positional.
 type lxd struct{}
 
 func newLXD() Driver { return &lxd{} }
+
+// validateLXDName fails closed on empty or flag-like instance names.
+// Names reach `lxc` as positional argv (no shell), but a leading "-"
+// would still be parsed as a CLI flag, and "" shifts positionals.
+func validateLXDName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("lxd: instance name is required")
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("lxd: invalid instance name %q (must not start with '-')", name)
+	}
+	if strings.ContainsAny(name, " \t\n\r\f\v/") {
+		return fmt.Errorf("lxd: invalid instance name %q (must not contain whitespace or '/')", name)
+	}
+	return nil
+}
+
+// validateLXDSnapName fails closed on snapshot names that would break
+// `lxc <instance>/<snapshot>` addressing or the tar-export filename.
+func validateLXDSnapName(snap string) error {
+	if strings.TrimSpace(snap) == "" {
+		return fmt.Errorf("snapshot name is required")
+	}
+	if strings.HasPrefix(snap, "-") {
+		return fmt.Errorf("lxd: invalid snapshot name %q (must not start with '-')", snap)
+	}
+	if strings.ContainsAny(snap, " \t\n\r\f\v/") {
+		return fmt.Errorf("lxd: invalid snapshot name %q (must not contain whitespace or '/')", snap)
+	}
+	return nil
+}
 
 func (d *lxd) Name() string { return "lxd" }
 
@@ -31,6 +61,9 @@ func (d *lxd) Attach(_ context.Context, _ string) (*ExecSession, error) {
 }
 
 func (d *lxd) Deploy(ctx context.Context, name string, cfg map[string]any) (Result, error) {
+	if err := validateLXDName(name); err != nil {
+		return Result{}, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
@@ -66,9 +99,15 @@ func (d *lxd) Deploy(ctx context.Context, name string, cfg map[string]any) (Resu
 // the operator authored; "profiles" only applies when "profile" is empty
 // so a hybrid spec (e.g. someone with both keys) doesn't double-apply.
 func buildLXDDeployArgs(name string, cfg map[string]any) ([]string, error) {
+	if err := validateLXDName(name); err != nil {
+		return nil, err
+	}
 	image, _ := cfg["image"].(string)
 	if image == "" {
 		return nil, fmt.Errorf("lxd: image is required (e.g. images:ubuntu/22.04)")
+	}
+	if strings.HasPrefix(strings.TrimSpace(image), "-") {
+		return nil, fmt.Errorf("lxd: invalid image %q (must not start with '-')", image)
 	}
 	args := []string{"launch", image, name}
 	for _, p := range resolveLXDProfiles(cfg) {
@@ -121,21 +160,29 @@ func resolveLXDProfiles(cfg map[string]any) []string {
 }
 
 func (d *lxd) Start(ctx context.Context, name string) (Result, error) {
+	if err := validateLXDName(name); err != nil {
+		return Result{}, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "lxc", "start", name); err != nil {
-		return Result{}, err
+		if !isAlreadyRunningErr(err) {
+			return Result{}, err
+		}
 	}
 	return Result{ExternalID: name, Status: "running"}, nil
 }
 
 func (d *lxd) Stop(ctx context.Context, name string) (Result, error) {
+	if err := validateLXDName(name); err != nil {
+		return Result{}, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "lxc", "stop", name); err != nil {
-		if !isAlreadyStoppedErr(err) {
+		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
 			return Result{}, err
 		}
 	}
@@ -145,15 +192,28 @@ func (d *lxd) Stop(ctx context.Context, name string) (Result, error) {
 // Kill force-stops an instance (lxc stop --force, i.e. SIGKILL instead of
 // the graceful shutdown Stop requests). Idempotent like Stop.
 func (d *lxd) Kill(ctx context.Context, name string) (Result, error) {
+	if err := validateLXDName(name); err != nil {
+		return Result{}, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
 	if _, err := asExec(ctx, "", "lxc", "stop", "--force", name); err != nil {
-		if !isAlreadyStoppedErr(err) {
+		if !isAlreadyStoppedErr(err) && !isNotFoundErr(err) {
 			return Result{}, err
 		}
 	}
 	return Result{ExternalID: name, Status: "stopped"}, nil
+}
+
+// isAlreadyRunningErr reports whether the CLI rejected a start because the
+// workload was already up. Start's contract is idempotent like Stop's so a
+// panel retry doesn't surface a bogus 502.
+func isAlreadyRunningErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "already running")
 }
 
 // isAlreadyStoppedErr reports whether the CLI rejected a stop because the
@@ -193,6 +253,9 @@ func isNotFoundErr(err error) bool {
 }
 
 func (d *lxd) Destroy(ctx context.Context, name string) (Result, error) {
+	if err := validateLXDName(name); err != nil {
+		return Result{}, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err
 	}
@@ -217,6 +280,9 @@ func (d *lxd) Destroy(ctx context.Context, name string) (Result, error) {
 // disable their built-in pty when the parent stdin/stdout aren't TTYs —
 // wrapping it ourselves keeps the contract uniform across drivers.
 func (d *lxd) Exec(ctx context.Context, name string, tty bool, cols, rows int, command []string) (*ExecSession, error) {
+	if err := validateLXDName(name); err != nil {
+		return nil, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return nil, err
 	}
@@ -291,6 +357,9 @@ func (d *lxd) UpdatePorts(ctx context.Context, name string, allocs []PortAllocat
 // Runner gathers live metrics/processes/ports inside an LXD container by
 // running the portable /proc shell scripts via `lxc exec`.
 func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, ports, info string, err error) {
+	if verr := validateLXDName(name); verr != nil {
+		return "{}", "[]", "[]", "{}", verr
+	}
 	if err := binMissing("lxc"); err != nil {
 		return "{}", "[]", "[]", "{}", err
 	}
@@ -328,6 +397,9 @@ func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, port
 // For LXD, we use `lxc snapshot` to create a snapshot of a container.
 // Action is one of "create", "restore", "delete".
 func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName string, snapType string, location string) (string, int64, error) {
+	if err := validateLXDName(name); err != nil {
+		return "", 0, err
+	}
 	if err := binMissing("lxc"); err != nil {
 		return "", 0, err
 	}
@@ -335,8 +407,8 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 	switch action {
 	case "create":
 		// Create a snapshot of the container
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for create action")
+		if err := validateLXDSnapName(snapName); err != nil {
+			return "", 0, err
 		}
 
 		// Create the snapshot
@@ -350,7 +422,7 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 		// addressed as <instance>/<snapshot-name>. The previous three-
 		// positional form made the CLI reject the call outright.
 		if snapType == "tar" && location != "" {
-			tarPath := filepath.Join(filepath.Clean(location), name+"-"+snapName+".tar")
+			tarPath := filepath.Join(filepath.Clean(location), filepath.Base(name+"-"+snapName+".tar"))
 			_, err := asExec(ctx, "", "lxc", "export", name+"/"+snapName, tarPath)
 			if err != nil {
 				return "", 0, fmt.Errorf("failed to export snapshot to tar: %w", err)
@@ -371,8 +443,8 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 
 	case "restore":
 		// Restore from a snapshot
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for restore action")
+		if err := validateLXDSnapName(snapName); err != nil {
+			return "", 0, err
 		}
 
 		// For simplicity, we'll just attempt to restore
@@ -386,8 +458,8 @@ func (d *lxd) Snapshot(ctx context.Context, name string, action string, snapName
 
 	case "delete":
 		// Delete the snapshot
-		if snapName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for delete action")
+		if err := validateLXDSnapName(snapName); err != nil {
+			return "", 0, err
 		}
 
 		_, err := asExec(ctx, "", "lxc", "delete", fmt.Sprintf("%s/%s", name, snapName))
