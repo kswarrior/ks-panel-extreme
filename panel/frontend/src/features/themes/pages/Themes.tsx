@@ -271,8 +271,8 @@ const Themes: React.FC = () => {
       a.download = `${t.name}.toml`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       a.remove();
+      window.URL.revokeObjectURL(url);
     } catch (e: any) {
       let msg = 'Failed to download theme';
       const data = e?.response?.data;
@@ -280,6 +280,11 @@ const Themes: React.FC = () => {
         try { msg = await data.text(); } catch { /* keep default */ }
       } else if (typeof data === 'string' && data) {
         msg = data;
+      } else if (data && typeof data === 'object') {
+        if (typeof (data as any).error === 'string' && (data as any).error.trim()) msg = (data as any).error;
+        else if (typeof (data as any).message === 'string' && (data as any).message.trim()) msg = (data as any).message;
+      } else if (typeof e?.message === 'string' && e.message.trim()) {
+        msg = e.message;
       }
       alert(msg);
     }
