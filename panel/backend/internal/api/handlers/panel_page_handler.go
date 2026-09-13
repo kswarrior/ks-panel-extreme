@@ -106,6 +106,12 @@ func CreatePanelPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 	p, err := repository.NewPanelPageRepository(con).Create(panelPageInputFromRequest(req))
 	if err != nil {
+		// Slug conflicts are 409 so callers can tell "taken" apart from
+		// "invalid" (mirrors the instance-page create handler).
+		if strings.Contains(err.Error(), "already exists") {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -153,6 +159,16 @@ func UpdatePanelPageHandler(w http.ResponseWriter, r *http.Request) {
 	defer con.Close()
 	p, err := repository.NewPanelPageRepository(con).Update(id, panelPageInputFromRequest(req))
 	if err != nil {
+		// Missing rows are 404 and slug conflicts 409 (mirrors the
+		// instance-page update handler); only validation stays 400.
+		if strings.Contains(err.Error(), "not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		if strings.Contains(err.Error(), "already exists") {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -33,7 +34,12 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var req buildInstancePageReq
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		// Fail closed on a malformed body: silently falling back to the
+		// stored source would report ok for a request the caller mistyped.
+		if derr := json.NewDecoder(r.Body).Decode(&req); derr != nil && derr != io.EOF {
+			http.Error(w, "invalid payload", http.StatusBadRequest)
+			return
+		}
 	}
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -81,6 +87,16 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			fail(err.Error())
 			return
 		}
+		// Same virtual-module graph gate as the save path
+		// (validateInstancePage): an entry importing a missing/circular
+		// Files module must fail before any bundle is stamped.
+		mods := reactModulesFromComponents(page.Components)
+		if len(mods) > 0 || hasReactRelativeImport(source) {
+			if merr := validateReactModules(source, mods); merr != nil {
+				fail(merr.Error())
+				return
+			}
+		}
 	}
 	if len(css) > maxInstancePageContentBytes {
 		fail("bundle_css too large (max 1MB)")
@@ -103,10 +119,16 @@ func BuildInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 					fail(fmt.Sprintf("sub-page %q: source_tsx is required for react pages", subs[i].Path))
 					return
 				}
-				if verr := validateReactSource(src); verr != nil {
-					fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, verr.Error()))
-					return
-				}
+			if verr := validateReactSource(src); verr != nil {
+				fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, verr.Error()))
+				return
+			}
+			// Module graph per sub-page, mirroring the save gate so a
+			// sub importing a missing/circular module fails the build.
+			if merr := validateReactModules(src, reactModulesFromComponents(page.Components)); merr != nil {
+				fail(fmt.Sprintf("sub-page %q: %s", subs[i].Path, merr.Error()))
+				return
+			}
 				if subs[i].BundleJS != src {
 					subs[i].BundleJS = src
 					changed = true
