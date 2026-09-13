@@ -2106,9 +2106,13 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(specStr) == "" {
 			specStr = "{}\n"
 		}
-		spec, _ := specyaml.Parse(specStr)
-		if spec == nil {
-			spec = map[string]any{}
+		// Fail closed on an unparseable stored spec: rebuilding from an
+		// empty skeleton would silently drop every non-pages key the
+		// template carries. Skip and report instead of clobbering.
+		spec, serr := specyaml.Parse(specStr)
+		if serr != nil || spec == nil {
+			skipped = append(skipped, tid)
+			continue
 		}
 
 		// Build / replace the custom-page entry for this slug. Pre-existing
@@ -2253,6 +2257,11 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 			Kind:        t.Kind,
 			Image:       t.Image,
 			Spec:        string(newSpec),
+			// Link only rewrites spec.pages: carry the template's own
+			// icon/color forward or the rewrite wipes them (Update sets
+			// every column it is given).
+			Icon:  t.Icon,
+			Color: t.Color,
 		}); uerr != nil {
 			skipped = append(skipped, tid)
 			continue
@@ -4424,9 +4433,17 @@ func ImportInstancePageFromMarketplaceHandler(w http.ResponseWriter, r *http.Req
 			http.Error(w, fmt.Sprintf("marketplace download URL returned status %d", resp.StatusCode), http.StatusBadGateway)
 			return
 		}
-		b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+		// Cap the download at 10 MiB like the file/URL import paths (read one
+		// byte past the cap so oversize bodies are rejected, never silently
+		// truncated into a different document).
+		const maxMarketplacePageBytes = 10 << 20
+		b, rerr := io.ReadAll(io.LimitReader(resp.Body, maxMarketplacePageBytes+1))
 		if rerr != nil {
 			http.Error(w, "failed to read marketplace page: "+rerr.Error(), http.StatusBadGateway)
+			return
+		}
+		if int64(len(b)) > maxMarketplacePageBytes {
+			http.Error(w, fmt.Sprintf("marketplace page exceeded %d bytes", maxMarketplacePageBytes), http.StatusRequestEntityTooLarge)
 			return
 		}
 		pageBytes = b
@@ -4568,9 +4585,15 @@ func fetchMarketplacePageBytes(ctx context.Context, mp MarketplacePage) ([]byte,
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("marketplace download URL returned status %d", resp.StatusCode)
 	}
-	b, rerr := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	// Same 10 MiB cap as the import handlers: read one byte past it so an
+	// oversize body errors instead of decoding as a silently truncated page.
+	const maxMarketplacePageBytes = 10 << 20
+	b, rerr := io.ReadAll(io.LimitReader(resp.Body, maxMarketplacePageBytes+1))
 	if rerr != nil {
 		return nil, fmt.Errorf("failed to read marketplace page: %w", rerr)
+	}
+	if int64(len(b)) > maxMarketplacePageBytes {
+		return nil, fmt.Errorf("marketplace page exceeded %d bytes", maxMarketplacePageBytes)
 	}
 	return b, nil
 }

@@ -255,6 +255,9 @@ func newInstancePageScopeTestDB(t *testing.T) *sql.DB {
 			icon_svg TEXT NOT NULL DEFAULT '', content_type TEXT NOT NULL DEFAULT 'markdown', content TEXT NOT NULL DEFAULT '',
 			enabled INTEGER NOT NULL DEFAULT 1, roles TEXT NOT NULL DEFAULT '[]', sort_order INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		// Repositories LEFT-JOIN users for owner names — a bare table keeps
+		// those selects working without seeding any accounts.
+		`CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL DEFAULT '')`,
 	} {
 		if _, err := db.Exec(s); err != nil {
 			t.Fatalf("setup stmt %d: %v", i, err)
