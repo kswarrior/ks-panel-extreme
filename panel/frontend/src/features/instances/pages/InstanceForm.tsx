@@ -363,7 +363,8 @@ const InstanceForm: React.FC = () => {
           fixed, auto-hide on scroll (node pattern).
           Corner-anchored (right-4, w-auto) so the phone Tabs pill shares
           the same bottom line on the left instead of floating above with
-          an empty gap underneath (no ks-tabs-pill-wrap lift). */}
+          an empty gap underneath (ks-tabs-pill-wrap-below opts out of
+          the global lift). */}
       <PageFormActionsPill
         spacer={false}
         outerClassName="fixed right-4 sm:right-6 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-end w-auto max-w-[calc(100vw-2rem)]"
@@ -412,8 +413,8 @@ const InstanceForm: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] gap-4">
         {/* Phone tabs sit bottom-LEFT on the same bottom line as the Deploy
-            actions (bottom-right) — corner-anchored w-auto with no
-            ks-tabs-pill-wrap class, so the global "lift above the form bar"
+            actions (bottom-right) — corner-anchored w-auto with
+            ks-tabs-pill-wrap-below, so the global "lift above the form bar"
             rule never applies and no empty gap is left underneath. */}
         <TemplateTabs
           tab={tab}
