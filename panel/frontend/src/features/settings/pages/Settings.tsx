@@ -438,7 +438,7 @@ const Settings: React.FC = () => {
       <form
         id="settings-form"
         onSubmit={submit}
-        className="glass-card ks-form-card rounded-xl space-y-6 max-w-2xl"
+        className="space-y-4 max-w-2xl"
       >
         {/* Hidden file inputs — always mounted so the summary-row Edit
             buttons and the modal buttons can both trigger the native OS
@@ -534,16 +534,16 @@ const Settings: React.FC = () => {
         </div>
 
         {/* ===================== ROOT URL ===================== */}
-        <section>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">
-            Root URL
-          </h3>
-          <p className="text-xs text-gray-500 mb-4">
-            The path segment the panel lives under. Empty (default) serves the panel at the origin root
-            (<span className="font-mono">/mods</span>, <span className="font-mono">/instances</span>, …);
-            e.g. <span className="font-mono">panel</span> serves it at <span className="font-mono">/panel/mods</span>,{' '}
-            <span className="font-mono">/panel/instances/…</span>. Takes effect after you reload the page.
-          </p>
+        <div className="ks-card ks-form-card rounded-md space-y-3">
+          <div>
+            <p className="text-sm text-gray-200 font-medium">Root URL</p>
+            <p className="text-xs text-gray-500">
+              The path segment the panel lives under. Empty (default) serves the panel at the origin root
+              (<span className="font-mono">/mods</span>, <span className="font-mono">/instances</span>, …);
+              e.g. <span className="font-mono">panel</span> serves it at <span className="font-mono">/panel/mods</span>,{' '}
+              <span className="font-mono">/panel/instances/…</span>. Takes effect after you reload the page.
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1" htmlFor="panel-root-url">
               Base path
@@ -565,7 +565,7 @@ const Settings: React.FC = () => {
               Must not equal a stack app mount.
             </p>
           </div>
-        </section>
+        </div>
 
         {error && <p className="text-sm text-red-400">{error}</p>}
         {success && <p className="text-sm text-green-400">{success}</p>}
