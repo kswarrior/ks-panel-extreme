@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -249,4 +251,58 @@ func TestValidateSubPagesStillAcceptsHTML(t *testing.T) {
 	if err := validateSubPages(raw); err != nil {
 		t.Fatalf("expected html sub-page to pass, got %v", err)
 	}
+}
+
+// A garbage build body must 400, never silently build the stored source and
+// report ok (fail closed on malformed input).
+func TestBuildRejectsGarbageBody(t *testing.T) {
+	db := newInstancePageScopeTestDB(t)
+	src := `function Page() { return React.createElement('div', null, 'hi'); }`
+	if _, err := db.Exec(`INSERT INTO instance_pages (name, slug, kind, content_type, source_tsx) VALUES ('R','r-page','custom','react',?)`, src); err != nil {
+		t.Fatalf("seed page: %v", err)
+	}
+	r := httptest.NewRequest("POST", "/api/instance-pages/1/build", strings.NewReader(`not json{{{`))
+	r = withChiIDParam(r, "1")
+	w := httptest.NewRecorder()
+	BuildInstancePageHandler(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("garbage build body: got %d (%s), want 400", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+}
+
+// The build gate must enforce the same virtual-module graph as the save gate
+// (validateInstancePage): an entry importing a missing Files module fails
+// before any bundle is stamped.
+func TestBuildEnforcesModuleGraph(t *testing.T) {
+	db := newInstancePageScopeTestDB(t)
+	stored := `function Page() { return React.createElement('div', null, 'hi'); }`
+	if _, err := db.Exec(`INSERT INTO instance_pages (name, slug, kind, content_type, source_tsx) VALUES ('R','r-page','custom','react',?)`, stored); err != nil {
+		t.Fatalf("seed page: %v", err)
+	}
+	fresh := "import { x } from './missing'\nfunction Page() { return React.createElement('div', null, String(x)); }\nreturn Page;"
+	dto := instancePageDTO{Name: "R", Slug: "r-page", Kind: "custom", ContentType: "react", SourceTSX: fresh}
+	if _, err := validateInstancePage(dto); err == nil {
+		t.Fatal("premise: save gate must reject the missing-module import")
+	}
+	r := httptest.NewRequest("POST", "/api/instance-pages/1/build", strings.NewReader(`{"source_tsx":`+quoteForBuildTest(fresh)+`}`))
+	r = withChiIDParam(r, "1")
+	w := httptest.NewRecorder()
+	BuildInstancePageHandler(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("build with missing module: got %d (%s), want 400", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	var bundle string
+	if err := db.QueryRow(`SELECT COALESCE(bundle_js,'') FROM instance_pages WHERE id = 1`).Scan(&bundle); err != nil {
+		t.Fatalf("re-read page: %v", err)
+	}
+	if strings.Contains(bundle, "missing") {
+		t.Fatal("build stamped a bundle referencing a missing module")
+	}
+}
+
+func quoteForBuildTest(s string) string {
+	q := strings.ReplaceAll(s, `\`, `\\`)
+	q = strings.ReplaceAll(q, `"`, `\"`)
+	q = strings.ReplaceAll(q, "\n", `\n`)
+	return `"` + q + `"`
 }

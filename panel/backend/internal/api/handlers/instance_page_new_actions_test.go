@@ -221,3 +221,156 @@ func TestResolveExecPayloadNewTypesRejectExtras(t *testing.T) {
 		}
 	}
 }
+
+// ---- handler-level repro scaffolding (Wave 1, Agent C) ----------------------
+// Temp file DB carrying exactly the columns the instance-page / template /
+// panel-page repositories touch, wired through KSPANEL_DB* so handler
+// OpenDB() calls land on it. Returns an open seeding handle.
+
+func newInstancePageScopeTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "scope.db")
+	t.Setenv("KSPANEL_DB", p)
+	t.Setenv("KSPANEL_DB_DSN", p)
+	db, err := sql.Open("sqlite", p)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	for i, s := range []string{
+		`CREATE TABLE instance_pages (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+			kind TEXT NOT NULL DEFAULT 'custom', category TEXT NOT NULL DEFAULT '', page_type TEXT NOT NULL DEFAULT '',
+			description TEXT NOT NULL DEFAULT '', content_type TEXT NOT NULL DEFAULT 'markdown',
+			content_html TEXT NOT NULL DEFAULT '', content_markdown TEXT NOT NULL DEFAULT '', content_blocks TEXT NOT NULL DEFAULT '',
+			icon_svg TEXT NOT NULL DEFAULT '', icon_color TEXT NOT NULL DEFAULT '', actions TEXT NOT NULL DEFAULT '',
+			sub_pages TEXT NOT NULL DEFAULT '', components TEXT NOT NULL DEFAULT '', configure TEXT NOT NULL DEFAULT '',
+			source_tsx TEXT, bundle_js TEXT, bundle_css TEXT, build_status VARCHAR(16) NOT NULL DEFAULT '', build_log TEXT,
+			owner_id INTEGER, source TEXT NOT NULL DEFAULT 'studio', market_id TEXT NOT NULL DEFAULT '', market_version TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '',
+			kind TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', spec TEXT NOT NULL DEFAULT '', icon TEXT NOT NULL DEFAULT '',
+			color TEXT NOT NULL DEFAULT '', owner_id INTEGER,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE panel_pages (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '',
+			icon_svg TEXT NOT NULL DEFAULT '', content_type TEXT NOT NULL DEFAULT 'markdown', content TEXT NOT NULL DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1, roles TEXT NOT NULL DEFAULT '[]', sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+	} {
+		if _, err := db.Exec(s); err != nil {
+			t.Fatalf("setup stmt %d: %v", i, err)
+		}
+	}
+	return db
+}
+
+func withChiIDParam(r *http.Request, value string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("id", value)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
+// Linking a page must only touch spec.pages — the template's own icon/color
+// must survive the rewrite.
+func TestLinkPreservesTemplateIconColor(t *testing.T) {
+	db := newInstancePageScopeTestDB(t)
+	if _, err := db.Exec(`INSERT INTO instance_pages (name, slug, kind, content_type) VALUES ('Files','files','custom','html')`); err != nil {
+		t.Fatalf("seed page: %v", err)
+	}
+	spec := "pages: []\n"
+	if _, err := db.Exec(`INSERT INTO templates (name, description, kind, image, spec, icon, color) VALUES ('T','d','docker','img',?, '<svg></svg>', '#FF0000')`, spec); err != nil {
+		t.Fatalf("seed template: %v", err)
+	}
+	r := httptest.NewRequest("POST", "/api/instance-pages/1/link", strings.NewReader(`{"template_ids":[1]}`))
+	r = withChiIDParam(r, "1")
+	w := httptest.NewRecorder()
+	LinkInstancePageHandler(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("link: got %d (%s), want 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	var icon, color string
+	if err := db.QueryRow(`SELECT icon, color FROM templates WHERE id = 1`).Scan(&icon, &color); err != nil {
+		t.Fatalf("re-read template: %v", err)
+	}
+	if icon != "<svg></svg>" || color != "#FF0000" {
+		t.Fatalf("link wiped template identity: icon=%q color=%q, want originals", icon, color)
+	}
+	var got struct {
+		Linked  []int64 `json:"linked"`
+		Skipped []int64 `json:"skipped"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode link response: %v", err)
+	}
+	if len(got.Linked) != 1 || got.Linked[0] != 1 {
+		t.Fatalf("linked = %v, want [1]", got.Linked)
+	}
+}
+
+// A template whose stored spec no longer parses must be skipped, never
+// rewritten with a pages-only skeleton (fail closed, no silent data loss).
+func TestLinkSkipsCorruptTemplateSpec(t *testing.T) {
+	db := newInstancePageScopeTestDB(t)
+	if _, err := db.Exec(`INSERT INTO instance_pages (name, slug, kind, content_type) VALUES ('Files','files','custom','html')`); err != nil {
+		t.Fatalf("seed page: %v", err)
+	}
+	const corrupt = "- just\n- a\n- list\n"
+	if _, err := db.Exec(`INSERT INTO templates (name, spec) VALUES ('Broken', ?)`, corrupt); err != nil {
+		t.Fatalf("seed template: %v", err)
+	}
+	r := httptest.NewRequest("POST", "/api/instance-pages/1/link", strings.NewReader(`{"template_ids":[1]}`))
+	r = withChiIDParam(r, "1")
+	w := httptest.NewRecorder()
+	LinkInstancePageHandler(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("link: got %d (%s), want 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	var got struct {
+		Linked  []int64 `json:"linked"`
+		Skipped []int64 `json:"skipped"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode link response: %v", err)
+	}
+	if len(got.Linked) != 0 || len(got.Skipped) != 1 || got.Skipped[0] != 1 {
+		t.Fatalf("corrupt spec must be skipped: linked=%v skipped=%v", got.Linked, got.Skipped)
+	}
+	var after string
+	if err := db.QueryRow(`SELECT spec FROM templates WHERE id = 1`).Scan(&after); err != nil {
+		t.Fatalf("re-read template: %v", err)
+	}
+	if after != corrupt {
+		t.Fatalf("corrupt spec was rewritten: %q", after)
+	}
+}
+
+// Panel-page update of a missing id must 404 (mirrors the instance-page
+// update handler), not 400.
+func TestUpdatePanelPageNotFound404(t *testing.T) {
+	newInstancePageScopeTestDB(t)
+	r := httptest.NewRequest("PUT", "/api/panel-pages/999", strings.NewReader(`{"slug":"about","name":"About"}`))
+	r = withChiIDParam(r, "999")
+	w := httptest.NewRecorder()
+	UpdatePanelPageHandler(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("update missing panel page: got %d (%s), want 404", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+}
+
+// Panel-page slug conflicts must 409 (mirrors instance-page create/update),
+// not 400, so callers can distinguish "taken" from "invalid".
+func TestCreatePanelPageConflict409(t *testing.T) {
+	newInstancePageScopeTestDB(t)
+	body := `{"slug":"about","name":"About","content_type":"markdown","content":"hi"}`
+	r1 := httptest.NewRequest("POST", "/api/panel-pages/", strings.NewReader(body))
+	w1 := httptest.NewRecorder()
+	CreatePanelPageHandler(w1, r1)
+	if w1.Code != http.StatusCreated {
+		t.Fatalf("first create: got %d (%s), want 201", w1.Code, strings.TrimSpace(w1.Body.String()))
+	}
+	r2 := httptest.NewRequest("POST", "/api/panel-pages/", strings.NewReader(body))
+	w2 := httptest.NewRecorder()
+	CreatePanelPageHandler(w2, r2)
+	if w2.Code != http.StatusConflict {
+		t.Fatalf("duplicate slug: got %d (%s), want 409", w2.Code, strings.TrimSpace(w2.Body.String()))
+	}
+}
