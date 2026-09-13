@@ -412,22 +412,26 @@ const InstancePageStudio: React.FC = () => {
   // panel supplies the source at render time). Duplicate names are ignored
   // so {{component:name}} tokens never become ambiguous.
   const importSharedComponent = (s: { name: string; label: string; description: string }) => {
+    const key = (s.name || '').trim();
+    if (!key) return;
+    // Duplicate check runs on render-scope state (fresh every render) so the
+    // updater below stays pure — side effects inside updaters double-fire
+    // under StrictMode.
+    if (components.some((x) => (x.name || '').trim() === key || ((x.shared || '').trim() === key && x.type === 'shared'))) {
+      setNotice(`"${key}" is already in Components.`);
+      return;
+    }
+    const row: ComponentRow = {
+      id: `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name: key,
+      type: 'shared',
+      description: s.description || `Panel shared: ${s.label || key}`,
+      content: '',
+      shared: key,
+    };
+    setNotice(`Imported "${key}" — use {{component:${key}}} in content.`);
     setComponents((prev) => {
-      const key = (s.name || '').trim();
-      if (!key) return prev;
-      if (prev.some((x) => (x.name || '').trim() === key)) {
-        setNotice(`"${key}" is already in Components.`);
-        return prev;
-      }
-      const row: ComponentRow = {
-        id: `c${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: key,
-        type: 'shared',
-        description: s.description || `Panel shared: ${s.label || key}`,
-        content: '',
-        shared: key,
-      };
-      setNotice(`Imported "${key}" — use {{component:${key}}} in content.`);
+      if (prev.some((x) => (x.name || '').trim() === key)) return prev;
       return [...prev, row];
     });
   };
@@ -926,7 +930,9 @@ const InstancePageStudio: React.FC = () => {
           )}
 
           {/* ============================== PREVIEW ============================== */}
-          {activeTab === 'preview' && (
+          {/* Built-ins render only the read-only note below — mounting the
+              live preview as well would show two stacked preview sections. */}
+          {activeTab === 'preview' && !isBuiltin && (
             <PageStudioPreviewSection {...previewSectionProps} />
           )}
 

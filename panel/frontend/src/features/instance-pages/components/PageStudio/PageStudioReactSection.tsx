@@ -207,7 +207,6 @@ export const PageStudioReactSection: React.FC<PageStudioReactSectionProps> = ({
         <code>function Page()</code> (closes over <code>sdk</code> + <code>React</code>) and end with{' '}
         <code>return Page;</code>. <code>{`import { useState } from 'react'`}</code> is allowed; other packages are not — use{' '}
         <code>sdk.runAction/fetchPanel/storage/downloadText/copyText/formatBytes/timeAgo</code> — never <code>fetch()</code>,{' '}
-        <code>sdk.runAction/fetchPanel/storage/downloadText/copyText/formatBytes/timeAgo</code> — never <code>fetch()</code>,{' '}
         <code>eval</code> or browser storage directly. Tailwind + <code>ks-*</code> theme classes work (host origin).
         Split code with <code>Files</code> below: <code>{`import { helper } from './util'`}</code> inlines <code>util</code> at
         transpile time (relative paths only, <code>..</code> past the root rejected, cycles fail the build).

@@ -247,9 +247,9 @@ Values are free-form — any `≤500` string passes validation — but staying w
   * `on*=` handlers, `javascript:`/`vbscript:`/`data:text/html` URLs, external `href` → `#`.
 * Also sanitized when linking to `template.spec.pages[].icon_svg` (`instance_page_handler.go:909`).
 * Real examples across the library:
-  * `ports.yaml` docs icon `<path d="M12 2L2 7l10 5 10-5-10-5z"/>`
+  * `ports.yaml` network `<rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>`
   * `files.yaml` folder `<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>`
-  * `terminal.yaml` `<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>`
+  * `terminal.yaml` `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>`
 
 ---
 
@@ -573,10 +573,12 @@ Ship extra routes inside one library page (e.g. Files has `/files` + `/files/edi
 interface InstancePageSubPage {
   path: string;               // single segment → <slug>/<path> (e.g. "edit")
   name: string;               // display label
-  content_type: 'html'|'markdown'|'blocks';
+  content_type: 'html'|'markdown'|'blocks'|'react';
   content_html?: string;
   content_markdown?: string;
   content_blocks?: string;
+  source_tsx?: string;   // required when content_type is 'react'
+  bundle_css?: string;
 }
 ```
 
@@ -962,7 +964,7 @@ Also used for `HtmlBlockFrame` (`CustomPageView.tsx:380` `activePageThemeCss()`)
 | `components` type `module` (React files) | ≤20 files, combined entry + reachable ≤512 KiB | `too many modules (max 20) / combined page source too large / unknown module / circular import detected` |
 | `open_args` extras | ≤4, per-value ≤200, charset `a-zA-Z0-9 ._/ :@+=,-` | `action accepts at most 4 / unsupported characters / does not accept runtime arguments` |
 | `kind` | must `custom` (builtin rejected) | `kind must be "custom"` |
-| `content_type` | `html`\|`markdown`\|`blocks` when set | `content_type must be one of …` |
+| `content_type` | `html`\|`markdown`\|`blocks`\|`react` when set | `content_type must be one of …` |
 | Bulk create | ≤100 per request | `too many pages (max 100 per request)` |
 
 Frontend surfaces via `getErrorMessage` (`pageStudioUtils.ts:19`) parsing `error/message` string vs object.
@@ -1154,7 +1156,7 @@ instance_pages/
   GUIDE.md            # this file — exhaustive manual
   marketplace.json    # catalog (pagelib.ReadCatalog) → version 3.0, pages[].download_url raw GitHub
   pages/
-    *.yaml            # library (canonical authoring format): automation, env, files, minecraft-properties, ports, terminal
+    *.yaml            # library (canonical authoring format): automation, env, files, minecraft-properties, ports, react-dashboard, terminal
 
 panel/backend/
   internal/api/handlers/instance_page_handler.go  # DTO, validation, CRUD, link, execute, import, modules

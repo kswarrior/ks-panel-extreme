@@ -41,12 +41,15 @@ const InstancePageStats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
+  const [timeRange, setTimeRange] = useState<'all' | '1h' | '6h' | '24h' | '7d'>('all');
   const [kindFilter, setKindFilter] = useState<KindKey | 'all'>('all');
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
-  const rangeMs = timeRange === '1h' ? 3600_000 : timeRange === '6h' ? 6 * 3600_000 : timeRange === '24h' ? 24 * 3600_000 : 7 * 24 * 3600_000;
+  // 'all' disables recency gating so the headline cards (Total Pages, …)
+  // describe the whole library on first load instead of only pages touched
+  // in the last 24h.
+  const rangeMs = timeRange === 'all' ? null : timeRange === '1h' ? 3600_000 : timeRange === '6h' ? 6 * 3600_000 : timeRange === '24h' ? 24 * 3600_000 : 7 * 24 * 3600_000;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -96,7 +99,7 @@ const InstancePageStats: React.FC = () => {
     // Time range applies to the latest activity stamp; rows without any
     // timestamp are kept (their age is unknown, not necessarily stale).
     const latest = Math.max(e.updated, e.created);
-    if (latest > 0 && Date.now() - latest > rangeMs) return false;
+    if (rangeMs != null && latest > 0 && Date.now() - latest > rangeMs) return false;
     return true;
   }), [pages, search, kindFilter, rangeMs]);
 
@@ -168,6 +171,7 @@ const InstancePageStats: React.FC = () => {
           style={PILL_TAB_STYLE}
           aria-label="Time range"
         >
+          <option value="all">All time</option>
           <option value="1h">Last hour</option>
           <option value="6h">Last 6 hours</option>
           <option value="24h">Last 24 hours</option>
