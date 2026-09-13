@@ -211,9 +211,16 @@ func (r *InstancePageRepository) Update(id int64, in InstancePageInput) error {
 	res, err := r.db.Exec(`UPDATE instance_pages SET name = ?, slug = ?, kind = ?, category = ?, page_type = ?, description = ?, content_type = ?, content_html = ?, content_markdown = ?, content_blocks = ?, source_tsx = ?, icon_svg = ?, icon_color = ?, actions = ?, sub_pages = ?, components = ?, configure = ?, source = ?, market_id = ?, market_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		in.Name, in.Slug, in.Kind, in.Category, in.PageType, in.Description, in.ContentType, in.ContentHTML, in.ContentMarkdown, in.ContentBlocks, in.SourceTSX, in.IconSVG, in.IconColor, in.Actions, in.SubPages, in.Components, in.Configure, in.Source, in.MarketID, in.MarketVersion, id)
 	if err != nil {
-		return err
+		if isInstancePageConflict(err) {
+			return fmt.Errorf("a page with slug %q already exists", in.Slug)
+		}
+		return fmt.Errorf("update instance page: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	n, rerr := res.RowsAffected()
+	if rerr != nil {
+		return fmt.Errorf("update instance page: %w", rerr)
+	}
+	if n == 0 {
 		return fmt.Errorf("instance page not found")
 	}
 	return nil
@@ -225,9 +232,13 @@ func (r *InstancePageRepository) UpdateBuild(id int64, bundleJS, bundleCSS, buil
 	res, err := r.db.Exec(`UPDATE instance_pages SET bundle_js = ?, bundle_css = ?, build_status = ?, build_log = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
 		bundleJS, bundleCSS, buildStatus, buildLog, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("update instance page build: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	n, rerr := res.RowsAffected()
+	if rerr != nil {
+		return fmt.Errorf("update instance page build: %w", rerr)
+	}
+	if n == 0 {
 		return fmt.Errorf("instance page not found")
 	}
 	return nil
@@ -237,10 +248,27 @@ func (r *InstancePageRepository) UpdateBuild(id int64, bundleJS, bundleCSS, buil
 func (r *InstancePageRepository) Delete(id int64) error {
 	res, err := r.db.Exec(`DELETE FROM instance_pages WHERE id = ?`, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("delete instance page: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	n, rerr := res.RowsAffected()
+	if rerr != nil {
+		return fmt.Errorf("delete instance page: %w", rerr)
+	}
+	if n == 0 {
 		return fmt.Errorf("instance page not found")
 	}
 	return nil
+}
+
+// isInstancePageConflict reports duplicate-slug violations across engines by
+// message sniffing (mirrors isPanelPageConflict: sqlite/mysql/postgres all
+// mention duplicates/uniqueness, but name the constraint differently).
+func isInstancePageConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate") ||
+		strings.Contains(msg, "unique") ||
+		strings.Contains(msg, "already exists")
 }

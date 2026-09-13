@@ -28,25 +28,33 @@ func newIPCTestDB(t *testing.T) *sql.DB {
 	return conn
 }
 
-func TestIPCReproGetMasksDBError(t *testing.T) {
+// Get must not mask transport errors as not-found (fail closed with context).
+func TestIPCGetSurfacesDBError(t *testing.T) {
 	conn := newIPCTestDB(t)
 	r := NewInstancePageRepository(conn)
 	id, err := r.Create(InstancePageInput{Name: "A", Slug: "a"})
 	if err != nil || id == 0 {
 		t.Fatalf("create: %v %d", err, id)
 	}
+	if _, err := r.Get(999999); err == nil || err.Error() != "instance page not found" {
+		t.Fatalf("missing row must be not-found, got %v", err)
+	}
 	conn.Close() // force a real transport error
-	err = func() error { _, e := r.Get(id); return e }()
+	_, err = r.Get(id)
 	if err == nil {
 		t.Fatalf("expected error on closed db, got nil")
 	}
-	t.Logf("REPRO Get-on-closed-db err=%q", err.Error())
 	if err.Error() == "instance page not found" {
-		t.Logf("REPRO CONFIRMED: transport error masked as not-found")
+		t.Fatalf("transport error masked as not-found: %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "get instance page") {
+		t.Fatalf("error must carry context, got %q", err.Error())
 	}
 }
 
-func TestIPCReproDuplicateSlugRaw(t *testing.T) {
+// Duplicate slug (concurrent link-same-slug twice) must fail closed with a
+// friendly conflict, mirroring isPanelPageConflict — never a raw driver blob.
+func TestIPCDuplicateSlugConflict(t *testing.T) {
 	conn := newIPCTestDB(t)
 	r := NewInstancePageRepository(conn)
 	if _, err := r.Create(InstancePageInput{Name: "A", Slug: "dup"}); err != nil {
@@ -56,8 +64,52 @@ func TestIPCReproDuplicateSlugRaw(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected duplicate error, got nil")
 	}
-	t.Logf("REPRO dup-create err=%q", err.Error())
-	if !strings.Contains(strings.ToLower(err.Error()), "already exists") {
-		t.Logf("REPRO CONFIRMED: duplicate slug leaks raw driver error (no friendly already-exists mapping)")
+	if !strings.Contains(err.Error(), `slug "dup" already exists`) {
+		t.Fatalf("want friendly conflict, got %q", err.Error())
+	}
+	id2, err := r.Create(InstancePageInput{Name: "C", Slug: "other"})
+	if err != nil {
+		t.Fatalf("create other: %v", err)
+	}
+	if err := r.Update(id2, InstancePageInput{Name: "C", Slug: "dup"}); err == nil ||
+		!strings.Contains(err.Error(), `slug "dup" already exists`) {
+		t.Fatalf("update onto taken slug must conflict, got %v", err)
+	}
+}
+
+// Update/Delete on a missing row stay not-found; build columns survive Update.
+func TestIPCUpdateDeleteNotFoundAndBuildPreserved(t *testing.T) {
+	conn := newIPCTestDB(t)
+	r := NewInstancePageRepository(conn)
+	if err := r.Update(999999, InstancePageInput{Name: "x", Slug: "x"}); err == nil ||
+		err.Error() != "instance page not found" {
+		t.Fatalf("update missing must be not-found, got %v", err)
+	}
+	if err := r.Delete(999999); err == nil || err.Error() != "instance page not found" {
+		t.Fatalf("delete missing must be not-found, got %v", err)
+	}
+	if err := r.UpdateBuild(999999, "js", "css", "ok", "log"); err == nil ||
+		err.Error() != "instance page not found" {
+		t.Fatalf("updatebuild missing must be not-found, got %v", err)
+	}
+	id, err := r.Create(InstancePageInput{Name: "A", Slug: "a"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := r.UpdateBuild(id, "JS", "CSS", "ok", "log"); err != nil {
+		t.Fatalf("updatebuild: %v", err)
+	}
+	if err := r.Update(id, InstancePageInput{Name: "A2", Slug: "a"}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	got, err := r.Get(id)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.BundleJS != "JS" || got.BundleCSS != "CSS" || got.BuildStatus != "ok" {
+		t.Fatalf("Update clobbered build columns: %+v", got)
+	}
+	if got.Name != "A2" {
+		t.Fatalf("Update did not persist name, got %q", got.Name)
 	}
 }
