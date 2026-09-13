@@ -108,7 +108,10 @@ function findSubPageEntry(slug: string, spec: Record<string, any> | null | undef
   const pages = Array.isArray(spec?.pages) ? spec.pages : [];
   for (const p of pages) {
     if (!p || typeof p !== 'object' || !p.slug) continue;
-    if (String(p.slug).trim() !== parts.parent) continue;
+    // Match backend findSpecPageRow: parent matches slug OR original_slug.
+    const parentSlug = String(p.slug).trim();
+    const parentOrig = typeof p.original_slug === 'string' ? String(p.original_slug).trim() : '';
+    if (parentSlug !== parts.parent && parentOrig !== parts.parent) continue;
     if (p.enabled === false) continue;
     const sub = subPagesOf(p).find(
       (s) => s && typeof s.path === 'string' && String(s.path).trim() === parts.path,

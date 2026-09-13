@@ -993,7 +993,7 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
     }
     messageHandlers[wsId] = { open: onEvent('open'), message: onEvent('message'), close: onEvent('close'), error: onEvent('error') };
 
-    window.parent.postMessage({ type: 'ks-ws-open', reqId: reqId, protocols: protocols || null, endpoint: endpoint || 'terminal', params: params || {} }, '*');
+    window.parent.postMessage({ type: 'ks-ws-open', reqId: reqId, wsId: wsId, protocols: protocols || null, endpoint: endpoint || 'terminal', params: params || {} }, '*');
     return sock;
   };
 
@@ -1907,7 +1907,14 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
         // --- WebSocket proxy (terminal-style pages). Cookies never leave
         // the host origin, so the iframe asks us to open the socket. ---
         case 'ks-ws-open': {
-          const wsId = `ws${++wsSeq.current}`;
+          // Reuse the iframe-provided id (sanitized) so open/send/close/event
+          // all address the SAME socket: the shim keys sockets/handlers by its
+          // local wsId and posts send/close with it, so a parent-generated id
+          // would never match and onopen/messages would be dropped forever.
+          const rawWsId = (data as { wsId?: unknown }).wsId;
+          const wsId = typeof rawWsId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(rawWsId)
+            ? rawWsId
+            : `ws${++wsSeq.current}`;
           // Endpoint + params arrive from the sandboxed page: the shared
           // buildPageWsUrl allow-lists the bridge (terminal/workflow/
           // startup) and normalises terminal/timeout, so a page can only
@@ -1977,7 +1984,7 @@ const CustomPageView: React.FC<CustomPageViewProps> = ({ content, title, instanc
       wsRef.current.forEach((ws) => { try { ws.close(); } catch { /* noop */ } });
       wsRef.current.clear();
     };
-  }, [bridgeInstanceId, navigate]);
+  }, [bridgeInstanceId, navigate, pageSlug]);
 
   // For HTML content, render in a hardened sandboxed iframe. Pure content:
   // no injected header or card chrome — only the pages-JSON payload shows.
