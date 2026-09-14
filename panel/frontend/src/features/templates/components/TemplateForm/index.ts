@@ -18,5 +18,7 @@ export { TemplateControlsSection } from './TemplateControlsSection';
 export type { ControlsSectionProps } from './TemplateControlsSection';
 export { TemplatePagesSection } from './TemplatePagesSection';
 export type { PagesSectionProps } from './TemplatePagesSection';
+export { TemplatePageConfigureView } from './TemplatePageConfigureView';
+export type { TemplatePageConfigureViewProps } from './TemplatePageConfigureView';
 export { TemplateSpecPreviewSection } from './TemplateSpecPreviewSection';
 export type { SpecPreviewSectionProps } from './TemplateSpecPreviewSection';

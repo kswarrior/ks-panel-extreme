@@ -2,6 +2,7 @@ import React, { useCallback, useState, useMemo } from 'react';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import Modal from '@/shared/components/ui/Modal';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import { TemplatePageConfigureView } from './TemplatePageConfigureView';
 import type { PageOverride } from '@/features/templates/types/templateForm';
 import { pageOverrideFromInstancePage } from '@/features/templates/utils/templateFormUtils';
 import { listInstancePages, type InstancePage } from '@/shared/api/admin';
@@ -128,6 +129,75 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
     () => instancePages.filter((p) => selectedSlugs.has(p.slug) && !alreadyAddedSlugs.has(p.slug)).length,
     [instancePages, selectedSlugs, alreadyAddedSlugs],
   );
+
+  // Full-page Configure drill-in: when the operator clicks Configure on a
+  // top-level page (never a sub-page — sub-pages are listed read-only
+  // inside the view), the whole section is replaced by the Configure form
+  // so it reads like General / Install / Actions — a real full page with
+  // back navigation instead of a cramped modal.
+  const configurePage = configureIdx !== null ? pages[configureIdx] ?? null : null;
+  if (configurePage && configureIdx !== null) {
+    return (
+      <>
+        <TemplatePageConfigureView
+          page={configurePage}
+          sectionCls={sectionCls}
+          onBack={() => setConfigureIdx(null)}
+          onConfigChange={(next) => onPageUpdate(configureIdx, { config: next })}
+        />
+        {/* Import modal stays mounted so its state survives the drill-in. */}
+        <Modal
+          open={importModalOpen}
+          onClose={closeImportModal}
+          title="Add pages"
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={importSearch}
+              onChange={(e) => setImportSearch(e.target.value)}
+              placeholder="Search by name, slug or category…"
+              className={glassFieldClass + ' w-full'}
+              aria-label="Search pages"
+              autoFocus
+            />
+            {importError && (
+              <div className="text-xs text-red-400 border border-red-700/40 rounded px-3 py-2 bg-red-900/20">
+                {importError}
+              </div>
+            )}
+            <div className="ks-card ks-form-card rounded-md max-h-[50vh] overflow-y-auto divide-y divide-white/5">
+              {!importLoading && filteredInstancePages.length === 0 && (
+                <div className="px-4 py-8 text-center text-gray-500 text-sm">
+                  No pages match your search.
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={closeImportModal}
+                className="px-4 py-2 text-sm border border-white/10 text-gray-300 rounded hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmImport}
+                disabled={selectedSlugs.size === 0}
+                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {selectedSlugs.size === 0
+                  ? 'Select pages to add'
+                  : `Add ${selectedSlugs.size} page${selectedSlugs.size > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      </>
+    );
+  }
 
   return (
     <>
@@ -454,104 +524,6 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
               </button>
             </div>
           </div>
-        </Modal>
-
-        {/* Configure modal — per-page values for the Studio Configure vars */}
-        <Modal
-          open={configureIdx !== null}
-          onClose={() => setConfigureIdx(null)}
-          title={configureIdx !== null ? `Configure ${pages[configureIdx]?.label || pages[configureIdx]?.slug || 'page'}` : 'Configure'}
-          maxWidth="max-w-xl"
-        >
-          {configureIdx !== null && (() => {
-            const p = pages[configureIdx];
-            const vars = p.configure ?? [];
-            if (vars.length === 0) return <p className="text-sm text-gray-500">This page has no configure variables.</p>;
-            return (
-              <div className="space-y-3">
-                <p className="text-xs text-gray-500">Values entered here are stored in <code className="font-mono">spec.pages[].config</code> and available in the page as <code className="font-mono">{"{{config:NAME}}"}</code> or via <code className="font-mono">KSPageSDK.config</code>.</p>
-                {vars.map((v) => {
-                  const cur = (p.config?.[v.name] ?? v.default ?? '');
-                  const opts = v.options ? v.options.split(',').map((s) => s.trim()).filter(Boolean) : [];
-                  return (
-                    <div key={v.name} className="space-y-1">
-                      <label className="block text-sm font-medium text-gray-300">
-                        {v.label || v.name} <code className="text-xs text-gray-500 font-mono ml-1">{v.name}</code>
-                        {v.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      {v.description && <p className="text-xs text-gray-500">{v.description}</p>}
-                      {v.display === 'select' ? (
-                        <select
-                          value={cur}
-                          onChange={(e) => {
-                            const next: Record<string, string> = { ...(p.config ?? {}) };
-                            next[v.name] = e.target.value;
-                            onPageUpdate(configureIdx!, { config: next });
-                          }}
-                          className={glassFieldClass + ' w-full'}
-                        >
-                          <option value="">— {v.required ? 'required' : 'optional'} —</option>
-                          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-                          {/* keep current value even if not in options */}
-                          {cur && !opts.includes(cur) && <option value={cur}>{cur}</option>}
-                        </select>
-                      ) : (v.display === 'checkbox' || v.display === 'toggle') ? (
-                        (() => {
-                          const isOn = cur === 'true' || cur === '1' || cur === 'on';
-                          return (
-                            <label className="inline-flex items-center gap-3 cursor-pointer">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next: Record<string, string> = { ...(p.config ?? {}) };
-                                  next[v.name] = isOn ? 'false' : 'true';
-                                  onPageUpdate(configureIdx!, { config: next });
-                                }}
-                                className={`relative w-11 h-6 rounded-full transition ${isOn ? 'bg-green-600' : 'bg-neutral-700'}`}
-                                aria-pressed={isOn}
-                              >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${isOn ? 'translate-x-5' : ''}`} />
-                              </button>
-                              <span className={`text-sm font-medium ${isOn ? 'text-green-400' : 'text-gray-400'}`}>{isOn ? 'On' : 'Off'}</span>
-                              <span className="text-sm text-gray-500">{v.label || v.name}</span>
-                            </label>
-                          );
-                        })()
-                      ) : v.display === 'number' ? (
-                        <input
-                          type="number"
-                          value={cur}
-                          onChange={(e) => {
-                            const next: Record<string, string> = { ...(p.config ?? {}) };
-                            next[v.name] = e.target.value;
-                            onPageUpdate(configureIdx!, { config: next });
-                          }}
-                          placeholder={v.default || v.rule || ''}
-                          className={glassFieldClass + ' w-full font-mono'}
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={cur}
-                          onChange={(e) => {
-                            const next: Record<string, string> = { ...(p.config ?? {}) };
-                            next[v.name] = e.target.value;
-                            onPageUpdate(configureIdx!, { config: next });
-                          }}
-                          placeholder={v.default || ''}
-                          className={glassFieldClass + ' w-full font-mono'}
-                        />
-                      )}
-                      {v.rule && <p className="text-[11px] text-gray-500">Rule: <code className="font-mono">{v.rule}</code></p>}
-                    </div>
-                  );
-                })}
-                <div className="flex justify-end pt-2">
-                  <button type="button" onClick={() => setConfigureIdx(null)} className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-500">Done</button>
-                </div>
-              </div>
-            );
-          })()}
         </Modal>
       </div>
     </>
