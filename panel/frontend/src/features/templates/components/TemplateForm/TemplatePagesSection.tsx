@@ -134,68 +134,18 @@ export const TemplatePagesSection: React.FC<PagesSectionProps> = ({
   // top-level page (never a sub-page — sub-pages are listed read-only
   // inside the view), the whole section is replaced by the Configure form
   // so it reads like General / Install / Actions — a real full page with
-  // back navigation instead of a cramped modal.
+  // back navigation instead of a cramped modal. The Add-pages modal cannot
+  // be open at the same time (it overlays the list), so it is safe to hide
+  // here — its state is preserved and it reappears when going back.
   const configurePage = configureIdx !== null ? pages[configureIdx] ?? null : null;
   if (configurePage && configureIdx !== null) {
     return (
-      <>
-        <TemplatePageConfigureView
-          page={configurePage}
-          sectionCls={sectionCls}
-          onBack={() => setConfigureIdx(null)}
-          onConfigChange={(next) => onPageUpdate(configureIdx, { config: next })}
-        />
-        {/* Import modal stays mounted so its state survives the drill-in. */}
-        <Modal
-          open={importModalOpen}
-          onClose={closeImportModal}
-          title="Add pages"
-          maxWidth="max-w-2xl"
-        >
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={importSearch}
-              onChange={(e) => setImportSearch(e.target.value)}
-              placeholder="Search by name, slug or category…"
-              className={glassFieldClass + ' w-full'}
-              aria-label="Search pages"
-              autoFocus
-            />
-            {importError && (
-              <div className="text-xs text-red-400 border border-red-700/40 rounded px-3 py-2 bg-red-900/20">
-                {importError}
-              </div>
-            )}
-            <div className="ks-card ks-form-card rounded-md max-h-[50vh] overflow-y-auto divide-y divide-white/5">
-              {!importLoading && filteredInstancePages.length === 0 && (
-                <div className="px-4 py-8 text-center text-gray-500 text-sm">
-                  No pages match your search.
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-              <button
-                type="button"
-                onClick={closeImportModal}
-                className="px-4 py-2 text-sm border border-white/10 text-gray-300 rounded hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmImport}
-                disabled={selectedSlugs.size === 0}
-                className="px-4 py-2 text-sm bg-sky-600 text-white rounded hover:bg-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {selectedSlugs.size === 0
-                  ? 'Select pages to add'
-                  : `Add ${selectedSlugs.size} page${selectedSlugs.size > 1 ? 's' : ''}`}
-              </button>
-            </div>
-          </div>
-        </Modal>
-      </>
+      <TemplatePageConfigureView
+        page={configurePage}
+        sectionCls={sectionCls}
+        onBack={() => setConfigureIdx(null)}
+        onConfigChange={(next) => onPageUpdate(configureIdx, { config: next })}
+      />
     );
   }
 
