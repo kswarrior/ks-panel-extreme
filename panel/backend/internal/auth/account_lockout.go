@@ -245,10 +245,10 @@ func AccountLockoutMiddleware(al *AccountLockout) func(http.Handler) http.Handle
 						var req map[string]interface{}
 						if jerr := json.Unmarshal(body, &req); jerr == nil {
 							if identifier, _ = req["identifier"].(string); identifier == "" {
-								identifier, _ = req["username"].(string)
+								identifier, _ = req["email"].(string)
 							}
 							if identifier == "" {
-								identifier, _ = req["email"].(string)
+								identifier, _ = req["username"].(string)
 							}
 						}
 					}

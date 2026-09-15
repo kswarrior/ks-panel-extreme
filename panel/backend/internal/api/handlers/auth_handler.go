@@ -228,8 +228,11 @@ func LogoutHandler(w http.ResponseWriter, r *http.Request) {
 	rawToken := ""
 	if tok := r.Header.Get("Authorization"); len(tok) >= 7 && strings.EqualFold(tok[:7], "Bearer ") {
 		rawToken = strings.TrimSpace(tok[7:])
-	} else if cookie, cerr := r.Cookie(auth.SessionCookieName); cerr == nil {
-		rawToken = cookie.Value
+	}
+	if rawToken == "" {
+		if cookie, cerr := r.Cookie(auth.SessionCookieName); cerr == nil {
+			rawToken = cookie.Value
+		}
 	}
 	if rawToken != "" {
 		auth.SessionManagerInstance.InvalidateSession(rawToken)
