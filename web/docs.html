@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Docs — KS Panel</title>
+<meta name="description" content="KS Panel docs: getting started, configuration, nodes, templates, API, themes and comparison." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2322d3ee'/><text x='50' y='68' font-size='52' text-anchor='middle' font-family='Arial' font-weight='bold' fill='%23051218'>KS</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="aurora"><span></span><span></span><span></span></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a>
+    <div class="nav-links">
+      <a data-nav href="index.html">Home</a>
+      <a data-nav href="features.html">Features</a>
+      <a data-nav href="get-started.html">Get Started</a>
+      <a data-nav href="docs.html">Docs</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/your-org/ks-panel" target="_blank" rel="noopener">★ GitHub</a>
+      <a class="btn btn-primary btn-sm" href="get-started.html">Deploy Now</a>
+    </div>
+    <button class="hamburger" id="burger" aria-label="Menu">☰</button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">Home</a><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Docs</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="docs-layout">
+    <aside class="docs-side">
+      <a href="#start" class="on">Getting started</a>
+      <a href="#config">Configuration</a>
+      <a href="#nodes">Node setup</a>
+      <a href="#templates">Templates</a>
+      <a href="#pages">Instance pages</a>
+      <a href="#themes">Themes</a>
+      <a href="#api">API reference</a>
+      <a href="#compare">Compare panels</a>
+    </aside>
+
+    <article class="doc">
+      <h1>📖 KS Panel Docs <span class="hbadge" data-version>v1.0.207</span></h1>
+      <p>Static mirror of the essentials. The full deep-dives live in <code>docs/</code> in the repo (threat model, build security, futures, panel-vs-panel matrix). This page covers what 95% of admins need.</p>
+
+      <h2 id="start">Getting started</h2>
+      <p><b>Requirements:</b> Linux (Ubuntu 22.04+ / Debian 12+), Docker for container servers, Go 1.21+ and Node 20+ only if building from source.</p>
+      <pre>docker run -d --name kspanel -p 8080:8080 \
+  -v kspanel-data:/data ghcr.io/your-org/kspanel:latest
+# open http://YOUR-IP:8080 → create admin user</pre>
+      <p>From source: <code>git clone … && bash rebuild.sh && ./release/kspanel</code>. The rebuild script builds the Vite frontend, embeds it into the Go binary, syncs the page/theme libraries and stamps <code>release/version.json</code>.</p>
+
+      <h2 id="config">Configuration</h2>
+      <p>Panel settings live in the UI (<b>Settings</b>) plus a small env file for DSN/port. Key knobs:</p>
+      <table><tr><th>Area</th><th>What</th></tr>
+      <tr><td>Branding</td><td>panel name, logo (5 MB), footer text, global theme</td></tr>
+      <tr><td>Auth policy</td><td>registration toggles, OAuth ×5, TOTP, lockout, session lifetime/idle</td></tr>
+      <tr><td>Security</td><td>RPM limits, IP allow/deny, DDoS auto-stop, max body size, SMTP/TLS</td></tr>
+      <tr><td>Database</td><td>SQLite / Postgres / MySQL, live engine switch, backups + S3</td></tr></table>
+
+      <h2 id="nodes">Node setup</h2>
+      <p>Each game host runs <code>ksedge</code> (default <code>:4040</code>). Create the node in <b>Nodes → New</b>, then either <b>Setup local</b> (same box) or run the agent remotely with the shown token. Modes: <code>direct</code>, <code>reverse_tunnel</code> (NAT), <code>local_port</code>, <code>local_wss</code>.</p>
+      <pre>./ksedge --panel https://panel.example.com --token &lt;TOKEN&gt;
+# check: curl http://node-ip:4040/health → {"status":"ok"}</pre>
+      <p>Enable the drivers you need per node (<code>docker / kvm / lxd / multipass</code>), set alloc caps + overcommit, then watch heartbeats turn green.</p>
+
+      <h2 id="templates">Templates</h2>
+      <p>Templates are blueprints (<code>kind: docker|lxd|kvm|multipass</code>) with 40+ spec fields: ports, mounts, limits, env, install steps, actions, healthcheck, labels, runtime (vCPU, machine q35/virt, UEFI, TPM, disks…). Create in <b>Templates → New</b> (8-section builder), import via file/URL, or <code>POST /api/templates/url</code> (SSRF-hardened).</p>
+      <pre>spec:
+  kind: docker
+  image: itzg/minecraft-server:latest
+  ports: [{container: 25565, protocol: tcp}]
+  env: [{key: EULA, value: "TRUE"}, {key: MEMORY, value: 4G}]
+  install:
+    - run: eula=true
+  actions:
+    - id: start-java
+      run: java -Xmx4G -jar server.jar nogui</pre>
+
+      <h2 id="pages">Instance pages</h2>
+      <p>Per-server custom tabs authored once as YAML in <code>instance_pages/pages/*.yaml</code>, linked into templates, snapshotted into instances. Content types: <code>html</code> (sandboxed iframe), <code>markdown</code>, <code>blocks</code> (no-code rows), <code>react</code>. Actions run on Edge via allow-list (<code>shell / read_file / write_file / list_files / docker …</code>) through <code>window.KSPageSDK</code>.</p>
+      <pre>slug: files
+name: Files
+content_type: blocks
+# + actions: / sub_pages: / components: — see instance_pages/GUIDE.md</pre>
+
+      <h2 id="themes">Themes</h2>
+      <p><b>Themes → Studio</b> edits 15 tabs live (accent, background image/video/gradient, buttons, cards, sidebar, typography, loading…). Scope globally or per area/page, add custom CSS, publish to the marketplace, roll back via revisions. White-label via authority branding.</p>
+
+      <h2 id="api">API reference</h2>
+      <p>Cookie session (<code>__Host-session_id</code>) or <code>Authorization: Bearer &lt;api-key&gt;</code>. All JSON unless noted; WebSockets for terminal + notification stream.</p>
+      <table><tr><th>Domain</th><th>Example</th></tr>
+      <tr><td>Auth</td><td><code>POST /api/auth/login</code> · <code>POST /api/auth/register</code> · <code>GET /api/me</code></td></tr>
+      <tr><td>Instances</td><td><code>GET /api/instances</code> · <code>POST /api/instances</code> · <code>POST /api/instances/{id}/start</code></td></tr>
+      <tr><td>Files/terminal</td><td><code>GET /api/instances/{id}/files</code> · <code>WS /api/instances/{id}/terminal</code></td></tr>
+      <tr><td>Nodes</td><td><code>GET /api/nodes</code> · <code>POST /api/nodes/{id}/probe</code> · <code>POST /api/nodes/update-all</code></td></tr>
+      <tr><td>Templates/Pages</td><td><code>GET /api/templates</code> · <code>GET /api/instance-pages</code> · <code>POST /api/instance-pages/execute-action</code></td></tr>
+      <tr><td>System</td><td><code>GET /api/system</code> · <code>GET /api/system/update-check</code> · <code>POST /api/system/update-apply</code></td></tr></table>
+
+      <h2 id="compare">Compare panels</h2>
+      <p>KS Panel scores <b>94/100</b> across 26 cases vs Pterodactyl (54), Pelican (66), AMP (69), PufferPanel (54) and others. Biggest gaps: theming (100 vs 15–45), permissions (98 vs 60–70), extensibility (100), tickets/notifications + AI (exclusive), self-update with fleet rollout (100). Full evidence in <code>docs/vs.md</code> and the exhaustive inventory in <code>docs/futures.md</code>.</p>
+      <p style="color:#6b7a99">Community: <a href="https://discord.gg/your-invite" style="color:#a5f3fc">Discord</a> · <a href="https://github.com/your-org/ks-panel/issues" style="color:#a5f3fc">Issues</a> · <a href="https://github.com/your-org/ks-panel/discussions" style="color:#a5f3fc">Discussions</a> · License: MIT.</p>
+    </article>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div><a class="brand" href="index.html" style="margin-bottom:12px"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a><p style="max-width:34ch;line-height:1.7">Modern, open-source game server management. Built for server admins, by server admins.</p></div>
+      <div><h4>Product</h4><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Documentation</a></div>
+      <div><h4>Resources</h4><a href="docs.html#templates">Templates</a><a href="docs.html#nodes">Nodes</a><a href="docs.html#themes">Themes</a></div>
+      <div><h4>Community</h4><a href="https://discord.gg/your-invite" target="_blank" rel="noopener">Discord</a><a href="https://github.com/your-org/ks-panel/issues" target="_blank" rel="noopener">Issues</a></div>
+    </div>
+    <div class="foot-bottom"><span>© <span id="year">2026</span> KS Panel · MIT · <span data-version>v1.0.207</span></span><span>Go + React · 4 drivers</span></div>
+  </div>
+</footer>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
