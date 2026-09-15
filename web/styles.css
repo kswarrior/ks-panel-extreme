@@ -92,31 +92,7 @@ a{color:inherit}
 .hero-meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px;color:var(--muted);font-size:13px}
 .hero-meta b{color:var(--text)}
 
-/* dashboard mock */
-.mock{background:linear-gradient(180deg,rgba(22,22,26,.92),rgba(0,0,0,.94));border:1px solid var(--line-2);
-  border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
-.mock-bar{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
-.mock-bar i{width:11px;height:11px;border-radius:50%;display:block}
-.mock-bar i:nth-child(1){background:#f87171}.mock-bar i:nth-child(2){background:#fbbf24}.mock-bar i:nth-child(3){background:#34d399}
-.mock-bar span{margin-left:8px;font-size:12px;color:var(--muted);font-family:var(--mono)}
-.mock-body{display:grid;grid-template-columns:190px 1fr;min-height:340px}
-.mock-side{border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:6px;background:rgba(255,255,255,.015)}
-.mock-side a{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:none;padding:8px 10px;border-radius:8px;display:flex;gap:8px;align-items:center}
-.mock-side a.on{background:rgba(255,255,255,.07);color:#ffffff;border:1px solid rgba(255,255,255,.18)}
-.mock-main{padding:18px}
-.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.stat{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:11px 12px}
-.stat small{color:var(--muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.stat b{display:block;font-size:19px;margin-top:4px}
-.stat em{font-style:normal;font-size:11.5px;color:var(--go);font-weight:700}
-.term{background:#000000;border:1px solid var(--line);border-radius:12px;padding:13px 14px;font-family:var(--mono);font-size:12.3px;line-height:1.7;color:#d4d4d8;min-height:150px}
-.term .g{color:var(--go)} .term .c{color:#ffffff} .term .y{color:var(--warn)}
-.server-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-.srv{flex:1;min-width:150px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:12.5px}
-.srv b{display:flex;align-items:center;gap:7px;font-size:13px}
-.srv .ok{width:8px;height:8px;border-radius:50%;background:var(--go);box-shadow:0 0 10px rgba(34,197,94,.8)}
-.srv .bar{height:6px;background:rgba(255,255,255,.14);border-radius:99px;margin-top:9px;overflow:hidden}
-.srv .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#ffffff,#a1a1aa)}
+/* feature badges */
 .hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .hbadge{font-size:12px;font-weight:700;color:var(--muted);border:1px solid var(--line);padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.02)}
 
@@ -245,8 +221,6 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:36px 0 46px;colo
   .hero-grid,.arch{grid-template-columns:1fr}
   .grid-3{grid-template-columns:1fr 1fr}
   .grid-4,.stats-band,.req{grid-template-columns:1fr 1fr}
-  .mock-body{grid-template-columns:1fr}
-  .mock-side{flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--line)}
   .nav-links{display:none}
   .nav-cta .btn-ghost{display:none}
   .hamburger{display:block}
@@ -273,8 +247,6 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:36px 0 46px;colo
   .pill{flex-wrap:wrap}
   .install-line{font-size:12px;padding:10px}
   .install-line code{min-width:0;flex:1}
-  .mock-bar span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .mock-side a{white-space:nowrap;flex:none}
   .stat b{font-size:17px}
   .doc{padding:18px}
   .doc table{display:block;overflow-x:auto}
@@ -283,3 +255,9 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:36px 0 46px;colo
   .foot-grid{grid-template-columns:1fr}
   .toast{max-width:calc(100vw - 44px);text-align:center}
 }
+
+/* ---------- centered single-column hero ---------- */
+.hero-grid{grid-template-columns:1fr;max-width:880px;margin:0 auto;text-align:center}
+.hero p.sub{margin:0 auto 26px}
+.hero-actions,.hero-meta,.hero-badges{justify-content:center}
+.install-line{margin:0 auto}
