@@ -488,22 +488,31 @@ func UploadFromReader(src io.Reader, size int64, suggestedName string) (Backup, 
 			return Backup{}, fmt.Errorf("uploaded gzip backup is corrupt: %w", derr)
 		}
 	} else if hasZstdMagic(head) {
-		innerKind := ""
-		if _, lerr := exec.LookPath("zstd"); lerr == nil {
-			if tmp, derr := decompressToTemp(stage, "zstd"); derr == nil {
-				if ih, herr2 := readHead(tmp, 8192); herr2 == nil {
-					innerKind = classifyBackupBytes(ih)
-				}
-				os.Remove(tmp)
-			}
+		// Fail closed like the gzip branch above: the inner type must be
+		// positively identified from the decompressed header. Guessing
+		// from the suggested filename would let a corrupt/malicious
+		// payload land as a restorable backup, and decompressToTemp
+		// already streams the whole frame so this is also the full
+		// integrity check (mirrors the gzip CRC check above).
+		if _, lerr := exec.LookPath("zstd"); lerr != nil {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded zstd backup requires the 'zstd' binary to verify")
 		}
+		tmp, derr := decompressToTemp(stage, "zstd")
+		if derr != nil {
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded zstd backup is corrupt: %w", derr)
+		}
+		ih, herr2 := readHead(tmp, 8192)
+		os.Remove(tmp)
+		if herr2 != nil {
+			os.Remove(stage)
+			return Backup{}, herr2
+		}
+		innerKind := classifyBackupBytes(ih)
 		if innerKind == "" {
-			lowerSuggested := strings.ToLower(strings.TrimSpace(suggestedName))
-			if strings.Contains(lowerSuggested, ".sql") {
-				innerKind = "sql"
-			} else {
-				innerKind = "sqlite"
-			}
+			os.Remove(stage)
+			return Backup{}, fmt.Errorf("uploaded file is not a valid SQLite or SQL dump (zstd inner header unrecognised)")
 		}
 		kind = innerKind
 		compressed = "zstd"
