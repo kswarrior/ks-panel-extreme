@@ -377,3 +377,141 @@ func TestCreatePanelPageConflict409(t *testing.T) {
 		t.Fatalf("duplicate slug: got %d (%s), want 409", w2.Code, strings.TrimSpace(w2.Body.String()))
 	}
 }
+
+// ---- F1: Link OWN authz ----------------------------------------------------
+// Own without All may only link pages they authored; чужой pages 403.
+// Bulk mixed template_ids still report linked/skipped per row.
+
+func newLinkOwnTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "linkown.db")
+	t.Setenv("KSPANEL_DB", p)
+	t.Setenv("KSPANEL_DB_DSN", p)
+	db, err := sql.Open("sqlite", p)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+	for i, s := range []string{
+		`CREATE TABLE instance_pages (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
+			kind TEXT NOT NULL DEFAULT 'custom', category TEXT NOT NULL DEFAULT '', page_type TEXT NOT NULL DEFAULT '',
+			description TEXT NOT NULL DEFAULT '', content_type TEXT NOT NULL DEFAULT 'markdown',
+			content_html TEXT NOT NULL DEFAULT '', content_markdown TEXT NOT NULL DEFAULT '', content_blocks TEXT NOT NULL DEFAULT '',
+			icon_svg TEXT NOT NULL DEFAULT '', icon_color TEXT NOT NULL DEFAULT '', actions TEXT NOT NULL DEFAULT '',
+			sub_pages TEXT NOT NULL DEFAULT '', components TEXT NOT NULL DEFAULT '', configure TEXT NOT NULL DEFAULT '',
+			source_tsx TEXT, bundle_js TEXT, bundle_css TEXT, build_status VARCHAR(16) NOT NULL DEFAULT '', build_log TEXT,
+			owner_id INTEGER, source TEXT NOT NULL DEFAULT 'studio', market_id TEXT NOT NULL DEFAULT '', market_version TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '',
+			kind TEXT NOT NULL DEFAULT '', image TEXT NOT NULL DEFAULT '', spec TEXT NOT NULL DEFAULT '', icon TEXT NOT NULL DEFAULT '',
+			color TEXT NOT NULL DEFAULT '', owner_id INTEGER,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE panel_pages (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '',
+			icon_svg TEXT NOT NULL DEFAULT '', content_type TEXT NOT NULL DEFAULT 'markdown', content TEXT NOT NULL DEFAULT '',
+			enabled INTEGER NOT NULL DEFAULT 1, roles TEXT NOT NULL DEFAULT '[]', sort_order INTEGER NOT NULL DEFAULT 0,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE roles (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)`,
+		`CREATE TABLE permissions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE)`,
+		`CREATE TABLE role_permissions (role_id INTEGER NOT NULL, permission_id INTEGER NOT NULL, PRIMARY KEY (role_id, permission_id))`,
+		`CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL DEFAULT '', role_id INTEGER NOT NULL DEFAULT 1)`,
+	} {
+		if _, err := db.Exec(s); err != nil {
+			t.Fatalf("setup stmt %d: %v", i, err)
+		}
+	}
+	// Roles: 1 = own-only, 2 = all. Users: 10 = owner-alice (own), 11 = bob (own, different owner).
+	for _, s := range []string{
+		`INSERT INTO roles (id, name) VALUES (1, 'own-role'), (2, 'all-role')`,
+		`INSERT INTO permissions (id, key) VALUES (1, 'INSTANCE_PAGES_OWN'), (2, 'INSTANCE_PAGES_ALL'), (3, 'MANAGE_INSTANCE_PAGES')`,
+		`INSERT INTO role_permissions (role_id, permission_id) VALUES (1, 1)`,
+		`INSERT INTO users (id, username, role_id) VALUES (10, 'alice', 1), (11, 'bob', 1), (12, 'admin', 2)`,
+		`INSERT INTO role_permissions (role_id, permission_id) VALUES (2, 2)`,
+		`INSERT INTO instance_pages (id, name, slug, kind, content_type, owner_id) VALUES (1, 'Own Page', 'own-page', 'custom', 'html', 10)`,
+		`INSERT INTO instance_pages (id, name, slug, kind, content_type, owner_id) VALUES (2, 'Bob Page', 'bob-page', 'custom', 'html', 11)`,
+		`INSERT INTO templates (id, name, spec) VALUES (1, 'T1', 'pages: []'), (2, 'T2', 'pages: []')`,
+	} {
+		if _, err := db.Exec(s); err != nil {
+			t.Fatalf("seed: %v (%s)", err, s)
+		}
+	}
+	return db
+}
+
+func linkReqWithUser(pageID string, body string, uid int64) (*httptest.ResponseRecorder, *http.Request) {
+	r := httptest.NewRequest("POST", "/api/instance-pages/"+pageID+"/link", strings.NewReader(body))
+	r = withChiIDParam(r, pageID)
+	if uid != 0 {
+		r = r.WithContext(context.WithValue(r.Context(), UserIDKey, uid))
+	}
+	w := httptest.NewRecorder()
+	LinkInstancePageHandler(w, r)
+	return w, r
+}
+
+func TestLinkOwnScopeOwnerOwnOk(t *testing.T) {
+	newLinkOwnTestDB(t)
+	w, _ := linkReqWithUser("1", `{"template_ids":[1]}`, 10)
+	if w.Code != http.StatusOK {
+		t.Fatalf("owner linking own page: got %d (%s), want 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+}
+
+func TestLinkOwnScopeForeign403(t *testing.T) {
+	newLinkOwnTestDB(t)
+	// alice (10, Own) linking bob's page (owner 11) must 403.
+	w, _ := linkReqWithUser("2", `{"template_ids":[1]}`, 10)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("own-scope linking чужой page: got %d (%s), want 403", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+}
+
+func TestLinkBulkMixedLinkedSkipped(t *testing.T) {
+	newLinkOwnTestDB(t)
+	// Mixed: template 1 exists, 999 does not → linked=[1], skipped=[999].
+	w, _ := linkReqWithUser("1", `{"template_ids":[1,999]}`, 10)
+	if w.Code != http.StatusOK {
+		t.Fatalf("bulk link: got %d (%s), want 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	var got struct {
+		Linked  []int64 `json:"linked"`
+		Skipped []int64 `json:"skipped"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode bulk link response: %v", err)
+	}
+	if len(got.Linked) != 1 || got.Linked[0] != 1 {
+		t.Fatalf("linked = %v, want [1]", got.Linked)
+	}
+	if len(got.Skipped) != 1 || got.Skipped[0] != 999 {
+		t.Fatalf("skipped = %v, want [999]", got.Skipped)
+	}
+}
+
+func TestBulkCreateOwnScopeMixed(t *testing.T) {
+	newLinkOwnTestDB(t)
+	// Own user bulk-creates: 1 valid + 1 duplicate (own-page slug) + 1 invalid.
+	body := `{"pages":[
+		{"name":"Bulk A","slug":"bulk-a","kind":"custom"},
+		{"name":"Dup","slug":"own-page","kind":"custom"},
+		{"name":"","slug":"bad","kind":"custom"}
+	]}`
+	r := httptest.NewRequest("POST", "/api/instance-pages/bulk", strings.NewReader(body))
+	r = r.WithContext(context.WithValue(r.Context(), UserIDKey, int64(10)))
+	w := httptest.NewRecorder()
+	BulkCreateInstancePagesHandler(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("bulk create own: got %d (%s), want 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	var got struct {
+		Imported int      `json:"imported"`
+		Skipped  int      `json:"skipped"`
+		Errors   []string `json:"errors"`
+		IDs      []int64  `json:"ids"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode bulk response: %v", err)
+	}
+	if got.Imported != 1 || got.Skipped != 1 || len(got.Errors) != 1 {
+		t.Fatalf("bulk mixed = %+v, want imported=1 skipped=1 errors=1", got)
+	}
+}
