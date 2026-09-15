@@ -259,3 +259,25 @@ footer{border-top:1px solid var(--line);margin-top:40px;padding:36px 0 46px;colo
   .stat-row{grid-template-columns:1fr 1fr}
   .hero{padding-top:44px}
 }
+
+/* ---------- phone refinements ---------- */
+.hero-grid>div{min-width:0}
+.term{white-space:pre-line}
+.card:has(.tag) h3{padding-right:72px}
+@media(max-width:600px){
+  .nav-inner{padding:12px 14px;gap:10px}
+  .hero h1{font-size:clamp(32px,10vw,44px)}
+  .hero-actions .btn{flex:1 1 100%;justify-content:center}
+  .pill{flex-wrap:wrap}
+  .install-line{font-size:12px;padding:10px}
+  .install-line code{min-width:0;flex:1}
+  .mock-bar span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mock-side a{white-space:nowrap;flex:none}
+  .stat b{font-size:17px}
+  .doc{padding:18px}
+  .doc table{display:block;overflow-x:auto}
+  .doc pre,.codebox pre{font-size:12px}
+  .cta{padding:34px 20px}
+  .foot-grid{grid-template-columns:1fr}
+  .toast{max-width:calc(100vw - 44px);text-align:center}
+}
