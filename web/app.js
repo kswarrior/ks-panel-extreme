@@ -108,8 +108,28 @@
     });
   });
 
-  // Console typing effect
-  var typeEl = document.getElementById("typed");
+  // Dashboard-style 3D tilt + spotlight — cards only
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduceMotion) {
+    var TILT_MAX = 8;
+    document.querySelectorAll(".card").forEach(function (card) {
+      card.addEventListener("mousemove", function (e) {
+        var r = card.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width;
+        var py = (e.clientY - r.top) / r.height;
+        card.style.setProperty("--ry", ((px - 0.5) * TILT_MAX * 2).toFixed(2) + "deg");
+        card.style.setProperty("--rx", ((0.5 - py) * TILT_MAX * 2).toFixed(2) + "deg");
+        card.style.setProperty("--mx", (px * 100).toFixed(1) + "%");
+        card.style.setProperty("--my", (py * 100).toFixed(1) + "%");
+      });
+      card.addEventListener("mouseleave", function () {
+        card.style.setProperty("--rx", "0deg");
+        card.style.setProperty("--ry", "0deg");
+      });
+    });
+  }
+
+  // Console typing effect  var typeEl = document.getElementById("typed");
   if (typeEl) {
     var lines = [
       "$ docker run -d --name kspanel -p 8080:8080 ghcr.io/ks-panel/kspanel:latest",
