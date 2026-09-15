@@ -346,7 +346,7 @@ func InitializeCSRFTokenManager() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Minute)
 		defer ticker.Stop()
-		
+
 		for range ticker.C {
 			CSRFTokenInstance.CleanupExpiredTokens()
 		}

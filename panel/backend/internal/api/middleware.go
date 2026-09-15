@@ -310,22 +310,22 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 					limit = chunkLimit
 				}
 			}
-		// Ticket attachments accept up to 25 MiB per file (plus multipart
-		// framing). The default 10 MiB cap would reject the body before
-		// the handler's MaxBytesReader can report the friendly 413, so
-		// lift these routes to 32 MiB.
+			// Ticket attachments accept up to 25 MiB per file (plus multipart
+			// framing). The default 10 MiB cap would reject the body before
+			// the handler's MaxBytesReader can report the friendly 413, so
+			// lift these routes to 32 MiB.
 			if strings.HasPrefix(r.URL.Path, "/api/tickets/") && strings.Contains(r.URL.Path, "/attachments") {
 				const attachLimit = 32 << 20 // 32 MiB
 				if limit < attachLimit {
 					limit = attachLimit
 				}
 			}
-		// Fail closed: MaxBytesReader makes an over-cap body read back
-		// "http: request body too large" instead of silently truncating
-		// it (LimitReader's behaviour), so a truncated SQLite backup or
-		// JSON payload can never pass downstream as valid.
-		r.Body = http.MaxBytesReader(w, r.Body, limit)
-		next.ServeHTTP(w, r)
+			// Fail closed: MaxBytesReader makes an over-cap body read back
+			// "http: request body too large" instead of silently truncating
+			// it (LimitReader's behaviour), so a truncated SQLite backup or
+			// JSON payload can never pass downstream as valid.
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
 		})
 	}
 }

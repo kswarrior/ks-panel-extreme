@@ -35,7 +35,7 @@ func normalizeClientIP(ip string) string {
 // garbage collection of old records. Records are purged on a background
 // janitor goroutine so the map does not grow unbounded.
 type RateLimiter struct {
-	mu     sync.RWMutex
+	mu      sync.RWMutex
 	records map[string][]time.Time
 	// Rate limits: requests per time window
 	loginAttempts    int
@@ -52,10 +52,10 @@ type RateLimiter struct {
 func NewRateLimiter() *RateLimiter {
 	rl := &RateLimiter{
 		records:          make(map[string][]time.Time),
-		loginAttempts:     5,              // 5 login attempts
-		loginWindow:       15 * time.Minute, // per 15 minutes
-		registerAttempts: 3,              // 3 registration attempts
-		registerWindow:    1 * time.Hour,  // per 1 hour
+		loginAttempts:    5,                // 5 login attempts
+		loginWindow:      15 * time.Minute, // per 15 minutes
+		registerAttempts: 3,                // 3 registration attempts
+		registerWindow:   1 * time.Hour,    // per 1 hour
 		janitorStop:      make(chan struct{}),
 	}
 	go rl.janitor()
@@ -181,8 +181,10 @@ func (rl *RateLimiter) ClearRecords(clientID string) {
 }
 
 // StopJanitor stops the background cleanup goroutine. Call during shutdown.
+// Safe to call more than once: repeats are a no-op instead of panicking on
+// close of a closed channel.
 func (rl *RateLimiter) StopJanitor() {
-	close(rl.janitorStop)
+	rl.janitorStopOnce.Do(func() { close(rl.janitorStop) })
 }
 
 // getMaxAttempts returns maximum allowed attempts for an endpoint
