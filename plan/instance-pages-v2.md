@@ -10,6 +10,32 @@ Repo root: `/home/runner/work/ks-panel-extreme/ks-panel-extreme`. Always verify 
 
 ## PART A — FIX / MODIFY (14)
 
+> MAJOR PROMPT A — copy everything inside the fence to a fresh chat to execute all 14 fixes in order:
+```text
+You are a senior full-stack engineer in repo /home/runner/work/ks-panel-extreme/ks-panel-extreme. Execute PART A — all 14 instance-pages FIXES (F1-F14) in this exact order, one by one, no shortcuts.
+
+CONTEXT: 4 content types (html/markdown/blocks/react), 11 action types, sandboxed iframe + allow-list exec (savedActionMatches), empty-by-default linking. Key files: panel/backend/internal/api/handlers/instance_page_handler.go (CRUD:1623/1656/1723/1821/1887, Link:2050, execute:2291/2879/3037, import:3281+, kspm:3597+, resync:4601), instance_page_react.go (Build:29), instance_page_kv.go:77 + page_kv_repo.go, instance_page_guard.go, pagelib/pagelib.go+decode.go, panel_page_handler.go + panel_page_repo.go, config/instance_pages.go:11, migrations 032/041/046/047/048/049/054/056/057/060/075/078 (+postgres 033 seed), server.go:683-738 routes, frontend CustomPageView.tsx:855 BRIDGE + :761/:472/:493 renderers, customPageSdk.ts, instancePages.ts, themeStore.ts:565, pageregistry.ts:105, marketplace.json, GUIDE.md, rebuild.sh:1194 sync_pagelib.
+
+DO IN ORDER:
+F1 Link OWN authz (:2050+:1887 add HasScope Own|All|Manage, tests owner-own ok / owner-чужой 403 / bulk mixed).
+F2 Unify execute gates (server.go:690-691 vs :717 — read types VIEW, mutating types MANAGE, or readonly flag + GUIDE §17 table, tests both paths).
+F3 KV hardening (pageKVScope add IsInstanceSuspended→403 + RecordActivity Put/Delete + List ?limit/offset default 100 + byte guard).
+F4 Lifecycle (add POST /:id/unlink, fix resync bundle_css + per-page version not catalog Version:4713, page_kv cleanup on instance delete, route+admin.ts).
+F5 Bulk parity (bulk INSERT add bundle_js/bundle_css/build_status/build_log + same validation as repo.Create).
+F6 Panel-pages Delete →404 on 0 RowsAffected (match instance Delete).
+F7 Multiline import parity BE+FE (normalize whitespace before reactFromAllowRe/reactRelativeFromRe + collectReactImportSpecs, keep ./ ../ jail, flat-root documented, parity fixtures).
+F8 kspm wiring (use ModulesDir/MaxModuleSize/RequireSignature from config, implement or remove Install:3810 stub, Uninstall Stat-first→404).
+F9 Fix postgres/033 seed INSERT OR IGNORE → ON CONFLICT DO NOTHING.
+F10 Update PATCH/relaxed + remove double Get + parse Config once per request.
+F11 Bridge missing iframe SDK methods (subscribe/on/emit/once/prompt/modal/downloadText/copyText/formatBytes/timeAgo/debounce/chart/markdown, keep connectWS proxied) + GUIDE §11 table.
+F12 Fix renderer drift (--- rule, single <ul> grouping, escape blocksToHtml to match renderBlocks/renderSdkMarkdown).
+F13 Blocks+file parity (action block runnable in string path or documented, HtmlBlockFrame banner/bridge, deleteFile/mkdir via /files API not rm -rf).
+F14 Hygiene (exact tabPageMap match drop substring, delete stale pageregistry files/network/terminal/settings/ports, unique icons, fix mc-properties id≠stem, fix GUIDE refs rebuild.sh:1194 + catalog v3.0/2026-09-11, restore or unlink docs/instance-page.md).
+
+RULES: read each file before editing, keep FE/BE validator parity, never edit shipped migrations (new ones only), fail-closed security, update GUIDE where behavior changes.
+VERIFY EACH ITEM then final: go build ./... && go test ./... -run 'InstancePage|Link|Bulk|Execute|KV|PanelPage|React|Module|Marketplace', frontend tsc --noEmit + transpile harness, grep no dangling docs/instance-page.md refs. Return: diff summary per F1-F14 + full test logs + remaining risks.
+```
+
 ### F1. Link OWN authz missing
 - File: `panel/backend/internal/api/handlers/instance_page_handler.go:2050 LinkInstancePageHandler`
 - Change: add `HasScope(InstancePagesOwn|All|Manage)` same as Get/Update/Delete/Build. Bulk `:1887` — attribute + enforce per-row.
