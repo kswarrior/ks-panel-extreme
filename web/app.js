@@ -140,7 +140,7 @@
       "✓ server online — mc.example.com:25565"
     ];
     var li = 0, ci = 0, out = "";
-    var cursor = '<span style="color:#22d3ee">▊</span>';
+    var cursor = '<span style="color:#e2e8f0">▊</span>';
     function tick() {
       if (li >= lines.length) {
         setTimeout(function () { li = 0; out = ""; ci = 0; tick(); }, 5000);
