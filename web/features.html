@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Features — KS Panel</title>
+<meta name="description" content="Every KS Panel feature: instances, nodes, console, files, automation, secrets, RBAC, themes, mods, stacks, tickets, AI and more." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2322d3ee'/><text x='50' y='68' font-size='52' text-anchor='middle' font-family='Arial' font-weight='bold' fill='%23051218'>KS</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="aurora"><span></span><span></span><span></span></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a>
+    <div class="nav-links">
+      <a data-nav href="index.html">Home</a>
+      <a data-nav href="features.html">Features</a>
+      <a data-nav href="get-started.html">Get Started</a>
+      <a data-nav href="docs.html">Docs</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/your-org/ks-panel" target="_blank" rel="noopener">★ GitHub</a>
+      <a class="btn btn-primary btn-sm" href="get-started.html">Deploy Now</a>
+    </div>
+    <button class="hamburger" id="burger" aria-label="Menu">☰</button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">Home</a><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Docs</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="block" style="padding-top:52px">
+    <div class="kicker reveal">Features</div>
+    <h2 class="title reveal">One panel. Every workflow.</h2>
+    <p class="lead reveal">Mapped 1:1 from the actual codebase — panel backend (Go API), panel frontend (React), edge agents (Go), instance pages (YAML) and the theme marketplace. Nothing on this page is mock-marketing.</p>
+  </section>
+
+  <section class="block" style="padding-top:10px">
+    <div class="kicker reveal">🖥️ Instance management</div>
+    <h2 class="title reveal" style="font-size:26px">Fleet-grade server ops</h2>
+    <div class="grid-3">
+      <div class="card reveal"><div class="ico">🚀</div><h3>Lifecycle</h3><p>One-click install / start / stop / restart / reinstall / kill / suspend. Staleness-guarded actions, cooldowns and max-runtime auto-stop.</p></div>
+      <div class="card reveal"><div class="ico">💻</div><h3>Console</h3><p>WebSocket terminal, ANSI colors, reconnect states, attach to the main process, live install-output streaming.</p></div>
+      <div class="card reveal"><div class="ico">📁</div><h3>Files</h3><p>List / read / write / mkdir / rename / chmod / stat, URL upload, inline editor + SFTP + jailed paths.</p></div>
+      <div class="card reveal"><div class="ico">📊</div><h3>Metrics</h3><p>CPU / RAM / disk / load sparklines polled live from Edge, per-process list with kill, ports &amp; allocations view.</p></div>
+      <div class="card reveal"><div class="ico">⏱️</div><h3>Automation</h3><p>Cron schedules, typed shell/power/action jobs, multi-step plans, manual run + full run logs.</p></div>
+      <div class="card reveal"><div class="ico">🔐</div><h3>Secrets</h3><p>AES-256-GCM vault per instance, masked list, audited reveal, secret refs inside automation.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">⬡ Nodes &amp; edge</div>
+    <h2 class="title reveal" style="font-size:26px">Unlimited hosts, four drivers</h2>
+    <div class="grid-3">
+      <div class="card reveal"><span class="tag">4 drivers</span><div class="ico">🐳</div><h3>Docker · KVM · LXD · Multipass</h3><p>Run featherweight containers or fully isolated VMs. Per-node driver flags, overcommit %, alloc caps and install dirs.</p></div>
+      <div class="card reveal"><div class="ico">💓</div><h3>Health &amp; heartbeats</h3><p>Per-minute heartbeat buckets, 24h uptime sparklines, probe reachability, stale/partial vs fully-up states.</p></div>
+      <div class="card reveal"><div class="ico">🔀</div><h3>Connection modes</h3><p>Direct HTTP, reverse-tunnel WSS (for NAT boxes), local-port and local-WSS. Token rotation + purge built in.</p></div>
+      <div class="card reveal"><div class="ico">🔄</div><h3>Fleet updates</h3><p>Verified downloads (SHA256 + cosign), rolling node update-all, scheduled maintenance windows, background auto-checks.</p></div>
+      <div class="card reveal"><div class="ico">📸</div><h3>Snapshots</h3><p>Driver snapshots + scheduled snapshot policies with keep-last-N / max-age pruning.</p></div>
+      <div class="card reveal"><div class="ico">💾</div><h3>Backups</h3><p>Resumable file tars (Content-Range upload, Range download), gzip/zstd, S3 SigV4 push/pull, DB + file schedules.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">🛡️ Access &amp; security</div>
+    <h2 class="title reveal" style="font-size:26px">Provider-grade trust model</h2>
+    <div class="grid-3">
+      <div class="card reveal"><span class="tag">121 keys</span><div class="ico">🧾</div><h3>RBAC</h3><p>17 area groups, umbrella + granular + Own/All scopes, power sub-verbs, theme &amp; AI sub-caps, per-field profile enforcement.</p></div>
+      <div class="card reveal"><div class="ico">🔑</div><h3>Auth hardening</h3><p>bcrypt + TOTP + recovery codes, 5-provider OAuth, lockout (5/15m), rate limits, suspend, device limits, hardened sessions.</p></div>
+      <div class="card reveal"><div class="ico">📜</div><h3>Audit everywhere</h3><p>Global activity log + per-instance timeline. Every mutation, reveal and admin action recorded with IP + agent.</p></div>
+      <div class="card reveal"><div class="ico">🛎️</div><h3>API keys</h3><p>Self-serve + admin keys, SHA256 stored, expiry, rate limits, scope edits, request ledger.</p></div>
+      <div class="card reveal"><div class="ico">🧱</div><h3>WAF posture</h3><p>IP allow/deny, suspicious-path blocks, DDoS auto-stop with cooldown, SSRF-hardened URL installs, SVG sanitizer.</p></div>
+      <div class="card reveal"><div class="ico">🗄️</div><h3>Multi-DB</h3><p>SQLite / Postgres / MySQL transparent via migrations (077 IDs ×3 dialects), live datamove switch, inspector UI.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">🧩 Extensibility</div>
+    <h2 class="title reveal" style="font-size:26px">Make it yours</h2>
+    <div class="grid-3">
+      <div class="card reveal"><div class="ico">🎨</div><h3>Themes</h3><p>Studio with 15 tabs (accent, background, cards, sidebar, loading…), per-area scopes, custom CSS, marketplace + history/rollback.</p></div>
+      <div class="card reveal"><div class="ico">📄</div><h3>Instance pages</h3><p>YAML-authored custom tabs (files, terminal, env, ports, automation, dashboards…), blocks/React/HTML/Markdown, KSPageSDK.</p></div>
+      <div class="card reveal"><div class="ico">🔌</div><h3>Mods &amp; apps</h3><p>Goja-sandboxed mod engine with event bus + slots, .kspm packages; app catalog with file staging, env + runs.</p></div>
+      <div class="card reveal"><div class="ico">🏗️</div><h3>Stacks</h3><p>Full-stack apps: catalog + proxy + remote pairing + serve ports. Host dashboards next to game servers.</p></div>
+      <div class="card reveal"><div class="ico">🎫</div><h3>Tickets</h3><p>Numbered queue, threaded + internal comments, attachments, per-category SLA, escalation, email fan-out.</p></div>
+      <div class="card reveal"><div class="ico">🤖</div><h3>AI chat</h3><p>Scoped assistant (QA / tools / writes / threads) with per-user isolation — help without handing over keys.</p></div>
+    </div>
+  </section>
+
+  <div class="cta reveal">
+    <h2>See it live in 2 minutes</h2>
+    <p>Docker · binary · source — pick your path</p>
+    <div class="hero-actions" style="justify-content:center;margin:0">
+      <a class="btn btn-primary" href="get-started.html">⚡ Get Started</a>
+      <a class="btn" href="docs.html">📖 Docs</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div><a class="brand" href="index.html" style="margin-bottom:12px"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a><p style="max-width:34ch;line-height:1.7">Modern, open-source game server management. Built for server admins, by server admins.</p></div>
+      <div><h4>Product</h4><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Documentation</a></div>
+      <div><h4>Resources</h4><a href="docs.html#templates">Templates</a><a href="docs.html#nodes">Nodes</a><a href="docs.html#themes">Themes</a></div>
+      <div><h4>Community</h4><a href="https://discord.gg/your-invite" target="_blank" rel="noopener">Discord</a><a href="https://github.com/your-org/ks-panel/issues" target="_blank" rel="noopener">Issues</a></div>
+    </div>
+    <div class="foot-bottom"><span>© <span id="year">2026</span> KS Panel · MIT · <span data-version>v1.0.207</span></span><span>Go + React · 4 drivers</span></div>
+  </div>
+</footer>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

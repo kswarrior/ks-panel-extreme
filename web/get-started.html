@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Get Started — KS Panel</title>
+<meta name="description" content="Install KS Panel with Docker, binary or source. Add your first Edge node and deploy your first game server." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2322d3ee'/><text x='50' y='68' font-size='52' text-anchor='middle' font-family='Arial' font-weight='bold' fill='%23051218'>KS</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="aurora"><span></span><span></span><span></span></div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a>
+    <div class="nav-links">
+      <a data-nav href="index.html">Home</a>
+      <a data-nav href="features.html">Features</a>
+      <a data-nav href="get-started.html">Get Started</a>
+      <a data-nav href="docs.html">Docs</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/your-org/ks-panel" target="_blank" rel="noopener">★ GitHub</a>
+      <a class="btn btn-primary btn-sm" href="get-started.html">Deploy Now</a>
+    </div>
+    <button class="hamburger" id="burger" aria-label="Menu">☰</button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">Home</a><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Docs</a>
+  </div>
+</nav>
+
+<main class="wrap">
+  <section class="block" style="padding-top:52px">
+    <div class="kicker reveal">Get started</div>
+    <h2 class="title reveal">From zero to game server in 3 steps</h2>
+    <p class="lead reveal">No account, no license key, no sales call. Just a container (or two binaries) and a browser.</p>
+    <div class="grid-3">
+      <div class="card reveal"><div class="ico">1️⃣</div><h3>Install the panel</h3><p>One Docker command or a single Go binary. Open <code style="font-family:var(--mono);color:#a5f3fc">:8080</code>, create your admin user, done.</p></div>
+      <div class="card reveal"><div class="ico">2️⃣</div><h3>Connect a node</h3><p>Run <code style="font-family:var(--mono);color:#a5f3fc">ksedge</code> on each game host, paste the token. Works behind NAT via reverse-tunnel.</p></div>
+      <div class="card reveal"><div class="ico">3️⃣</div><h3>Deploy a server</h3><p>Pick a template (Paper, CS2, Rust…), pick a node, hit Deploy. Console, files and ports are ready instantly.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Step 1 — install</div>
+    <h2 class="title reveal" style="font-size:26px">Pick your install method</h2>
+    <div class="req reveal">
+      <div><b>🖥️ Linux host</b>Ubuntu 22.04+, Debian 12+ recommended</div>
+      <div><b>🐳 Docker</b>Required for container servers</div>
+      <div><b>🌐 Port 8080</b>Panel UI + API (configurable)</div>
+      <div><b>💾 1GB free</b>Plus space for game servers</div>
+    </div>
+    <div class="tabs reveal">
+      <button class="tab-btn on" data-tab="g-docker">🐳 Docker (recommended)</button>
+      <button class="tab-btn" data-tab="g-bin">📦 Binaries</button>
+      <button class="tab-btn" data-tab="g-src">🛠️ From source</button>
+    </div>
+    <div class="codebox reveal">
+      <header><span>terminal</span><button class="copy-btn" style="margin-left:auto" data-copy-text="docker run -d --name kspanel -p 8080:8080 -v kspanel-data:/data ghcr.io/your-org/kspanel:latest">Copy</button></header>
+      <div class="tab-pane" id="g-docker"><pre><span class="cm"># 1 — run the panel</span>
+docker run -d \
+  --name kspanel \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v kspanel-data:/data \
+  ghcr.io/your-org/kspanel:latest
+
+<span class="cm"># 2 — open the UI and create your admin user</span>
+<span class="cy">http://YOUR-SERVER-IP:8080</span></pre></div>
+      <div class="tab-pane" id="g-bin" style="display:none"><pre><span class="cm"># panel (controller)</span>
+chmod +x release/kspanel
+./release/kspanel --port 8080
+
+<span class="cm"># edge agent (on EACH game host)</span>
+chmod +x release/ksedge
+./release/ksedge</pre></div>
+      <div class="tab-pane" id="g-src" style="display:none"><pre>git clone https://github.com/your-org/ks-panel.git
+cd ks-panel
+bash rebuild.sh
+./release/kspanel</pre></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Step 2 — add a node</div>
+    <h2 class="title reveal" style="font-size:26px">Connect your first game host</h2>
+    <div class="arch">
+      <div class="arch-box reveal">
+        <h3>Same machine (homelab)</h3>
+        <p>Panel → <b>Nodes → Setup local</b> downloads and launches <code style="font-family:var(--mono);color:#a5f3fc">ksedge</code> for you. Perfect for testing.</p>
+        <ul class="check"><li>No firewall work</li><li>Docker driver ready</li><li>Upgrade to remote later</li></ul>
+      </div>
+      <div class="arch-box reveal">
+        <h3>Remote host (production)</h3>
+        <p>Create the node in the UI, copy its token, then on the game host:</p>
+        <div class="codebox" style="margin-top:12px"><pre style="margin:0;padding:14px">./ksedge --panel https://panel.example.com \
+  --token PASTE_TOKEN_HERE</pre></div>
+        <ul class="check"><li>Behind NAT? use reverse-tunnel mode</li><li>Rotate tokens anytime</li><li>Heartbeat proves it's alive</li></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Step 3 — deploy</div>
+    <h2 class="title reveal" style="font-size:26px">Launch your first server</h2>
+    <div class="grid-4">
+      <div class="card reveal"><div class="ico">▤</div><h3>1 · Template</h3><p>Choose Paper, Purpur, CS2, Rust… or import a URL / upload JSON.</p></div>
+      <div class="card reveal"><div class="ico">⬡</div><h3>2 · Node</h3><p>Pick where it runs. Driver mismatch warnings included.</p></div>
+      <div class="card reveal"><div class="ico">⚙</div><h3>3 · Configure</h3><p>Name, icon, env, ports, limits, volumes — 8-step guided form.</p></div>
+      <div class="card reveal"><div class="ico">🚀</div><h3>4 · Deploy</h3><p>Watch live install output, then share the IP with players.</p></div>
+    </div>
+    <div class="codebox reveal" style="margin-top:16px">
+      <header><span>what happens under the hood</span></header>
+      <pre style="margin:0">template.spec ──▶ panel validates ──▶ edge pulls image / provisions VM
+      ──▶ install steps stream back ──▶ snapshot saved to instance.config
+      ──▶ console + files + metrics go live</pre>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Next steps</div>
+    <div class="grid-3">
+      <div class="card reveal"><div class="ico">🎨</div><h3>White-label it</h3><p>Settings → logo, panel name, footer text. Themes → Studio + marketplace for a full reskin.</p></div>
+      <div class="card reveal"><div class="ico">🧾</div><h3>Invite staff</h3><p>Users + Roles with 121 granular keys. Start with Own-scope roles, expand to All later.</p></div>
+      <div class="card reveal"><div class="ico">💾</div><h3>Schedule backups</h3><p>Per-server snapshot/file schedules with retention + optional S3 push. Test a restore early.</p></div>
+    </div>
+  </section>
+
+  <div class="cta reveal">
+    <h2>Stuck? The docs have you.</h2>
+    <p>Node setup · templates · API · themes · comparison matrix</p>
+    <div class="hero-actions" style="justify-content:center;margin:0">
+      <a class="btn btn-primary" href="docs.html">📖 Open Docs</a>
+      <a class="btn" href="https://discord.gg/your-invite" target="_blank" rel="noopener">💬 Join Discord</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div><a class="brand" href="index.html" style="margin-bottom:12px"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a><p style="max-width:34ch;line-height:1.7">Modern, open-source game server management. Built for server admins, by server admins.</p></div>
+      <div><h4>Product</h4><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Documentation</a></div>
+      <div><h4>Resources</h4><a href="docs.html#templates">Templates</a><a href="docs.html#nodes">Nodes</a><a href="docs.html#themes">Themes</a></div>
+      <div><h4>Community</h4><a href="https://discord.gg/your-invite" target="_blank" rel="noopener">Discord</a><a href="https://github.com/your-org/ks-panel/issues" target="_blank" rel="noopener">Issues</a></div>
+    </div>
+    <div class="foot-bottom"><span>© <span id="year">2026</span> KS Panel · MIT · <span data-version>v1.0.207</span></span><span>Go + React · 4 drivers</span></div>
+  </div>
+</footer>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
