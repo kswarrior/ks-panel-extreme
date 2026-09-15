@@ -43,6 +43,7 @@ type RateLimiter struct {
 	registerAttempts int
 	registerWindow   time.Duration
 	janitorStop      chan struct{}
+	janitorStopOnce  sync.Once
 }
 
 // NewRateLimiter creates a new rate limiter with configurable limits.
