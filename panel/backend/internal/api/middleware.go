@@ -264,12 +264,14 @@ func requireUmbrellaOrAction(group permissions.Group, action permissions.Action)
 }
 
 // MaxBodySize returns middleware that limits the request body size.
-// This prevents DoS attacks via large request bodies.
+// This prevents DoS attacks via large request bodies. Fail closed:
+// http.MaxBytesReader surfaces "http: request body too large" to the
+// handler instead of silently truncating the body past the cap.
 func MaxBodySize(maxBytes int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Limit the request body size
-			r.Body = io.NopCloser(io.LimitReader(r.Body, maxBytes))
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -292,8 +294,8 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 				limit = c.MaxBodySizeBytes
 			}
 			// Backup uploads can legitimately be very large; lift the cap
-			// for those routes so the LimitReader does not silently
-			// truncate a valid SQLite file mid-stream.
+			// for those routes so the reader does not reject a valid
+			// SQLite file mid-stream.
 			if strings.HasPrefix(r.URL.Path, "/api/database/backups") {
 				const backupLimit = 1 << 30 // 1 GiB
 				if limit < backupLimit {
@@ -302,7 +304,7 @@ func DynamicMaxBodySize() func(http.Handler) http.Handler {
 			}
 			// Per-instance file-level tar backups use chunked PUT with
 			// Content-Range resume; each chunk can be large, so the same
-			// 1 GiB lift applies to avoid truncating a valid tar mid-chunk.
+			// 1 GiB lift applies to avoid rejecting a valid tar mid-chunk.
 			if strings.Contains(r.URL.Path, "/backups") && strings.HasPrefix(r.URL.Path, "/api/instances/") {
 				const chunkLimit = 1 << 30 // 1 GiB
 				if limit < chunkLimit {
