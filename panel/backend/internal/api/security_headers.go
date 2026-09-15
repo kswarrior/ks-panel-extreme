@@ -34,17 +34,17 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
 		w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-		// COEP credentialless lets the SPA load cross-origin no-cors subresources
-		// (theme wallpaper images, etc.) whose hosts don't send CORP headers,
-		// while still isolating credentials. require-corp would block every such
-		// image with ERR_BLOCKED_BY_RESPONSE, rendering as a missing background
-		// on every themed page — and it breaks the SPA bootstrap behind
-		// tunnel/proxy setups that don't forward CORP headers.
-		// WebSocket upgrades skip COEP/CORP entirely (they are not fetches).
-		isWS := isWebSocketUpgrade(r)
-		if !isWS {
-			w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
-		}
+	// COEP credentialless lets the SPA load cross-origin no-cors subresources
+	// (theme wallpaper images, etc.) whose hosts don't send CORP headers,
+	// while still isolating credentials. require-corp would block every such
+	// image with ERR_BLOCKED_BY_RESPONSE, rendering as a missing background
+	// on every themed page — and it breaks the SPA bootstrap behind
+	// tunnel/proxy setups that don't forward CORP headers.
+	// WebSocket upgrades skip COEP/CORP entirely (they are not fetches).
+	isWS := isWebSocketUpgrade(r)
+	if !isWS {
+		w.Header().Set("Cross-Origin-Embedder-Policy", "credentialless")
+	}
 
 		// Content Security Policy. The SPA ships an inline bootstrap
 		// <script>window.__KSPANEL_BOOTSTRAP__=…</script> (bootstrap.go
@@ -152,7 +152,7 @@ func CORSMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
+		
 		next.ServeHTTP(w, r)
 	})
 }
@@ -162,7 +162,7 @@ func SecureCookieMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if request is secure
 		isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
-
+		
 		// Override cookie security flags if not secure
 		if !isSecure {
 			// For development/local testing, we might want to allow cookies
@@ -175,7 +175,7 @@ func SecureCookieMiddleware(next http.Handler) http.Handler {
 				return
 			}
 		}
-
+		
 		next.ServeHTTP(w, r)
 	})
 }
@@ -187,7 +187,7 @@ func RateLimitHeadersMiddleware(remaining int, reset int64) func(http.Handler) h
 			w.Header().Set("X-RateLimit-Limit", "100")
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 			w.Header().Set("X-RateLimit-Reset", strconv.Itoa(int(reset)))
-
+			
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -197,14 +197,14 @@ func RateLimitHeadersMiddleware(remaining int, reset int64) func(http.Handler) h
 func SecurityAuditMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-
+		
 		// Wrap response writer to capture status code
 		sbw := &statusBytesWriter{ResponseWriter: w, status: http.StatusOK}
-
+		
 		next.ServeHTTP(sbw, r)
-
+		
 		duration := time.Since(start).Milliseconds()
-
+		
 		// Log security-relevant requests with structured data
 		if isSecurityRelevantPath(r.URL.Path) || sbw.status >= 400 {
 			logSecurityEvent(r, sbw.status, duration)
@@ -242,7 +242,7 @@ func isSecurityRelevantPath(path string) bool {
 		"/api/database/engine",
 		"/api/security/attack",
 	}
-
+	
 	for _, secPath := range securityPaths {
 		if path == secPath || (len(path) > len(secPath) && path[:len(secPath)] == secPath+"/") {
 			return true
@@ -253,18 +253,18 @@ func isSecurityRelevantPath(path string) bool {
 
 // SecurityEvent represents a structured security event for logging
 type SecurityEvent struct {
-	Timestamp  string `json:"timestamp"`
-	EventType  string `json:"event_type"`
-	Path       string `json:"path"`
-	Method     string `json:"method"`
-	StatusCode int    `json:"status_code"`
-	ClientIP   string `json:"client_ip"`
-	UserAgent  string `json:"user_agent"`
-	DurationMs int64  `json:"duration_ms"`
-	UserID     *int64 `json:"user_id,omitempty"`
-	RequestID  string `json:"request_id,omitempty"`
-	IsBlocked  bool   `json:"is_blocked"`
-	ErrorMsg   string `json:"error_msg,omitempty"`
+	Timestamp   string `json:"timestamp"`
+	EventType   string `json:"event_type"`
+	Path        string `json:"path"`
+	Method      string `json:"method"`
+	StatusCode  int    `json:"status_code"`
+	ClientIP    string `json:"client_ip"`
+	UserAgent   string `json:"user_agent"`
+	DurationMs  int64  `json:"duration_ms"`
+	UserID      *int64 `json:"user_id,omitempty"`
+	RequestID   string `json:"request_id,omitempty"`
+	IsBlocked   bool   `json:"is_blocked"`
+	ErrorMsg    string `json:"error_msg,omitempty"`
 }
 
 // logSecurityEvent logs security-related events with structured JSON
@@ -274,18 +274,18 @@ func logSecurityEvent(r *http.Request, statusCode int, durationMs int64) {
 	if len(userAgent) > 512 {
 		userAgent = userAgent[:512]
 	}
-
+	
 	requestID := r.Header.Get("X-Request-ID")
 	if requestID == "" {
 		requestID = r.Header.Get("X-Correlation-ID")
 	}
-
+	
 	// Try to get user ID from context
 	var userID *int64
 	if uid, err := handlers.UserIDFromContext(r); err == nil {
 		userID = &uid
 	}
-
+	
 	event := SecurityEvent{
 		Timestamp:  time.Now().UTC().Format(time.RFC3339),
 		EventType:  classifySecurityEvent(r.URL.Path, statusCode),
@@ -299,11 +299,11 @@ func logSecurityEvent(r *http.Request, statusCode int, durationMs int64) {
 		RequestID:  requestID,
 		IsBlocked:  statusCode == http.StatusForbidden || statusCode == http.StatusTooManyRequests || statusCode == http.StatusUnauthorized,
 	}
-
+	
 	// Log as JSON for structured logging
 	jsonBytes, _ := json.Marshal(event)
 	log.Printf("SECURITY_AUDIT: %s", string(jsonBytes))
-
+	
 	// Also record in activity system for admin UI
 	RecordSecurityActivity(r, event)
 }
@@ -367,12 +367,12 @@ func RecordSecurityActivity(r *http.Request, event SecurityEvent) {
 	// Map event types to activity categories/actions
 	action := event.EventType
 	message := event.EventType + " from " + event.ClientIP
-
+	
 	if event.UserID != nil {
 		// If we have a user ID, we could fetch the username
 		message = event.EventType + " for user " + strconv.FormatInt(*event.UserID, 10) + " from " + event.ClientIP
 	}
-
+	
 	// Record directly using activity repository
 	go func() {
 		con, err := repository.OpenDB()
