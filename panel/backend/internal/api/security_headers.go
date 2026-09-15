@@ -128,19 +128,31 @@ func isWebSocketUpgrade(r *http.Request) bool {
 	return false
 }
 
-// CORSMiddleware handles CORS preflight requests
+// CORSMiddleware handles CORS preflight requests.
+//
+// It mirrors the go-chi cors router in server.go: a credentialed preflight
+// gets a concrete echoed Origin (plus Vary: Origin), never "*". The Fetch
+// spec forbids "Access-Control-Allow-Origin: *" on credentialed requests,
+// so the previous wildcard broke every credentialed preflight when this
+// middleware was mounted, and duplicated/conflicted with the router-level
+// cors handler, which owns CORS. Prefer the router handler; keep this only
+// for non-chi muxes.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			if origin := r.Header.Get("Origin"); origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Max-Age", "86400")
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -379,8 +391,31 @@ func RecordSecurityActivity(r *http.Request, event SecurityEvent) {
 	}()
 }
 
-// getClientIP extracts the client IP from the request
+// getClientIP extracts the client IP from the request. RemoteAddr is the
+// only unspoofable source, so it wins; X-Forwarded-For / X-Real-IP are
+// client-controlled unless a trusted proxy strips them and are fallbacks
+// only (mirrors getClientID in rate_limiter.go and securityClientIP in
+// security_middleware.go). Previously XFF won, letting any client forge
+// the IP recorded in the security audit log.
 func getClientIP(r *http.Request) string {
+	if host := strings.TrimSpace(r.RemoteAddr); host != "" {
+		// Strip a RemoteAddr port suffix ("1.2.3.4:5678", "[::1]:5678").
+		// A bare IPv6 literal ("::1") carries several colons and no
+		// brackets, so return it unchanged instead of cutting at the
+		// last colon.
+		if strings.HasPrefix(host, "[") {
+			if i := strings.LastIndex(host, "]:"); i >= 0 {
+				host = host[1:i]
+			} else {
+				host = strings.Trim(host, "[]")
+			}
+		} else if strings.Count(host, ":") == 1 {
+			host = host[:strings.LastIndex(host, ":")]
+		}
+		if host != "" {
+			return host
+		}
+	}
 	if v := r.Header.Get("X-Forwarded-For"); v != "" {
 		if parts := strings.Split(v, ","); len(parts) > 0 {
 			ip := strings.TrimSpace(parts[0])

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -203,8 +204,17 @@ func hasBearerAuth(r *http.Request) bool {
 }
 
 // isCSRFStaticAsset mirrors SecurityMiddleware.isStaticAsset so the CSRF
-// layer never gates SPA bundles.
+// layer never gates SPA bundles. It NEVER matches /api/ paths: several
+// mutating API routes take a {id} param (e.g. PUT /api/themes/{id}), so a
+// suffix match on ".js"/".css"/… let POST /api/themes/abc.js skip the token
+// check (and RequestValidation's content-type check, which shares this
+// helper) while still hitting a real handler. Safe-method GETs already
+// skip CSRF before this helper runs, so excluding /api/ only closes the
+// unsafe-method bypass without affecting bundle delivery.
 func isCSRFStaticAsset(p string) bool {
+	if strings.HasPrefix(p, "/api/") {
+		return false
+	}
 	if len(p) >= 8 && p[:8] == "/assets/" {
 		return true
 	}
