@@ -970,6 +970,64 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 // Action is one of "create", "restore", "delete".
 // Type specifies the format (e.g., "zip", "tar", "docker", "lxd").
 // Location specifies where to store the snapshot (e.g., "/mc/", "/tmp/snapshots/").
+// validDockerSnapBase fail-closes hostile snapshot file names. Tar files
+// must stay jailed under location (mirror of host.go's filepath.Base jail):
+// any separator, drive/absolute path, or dot-dot spelling is rejected so
+// Join(Clean(location), name) can never escape to /etc. Image names
+// legitimately contain "/" and ":" (repo/img:tag), so this jail applies
+// ONLY to tar file paths — never to image references.
+func validDockerSnapBase(s string) (string, error) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return "", fmt.Errorf("snapshot name is required")
+	}
+	if len(t) > 255 || strings.ContainsAny(t, "\x00\n\r") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	base := filepath.Base(t)
+	if base != t || base == "" || base == "." || base == ".." {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	if strings.HasPrefix(base, "-") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	return base, nil
+}
+
+// dockerSnapTarPath joins a validated tar base under location and verifies
+// the result stays inside the cleaned location. Fail-closed: relative
+// locations and any escape resolve to an error, never to a path outside.
+func dockerSnapTarPath(location, tarBase string) (string, error) {
+	loc := strings.TrimSpace(location)
+	if loc == "" {
+		return "", fmt.Errorf("snapshot location is required")
+	}
+	cleanLoc := filepath.Clean(loc)
+	if !filepath.IsAbs(cleanLoc) {
+		return "", fmt.Errorf("snapshot location must be absolute: %q", location)
+	}
+	p := filepath.Join(cleanLoc, tarBase)
+	if p != cleanLoc && !strings.HasPrefix(p, cleanLoc+string(os.PathSeparator)) {
+		return "", fmt.Errorf("snapshot path escapes location: %q", tarBase)
+	}
+	return p, nil
+}
+
+// validDockerImageRef fail-closes flag-injection via image refs passed as
+// `docker commit/rmi/load` values (a snapName of "-f" would otherwise parse
+// as a CLI flag). Slashes/colons/tags stay allowed; only the leading-dash
+// and control-byte shapes docker would misparse are rejected.
+func validDockerImageRef(s string) (string, error) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return "", fmt.Errorf("snapshot name is required")
+	}
+	if len(t) > 1024 || strings.ContainsAny(t, "\x00\n\r") || strings.HasPrefix(t, "-") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	return t, nil
+}
+
 func (d *docker) Snapshot(ctx context.Context, name string, action string, snapName string, snapType string, location string) (string, int64, error) {
 	if err := binMissing("docker"); err != nil {
 		return "", 0, err
@@ -978,9 +1036,9 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	switch action {
 	case "create":
 		// Create a snapshot by committing the container to an image
-		imageName := snapName
-		if imageName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for create action")
+		imageName, err := validDockerImageRef(snapName)
+		if err != nil {
+			return "", 0, err
 		}
 
 		// Commit the container to an image
@@ -997,7 +1055,14 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 		// If requested, save the image to a tar file
 		if snapType == "tar" && location != "" {
-			tarPath := filepath.Join(filepath.Clean(location), imageName+".tar")
+			tarBase, err := validDockerSnapBase(imageName)
+			if err != nil {
+				return "", 0, err
+			}
+			tarPath, err := dockerSnapTarPath(location, tarBase+".tar")
+			if err != nil {
+				return "", 0, err
+			}
 			if _, err := asExec(ctx, "", "docker", "save", "-o", tarPath, imageName); err != nil {
 				return "", 0, fmt.Errorf("failed to save image to tar: %w", err)
 			}
@@ -1038,13 +1103,13 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 	case "delete":
 		// Delete the snapshot by removing the image
-		imageName := snapName
-		if imageName == "" {
-			return "", 0, fmt.Errorf("snapshot name is required for delete action")
+		imageName, err := validDockerImageRef(snapName)
+		if err != nil {
+			return "", 0, err
 		}
 
 		// Remove the image
-		_, err := asExec(ctx, "", "docker", "rmi", imageName)
+		_, err = asExec(ctx, "", "docker", "rmi", imageName)
 		if err != nil {
 			return "", 0, fmt.Errorf("failed to remove image %s: %w", imageName, err)
 		}
@@ -1058,19 +1123,32 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 
 // resolveRestoreImage maps the panel's snapName to a local docker image,
 // loading a tar file first when the snapshot was saved with type=tar.
-// Candidates in order: snapName as image, snapName as tar path,
-// location+snapName.tar, location+imageName.tar.
+// Tar candidates are jailed under location via validDockerSnapBase +
+// dockerSnapTarPath: a hostile snapName such as "../../etc/x.tar" or an
+// absolute "/etc/passwd.tar" never reaches `docker load -i` (which would
+// otherwise read an arbitrary host file). Candidates in order:
+// snapName as image, location+snapName.tar, location+snapName.
 func resolveRestoreImage(ctx context.Context, snapName, location string) (string, error) {
-	if dockerImagePresent(ctx, snapName) {
-		return snapName, nil
+	ref, err := validDockerImageRef(snapName)
+	if err != nil {
+		return "", err
+	}
+	if dockerImagePresent(ctx, ref) {
+		return ref, nil
 	}
 	candidates := []string{}
-	if strings.HasSuffix(snapName, ".tar") {
-		candidates = append(candidates, snapName)
-	}
-	if location != "" {
-		loc := strings.TrimRight(location, "/") + "/"
-		candidates = append(candidates, loc+snapName+".tar", loc+snapName)
+	if loc := strings.TrimSpace(location); loc != "" {
+		base, berr := validDockerSnapBase(ref)
+		if berr == nil {
+			for _, cand := range []string{base + ".tar", base} {
+				if !strings.HasSuffix(cand, ".tar") {
+					continue
+				}
+				if tar, terr := dockerSnapTarPath(loc, cand); terr == nil {
+					candidates = append(candidates, tar)
+				}
+			}
+		}
 	}
 	for _, tar := range candidates {
 		if !strings.HasSuffix(tar, ".tar") {
@@ -1094,12 +1172,12 @@ func resolveRestoreImage(ctx context.Context, snapName, location string) (string
 		}
 		// Tar loaded but daemon didn't name the image — fall back to the
 		// snapshot name itself if it now exists.
-		if dockerImagePresent(ctx, snapName) {
-			return snapName, nil
+		if dockerImagePresent(ctx, ref) {
+			return ref, nil
 		}
 		return "", fmt.Errorf("docker load %s succeeded but no image name was reported", tar)
 	}
-	return "", fmt.Errorf("image %s not found", snapName)
+	return "", fmt.Errorf("image %s not found", ref)
 }
 
 // dockerRestoreFromImage stops + removes the current container (if any)
