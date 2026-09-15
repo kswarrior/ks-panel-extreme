@@ -208,6 +208,34 @@ Verify: tsc --noEmit + go build + grep no dangling refs. Show diff.
 
 ## PART B — ADD (17)
 
+> MAJOR PROMPT B — copy everything inside the fence to a fresh chat to execute all 17 adds in order:
+```text
+You are a senior full-stack engineer in repo /home/runner/work/ks-panel-extreme/ks-panel-extreme. Execute PART B — all 17 instance-pages ADDS (A15-A31) in this exact order. Assume PART A fixes are already merged. Do not re-do F-fixes; build on them.
+
+CONTEXT: same as PART A + Studio (InstancePageStudio.tsx 8 tabs, PageStudio* sections, pageStarters.ts), template spec (templateFormUtils serializeSpec/parseSpec, TemplatePagesSection, instanceFormUtils), 7 pages/*.yaml + marketplace.json v3.0, tools/pages_lint.py (create in A23), rebuild.sh:1194 sync_pagelib. OUT: arbitrary npm, raw fetch/WS/storage outside sdk.*, SSR/SSG, HMR.
+
+DO IN ORDER:
+A23 FIRST (lint+CI gate): write tools/pages_lint.py (yamllint + validateInstancePage caps 1MiB/64KiB/512KiB/16KiB + validateReactSource denylist + slug-unique + marketplace↔ListNames parity + icons unique) + GH workflow + pagelib count test. Must be green before A24+.
+A19 shared library: global snippets registry (or type:shared UI), extract ks_theme_head, migrate all 7 pages to {{component:ks_theme_head}} (keep 5-pass resolve, module exclusion).
+A24 expand library to 17 total: backups, database, monitoring-logs, firewall-ssl, dns, docker-manager, cron-host, system-info, home slug ., api-docs (markdown), blocks-demo (blocks+action block). Each: valid slug, shared theme head, ≥1 saved action tested, sanitized icon, marketplace entry + screenshot field.
+A25 marketplace v2: fields screenshot/changelog/license/requires_panel/min_version, per-page version + update-available + per-page resync (no slug clash), relative download_url, search/tags UI.
+A15 versioning: page_versions table x3 DBs (snapshot on Update/Build), Studio History diff/rollback, spec.pages[].page_version + badge + one-click relink.
+A30 list UX: search/sort/filter/paginate 200+ rows, bulk link/unlink, stale-build + orphan-spec detectors.
+A26 studio UX: in-Studio import (file/URL/market/local), draft action test without save, sub-page build matrix, Templates tab live library (not just PAGE_STARTERS).
+A17 visibility+order: spec visible_to/hidden/order, enforce in resolveInstanceNav/isPageAllowed/guard (404 unauthorized), drag-order UI.
+A21 secrets: sdk.getSecret server-vault read (VIEW+family gate, redacted logs), Studio secret marking, docs KV-cleartext vs vault.
+A20 assets: page_assets (hash, mime allow-list, 5MiB/file 50MiB/page), GET /:id/assets/:hash nosniff+cache+scope, sdk.asset() + upload tab.
+A18 routing: 2-level <slug/path/sub2> gated (no // or dot-segments) with sub components fallback + actions scope, or enforce+document 1-level cap + html hash-tabs recipe.
+A22 schedules+audit: page_action_schedules (cron via automation engine) + page_audit (actor/instance/slug/action/ok/ms) on execute/KV/link + InstanceDetail feed, migrations x3.
+A28 exact per-slug theming: instance.panel.custom.<slug> keys, exact match, per-slug preview dropdown.
+A27 fuzz+docs: fuzz validActionArg/shellQuoteArg/path/archive/mode (no injection), ship stat/chmod/archive/extract examples + GUIDE §7 table.
+A29 i18n/a11y/mobile/print: per-page dict + {{t:key}} (5-pass) + sdk.locale(), ARIA/focus/responsive tables/print CSS, a11y ≥90.
+A31 quotas: per-instance exec/min + kv writes/min + asset bytes/day →429+Retry-After + Studio display, reuse clampActionTimeout[1,600], config+migrations.
+
+RULES: new migrations only (never edit shipped), FE/BE parity on every validator change, fail-closed, update GUIDE + marketplace + rebuild.sh embed each new page, keep sdk.* as only escape hatch.
+VERIFY EACH ITEM then final: go build ./... && go test ./... -run 'Version|Audit|Schedule|Quota|Marketplace|Asset|Secret', tsc --noEmit, tools/pages_lint.py green, rebuild.sh ok, live Studio→link→deploy→/instances/<id>/<slug>→runAction→audit row demo. Return: files added/modified per A15-A31 + test logs + demo notes + risks.
+```
+
 ### A15. Versioning + propagation
 - Add `page_versions` table (snapshot on every Update/Build) + Studio History tab (diff/rollback) + `template.spec.pages[].page_version` + "Update available" badge + one-click re-link + instance re-deploy prompt.
 - Accept: edit → rollback → re-link round-trip works.
