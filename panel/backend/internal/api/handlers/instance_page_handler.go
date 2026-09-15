@@ -1912,6 +1912,18 @@ func BulkCreateInstancePagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer con.Close()
 
+	// Ownership scope (migration 054, mirrors Link): fail closed on checker
+	// errors so a DB blip never mints rows under a forged scope. Creates are
+	// owned by the caller, so Own without All needs no row filter — every
+	// inserted row carries ownerID above.
+	if ownerID != 0 {
+		chk := permissions.NewChecker(con)
+		if _, _, serr := chk.HasScope(ownerID, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey); serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	// Pre-load existing slugs so we can skip without UNIQUE constraint hits.
 	// Rows is closed before Begin to avoid holding a read cursor across the
 	// write transaction (SQLite: "database is locked" if cursor stays open).
@@ -2075,6 +2087,21 @@ func LinkInstancePageHandler(w http.ResponseWriter, r *http.Request) {
 	if gerr != nil || page == nil {
 		http.Error(w, "instance page not found", http.StatusNotFound)
 		return
+	}
+	// Ownership scope (migration 054, mirrors Update/Delete): Own without
+	// All may only link pages they authored. Fail closed on checker errors
+	// so a DB blip never links another owner's page.
+	if uid, _ := UserIDFromContext(r); uid != 0 {
+		chk := permissions.NewChecker(con)
+		hasOwn, hasAll, serr := chk.HasScope(uid, permissions.InstancePagesOwnKey, permissions.InstancePagesAllKey, permissions.ManageInstancePagesKey)
+		if serr != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !hasAll && hasOwn && page.OwnerID != uid {
+			http.Error(w, "forbidden: own-scope may only link instance pages you authored", http.StatusForbidden)
+			return
+		}
 	}
 
 	tmplRepo := repository.NewTemplateRepository(con)
