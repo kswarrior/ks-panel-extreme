@@ -129,38 +129,6 @@
     });
   }
 
-  // Console typing effect  var typeEl = document.getElementById("typed");
-  if (typeEl) {
-    var lines = [
-      "$ docker run -d --name kspanel -p 8080:8080 ghcr.io/ks-panel/kspanel:latest",
-      "✓ panel up → http://localhost:8080",
-      "$ ./release/ksedge --panel https://panel.example.com --token ••••••",
-      "✓ node 'eu-1' connected (docker, kvm ready)",
-      "$ ks-panel deploy minecraft-paper --node eu-1",
-      "✓ server online — mc.example.com:25565"
-    ];
-    var li = 0, ci = 0, out = "";
-    var cursor = '<span style="color:#f4f4f5">▊</span>';
-    function tick() {
-      if (li >= lines.length) {
-        setTimeout(function () { li = 0; out = ""; ci = 0; tick(); }, 5000);
-        return;
-      }
-      var line = lines[li];
-      ci++;
-      var shown = line.slice(0, ci);
-      typeEl.innerHTML = out + shown + cursor;
-      if (ci >= line.length) {
-        out += line + "\n";
-        li++; ci = 0;
-        setTimeout(tick, 650);
-      } else {
-        setTimeout(tick, 18 + Math.random() * 30);
-      }
-    }
-    tick();
-  }
-
   // Footer year + version (tries ../VERSION, falls back to hardcoded)
   var yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
