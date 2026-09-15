@@ -970,64 +970,6 @@ func (d *docker) UpdatePorts(ctx context.Context, name string, allocs []PortAllo
 // Action is one of "create", "restore", "delete".
 // Type specifies the format (e.g., "zip", "tar", "docker", "lxd").
 // Location specifies where to store the snapshot (e.g., "/mc/", "/tmp/snapshots/").
-// validDockerSnapBase fail-closes hostile snapshot file names. Tar files
-// must stay jailed under location (mirror of host.go's filepath.Base jail):
-// any separator, drive/absolute path, or dot-dot spelling is rejected so
-// Join(Clean(location), name) can never escape to /etc. Image names
-// legitimately contain "/" and ":" (repo/img:tag), so this jail applies
-// ONLY to tar file paths — never to image references.
-func validDockerSnapBase(s string) (string, error) {
-	t := strings.TrimSpace(s)
-	if t == "" {
-		return "", fmt.Errorf("snapshot name is required")
-	}
-	if len(t) > 255 || strings.ContainsAny(t, "\x00\n\r") {
-		return "", fmt.Errorf("invalid snapshot name %q", s)
-	}
-	base := filepath.Base(t)
-	if base != t || base == "" || base == "." || base == ".." {
-		return "", fmt.Errorf("invalid snapshot name %q", s)
-	}
-	if strings.HasPrefix(base, "-") {
-		return "", fmt.Errorf("invalid snapshot name %q", s)
-	}
-	return base, nil
-}
-
-// dockerSnapTarPath joins a validated tar base under location and verifies
-// the result stays inside the cleaned location. Fail-closed: relative
-// locations and any escape resolve to an error, never to a path outside.
-func dockerSnapTarPath(location, tarBase string) (string, error) {
-	loc := strings.TrimSpace(location)
-	if loc == "" {
-		return "", fmt.Errorf("snapshot location is required")
-	}
-	cleanLoc := filepath.Clean(loc)
-	if !filepath.IsAbs(cleanLoc) {
-		return "", fmt.Errorf("snapshot location must be absolute: %q", location)
-	}
-	p := filepath.Join(cleanLoc, tarBase)
-	if p != cleanLoc && !strings.HasPrefix(p, cleanLoc+string(os.PathSeparator)) {
-		return "", fmt.Errorf("snapshot path escapes location: %q", tarBase)
-	}
-	return p, nil
-}
-
-// validDockerImageRef fail-closes flag-injection via image refs passed as
-// `docker commit/rmi/load` values (a snapName of "-f" would otherwise parse
-// as a CLI flag). Slashes/colons/tags stay allowed; only the leading-dash
-// and control-byte shapes docker would misparse are rejected.
-func validDockerImageRef(s string) (string, error) {
-	t := strings.TrimSpace(s)
-	if t == "" {
-		return "", fmt.Errorf("snapshot name is required")
-	}
-	if len(t) > 1024 || strings.ContainsAny(t, "\x00\n\r") || strings.HasPrefix(t, "-") {
-		return "", fmt.Errorf("invalid snapshot name %q", s)
-	}
-	return t, nil
-}
-
 func (d *docker) Snapshot(ctx context.Context, name string, action string, snapName string, snapType string, location string) (string, int64, error) {
 	if err := binMissing("docker"); err != nil {
 		return "", 0, err
@@ -1119,6 +1061,64 @@ func (d *docker) Snapshot(ctx context.Context, name string, action string, snapN
 	default:
 		return "", 0, fmt.Errorf("invalid snapshot action: %s", action)
 	}
+}
+
+// validDockerSnapBase fail-closes hostile snapshot file names. Tar files
+// must stay jailed under location (mirror of host.go's filepath.Base jail):
+// any separator, drive/absolute path, or dot-dot spelling is rejected so
+// Join(Clean(location), name) can never escape to /etc. Image names
+// legitimately contain "/" and ":" (repo/img:tag), so this jail applies
+// ONLY to tar file paths — never to image references.
+func validDockerSnapBase(s string) (string, error) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return "", fmt.Errorf("snapshot name is required")
+	}
+	if len(t) > 255 || strings.ContainsAny(t, "\x00\n\r") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	base := filepath.Base(t)
+	if base != t || base == "" || base == "." || base == ".." {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	if strings.HasPrefix(base, "-") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	return base, nil
+}
+
+// dockerSnapTarPath joins a validated tar base under location and verifies
+// the result stays inside the cleaned location. Fail-closed: relative
+// locations and any escape resolve to an error, never to a path outside.
+func dockerSnapTarPath(location, tarBase string) (string, error) {
+	loc := strings.TrimSpace(location)
+	if loc == "" {
+		return "", fmt.Errorf("snapshot location is required")
+	}
+	cleanLoc := filepath.Clean(loc)
+	if !filepath.IsAbs(cleanLoc) {
+		return "", fmt.Errorf("snapshot location must be absolute: %q", location)
+	}
+	p := filepath.Join(cleanLoc, tarBase)
+	if p != cleanLoc && !strings.HasPrefix(p, cleanLoc+string(os.PathSeparator)) {
+		return "", fmt.Errorf("snapshot path escapes location: %q", tarBase)
+	}
+	return p, nil
+}
+
+// validDockerImageRef fail-closes flag-injection via image refs passed as
+// `docker commit/rmi/load` values (a snapName of "-f" would otherwise parse
+// as a CLI flag). Slashes/colons/tags stay allowed; only the leading-dash
+// and control-byte shapes docker would misparse are rejected.
+func validDockerImageRef(s string) (string, error) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return "", fmt.Errorf("snapshot name is required")
+	}
+	if len(t) > 1024 || strings.ContainsAny(t, "\x00\n\r") || strings.HasPrefix(t, "-") {
+		return "", fmt.Errorf("invalid snapshot name %q", s)
+	}
+	return t, nil
 }
 
 // resolveRestoreImage maps the panel's snapName to a local docker image,

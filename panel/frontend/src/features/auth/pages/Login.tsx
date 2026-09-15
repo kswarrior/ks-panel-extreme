@@ -167,12 +167,14 @@ const Login: React.FC = () => {
   React.useEffect(() => {
     const addAccountMode = !!(location.state as any)?.addAccount;
     if (initialized && token && !addAccountMode) {
-      const from = (location.state as any)?.from?.pathname || '/instances';
+      const saved = (location.state as any)?.from;
+      const from = saved?.pathname ? saved.pathname + (saved.search ?? '') : '/instances';
       navigate(from, { replace: true });
     }
   }, [initialized, token, location, navigate]);
 
-  const from = (location.state as any)?.from?.pathname || '/instances';
+  const savedFrom = (location.state as any)?.from;
+  const from = savedFrom?.pathname ? savedFrom.pathname + (savedFrom.search ?? '') : '/instances';
   const addAccountMode = !!(location.state as any)?.addAccount;
 
   const identifierTrimmed = identifier.trim();
