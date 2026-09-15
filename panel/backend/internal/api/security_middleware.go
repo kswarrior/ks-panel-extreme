@@ -367,8 +367,15 @@ func isSuspiciousPath(p string) bool {
 // are not security-relevant so logging them would just bloat the table
 // with 200s every page load. They are also exempt from the per-IP rate
 // limit so the page-load bundles can never drag a legitimate visitor
-// over the API cap.
+// over the API cap. It NEVER matches /api/ paths: several mutating API
+// routes take a {id} param (e.g. PUT /api/themes/{id}), so a suffix
+// match on ".js"/".css"/… would let /api/themes/abc.js skip the WAF,
+// DDoS and rate-limit checks while still hitting a real handler
+// (same bypass class as isCSRFStaticAsset in csrf.go).
 func isStaticAsset(p string) bool {
+	if strings.HasPrefix(p, "/api/") {
+		return false
+	}
 	if strings.HasPrefix(p, "/assets/") || strings.HasPrefix(p, "/@vite") || strings.HasPrefix(p, "/@id") {
 		return true
 	}
