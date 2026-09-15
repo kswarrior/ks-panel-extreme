@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>KS Panel — Modern Open-Source Game Server Management</title>
+<meta name="description" content="KS Panel is a modern open-source game server management panel. Deploy Minecraft, CS2, Rust & more across unlimited nodes with Docker, KVM, LXD and Multipass." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2322d3ee'/><text x='50' y='68' font-size='52' text-anchor='middle' font-family='Arial' font-weight='bold' fill='%23051218'>KS</text></svg>" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="aurora"><span></span><span></span><span></span></div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">KS</span>
+      <span><b>KS Panel</b><small>Game Server Panel</small></span>
+    </a>
+    <div class="nav-links">
+      <a data-nav href="index.html">Home</a>
+      <a data-nav href="features.html">Features</a>
+      <a data-nav href="get-started.html">Get Started</a>
+      <a data-nav href="docs.html">Docs</a>
+    </div>
+    <div class="nav-cta">
+      <a class="btn btn-ghost btn-sm" href="https://github.com/your-org/ks-panel" target="_blank" rel="noopener">★ GitHub</a>
+      <a class="btn btn-primary btn-sm" href="get-started.html">Deploy Now</a>
+    </div>
+    <button class="hamburger" id="burger" aria-label="Menu">☰</button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="get-started.html">Get Started</a>
+    <a href="docs.html">Docs</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="pill"><span class="dot"></span> <span data-version>v1.0.207</span> &nbsp;·&nbsp; Open-Source &nbsp;·&nbsp; MIT Licensed</span>
+      <h1>Game servers,<br /><span class="grad">minus the pain.</span></h1>
+      <p class="sub">KS Panel is a modern, open-source game server management panel for hosting providers and server admins. Deploy, manage and monitor <b style="color:#e8eefc">Minecraft, CS2, Rust &amp; more</b> across unlimited nodes — from one clean web UI.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="get-started.html">⚡ Get Started Free</a>
+        <a class="btn" href="features.html">Explore Features</a>
+      </div>
+      <div class="install-line">
+        <span style="color:#5b6b8c">$</span>
+        <code id="quickInstall">docker run -d --name kspanel -p 8080:8080 ghcr.io/your-org/kspanel:latest</code>
+        <button class="copy-btn" data-copy="#quickInstall">Copy</button>
+      </div>
+      <div class="hero-meta">
+        <span><b>No license fees</b> · unlimited nodes</span>
+        <span><b>4 drivers</b> · Docker / KVM / LXD / Multipass</span>
+        <span><b>SQLite · PG · MySQL</b></span>
+      </div>
+    </div>
+
+    <div>
+      <div class="mock reveal in">
+        <div class="mock-bar"><i></i><i></i><i></i><span>panel.example.com — KS Panel</span></div>
+        <div class="mock-body">
+          <div class="mock-side">
+            <a class="on" href="#">◈ Instances</a>
+            <a href="#">⬡ Nodes</a>
+            <a href="#">▤ Templates</a>
+            <a href="#">◍ Activity</a>
+            <a href="#">⬢ Themes</a>
+            <a href="#">⚙ Settings</a>
+          </div>
+          <div class="mock-main">
+            <div class="stat-row">
+              <div class="stat"><small>Servers</small><b>24</b><em>▲ 3 online</em></div>
+              <div class="stat"><small>Nodes</small><b>4</b><em>● healthy</em></div>
+              <div class="stat"><small>CPU</small><b>38%</b><em>fleet avg</em></div>
+              <div class="stat"><small>Players</small><b>312</b><em>▲ live</em></div>
+            </div>
+            <div class="term" id="typed">$ docker run -d --name kspanel -p 8080:8080 …<span style="color:#22d3ee">▊</span></div>
+            <div class="server-row">
+              <div class="srv"><b><span class="ok"></span> paper-mc-01</b><span style="color:#6b7a99">eu-1 · :25565</span><div class="bar"><i style="width:62%"></i></div></div>
+              <div class="srv"><b><span class="ok"></span> cs2-retake</b><span style="color:#6b7a99">us-1 · :27015</span><div class="bar"><i style="width:41%"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-badges">
+        <span class="hbadge">◈ Console with ANSI colors</span>
+        <span class="hbadge">▤ File manager + editor</span>
+        <span class="hbadge">◍ Scheduled automation</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="stats-band reveal">
+      <div><b data-count="94" data-suffix="/100">0</b><span>Independent score vs 9 panels</span></div>
+      <div><b data-count="4" data-suffix=" drivers">0</b><span>Docker · KVM · LXD · Multipass</span></div>
+      <div><b data-count="121" data-suffix=" keys">0</b><span>Granular RBAC permissions</span></div>
+      <div><b data-count="100" data-suffix="%">0</b><span>Self-hosted · MIT · No caps</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="block">
+    <div class="kicker reveal">Why KS Panel</div>
+    <h2 class="title reveal">Everything a game host needs.<br />Nothing it doesn't.</h2>
+    <p class="lead reveal">One Go binary for the panel, one tiny agent per node. No per-server license fees, no closed core — just a fast control plane that scales from a single VPS to a full fleet.</p>
+    <div class="grid-3">
+      <div class="card reveal"><span class="tag">Core</span><div class="ico">🚀</div><h3>One-click lifecycle</h3><p>Install, start, stop, restart, reinstall and kill any server. Idempotent actions with staleness guards so Stop always targets the right process.</p></div>
+      <div class="card reveal"><div class="ico">🖥️</div><h3>Live console</h3><p>Real-time WebSocket terminal with ANSI colors, title/CWD tracking, attach-to-main-process and fit + web-links addons.</p></div>
+      <div class="card reveal"><div class="ico">📁</div><h3>File manager</h3><p>Browse, edit, upload (even from URL with SSRF hardening), chmod and stream files — with syntax highlighting and SFTP access.</p></div>
+      <div class="card reveal"><div class="ico">⏱️</div><h3>Automation</h3><p>Cron jobs, multi-step plans (run on success / failure / always), backups, restarts and commands — with run history.</p></div>
+      <div class="card reveal"><div class="ico">🔐</div><h3>Secrets vault</h3><p>AES-256-GCM encrypted env &amp; secrets per server. Masked by default, every reveal is audit-logged.</p></div>
+      <div class="card reveal"><div class="ico">📸</div><h3>Snapshots &amp; backups</h3><p>Driver snapshots plus resumable file-level tars (Content-Range + Range downloads), retention policies and S3 push/pull.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Games</div>
+    <h2 class="title reveal">Multi-game from day one</h2>
+    <p class="lead reveal">Blueprint templates with 40+ runtime fields. Ship your own or grab one from the marketplace — custom apps work too.</p>
+    <div class="grid-4">
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#4ade80,#16a34a)">MC</span><div><h3>Minecraft Java</h3><code>paper · purpur · fabric</code></div></div><p>Properties editor, version control for mods/plugins, one-click installs.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#93c5fd,#2563eb)">MB</span><div><h3>Minecraft Bedrock</h3><code>bds · pocketmine</code></div></div><p>Dedicated Bedrock templates with ports &amp; world management.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#fbbf24,#f97316)">CS</span><div><h3>Counter-Strike 2</h3><code>valve · srcds</code></div></div><p>Allocations, workshop maps, retake/practice configs in one click.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#f472b6,#a855f7)">GM</span><div><h3>Garry's Mod · TF2</h3><code>valve · steam</code></div></div><p>Steam Workshop collections, mount bypasses handled for you.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#fb7185,#dc2626)">RS</span><div><h3>Rust · Valheim</h3><code>oxide · survival</code></div></div><p>Wipe schedules, Oxide plugins, automated restarts &amp; backups.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#22d3ee,#0e7490)">PW</span><div><h3>Palworld · ARK</h3><code>dedicated</code></div></div><p>Memory-hungry worlds get KVM isolation + overcommit control.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#a78bfa,#6d28d9)">TR</span><div><h3>Terraria · Factorio</h3><code>tmod · headless</code></div></div><p>tModLoader packs, Factorio headless with autosave automation.</p></div>
+      <div class="card game-card reveal"><div class="row"><span class="game-art" style="background:linear-gradient(135deg,#e2e8f0,#64748b)">+</span><div><h3>Custom apps</h3><code>any template</code></div></div><p>Bots, voice, web stacks — anything that runs in Docker/VM.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Architecture</div>
+    <h2 class="title reveal">Panel + Edge. Scales horizontally.</h2>
+    <p class="lead reveal">The <b style="color:#e8eefc">Panel</b> is the central UI + API. The <b style="color:#e8eefc">Edge</b> agent runs on every host and executes what the panel asks. Add unlimited nodes — direct, reverse-tunnel, or local modes.</p>
+    <div class="arch">
+      <div class="arch-box reveal">
+        <h3>◈ Panel <span class="hbadge">central</span></h3>
+        <p>Single Go binary. Serves the React UI, API, scheduler, auth, billing-adjacent primitives (tickets, audit, API keys) and talks to every Edge node.</p>
+        <ul class="check"><li>React 18 + Vite UI, Tailwind tokens</li><li>SQLite / Postgres / MySQL + live engine switch</li><li>121-key RBAC, OAuth ×5, TOTP + recovery codes</li></ul>
+      </div>
+      <div class="arch-box reveal">
+        <h3>⬡ Edge <span class="hbadge">per host</span></h3>
+        <p>Lightweight agent with zero DB. Owns containers/VMs, files, exec, telemetry and heartbeats. No UI, no state to lose.</p>
+        <ul class="check"><li>Docker · KVM/QEMU · LXD · Multipass</li><li>Heartbeat + probe + reverse-tunnel WSS</li><li>Self-updates with verified downloads</li></ul>
+      </div>
+    </div>
+    <div class="flow reveal"><span>you → <b>panel :8080</b></span> → <span>api → <b>edge :4040</b></span> → <span><b>docker / kvm / lxd</b></span> → <span>🎮 players</span></div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Power features</div>
+    <h2 class="title reveal">Built for providers, loved by admins</h2>
+    <div class="grid-3">
+      <div class="card reveal"><div class="ico">🛡️</div><h3>RBAC with 121 keys</h3><p>Umbrella + granular + Own/All scopes across 17 areas. Power verbs (start/stop/restart/kill/reinstall) gated separately.</p></div>
+      <div class="card reveal"><div class="ico">🎨</div><h3>Theming engine</h3><p>Live Studio preview, per-area scopes, custom CSS, marketplace themes with versioning &amp; rollback, white-label branding.</p></div>
+      <div class="card reveal"><div class="ico">🧩</div><h3>Instance pages</h3><p>Per-server custom tabs authored as YAML (HTML / Markdown / blocks / React) with an allow-listed action SDK.</p></div>
+      <div class="card reveal"><div class="ico">🔌</div><h3>Mods · Apps · Stacks</h3><p>Plugin engine with sandbox + event bus, bot/service catalog with runs, and full-stack apps with proxy pairing.</p></div>
+      <div class="card reveal"><div class="ico">🎫</div><h3>Tickets + notifications</h3><p>Built-in support desk: SLA, escalations, attachments, WS bell, email + digest prefs. No external helpdesk needed.</p></div>
+      <div class="card reveal"><div class="ico">🤖</div><h3>AI assistant</h3><p>Scoped chat (QA / tools / writes / threads) to help admins diagnose servers without handing over shell.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Compare</div>
+    <h2 class="title reveal">How KS Panel stacks up</h2>
+    <p class="lead reveal">Scored in-repo against 9 popular panels across 26 cases (lifecycle, security, automation, theming, extensibility…). Full matrix in <code style="font-family:var(--mono);color:#a5f3fc">docs/vs.md</code>.</p>
+    <div class="table-wrap reveal">
+      <table class="cmp">
+        <tr><th>Capability</th><th>KS Panel</th><th>Pterodactyl</th><th>Pelican</th><th>AMP</th></tr>
+        <tr><td>Multi-node &amp; node ops</td><td class="ks">93 — unlimited</td><td>95</td><td>98</td><td>90</td></tr>
+        <tr><td>Backups / snapshots</td><td class="ks">96 — snapshots + S3</td><td>95</td><td>85</td><td>90</td></tr>
+        <tr><td>Permissions</td><td class="ks">98 — 121 keys</td><td>60</td><td>65</td><td>70</td></tr>
+        <tr><td>Theming engine</td><td class="ks">100 — studio + market</td><td>15</td><td>45</td><td>30</td></tr>
+        <tr><td>Virtualization</td><td class="ks">Docker · KVM · LXD · MP</td><td>Docker</td><td>Docker</td><td>Host + Docker</td></tr>
+        <tr><td>License</td><td class="ks">MIT — free forever</td><td>MIT</td><td>MIT</td><td>Paid / instance</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">Install</div>
+    <h2 class="title reveal">Up in under 2 minutes</h2>
+    <div class="tabs reveal">
+      <button class="tab-btn on" data-tab="pane-docker">🐳 Docker</button>
+      <button class="tab-btn" data-tab="pane-bin">📦 Binary</button>
+      <button class="tab-btn" data-tab="pane-src">🛠️ From source</button>
+    </div>
+    <div class="codebox reveal">
+      <header><i style="width:10px;height:10px;border-radius:50%;background:#f87171;display:block"></i><i style="width:10px;height:10px;border-radius:50%;background:#fbbf24;display:block"></i><i style="width:10px;height:10px;border-radius:50%;background:#34d399;display:block"></i><span style="margin-left:8px">terminal</span><button class="copy-btn" style="margin-left:auto" data-copy="#pane-docker pre,#pane-bin pre,#pane-src pre">Copy</button></header>
+      <div class="tab-pane" id="pane-docker"><pre><span class="cm"># recommended — one container, persistent volume</span>
+docker run -d \
+  --name kspanel \
+  -p 8080:8080 \
+  -v kspanel-data:/data \
+  ghcr.io/your-org/kspanel:latest
+
+<span class="gn">✓</span> open <span class="cy">http://YOUR-IP:8080</span> and create the admin user</pre></div>
+      <div class="tab-pane" id="pane-bin" style="display:none"><pre><span class="cm"># panel on the controller</span>
+./release/kspanel
+<span class="cm"># edge agent on each game host</span>
+./release/ksedge</pre></div>
+      <div class="tab-pane" id="pane-src" style="display:none"><pre>git clone https://github.com/your-org/ks-panel.git
+cd ks-panel
+bash rebuild.sh   <span class="cm"># frontend + pagelib/themelib sync + go builds</span>
+./release/kspanel</pre></div>
+    </div>
+    <div class="req reveal">
+      <div><b>🖥️ Linux host</b>Ubuntu 22.04+, Debian 12+ or similar</div>
+      <div><b>🐳 Docker</b>For containerized game servers</div>
+      <div><b>🐹 Go 1.21+</b>Only to build from source</div>
+      <div><b>🟢 Node 20+</b>Only for frontend development</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker reveal">FAQ</div>
+    <h2 class="title reveal">Questions, answered</h2>
+    <div class="faq reveal">
+      <details open><summary>Is KS Panel really free? <span>+</span></summary><p>Yes. MIT licensed, self-hosted, unlimited instances and nodes. No per-server fees, no feature gates — the same binary runs a hobby VPS and a provider fleet.</p></details>
+      <details><summary>What games are supported? <span>+</span></summary><p>Minecraft (Java &amp; Bedrock), Valve titles (CS2, TF2, Garry's Mod), Rust, Palworld, Valheim, Terraria, Factorio, ARK — plus any custom app via 40+-field blueprint templates.</p></details>
+      <details><summary>How is this different from Pterodactyl / Pelican? <span>+</span></summary><p>Same spirit, wider scope: 4 virtualization drivers (not just Docker), deeper RBAC (121 keys), built-in tickets/notifications, AI chat, theming marketplace, instance pages, self-update with fleet rollout — see docs/vs.md for the full matrix.</p></details>
+      <details><summary>How do nodes work? <span>+</span></summary><p>Install the tiny ksedge agent on each host (direct, reverse-tunnel or local mode). The panel pairs over token, probes health, collects heartbeats and dispatches exec/files/lifecycle over HTTP or WSS.</p></details>
+      <details><summary>Which databases are supported? <span>+</span></summary><p>SQLite for single-host, PostgreSQL or MySQL for fleets — transparent, with a live engine switch (datamove) and scheduled compressed backups to disk or S3.</p></details>
+    </div>
+  </section>
+
+  <div class="cta reveal">
+    <h2>Ready to host like a pro?</h2>
+    <p>Free forever · MIT · 2-minute Docker install · no account needed</p>
+    <div class="hero-actions" style="justify-content:center;margin:0">
+      <a class="btn btn-primary" href="get-started.html">⚡ Deploy KS Panel</a>
+      <a class="btn" href="docs.html">📖 Read the Docs</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <a class="brand" href="index.html" style="margin-bottom:12px"><span class="brand-mark">KS</span><span><b>KS Panel</b><small>Game Server Panel</small></span></a>
+        <p style="max-width:34ch;line-height:1.7">Modern, open-source game server management. Built for server admins, by server admins.</p>
+      </div>
+      <div><h4>Product</h4><a href="features.html">Features</a><a href="get-started.html">Get Started</a><a href="docs.html">Documentation</a><a href="docs.html#api">API Reference</a></div>
+      <div><h4>Resources</h4><a href="docs.html#templates">Template Creation</a><a href="docs.html#nodes">Node Setup</a><a href="docs.html#themes">Themes</a><a href="docs.html#compare">Compare Panels</a></div>
+      <div><h4>Community</h4><a href="https://discord.gg/your-invite" target="_blank" rel="noopener">Discord</a><a href="https://github.com/your-org/ks-panel/issues" target="_blank" rel="noopener">GitHub Issues</a><a href="https://github.com/your-org/ks-panel/discussions" target="_blank" rel="noopener">Discussions</a></div>
+    </div>
+    <div class="foot-bottom">
+      <span>© <span id="year">2026</span> KS Panel · MIT License · <span data-version>v1.0.207</span></span>
+      <span>Go + React · Docker / KVM / LXD / Multipass</span>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
