@@ -64,24 +64,10 @@ jobs:
 
       - name: Install cloudflared
         run: |
-          set -e
-          curl -fL \
-            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-            -o /tmp/cloudflared
-          chmod +x /tmp/cloudflared
-          sudo install /tmp/cloudflared /usr/local/bin/cloudflared
-          cloudflared --version
-          nohup cloudflared tunnel run \
-            --token "eyJhIjoiZTJkZjY3MDI5ZWZlZTBmY2JhM2ExMjNjN2VmNTcxNTAiLCJ0IjoiMGQ2Yzk5YjQtMGUzZC00NzEyLWFmNDctNzM0MGU5YTEyOGE3IiwicyI6IlkyVTNOelV5WmpBdFl6SmpOeTAwTjJZMExUbGpNMk10T0dJelltRmtOREk1T1dOaCJ9" \
-            > /tmp/cloudflared.log 2>&1 &
-          echo $! > /tmp/cloudflared.pid
+          wget https://github.com/kswarrior/tunnel/releases/download/ks-tunnel-release/kstunnel
+          chmod +x kstunnel
+          ./kstunnel --config:host --host kspanel &
           sleep 5
-          if ! kill -0 "$(cat /tmp/cloudflared.pid)" 2>/dev/null; then
-            echo "Cloudflare Tunnel failed to start."
-            cat /tmp/cloudflared.log
-            exit 1
-          fi
-          echo "Cloudflare Tunnel is running."
 
       - name: Start OpenCode Web UI
         run: |
