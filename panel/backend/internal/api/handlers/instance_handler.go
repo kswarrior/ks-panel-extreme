@@ -308,6 +308,15 @@ type installStepSpec struct {
 	Branch       string `json:"branch"`
 	Retries      string `json:"retries"`
 	IgnoreErrors bool   `json:"ignore_errors"`
+	// Type distinguishes ephemeral container setup from persistent instance
+	// data. "container" (or "environment") steps install into the writable
+	// container layer and are lost when the container is removed; "data"
+	// steps write into a bind-mounted host directory (e.g. /var/lib/kspanel
+	// /instances/%INSTANCE_NAME%/mc) whose files survive a `docker rm`.
+	// When a start sees "No such container" we recreate the container and
+	// reinstall only the needed subset: if host data still exists we skip
+	// "data" steps, otherwise we reinstall everything.
+	Type string `json:"type,omitempty"`
 }
 
 // ListInstancesHandler returns every instance with joined node/template names.

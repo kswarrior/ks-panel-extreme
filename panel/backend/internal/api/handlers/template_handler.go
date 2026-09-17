@@ -104,6 +104,19 @@ var validInstallActions = map[string]bool{
 	"pip_install": true, "npm_install": true, "http_check": true,
 }
 
+// validInstallStepTypes is the set of valid install step persistence types.
+// "container" (alias "environment") = ephemeral setup lost when the container
+// is removed; "data" (aliases "instance" / "persistent") = files written into
+// a bind-mounted host directory (e.g. /var/lib/kspanel/instances/.../mc)
+// whose contents survive `docker rm`.
+var validInstallStepTypes = map[string]bool{
+	"container":   true,
+	"environment": true,
+	"data":        true,
+	"instance":    true,
+	"persistent":  true,
+}
+
 // validateTemplateSpec validates the structure of template spec fields.
 func validateTemplateSpec(spec map[string]any) error {
 	// Validate env[] if present
@@ -314,6 +327,12 @@ func validateTemplateSpec(spec map[string]any) error {
 			case "shell":
 				if getString(m, "command") == "" {
 					return fmt.Errorf("spec.install[%d]: shell requires command", i)
+				}
+			}
+			if rawType, ok := m["type"]; ok && rawType != nil {
+				typeStr := strings.TrimSpace(strings.ToLower(getString(m, "type")))
+				if typeStr != "" && !validInstallStepTypes[typeStr] {
+					return fmt.Errorf("spec.install[%d]: type must be one of: container, data (got %q)", i, getString(m, "type"))
 				}
 			}
 		}

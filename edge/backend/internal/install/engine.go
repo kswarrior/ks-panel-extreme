@@ -89,6 +89,7 @@ type Step struct {
 	Branch       string `json:"branch"`
 	Retries      string `json:"retries"`
 	IgnoreErrors bool   `json:"ignore_errors"`
+	Type         string `json:"type,omitempty"`
 }
 
 // SessionExecFn is like ExecFn but returns the full ExecSession so the

@@ -377,6 +377,7 @@ type InstallStep struct {
 	Branch       string `json:"branch"`
 	Retries      string `json:"retries"`
 	IgnoreErrors bool   `json:"ignore_errors"`
+	Type         string `json:"type,omitempty"`
 }
 
 // InstallStartResponse is what the edge returns when the install kick-off is
