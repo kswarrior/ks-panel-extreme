@@ -2410,7 +2410,7 @@ func extractMountSources(cfg map[string]any) []string {
 	return out
 }
 
-func shellQuotePath(p string) string { return "'" + strings.ReplaceAll(p, "'", "'\\''") + "'" }
+func installPathQuote(p string) string { return "'" + strings.ReplaceAll(p, "'", "'\\''") + "'" }
 
 func containerPathExists(ec *edge.Client, kind, name, p string) bool {
 	if p == "" {
@@ -2418,7 +2418,7 @@ func containerPathExists(ec *edge.Client, kind, name, p string) bool {
 	}
 	// Retry a few times: container may be in "created" / "restarting" briefly after deploy
 	for attempt := 0; attempt < 3; attempt++ {
-		cmd := fmt.Sprintf("test -e %s && echo ok", shellQuotePath(p))
+		cmd := fmt.Sprintf("test -e %s && echo ok", installPathQuote(p))
 		resp, err := ec.Exec(edge.ExecRequest{Kind: kind, Name: name, Command: cmd, TimeoutSec: 10})
 		if err == nil {
 			if resp.ExitCode == 0 && strings.Contains(resp.Stdout, "ok") {
@@ -2446,7 +2446,7 @@ func hostPathHasData(ec *edge.Client, hostPath string) bool {
 	}
 	// Check host filesystem via HostExec: directory exists and contains at least one entry
 	// Use ls -A to detect any file, including hidden .install-complete marker.
-	escaped := shellQuotePath(hostPath)
+	escaped := installPathQuote(hostPath)
 	cmd := fmt.Sprintf("test -d %s && ls -A %s 2>/dev/null | head -n 1 | grep -q . && echo ok", escaped, escaped)
 	resp, err := ec.HostExec(edge.HostExecRequest{Command: cmd, TimeoutSec: 10})
 	if err != nil {
@@ -2500,7 +2500,7 @@ func isHostDataPresent(ec *edge.Client, kind, name string, steps []installStepSp
 		return false
 	}
 	for _, tgt := range targets {
-		escaped := shellQuotePath(tgt)
+		escaped := installPathQuote(tgt)
 		cmd := fmt.Sprintf("test -d %s && ls -A %s 2>/dev/null | head -n 1 | grep -q . && echo ok", escaped, escaped)
 		resp, err := ec.Exec(edge.ExecRequest{Kind: kind, Name: name, Command: cmd, TimeoutSec: 10})
 		if err == nil && resp.ExitCode == 0 && strings.Contains(resp.Stdout, "ok") {
