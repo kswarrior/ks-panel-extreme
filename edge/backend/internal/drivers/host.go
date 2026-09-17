@@ -385,6 +385,17 @@ func (d *host) Start(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "running"}, nil
 }
 
+func (d *host) Status(ctx context.Context, name string) (Result, error) {
+	dir, err := hostDirFor(name)
+	if err != nil {
+		return Result{}, err
+	}
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return Result{ExternalID: name, Status: "not_found"}, nil
+	}
+	return Result{ExternalID: name, Status: hostStatus(dir)}, nil
+}
+
 func (d *host) Stop(ctx context.Context, name string) (Result, error) {
 	dir, err := hostDirFor(name)
 	if err != nil {

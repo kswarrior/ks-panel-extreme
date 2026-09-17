@@ -395,6 +395,20 @@ func (d *docker) Kill(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "stopped"}, nil
 }
 
+// Status reports the current docker container state without mutating it.
+// Returns "running", "exited", "created", "restarting", "paused", "dead" or
+// "" when the container does not exist.
+func (d *docker) Status(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("docker"); err != nil {
+		return Result{}, err
+	}
+	st := dockerStatus(ctx, name)
+	if st == "" {
+		return Result{ExternalID: name, Status: "not_found"}, nil
+	}
+	return Result{ExternalID: name, Status: st}, nil
+}
+
 // isAlreadyGoneErr reports whether docker rejected the call because the
 // container doesn't exist ("No such container: x" on classic endpoints,
 // "Error: No such object: x" on newer ones). Destroy's contract mirrors

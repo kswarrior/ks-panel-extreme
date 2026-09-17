@@ -140,6 +140,34 @@ func (d *kvm) Start(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "running"}, nil
 }
 
+func (d *kvm) Status(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("virsh"); err != nil {
+		return Result{}, err
+	}
+	out, err := asExec(ctx, "", "virsh", "domstate", "--domain", name)
+	if err != nil {
+		if isNotFoundErr(err) {
+			return Result{ExternalID: name, Status: "not_found"}, nil
+		}
+		return Result{}, err
+	}
+	s := strings.TrimSpace(out)
+	low := strings.ToLower(s)
+	switch low {
+	case "running":
+		s = "running"
+	case "shut off", "shutoff", "shut_off":
+		s = "stopped"
+	case "paused":
+		s = "paused"
+	case "in shutdown":
+		s = "stopping"
+	default:
+		s = low
+	}
+	return Result{ExternalID: name, Status: s}, nil
+}
+
 func (d *kvm) Stop(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("virsh"); err != nil {
 		return Result{}, err

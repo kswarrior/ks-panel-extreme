@@ -2,8 +2,10 @@ package drivers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/creack/pty"
 )
@@ -59,6 +61,41 @@ func (d *multipass) Start(ctx context.Context, name string) (Result, error) {
 		return Result{}, err
 	}
 	return Result{ExternalID: name, Status: "running"}, nil
+}
+
+func (d *multipass) Status(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("multipass"); err != nil {
+		return Result{}, err
+	}
+	out, err := asExec(ctx, "", "multipass", "info", name, "--format", "json")
+	if err != nil {
+		if isNotFoundErr(err) {
+			return Result{ExternalID: name, Status: "not_found"}, nil
+		}
+		return Result{}, err
+	}
+	// Best-effort parse: multipass json nests under info.<name>.state
+	// When parsing fails, return unknown but not error.
+	status := "unknown"
+	if out != "" {
+		var parsed map[string]any
+		if jerr := json.Unmarshal([]byte(out), &parsed); jerr == nil {
+			if info, ok := parsed["info"].(map[string]any); ok {
+				if ent, ok := info[name].(map[string]any); ok {
+					if s, ok := ent["state"].(string); ok && s != "" {
+						status = strings.ToLower(s)
+						if status == "running" {
+							status = "running"
+						} else if status == "stopped" {
+							status = "stopped"
+						}
+					}
+				}
+			}
+		}
+	}
+	_ = out
+	return Result{ExternalID: name, Status: status}, nil
 }
 
 func (d *multipass) Stop(ctx context.Context, name string) (Result, error) {

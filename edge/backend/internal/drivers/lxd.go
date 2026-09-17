@@ -130,6 +130,40 @@ func (d *lxd) Start(ctx context.Context, name string) (Result, error) {
 	return Result{ExternalID: name, Status: "running"}, nil
 }
 
+func (d *lxd) Status(ctx context.Context, name string) (Result, error) {
+	if err := binMissing("lxc"); err != nil {
+		return Result{}, err
+	}
+	out, err := asExec(ctx, "", "lxc", "info", name)
+	if err != nil {
+		if isNotFoundErr(err) {
+			return Result{ExternalID: name, Status: "not_found"}, nil
+		}
+		return Result{}, err
+	}
+	status := ""
+	for _, ln := range strings.Split(out, "\n") {
+		ln = strings.TrimSpace(ln)
+		if strings.HasPrefix(strings.ToLower(ln), "status:") {
+			status = strings.TrimSpace(ln[len("Status:"):])
+			break
+		}
+	}
+	if status == "" {
+		status = "unknown"
+	}
+	low := strings.ToLower(status)
+	switch low {
+	case "running":
+		status = "running"
+	case "stopped":
+		status = "stopped"
+	default:
+		status = low
+	}
+	return Result{ExternalID: name, Status: status}, nil
+}
+
 func (d *lxd) Stop(ctx context.Context, name string) (Result, error) {
 	if err := binMissing("lxc"); err != nil {
 		return Result{}, err

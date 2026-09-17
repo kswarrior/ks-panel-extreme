@@ -101,6 +101,8 @@ func dispatch(ctx context.Context, d drivers.Driver, req Request) (drivers.Resul
 		return d.Stop(ctx, req.Name)
 	case "kill":
 		return d.Kill(ctx, req.Name)
+	case "status":
+		return d.Status(ctx, req.Name)
 	case "destroy":
 		return d.Destroy(ctx, req.Name)
 	default:
