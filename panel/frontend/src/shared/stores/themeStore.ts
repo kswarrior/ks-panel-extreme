@@ -2714,7 +2714,7 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
    main page column (.ks-page-scroll) and the horizontal tab strips
    (instance tabs nav + .ks-hscroll preset strips). Each surface paints
    from its own Scroll-tab vars so all three restyle independently.
-   Firefox consumes scrollbar-color (thumb + track) at a fixed `thin`
+   Firefox consumes scrollbar-color (thumb + track) at a fixed thin
    width — pixel thickness only applies to WebKit/Chromium via
    ::-webkit-scrollbar. A 0px size hides the WebKit bar.
    ------------------------------------------------------------------ */
