@@ -11,24 +11,38 @@ type: console
 description: 'Live terminal consoles for this instance: shell panes, bound action/install/startup terminals, shortcuts, copy/download and display settings.'
 content_type: html
 content_html: |-
-  {{component:ks_theme_head}}<style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
+  {{component:ks_theme_head}}<style id="ks-terminal-pills">/* Terminal pills — panel PageActionsPill / PageTabsPill parity.
+  Paint comes from Theme Studio Pill vars (--ks-pill-*) injected by the host;
+  these fallbacks reproduce the historic geometry when no theme sets them. */
+  .ks-actions-pill,.ks-tabs-pill,.ks-form-actions-pill{--ks-card-padding:6px}
+  .ks-pill-anim{transition:transform .25s ease,opacity .25s ease}
+  .ks-pill-toggle{--ks-tab-px:var(--ks-pill-tab-px,10px);--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)}
+  .ks-pill-content{transition:max-width .3s ease,opacity .3s ease,transform .3s ease}
+  .ks-tabs-pill .ks-pill-content{transition:max-height .3s ease,opacity .3s ease,transform .3s ease}
+  </style><style id="ks-terminal-bleed">/* Terminal full-bleed: match react pages (mc-properties) — iframe body
   frame removed so there is no extra gap between instance context and page
   body. html body beats the bake rule by specificity (no !important needed);
   .ks-page stays flush (0) like .ks-react-page. */
   html body{padding:0;margin:0}
   .ks-page{padding:0;margin:0}
-  /* Pills reuse .ks-card for theming but need compact 6px padding — the shared
-  .ks-card rule forces var(--ks-card-padding,16px) !important, so re-assert
-  here with higher specificity. */
-  #ks-pill.ks-card,#ks-ptabs-wrap .ks-card{padding:6px !important}
   </style><div class="ks-page">
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
-      <div id="ks-pill" class="ks-card ks-pill-anim ks-actions-pill" role="toolbar" aria-label="Terminal actions" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40)"></div>
+      <div id="ks-pill" class="ks-card ks-pill-anim ks-actions-pill" role="toolbar" aria-label="Terminal actions" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px"></div>
       <div id="ks-tabs" role="tablist" aria-label="Terminals" style="display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:4px"></div>
       <div id="ks-panes" style="display:flex;flex-direction:column;gap:12px"></div>
-      <div id="ks-ptabs-wrap" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none"><div style="pointer-events:auto;max-width:100%"><div class="ks-card" style="display:inline-flex;align-items:center;gap:6px;padding:6px;border-radius:8px;max-width:calc(100vw - 24px)"><span class="ks-mono" style="font-size:11px;color:var(--ks-muted);white-space:nowrap;padding-left:4px">⌨ <span id="ks-ptab-label">Terminal</span></span><div id="ks-ptabs" role="tablist" aria-label="Terminals" style="display:flex;max-width:100%;overflow:hidden"></div></div></div></div>
-      <div aria-hidden="true" style="height:72px"></div>
+      <!-- Tabs pill (bottom): panel PageTabsPill parity — ks-card ks-pill-anim ks-tabs-pill shell,
+           ks-pill-content vertical list (max-h 50vh), ks-tab ks-pill-toggle with ^/v,
+           manual-only (starts collapsed), scroll/outside/Escape closes, select closes. -->
+      <nav id="ks-ptabs-wrap" class="ks-tabs-pill-wrap" aria-label="Terminals" style="position:fixed;left:12px;right:12px;bottom:12px;z-index:30;display:flex;justify-content:flex-start;pointer-events:none">
+        <div style="pointer-events:auto;max-width:100%">
+          <div id="ks-ptabs-shell" class="ks-card ks-pill-anim ks-tabs-pill ks-pill-collapsed" role="navigation" aria-label="Terminals" style="display:flex;flex-direction:column;align-items:stretch;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);max-width:calc(100vw - 24px);--ks-card-padding:6px">
+            <div id="ks-ptabs" role="tablist" aria-label="Terminals" class="ks-pill-content" style="display:flex;flex-direction:column;gap:4px;width:100%;min-width:0;max-height:0;opacity:0;transform:translateY(8px);pointer-events:none;visibility:hidden;overflow:hidden;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;max-height:50vh;overflow-y:auto" aria-hidden="true"></div>
+            <button type="button" id="ks-ptabs-toggle" class="ks-tab ks-pill-toggle" style="display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:100%;--ks-tab-px:4px;--ks-tab-py:var(--ks-pill-tab-py,5px);--ks-tab-font:var(--ks-pill-tab-font,13px)" aria-label="Show tabs — Terminal" aria-expanded="false" title="Show tabs"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg></button>
+          </div>
+        </div>
+      </nav>
+      <div aria-hidden="true" class="ks-tabs-pill-spacer" style="height:72px"></div>
       <div id="ks-dialogs"></div>
     </div>
   </div>
@@ -296,6 +310,77 @@ content_html: |-
         tg.style.setProperty('--ks-tab-px', off ? '4px' : 'var(--ks-pill-tab-px,10px)');
         tg.innerHTML = off ? CHEV_L : CHEV_R;
       }
+    }
+    // Tabs-pill (bottom) parity with PageTabsPill (manual-only dropdown).
+    // Starts CLOSED (phone pattern: ^ shows, v hides), never auto-opens.
+    // Scroll / outside-tap / Escape closes; selecting a tab closes too.
+    var phonePillOpen = false, phonePillWired = false;
+    var PHONE_CHEV_UP = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>';
+    var PHONE_CHEV_DOWN = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+    function setPhonePillOpen(open) {
+      phonePillOpen = !!open;
+      var shell = el('ks-ptabs-shell');
+      if (!shell) return;
+      if (phonePillOpen) shell.classList.remove('ks-pill-collapsed');
+      else shell.classList.add('ks-pill-collapsed');
+      var c = shell.querySelector('.ks-pill-content');
+      var tg = document.getElementById('ks-ptabs-toggle');
+      var ap = activePane();
+      var activeLabel = ap ? paneLabel(ap, panes.indexOf(ap)) : 'Terminal';
+      // Hidden transform mirrors PageTabsPill slide: translateY(8px) when slide, none when fade/scale.
+      var hiddenTransform = 'translateY(8px)';
+      if (c) {
+        if (!phonePillOpen) {
+          c.style.maxHeight = '0';
+          c.style.opacity = '0';
+          c.style.transform = hiddenTransform;
+          c.style.pointerEvents = 'none';
+          c.style.visibility = 'hidden';
+          c.style.overflow = 'hidden';
+          c.style.paddingTop = '0';
+          c.style.paddingBottom = '0';
+          c.style.marginTop = '0';
+          c.style.marginBottom = '0';
+        } else {
+          c.style.maxHeight = '50vh';
+          c.style.opacity = '1';
+          c.style.transform = 'none';
+          c.style.pointerEvents = 'auto';
+          c.style.visibility = 'visible';
+          c.style.overflowY = 'auto';
+          c.style.paddingTop = '';
+          c.style.paddingBottom = '';
+          c.style.marginTop = '';
+          c.style.marginBottom = '';
+        }
+        c.setAttribute('aria-hidden', phonePillOpen ? 'false' : 'true');
+      }
+      if (tg) {
+        tg.setAttribute('aria-label', phonePillOpen ? 'Hide tabs — Terminals' : ('Show tabs' + (activeLabel ? ' — ' + activeLabel : '')));
+        tg.setAttribute('aria-expanded', phonePillOpen ? 'true' : 'false');
+        tg.setAttribute('title', phonePillOpen ? 'Hide tabs — Terminals' : ('Show tabs' + (activeLabel ? ' (' + activeLabel + ')' : '')));
+        tg.style.setProperty('--ks-tab-px', phonePillOpen ? 'var(--ks-pill-tab-px,10px)' : '4px');
+        tg.innerHTML = phonePillOpen ? PHONE_CHEV_DOWN : PHONE_CHEV_UP;
+      }
+    }
+    function wirePhonePill() {
+      if (phonePillWired) return;
+      phonePillWired = true;
+      var shell = el('ks-ptabs-shell');
+      var tg = document.getElementById('ks-ptabs-toggle');
+      if (tg) tg.addEventListener('click', function () { setPhonePillOpen(!phonePillOpen); });
+      // Scroll / outside-tap / Escape closes — never auto-opens (PageTabsPill parity).
+      document.addEventListener('scroll', function () { if (phonePillOpen) setPhonePillOpen(false); }, true);
+      document.addEventListener('pointerdown', function (ev) {
+        var s = el('ks-ptabs-shell');
+        if (!s || !phonePillOpen) return;
+        var path = (typeof ev.composedPath === 'function') ? ev.composedPath() : [];
+        var inside = path.indexOf(s) >= 0 || (ev.target && s.contains(ev.target));
+        if (!inside) setPhonePillOpen(false);
+      });
+      document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && phonePillOpen) setPhonePillOpen(false); });
+      // Ensure initial collapsed visuals are correct after first render.
+      setPhonePillOpen(false);
     }
     var liveStatus = '';
     var liveActions = [];
