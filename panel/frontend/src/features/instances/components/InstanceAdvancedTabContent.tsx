@@ -7,6 +7,7 @@ import {
   TemplateRuntimeSection,
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
+  TemplateRestartSection,
   TemplateControlsSection,
   TemplateSpecPreviewSection,
   TemplatePagesSection,
@@ -456,6 +457,11 @@ const InstanceAdvancedTabContent: React.FC<InstanceAdvancedTabContentProps> = ({
     (patch: Partial<Healthcheck>) => setEditor((f) => ({ ...f, healthcheck: { ...f.healthcheck, ...patch } })),
     [setEditor],
   );
+  const updateRestart = useCallback(
+    (patch: Partial<import('@/features/instances/types/instanceForm').AutoRestart>) =>
+      setEditor((f) => ({ ...f, auto_restart: { ...f.auto_restart, ...patch } })),
+    [setEditor],
+  );
   const updateControls = useCallback(
     (patch: Partial<InstanceControls>) =>
       setEditor((f) => ({ ...f, instance_controls: { ...f.instance_controls, ...patch } })),
@@ -643,6 +649,21 @@ const InstanceAdvancedTabContent: React.FC<InstanceAdvancedTabContentProps> = ({
           ) : (
             <div className="text-center text-gray-400 text-sm py-6">
               Pick a template on the General section to reveal its healthcheck.
+            </div>
+          )
+      )}
+
+      {tab === 'restart' && (
+          selectedTemplate ? (
+            <TemplateRestartSection
+              autoRestart={editor.auto_restart}
+              onUpdate={updateRestart}
+              sectionCls={sectionCls}
+              labelCls={labelCls}
+            />
+          ) : (
+            <div className="text-center text-gray-400 text-sm py-6">
+              Pick a template on the General section to reveal its auto start policy.
             </div>
           )
       )}

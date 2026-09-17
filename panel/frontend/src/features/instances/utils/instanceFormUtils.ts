@@ -274,6 +274,21 @@ export function specToEditor(spec: string): EditorState {
       start_period_s: stripUnit(String(h.start_period ?? h.start_period_s ?? '')),
     };
   }
+  {
+    const raw = (s as Record<string, any>).auto_restart ?? (s as Record<string, any>).restart_policy;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const m = raw as Record<string, any>;
+      const onStop = !!(m.on_stop ?? m.auto_start_on_stop ?? m.on_normal_exit ?? false);
+      const onCrash = !!(m.on_crash ?? m.auto_start_on_crash ?? m.on_failure ?? false);
+      let onEdge = String(m.on_edge_online ?? m.auto_start_on_edge_online ?? 'off').trim().toLowerCase();
+      if (!['off', 'was_running', 'always'].includes(onEdge)) {
+        if (onEdge === 'if_was_running' || onEdge === 'if_running') onEdge = 'was_running';
+        else if (onEdge === 'true' || onEdge === 'on') onEdge = 'always';
+        else onEdge = 'off';
+      }
+      out.auto_restart = { on_stop: onStop, on_crash: onCrash, on_edge_online: onEdge as 'off' | 'was_running' | 'always' };
+    }
+  }
   if (s.advanced && typeof s.advanced === 'object') {
     const a = s.advanced as Record<string, any>;
     const dns = Array.isArray(a.dns) ? (a.dns as string[]).join(', ') : String(a.dns ?? '');
@@ -451,6 +466,9 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       retries: f.healthcheck.retries,
       start_period: f.healthcheck.start_period_s ? `${f.healthcheck.start_period_s}s` : '',
     } : undefined,
+    ...((f.auto_restart.on_stop || f.auto_restart.on_crash || f.auto_restart.on_edge_online !== 'off')
+      ? { auto_restart: { on_stop: !!f.auto_restart.on_stop, on_crash: !!f.auto_restart.on_crash, on_edge_online: f.auto_restart.on_edge_online } }
+      : {}),
     // Built-in Instance controls allow-list. Always emitted (unlike the
     // template editor which omits when default) so per-instance overrides
     // and edits can explicitly reset to allow-all: omitting would inherit

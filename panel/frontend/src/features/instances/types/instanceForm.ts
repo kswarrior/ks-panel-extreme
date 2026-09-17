@@ -152,6 +152,12 @@ export interface Healthcheck {
   start_period_s: string;
 }
 
+export interface AutoRestart {
+  on_stop: boolean;
+  on_crash: boolean;
+  on_edge_online: 'off' | 'was_running' | 'always';
+}
+
 export type NetworkMode = 'host' | 'bridge' | 'none' | 'container' | 'macvlan' | 'ipvlan';
 export type RestartPolicy = 'no' | 'always' | 'unless-stopped' | 'on-failure';
 export type LogLevel = 'info' | 'debug' | 'warn' | 'error';
@@ -297,6 +303,7 @@ export interface EditorState {
   labels: Label[];
   devices: Device[];
   healthcheck: Healthcheck;
+  auto_restart: AutoRestart;
   advanced: Advanced;
   pages: PageOverride[];
   category: string;
@@ -319,6 +326,7 @@ export type InstanceTabId =
   | 'runtime'
   | 'labels'
   | 'healthcheck'
+  | 'restart'
   | 'pages'
   | 'controls'
   | 'spec';
@@ -450,6 +458,7 @@ export function emptyEditor(): EditorState {
     instance_controls: { ...DEFAULT_INSTANCE_CONTROLS },
     home_page: '',
     healthcheck: { enabled: false, test_command: '', interval_s: '30', timeout_s: '5', retries: '3', start_period_s: '10' },
+    auto_restart: { on_stop: false, on_crash: false, on_edge_online: 'off' },
     advanced: {
       startup_command: '',
       startup_terminal_id: '',
