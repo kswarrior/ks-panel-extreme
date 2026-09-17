@@ -271,9 +271,12 @@ const RoleForm: React.FC = () => {
         {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
-      {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
-          system as the actions pill (PageTabsPill). */}
-      <PageTabsPill ariaLabel="Role form sections" spacer={false} activeLabel={ROLE_TABS.find((t) => t.id === tab)?.label}>
+      {/* Phone tabs sit bottom-LEFT on the same bottom line as the Save/
+          Create actions (bottom-right) — corner-anchored w-auto with
+          ks-tabs-pill-wrap-below, so the global "lift above the form bar"
+          rule never applies and no empty gap is left underneath
+          (instance-form pattern). */}
+      <PageTabsPill ariaLabel="Role form sections" spacer={false} activeLabel={ROLE_TABS.find((t) => t.id === tab)?.label} outerClassName="lg:hidden fixed left-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex justify-start w-auto max-w-[calc(100vw-2rem)] ks-tabs-pill-wrap-below">
         {ROLE_TABS.map((t) => (
           <button
             key={t.id}
@@ -289,9 +292,9 @@ const RoleForm: React.FC = () => {
         ))}
       </PageTabsPill>
     </FormPage>
-    {/* Spacer — reserves scroll room so the fixed bottom pill never
-        covers trailing form content (node pattern). */}
-    <div aria-hidden="true" className="h-24 lg:hidden" />
+    {/* Spacer — single bottom-pill row clearance (tabs left + Save/Create
+        right share one line, instance-form pattern). */}
+    <div aria-hidden="true" className="h-20 lg:hidden" />
     </>
   );
 };
