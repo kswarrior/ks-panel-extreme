@@ -609,9 +609,10 @@ export interface Theme {
   utilities: ThemeUtilities;
   cards: ThemeCards;
   count: ThemeCount;
+  scroll: ThemeScroll;
   customCSS: ThemeCustomCSS;
 }
 
 export type ThemeKey = keyof Pick<Theme,
   'background' | 'card' | 'sidebar' | 'button' | 'header' | 'typography' | 'accent' | 'shape'
-  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'menu' | 'forms' | 'components' | 'utilities' | 'cards' | 'count' | 'customCSS'>;
+  | 'loading' | 'tabs' | 'dropdowns' | 'pill' | 'menu' | 'forms' | 'components' | 'utilities' | 'cards' | 'count' | 'scroll' | 'customCSS'>;

@@ -439,6 +439,34 @@ export const DEFAULT_THEME: Theme = {
     icon_size: 14,
   },
 
+  // Scrollbars — thin dark-friendly bars on every surface. The tabs
+  // defaults reproduce the pre-theme tab-strip look exactly (6px blue
+  // gradient thumb, transparent track); sidebar + page replace the raw
+  // browser default with the same subtle thumb the terminal uses.
+  scroll: {
+    sidebar: {
+      size: 8,
+      track: 'transparent',
+      thumb: 'rgba(255,255,255,0.18)',
+      hover: 'rgba(255,255,255,0.32)',
+      radius: 9999,
+    },
+    page: {
+      size: 10,
+      track: 'transparent',
+      thumb: 'rgba(255,255,255,0.18)',
+      hover: 'rgba(255,255,255,0.32)',
+      radius: 9999,
+    },
+    tabs: {
+      size: 6,
+      track: 'transparent',
+      thumb: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
+      hover: 'linear-gradient(90deg, #60a5fa, #a78bfa)',
+      radius: 3,
+    },
+  },
+
   // Custom CSS — empty by default. The Theme Studio surfaces a "Custom
   // CSS" tab where the admin can paste arbitrary CSS (panel-wide via
   // `global`, or per-route via `scopes`). Kept flat + empty so it
