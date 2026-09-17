@@ -66,6 +66,11 @@ type Driver interface {
 	// it on disk. It is Stop without the graceful-shutdown grace period,
 	// for hung workloads that ignore the polite signal.
 	Kill(ctx context.Context, name string) (Result, error)
+	// Status returns the current driver-side status string (e.g. "running",
+	// "exited", "stopped", "not_found") without mutating the workload.
+	// Used by the panel's live-status reconciliation so it can detect
+	// externally-deleted containers and flip the DB row to the real state.
+	Status(ctx context.Context, name string) (Result, error)
 	// Destroy removes the instance and frees its resources.
 	Destroy(ctx context.Context, name string) (Result, error)
 	// Exec launches the given command inside the instance and exposes its
