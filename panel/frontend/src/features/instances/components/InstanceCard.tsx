@@ -203,21 +203,8 @@ function pickSince(...vals: Array<string | undefined | null>): string | null {
   return null;
 }
 
-// Uptime since the instance last entered "running" (started_at).
-// Falls back to updated_at / created_at for rows that pre-date the
-// started_at column (migration 051). Updated every second while mounted.
-function useUptime(sinceISO: string | undefined | null, status: string): string {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!sinceISO || status !== 'running') return;
-    const t = setInterval(() => force((v) => v + 1), 1000);
-    return () => clearInterval(t);
-  }, [sinceISO, status]);
-  if (!sinceISO) return '—';
-  const start = new Date(sinceISO).getTime();
-  if (!Number.isFinite(start)) return '—';
-  if (status !== 'running') return '—';
-  let s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+function formatSeconds(s: number): string {
+  s = Math.max(0, Math.floor(s));
   const d = Math.floor(s / 86400); s -= d * 86400;
   const h = Math.floor(s / 3600); s -= h * 3600;
   const m = Math.floor(s / 60); s -= m * 60;
@@ -225,6 +212,44 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+// Uptime since the instance last entered "running" (started_at).
+// Falls back to updated_at / created_at for rows that pre-date the
+// started_at column (migration 051). When live edge metrics are available
+// (cached live-state uptime in seconds) we prefer that — it stays truthful
+// even when the DB's started_at is stale after an external `docker rm` or
+// a host reboot. Updated every second while mounted.
+function useUptime(sinceISO: string | undefined | null, status: string, liveUptimeSec?: number | null, liveUpdatedAt?: string | null): string {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (status !== 'running') return;
+    if (liveUptimeSec != null && liveUptimeSec >= 0) return; // live mode still ticks via interval below, but start time is edge-owned
+    if (!sinceISO) return;
+    const t = setInterval(() => force((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, [sinceISO, status, liveUptimeSec]);
+  // Live edge uptime takes precedence when we have a recent cache entry
+  // (updated within 90s — the sweep interval is 10s, so stale >90s means
+  // the edge is unreachable and DB fallback is more honest than a frozen
+  // value).
+  if (status === 'running' && liveUptimeSec != null && liveUptimeSec >= 0 && liveUpdatedAt) {
+    const upd = new Date(liveUpdatedAt).getTime();
+    if (Number.isFinite(upd) && Date.now() - upd < 90_000) {
+      // Tick every second by adding elapsed since cache timestamp.
+      const ageSec = Math.floor((Date.now() - upd) / 1000);
+      return formatSeconds(liveUptimeSec + ageSec);
+    }
+  }
+  if (status === 'running' && liveUptimeSec != null && liveUptimeSec >= 0 && !liveUpdatedAt) {
+    return formatSeconds(liveUptimeSec);
+  }
+  if (!sinceISO) return '—';
+  const start = new Date(sinceISO).getTime();
+  if (!Number.isFinite(start)) return '—';
+  if (status !== 'running') return '—';
+  let s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  return formatSeconds(s);
 }
 
 export interface CardAction {
@@ -289,7 +314,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     console.error('Error parsing config:', e);
   }
   const res = parseLimits(parseConfig(instance.config), cached);
-  const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), instance.status);
+  const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), instance.status, cached?.uptime ?? null, cached?.updated_at ?? null);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';

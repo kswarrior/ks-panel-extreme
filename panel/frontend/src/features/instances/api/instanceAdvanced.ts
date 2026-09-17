@@ -289,6 +289,8 @@ export interface CachedResource {
   mem_total: number;
   disk_used: number;
   disk_total: number;
+  uptime: number;
+  status?: string;
   updated_at: string;
 }
 
