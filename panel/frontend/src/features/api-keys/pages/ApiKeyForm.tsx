@@ -387,8 +387,14 @@ const ApiKeyForm: React.FC = () => {
   return (
     <>
       {/* Bottom-right form actions — undo / redo + Save;
-          fixed like the phone tab bar, auto-hide on scroll (node pattern). */}
-      <PageFormActionsPill spacer={false}>
+          fixed, corner-anchored (right-4, w-auto) so the phone Tabs pill
+          shares the same bottom line on the left instead of floating above
+          with an empty gap underneath (ks-tabs-pill-wrap-below opts out of
+          the global lift — instance-form pattern). */}
+      <PageFormActionsPill
+        spacer={false}
+        outerClassName="fixed right-4 sm:right-6 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-end w-auto max-w-[calc(100vw-2rem)]"
+      >
           <PillHistoryControls hist={hist} />
           <button
             type="button"
@@ -763,9 +769,12 @@ const ApiKeyForm: React.FC = () => {
           {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
-        {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
-            system as the actions pill (PageTabsPill). */}
-        <PageTabsPill ariaLabel="API key form sections" spacer={false} activeLabel={APIKEY_TABS.find((t) => t.id === tab)?.label}>
+        {/* Phone tabs sit bottom-LEFT on the same bottom line as the Save/
+            Create actions (bottom-right) — corner-anchored w-auto with
+            ks-tabs-pill-wrap-below, so the global "lift above the form bar"
+            rule never applies and no empty gap is left underneath
+            (instance-form pattern). */}
+        <PageTabsPill ariaLabel="API key form sections" spacer={false} activeLabel={APIKEY_TABS.find((t) => t.id === tab)?.label} outerClassName="lg:hidden fixed left-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex justify-start w-auto max-w-[calc(100vw-2rem)] ks-tabs-pill-wrap-below">
           {APIKEY_TABS.map((t) => (
             <button
               key={t.id}
@@ -781,9 +790,9 @@ const ApiKeyForm: React.FC = () => {
           ))}
         </PageTabsPill>
       </FormPage>
-      {/* Spacer — reserves scroll room so the fixed bottom pill never
-          covers trailing form content (node pattern). */}
-      <div aria-hidden="true" className="h-24 lg:hidden" />
+      {/* Spacer — single bottom-pill row clearance (tabs left + Save/Create
+          right share one line, instance-form pattern). */}
+      <div aria-hidden="true" className="h-20 lg:hidden" />
       {/* Token disclosure modal after creation */}
       {createdToken && (
         <GlassModal

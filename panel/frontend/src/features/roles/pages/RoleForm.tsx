@@ -182,8 +182,15 @@ const RoleForm: React.FC = () => {
 
   return (
     <>
-      {/* Bottom-right form actions — undo / redo + Save live here; the footer bar is removed. */}
-      <PageFormActionsPill spacer={false}>
+      {/* Bottom-right form actions — undo / redo + Save live here; the footer
+          bar is removed. Corner-anchored (right-4, w-auto) so the phone Tabs
+          pill shares the same bottom line on the left instead of floating
+          above with an empty gap underneath (ks-tabs-pill-wrap-below opts
+          out of the global lift — instance-form pattern). */}
+      <PageFormActionsPill
+        spacer={false}
+        outerClassName="fixed right-4 sm:right-6 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 flex justify-end w-auto max-w-[calc(100vw-2rem)]"
+      >
           <PillHistoryControls hist={hist} />
           <button
             type="button"
