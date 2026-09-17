@@ -1317,3 +1317,459 @@ func metricsSweepLoop(interval time.Duration) {
 		}
 	}
 }
+
+// ── Restart policy helpers ───────────────────────────────────────────────
+// restartPolicy is the normalized form of the template/instance
+// auto-restart block. It lives as JSON inside instance.config (snapshotted
+// from template.spec at deploy time). Fields:
+//
+//   onStop:  auto-start if the container stopped normally (exit 0 / docker stop)
+//   onCrash: auto-start if the container crashed (exit !=0 / OOM / killed)
+//   onEdgeOnline: "off" | "was_running" | "always" — when the edge that was
+//               offline comes back, start this instance if its pre-offline
+//               state warrants it.
+type restartPolicy struct {
+	OnStop       bool
+	OnCrash      bool
+	OnEdgeOnline string // "off" | "was_running" | "always"
+}
+
+func parseRestartPolicy(cfgStr string) restartPolicy {
+	rp := restartPolicy{OnEdgeOnline: "off"}
+	if strings.TrimSpace(cfgStr) == "" {
+		return rp
+	}
+	m, err := specyaml.Parse(cfgStr)
+	if err != nil || m == nil {
+		return rp
+	}
+	// Helper to read bool from any shape (bool / "true" / 1)
+	readBool := func(v any) bool {
+		switch t := v.(type) {
+		case bool:
+			return t
+		case string:
+			s := strings.TrimSpace(strings.ToLower(t))
+			return s == "true" || s == "1" || s == "yes" || s == "on"
+		case float64:
+			return t != 0
+		case int:
+			return t != 0
+		default:
+			return false
+		}
+	}
+	// Preferred: auto_restart {on_stop, on_crash, on_edge_online}
+	// Legacy: restart_policy {auto_start_on_stop, auto_start_on_crash, auto_start_on_edge_online}
+	var ar map[string]any
+	if v, ok := m["auto_restart"].(map[string]any); ok {
+		ar = v
+	} else if v, ok := m["restart_policy"].(map[string]any); ok {
+		ar = v
+	}
+	if ar != nil {
+		if _, ok := ar["on_stop"]; ok {
+			rp.OnStop = readBool(ar["on_stop"])
+		} else if _, ok := ar["auto_start_on_stop"]; ok {
+			rp.OnStop = readBool(ar["auto_start_on_stop"])
+		} else if _, ok := ar["on_normal_exit"]; ok {
+			rp.OnStop = readBool(ar["on_normal_exit"])
+		}
+		if _, ok := ar["on_crash"]; ok {
+			rp.OnCrash = readBool(ar["on_crash"])
+		} else if _, ok := ar["auto_start_on_crash"]; ok {
+			rp.OnCrash = readBool(ar["auto_start_on_crash"])
+		} else if _, ok := ar["on_failure"]; ok {
+			rp.OnCrash = readBool(ar["on_failure"])
+		}
+		if v, ok := ar["on_edge_online"]; ok {
+			s := strings.TrimSpace(strings.ToLower(anyToStringLaunch(v)))
+			switch s {
+			case "always", "true", "on":
+				rp.OnEdgeOnline = "always"
+			case "was_running", "if_was_running", "if_running", "wasrunning":
+				rp.OnEdgeOnline = "was_running"
+			default:
+				rp.OnEdgeOnline = "off"
+			}
+		} else if v, ok := ar["auto_start_on_edge_online"]; ok {
+			s := strings.TrimSpace(strings.ToLower(anyToStringLaunch(v)))
+			switch s {
+			case "always", "true", "on":
+				rp.OnEdgeOnline = "always"
+			case "was_running", "if_was_running":
+				rp.OnEdgeOnline = "was_running"
+			default:
+				rp.OnEdgeOnline = "off"
+			}
+		}
+		return rp
+	}
+	// Flat fallback: top-level auto_start_on_stop etc.
+	if v, ok := m["auto_start_on_stop"]; ok {
+		rp.OnStop = readBool(v)
+	}
+	if v, ok := m["auto_start_on_crash"]; ok {
+		rp.OnCrash = readBool(v)
+	}
+	if v, ok := m["auto_start_on_edge_online"]; ok {
+		s := strings.TrimSpace(strings.ToLower(anyToStringLaunch(v)))
+		switch s {
+		case "always":
+			rp.OnEdgeOnline = "always"
+		case "was_running", "if_was_running":
+			rp.OnEdgeOnline = "was_running"
+		}
+	}
+	return rp
+}
+
+func anyToStringLaunch(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case bool:
+		if x {
+			return "true"
+		}
+		return "false"
+	case float64:
+		if x == float64(int64(x)) {
+			return strconv.FormatInt(int64(x), 10)
+		}
+		return strconv.FormatFloat(x, 'g', -1, 64)
+	case int:
+		return strconv.Itoa(x)
+	case int64:
+		return strconv.FormatInt(x, 10)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// normalizeEdgeStatus maps driver-specific status strings to the panel's
+// canonical set: "running" or "stopped". "not_found" maps to stopped so
+// externally-deleted containers become visible as stopped in the UI.
+func normalizeEdgeStatus(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	switch s {
+	case "running", "restarting", "paused", "up":
+		return "running"
+	case "created", "exited", "dead", "stopped", "not_found", "notfound", "shut off", "shutoff", "shut_off":
+		return "stopped"
+	case "":
+		return ""
+	default:
+		// Unknown strings: treat "running" as running, everything else stopped.
+		if strings.Contains(s, "run") {
+			return "running"
+		}
+		return "stopped"
+	}
+}
+
+// instanceStatusLoop reconciles the panel's instance.status column with the
+// edge's real container state. It runs every interval, dials each instance's
+// edge via a lightweight `lifecycle{status}` RPC (no shell inside the
+// container), and flips the row when the two disagree — the fix for
+// "I deleted the docker container but the panel still shows Running".
+//
+// It also enforces restart_policy: when a running instance is found stopped
+// (crash or normal exit) and the policy says on_crash/on_stop, it
+// automatically re-starts it. When an edge transitions from offline→online,
+// instances with on_edge_online=="always" or "was_running" are started
+// accordingly.
+func instanceStatusLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		con, err := repository.OpenDB()
+		if err != nil {
+			continue
+		}
+		rows, err := con.Query(`SELECT id, node_id, kind, name, external_id, status, config FROM instances WHERE status IN ('running','installing','stopped','errored','install_failed')`)
+		if err != nil {
+			con.Close()
+			continue
+		}
+		type instRow struct {
+			id         int64
+			nodeID     int64
+			kind       string
+			name       string
+			externalID string
+			status     string
+			config     string
+		}
+		var toCheck []instRow
+		for rows.Next() {
+			var r instRow
+			var ext sql.NullString
+			var cfg sql.NullString
+			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.name, &ext, &r.status, &cfg); err == nil {
+				if ext.Valid {
+					r.externalID = ext.String
+				}
+				if cfg.Valid {
+					r.config = cfg.String
+				}
+				toCheck = append(toCheck, r)
+			}
+		}
+		rows.Close()
+		con.Close()
+		if len(toCheck) == 0 {
+			continue
+		}
+		// Group by node to detect edge online transitions efficiently.
+		byNode := map[int64][]instRow{}
+		for _, r := range toCheck {
+			byNode[r.nodeID] = append(byNode[r.nodeID], r)
+		}
+		for nodeID, list := range byNode {
+			// Probe node reachability once per node per tick via the first instance's edge.
+			// We pick the first instance's node to test liveness; if it succeeds we consider the node online.
+			sample := list[0]
+			con2, err := repository.OpenDB()
+			if err != nil {
+				continue
+			}
+			nodeRepo := repository.NewNodeRepository(con2)
+			node, err := nodeRepo.GetNode(nodeID)
+			if err != nil {
+				con2.Close()
+				continue
+			}
+			token, err := nodeRepo.PlainToken(nodeID)
+			con2.Close()
+			if err != nil || token == "" {
+				// No token → cannot probe, mark offline.
+				edgeOnlineMu.Lock()
+				wasOnline := edgeOnlineState[nodeID]
+				if wasOnline {
+					// Transition online→offline: remember which instances were running.
+					m := map[int64]bool{}
+					for _, ir := range list {
+						if ir.status == "running" || ir.status == "installing" {
+							m[ir.id] = true
+						}
+					}
+					edgeWasRunning[nodeID] = m
+				}
+				edgeOnlineState[nodeID] = false
+				edgeOnlineMu.Unlock()
+				continue
+			}
+			ec := edge.NewWithTimeout(*node, token, 8*time.Second)
+			// Use status RPC on the sample instance to test node liveness without hammering every instance first.
+			_, probeErr := ec.Lifecycle(edge.LifecycleRequest{Action: "status", Kind: sample.kind, Name: sample.name})
+			online := probeErr == nil || !isEdgeUnreachable(probeErr)
+			// Detect transition offline→online
+			edgeOnlineMu.Lock()
+			wasOnline := edgeOnlineState[nodeID]
+			edgeOnlineState[nodeID] = online
+			wasRunningSnapshot := map[int64]bool{}
+			if !wasOnline && online {
+				if m, ok := edgeWasRunning[nodeID]; ok {
+					for k, v := range m {
+						wasRunningSnapshot[k] = v
+					}
+				}
+			}
+			if wasOnline && !online {
+				m := map[int64]bool{}
+				for _, ir := range list {
+					if ir.status == "running" || ir.status == "installing" {
+						m[ir.id] = true
+					}
+				}
+				edgeWasRunning[nodeID] = m
+			}
+			if !wasOnline && online {
+				// Clear snapshot after consumption on next successful cycle.
+				delete(edgeWasRunning, nodeID)
+			}
+			edgeOnlineMu.Unlock()
+
+			// For each instance on this node, reconcile status.
+			for _, ir := range list {
+				if !markInflight(statusInflight, ir.id) {
+					continue
+				}
+				if !sweepTryAcquire(statusPollSem) {
+					unmarkInflight(statusInflight, ir.id)
+					continue
+				}
+				// Capture loop vars
+				irCopy := ir
+				wasOnlineCopy := wasOnline
+				onlineCopy := online
+				wasRunningCopy := wasRunningSnapshot[ir.id]
+				go func() {
+					defer sweepRelease(statusPollSem)
+					defer unmarkInflight(statusInflight, irCopy.id)
+					con3, err := repository.OpenDB()
+					if err != nil {
+						return
+					}
+					defer con3.Close()
+					nodeRepo3 := repository.NewNodeRepository(con3)
+					instRepo3 := repository.NewInstanceRepository(con3)
+					node3, err := nodeRepo3.GetNode(irCopy.nodeID)
+					if err != nil {
+						return
+					}
+					token3, err := nodeRepo3.PlainToken(irCopy.nodeID)
+					if err != nil || token3 == "" {
+						return
+					}
+					ec3 := edge.NewWithTimeout(*node3, token3, 8*time.Second)
+					name := irCopy.externalID
+					if name == "" {
+						name = irCopy.name
+					}
+					resp, err := ec3.Lifecycle(edge.LifecycleRequest{Action: "status", Kind: irCopy.kind, Name: name})
+					if err != nil {
+						// If edge is unreachable, we already handled online state above.
+						// For status reconciliation we only act on reachable edges.
+						if isEdgeUnreachable(err) {
+							return
+						}
+						// For other errors (e.g. unknown kind), log but don't flip.
+						if strings.Contains(strings.ToLower(err.Error()), "no such") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+							// Treat as stopped (container deleted)
+							if irCopy.status == "running" || irCopy.status == "installing" {
+								_ = instRepo3.SetStatus(irCopy.id, "stopped", "", "container not found on edge — marked stopped by reconciliation")
+								log.Printf("status reconcile: instance %d (%s) not found on edge, marked stopped", irCopy.id, irCopy.name)
+							}
+						}
+						return
+					}
+					edgeRaw := resp.Status
+					if edgeRaw == "" {
+						edgeRaw = "unknown"
+					}
+					edgeNorm := normalizeEdgeStatus(edgeRaw)
+					panelNorm := normalizeEdgeStatus(irCopy.status)
+					// Special: "not_found" from driver already normalized to stopped, but preserve distinction for logging.
+					isNotFound := strings.EqualFold(edgeRaw, "not_found")
+					// Reconcile when they disagree and edge is definitively stopped/running.
+					if edgeNorm != "" && panelNorm != "" && edgeNorm != panelNorm {
+						// Don't flip installing → running automatically here; installSweepLoop owns that transition.
+						// But do flip running → stopped when edge says stopped.
+						if irCopy.status == "running" && edgeNorm == "stopped" {
+							reason := "container is " + edgeRaw + " on edge — reconciled to stopped"
+							if isNotFound {
+								reason = "container not found on edge — reconciled to stopped"
+							}
+							_ = instRepo3.SetStatus(irCopy.id, "stopped", "", reason)
+							log.Printf("status reconcile: instance %d (%s) panel=%s edge=%s -> stopped", irCopy.id, irCopy.name, irCopy.status, edgeRaw)
+							// Auto-restart check for crash/stop
+							rp := parseRestartPolicy(irCopy.config)
+							shouldRestart := false
+							if rp.OnCrash || rp.OnStop {
+								shouldRestart = true
+							}
+							if shouldRestart {
+								// Fire auto-start asynchronously so we don't block the sweep.
+								go autoRestartInstance(irCopy.id, irCopy.nodeID, irCopy.kind, irCopy.name)
+							}
+							return
+						}
+						if irCopy.status == "stopped" && edgeNorm == "running" {
+							_ = instRepo3.SetStatus(irCopy.id, "running", "", "")
+							log.Printf("status reconcile: instance %d (%s) panel=stopped edge=running -> running", irCopy.id, irCopy.name)
+							return
+						}
+						if irCopy.status == "installing" && edgeNorm == "stopped" {
+							// Installing container exited prematurely — mark failed so operator sees it.
+							_ = instRepo3.SetStatus(irCopy.id, "install_failed", "", "container stopped during install — reconciled")
+							log.Printf("status reconcile: instance %d (%s) installing but edge stopped -> install_failed", irCopy.id, irCopy.name)
+							return
+						}
+					}
+					// Edge online auto-start: when we just transitioned offline→online
+					if !wasOnlineCopy && onlineCopy && edgeNorm == "stopped" {
+						rp := parseRestartPolicy(irCopy.config)
+						if rp.OnEdgeOnline == "always" {
+							log.Printf("auto-restart: edge %d online, instance %d (%s) policy always -> starting", irCopy.nodeID, irCopy.id, irCopy.name)
+							go autoRestartInstance(irCopy.id, irCopy.nodeID, irCopy.kind, irCopy.name)
+						} else if rp.OnEdgeOnline == "was_running" && wasRunningCopy {
+							log.Printf("auto-restart: edge %d online, instance %d (%s) was_running -> starting", irCopy.nodeID, irCopy.id, irCopy.name)
+							go autoRestartInstance(irCopy.id, irCopy.nodeID, irCopy.kind, irCopy.name)
+						}
+					}
+				}()
+			}
+		}
+	}
+}
+
+func isEdgeUnreachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "dial edge") ||
+		strings.Contains(msg, "edge not connected") ||
+		strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no route") ||
+		strings.Contains(msg, "timeout") ||
+		strings.Contains(msg, "context deadline") ||
+		strings.Contains(msg, "unreachable")
+}
+
+func autoRestartInstance(id, nodeID int64, kind, name string) {
+	con, err := repository.OpenDB()
+	if err != nil {
+		return
+	}
+	defer con.Close()
+	instRepo := repository.NewInstanceRepository(con)
+	inst, err := instRepo.Get(id)
+	if err != nil || inst == nil {
+		return
+	}
+	// Don't restart if suspended or already running/installing
+	if inst.Suspended == 1 {
+		return
+	}
+	if inst.Status == "running" || inst.Status == "installing" || inst.Status == "creating" {
+		return
+	}
+	nodeRepo := repository.NewNodeRepository(con)
+	node, err := nodeRepo.GetNode(nodeID)
+	if err != nil {
+		return
+	}
+	token, err := nodeRepo.PlainToken(nodeID)
+	if err != nil || token == "" {
+		return
+	}
+	ec := edge.NewWithTimeout(*node, token, 60*time.Second)
+	resp, err := ec.Lifecycle(edge.LifecycleRequest{Action: "start", Kind: kind, Name: name})
+	if err != nil {
+		// If container is missing, try recreate path (docker rm case)
+		if strings.Contains(strings.ToLower(err.Error()), "no such") {
+			// Attempt recreate via deploy config
+			cfgMap := map[string]any{}
+			if inst.Config != "" {
+				_ = json.Unmarshal([]byte(inst.Config), &cfgMap)
+			}
+			ec2 := edge.NewWithTimeout(*node, token, 5*time.Minute)
+			if r2, derr := ec2.Lifecycle(edge.LifecycleRequest{Action: "deploy", Kind: kind, Name: name, Config: cfgMap}); derr == nil {
+				_ = instRepo.SetStatus(id, r2.Status, r2.ExternalID, "")
+				log.Printf("auto-restart: instance %d (%s) missing container, recreated via deploy -> %s", id, name, r2.Status)
+				return
+			}
+		}
+		log.Printf("auto-restart: instance %d (%s) start failed: %v", id, name, err)
+		return
+	}
+	st := resp.Status
+	if st == "" {
+		st = "running"
+	}
+	_ = instRepo.SetStatus(id, st, resp.ExternalID, "")
+	log.Printf("auto-restart: instance %d (%s) restarted -> %s", id, name, st)
+}
