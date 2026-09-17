@@ -313,7 +313,6 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     console.error('Error parsing config:', e);
   }
   const res = parseLimits(parseConfig(instance.config), cached);
-  const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), instance.status, cached?.uptime ?? null, cached?.updated_at ?? null);
   // Prefer live edge status from cached metrics when it's recent (<90s) and
   // differs from the DB row — makes `docker rm -f` reflect instantly on the
   // card, before the 15s reconciliation sweep flips the DB row.
@@ -327,6 +326,7 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     return null;
   })();
   const effectiveStatus = liveStatus || instance.status;
+  const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), effectiveStatus, cached?.uptime ?? null, cached?.updated_at ?? null);
   const sm = statusMeta(effectiveStatus);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
@@ -376,8 +376,8 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
     ),
   };
 
-  const isRunning = instance.status === 'running';
-  const isErrorState = ['errored', 'install_failed', 'destroyed'].includes(instance.status);
+  const isRunning = effectiveStatus === 'running';
+  const isErrorState = ['errored', 'install_failed', 'destroyed'].includes(effectiveStatus);
 
   // Suspension status
   const isSuspended = instance.suspended === 1;
