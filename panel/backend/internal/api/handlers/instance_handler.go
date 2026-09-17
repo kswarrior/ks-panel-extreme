@@ -2283,6 +2283,399 @@ func findPortCollision(con sqlDB, nodeID, excludeID int64, want []requestedPort)
 	return requestedPort{}, "", false
 }
 
+// --- Missing container helpers (docker container not found → recreate) ---
+
+func isMissingContainerErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "no such container") || strings.Contains(msg, "no such object") {
+		return true
+	}
+	if strings.Contains(msg, "container not found") || strings.Contains(msg, "container is not found") {
+		return true
+	}
+	// Generic fallback: "not found" + container/instance/domain/object
+	if strings.Contains(msg, "not found") && (strings.Contains(msg, "container") || strings.Contains(msg, "instance") || strings.Contains(msg, "domain") || strings.Contains(msg, "object")) {
+		return true
+	}
+	return false
+}
+
+func normalizeInstallStepType(raw string) string {
+	s := strings.TrimSpace(strings.ToLower(raw))
+	switch s {
+	case "data", "instance", "persistent", "instance_data":
+		return "data"
+	case "container", "environment", "env", "":
+		return "container"
+	default:
+		return "container"
+	}
+}
+
+func isDataStep(s installStepSpec) bool { return normalizeInstallStepType(s.Type) == "data" }
+
+func primaryContainerPath(s installStepSpec) string {
+	switch strings.ToLower(strings.TrimSpace(s.Action)) {
+	case "download":
+		return strings.TrimSpace(s.Filename)
+	case "write", "chmod", "mkdir":
+		return strings.TrimSpace(s.Path)
+	case "extract":
+		if t := strings.TrimSpace(s.Dest); t != "" {
+			return t
+		}
+		return strings.TrimSpace(s.Archive)
+	case "move":
+		return strings.TrimSpace(s.To)
+	case "git_clone":
+		return strings.TrimSpace(s.Dest)
+	case "shell":
+		// Heuristic: extract first absolute path from command (e.g. touch /mc/.install-complete)
+		cmd := s.Command
+		for _, tok := range strings.Fields(cmd) {
+			if strings.HasPrefix(tok, "/") {
+				// Trim trailing punctuation
+				tok = strings.Trim(tok, ";,)&")
+				if tok != "" {
+					return tok
+				}
+			}
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+func extractMountTargets(cfg map[string]any) []string {
+	var out []string
+	if raw, ok := cfg["mounts"].([]any); ok {
+		for _, it := range raw {
+			if m, ok := it.(map[string]any); ok {
+				if t := strings.TrimSpace(getString(m, "target")); t != "" {
+					out = append(out, t)
+				} else if t := strings.TrimSpace(getString(m, "container")); t != "" {
+					out = append(out, t)
+				} else if t := strings.TrimSpace(getString(m, "destination")); t != "" {
+					out = append(out, t)
+				}
+			}
+		}
+	}
+	if raw, ok := cfg["volumes"].([]any); ok {
+		for _, it := range raw {
+			if s, ok := it.(string); ok {
+				parts := strings.Split(s, ":")
+				if len(parts) >= 2 {
+					t := strings.TrimSpace(parts[1])
+					if t != "" {
+						out = append(out, t)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+func extractMountSources(cfg map[string]any) []string {
+	var out []string
+	if raw, ok := cfg["mounts"].([]any); ok {
+		for _, it := range raw {
+			if m, ok := it.(map[string]any); ok {
+				if s := strings.TrimSpace(getString(m, "source")); s != "" {
+					out = append(out, s)
+				} else if s := strings.TrimSpace(getString(m, "host")); s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+	}
+	if raw, ok := cfg["volumes"].([]any); ok {
+		for _, it := range raw {
+			if s, ok := it.(string); ok {
+				parts := strings.Split(s, ":")
+				if len(parts) >= 1 {
+					h := strings.TrimSpace(parts[0])
+					if h != "" && strings.HasPrefix(h, "/") {
+						out = append(out, h)
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+func shellQuotePath(p string) string { return "'" + strings.ReplaceAll(p, "'", "'\\''") + "'" }
+
+func containerPathExists(ec *edge.Client, kind, name, p string) bool {
+	if p == "" {
+		return true
+	}
+	// Retry a few times: container may be in "created" / "restarting" briefly after deploy
+	for attempt := 0; attempt < 3; attempt++ {
+		cmd := fmt.Sprintf("test -e %s && echo ok", shellQuotePath(p))
+		resp, err := ec.Exec(edge.ExecRequest{Kind: kind, Name: name, Command: cmd, TimeoutSec: 10})
+		if err == nil {
+			if resp.ExitCode == 0 && strings.Contains(resp.Stdout, "ok") {
+				return true
+			}
+			if strings.Contains(strings.ToLower(resp.Stderr), "is not running") || strings.Contains(strings.ToLower(err.Error()), "is not running") {
+				time.Sleep(time.Second)
+				continue
+			}
+			return false
+		}
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "is not running") || strings.Contains(msg, "no such container") {
+			time.Sleep(time.Second)
+			continue
+		}
+		return false
+	}
+	return false
+}
+
+func hostPathHasData(ec *edge.Client, hostPath string) bool {
+	if hostPath == "" || !strings.HasPrefix(hostPath, "/") {
+		return false
+	}
+	// Check host filesystem via HostExec: directory exists and contains at least one entry
+	// Use ls -A to detect any file, including hidden .install-complete marker.
+	escaped := shellQuotePath(hostPath)
+	cmd := fmt.Sprintf("test -d %s && ls -A %s 2>/dev/null | head -n 1 | grep -q . && echo ok", escaped, escaped)
+	resp, err := ec.HostExec(edge.HostExecRequest{Command: cmd, TimeoutSec: 10})
+	if err != nil {
+		return false
+	}
+	return resp.ExitCode == 0 && strings.Contains(resp.Stdout, "ok")
+}
+
+func isHostDataPresent(ec *edge.Client, kind, name string, steps []installStepSpec, cfg map[string]any) bool {
+	dataSteps := []installStepSpec{}
+	for _, s := range steps {
+		if isDataStep(s) {
+			dataSteps = append(dataSteps, s)
+		}
+	}
+	if len(dataSteps) == 0 {
+		return true
+	}
+	// Primary 1: check host bind-mount sources directly (task spec: /var/**** here have data)
+	sources := extractMountSources(cfg)
+	hasMount := len(sources) > 0
+	if hasMount {
+		for _, src := range sources {
+			if hostPathHasData(ec, src) {
+				// At least one mount has data → consider data present
+				// To be strict, we could check all mounts, but one populated mount (e.g. /mc) is enough for minecraft.
+				return true
+			}
+		}
+		// If mounts exist but none have data, check container paths for finer granularity
+		// (e.g. a data step writing to /mc/server.jar where host dir exists but file missing)
+	}
+	// Primary 2: check each data step's primary container path via Exec
+	checked := 0
+	for _, s := range dataSteps {
+		p := primaryContainerPath(s)
+		if p == "" {
+			continue
+		}
+		checked++
+		if !containerPathExists(ec, kind, name, p) {
+			return false
+		}
+	}
+	if checked > 0 {
+		return true
+	}
+	// Fallback: no primary paths (all shell data steps), check mount targets inside container
+	targets := extractMountTargets(cfg)
+	if len(targets) == 0 {
+		return false
+	}
+	for _, tgt := range targets {
+		escaped := shellQuotePath(tgt)
+		cmd := fmt.Sprintf("test -d %s && ls -A %s 2>/dev/null | head -n 1 | grep -q . && echo ok", escaped, escaped)
+		resp, err := ec.Exec(edge.ExecRequest{Kind: kind, Name: name, Command: cmd, TimeoutSec: 10})
+		if err == nil && resp.ExitCode == 0 && strings.Contains(resp.Stdout, "ok") {
+			return true
+		}
+	}
+	return false
+}
+
+func filterContainerSteps(steps []installStepSpec) []installStepSpec {
+	var out []installStepSpec
+	for _, s := range steps {
+		if !isDataStep(s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func hasDataSteps(steps []installStepSpec) bool {
+	for _, s := range steps {
+		if isDataStep(s) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleMissingContainerRecreate recreates a docker container that was
+// removed outside the panel (docker rm) and reinstalls the needed install
+// workflow subset. It is called synchronously from instanceAction when a
+// start fails with "No such container". Returns true when it has already
+// written the HTTP response (success or failure); false when it declined to
+// handle (caller should fall through to the generic error path).
+func handleMissingContainerRecreate(w http.ResponseWriter, r *http.Request, id int64, inst *models.Instance, node *models.Node, token string, con sqlDB) bool {
+	repo := repository.NewInstanceRepository(con)
+
+	cfgMap := map[string]any{}
+	if inst.Config != "" {
+		if err := json.Unmarshal([]byte(inst.Config), &cfgMap); err != nil {
+			log.Printf("recreate missing container: instance %d config unmarshal failed: %v", id, err)
+			return false
+		}
+	}
+	// Parse install steps from stored config
+	var steps []installStepSpec
+	if rawInstall, ok := cfgMap["install"].([]any); ok {
+		for _, s := range rawInstall {
+			if m, ok := s.(map[string]any); ok {
+				steps = append(steps, installStepSpec{
+					Action:       getString(m, "action"),
+					Command:      getString(m, "command"),
+					URL:          getString(m, "url"),
+					Filename:     getString(m, "filename"),
+					Archive:      getString(m, "archive"),
+					Dest:         getString(m, "dest"),
+					From:         getString(m, "from"),
+					To:           getString(m, "to"),
+					Path:         getString(m, "path"),
+					Content:      getString(m, "content"),
+					Branch:       getString(m, "branch"),
+					Retries:      getString(m, "retries"),
+					IgnoreErrors: getBool(m, "ignore_errors"),
+					Type:         getString(m, "type"),
+				})
+			}
+		}
+	}
+
+	log.Printf("start: instance %d container not found on node %q — recreating container %q and reinstalling workflow", id, node.Name, inst.Name)
+
+	ecDeploy := edge.NewWithTimeout(*node, token, 5*time.Minute)
+	resp, err := ecDeploy.Lifecycle(edge.LifecycleRequest{Action: "deploy", Kind: inst.Kind, Name: inst.Name, Config: cfgMap})
+	if err != nil {
+		log.Printf("recreate missing container deploy failed for instance %d: %v", id, err)
+		_ = repo.SetStatus(id, "errored", inst.ExternalID, "recreate after container not found failed: "+err.Error())
+		writeJSON(w, map[string]any{"id": id, "status": "errored", "error": "recreate after container not found failed: " + err.Error(), "recreated": true})
+		return true
+	}
+	status := resp.Status
+	if status == "" {
+		status = "running"
+	}
+	newExternalID := resp.ExternalID
+
+	// Guard: container exited immediately (bad startup command) — don't start install workflow
+	if len(steps) > 0 && status != "running" {
+		failMsg := fmt.Sprintf("container exited before install workflow could start after recreate (docker status=%q, id=%s)", status, newExternalID)
+		_ = repo.SetStatus(id, "install_failed", newExternalID, failMsg)
+		_ = repo.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, failMsg, string(mustJSON(steps)))
+		writeJSON(w, map[string]any{"id": id, "status": "install_failed", "error": failMsg, "recreated": true})
+		return true
+	}
+
+	// Decide which steps to run based on type + host data presence
+	filtered := steps
+	dataSkipped := 0
+	if hasDataSteps(steps) {
+		// Check host data presence via edge (bind-mount source on host, e.g. /var/lib/kspanel/instances/<name>/mc)
+		// Use a short-lived client with exec timeout for the check.
+		ecCheck := edge.NewWithTimeout(*node, token, 30*time.Second)
+		if isHostDataPresent(ecCheck, inst.Kind, inst.Name, steps, cfgMap) {
+			filtered = filterContainerSteps(steps)
+			dataSkipped = len(steps) - len(filtered)
+			log.Printf("recreate missing container instance %d: host data present at %v — skipping %d data steps, running %d container steps", id, extractMountSources(cfgMap), dataSkipped, len(filtered))
+		} else {
+			log.Printf("recreate missing container instance %d: host data missing — reinstalling all %d steps", id, len(steps))
+		}
+	}
+
+	if len(filtered) == 0 {
+		// No install needed (all steps were data and data still present)
+		_ = repo.SetStatus(id, "running", newExternalID, "")
+		_ = repo.UpdateInstallStatus(id, "", "", -1, "", "")
+		if fresh, gerr := repo.Get(id); gerr == nil && fresh != nil {
+			_ = ProvisionSFTPForInstance(con, fresh)
+		}
+		emitInstancePost("start", id, inst)
+		RecordActivity(r, repository.ActivityInput{
+			Category:    models.ActivityCategoryInstance,
+			Action:      "recreate",
+			TargetID:    &id,
+			TargetLabel: inst.Name,
+			Message:     fmt.Sprintf("recreated missing container for instance %q (%s on %q) — host data present, skipped %d data steps", inst.Name, inst.Kind, node.Name, dataSkipped),
+		})
+		writeJSON(w, map[string]any{"id": id, "status": "running", "recreated": true, "data_skipped": dataSkipped})
+		return true
+	}
+
+	// Need to run filtered install workflow
+	stepsJSON, _ := json.Marshal(filtered)
+	_ = repo.SetStatus(id, "installing", newExternalID, "")
+	_ = repo.UpdateInstallStatus(id, "running", inst.Kind+":"+inst.Name, 0, "", string(stepsJSON))
+
+	edgeSteps := make([]edge.InstallStep, len(filtered))
+	for i, s := range filtered {
+		edgeSteps[i] = edge.InstallStep{
+			Action: s.Action, Command: s.Command, URL: s.URL, Filename: s.Filename, Archive: s.Archive, Dest: s.Dest, From: s.From, To: s.To, Path: s.Path, Content: s.Content, Branch: s.Branch, Retries: s.Retries, IgnoreErrors: s.IgnoreErrors, Type: s.Type,
+		}
+	}
+	envVars := map[string]string{}
+	if em, ok := cfgMap["env"].(map[string]any); ok {
+		for k, v := range em {
+			if s, ok := v.(string); ok {
+				envVars[k] = s
+			}
+		}
+	}
+	if _, err := ecDeploy.InstallStart(edge.InstallStartRequest{
+		Token: token, Kind: inst.Kind, Name: inst.Name, Steps: edgeSteps, EnvVars: envVars,
+		TimeoutSec: timeoutSecFromSpec(cfgMap["install_timeout_sec"]), KeepStdin: keepStdinForInstall(cfgMap),
+	}); err != nil {
+		log.Printf("recreate missing container install kick-off for instance %d failed: %v", id, err)
+		_ = repo.UpdateInstallStatus(id, "failed", inst.Kind+":"+inst.Name, 0, "edge install start failed: "+err.Error(), string(stepsJSON))
+		_ = repo.SetStatus(id, "install_failed", newExternalID, "edge install start failed: "+err.Error())
+		writeJSON(w, map[string]any{"id": id, "status": "install_failed", "error": "edge install start failed: " + err.Error(), "recreated": true})
+		return true
+	}
+
+	// Install started successfully; sweep loop will poll to running/failed. Heal SFTP best-effort.
+	if fresh, gerr := repo.Get(id); gerr == nil && fresh != nil {
+		_ = ProvisionSFTPForInstance(con, fresh)
+	}
+	emitInstancePost("start", id, inst)
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryInstance,
+		Action:      "recreate",
+		TargetID:    &id,
+		TargetLabel: inst.Name,
+		Message:     fmt.Sprintf("recreated missing container for instance %q (%s on %q) — running %d install steps (skipped %d data steps)", inst.Name, inst.Kind, node.Name, len(filtered), dataSkipped),
+	})
+	writeJSON(w, map[string]any{"id": id, "status": "installing", "recreated": true, "install_steps": len(filtered), "data_skipped": dataSkipped})
+	return true
+}
+
 // instanceAction is the helper used by start/stop/kill/destroy — they all
 // share the same read-row → dial-node → mirror-status dance.
 func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
@@ -2396,6 +2789,15 @@ func instanceAction(w http.ResponseWriter, r *http.Request, action string) {
 		}
 	}
 	if loopErr != nil {
+		// Missing container: docker/lxd/kvm was removed outside the panel
+		// (docker rm -f) — recreate the container and reinstall the workflow.
+		// Only for start: other actions (stop/kill) have no container to
+		// recreate from, and destroy is idempotent already.
+		if action == "start" && isMissingContainerErr(loopErr) {
+			if handleMissingContainerRecreate(w, r, id, inst, node, token, con) {
+				return
+			}
+		}
 		err = loopErr
 		log.Printf("instanceAction: all retries exhausted for instance %d action %s, edge unreachable: %v", id, action, loopErr)
 		// Reflect edge errors into the instance row so the UI can show them
@@ -2602,6 +3004,11 @@ func RestartInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	startResp, startErr := lifecycleWithRetry("start")
 	if startErr != nil {
+		if isMissingContainerErr(startErr) {
+			if handleMissingContainerRecreate(w, r, id, inst, node, token, con) {
+				return
+			}
+		}
 		_ = instRepo.SetStatus(id, "errored", inst.ExternalID, "restart start failed: "+startErr.Error())
 		writeJSON(w, map[string]any{
 			"id":     id,
