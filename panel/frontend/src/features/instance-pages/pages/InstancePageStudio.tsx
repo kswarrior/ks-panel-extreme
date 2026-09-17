@@ -428,6 +428,7 @@ const InstancePageStudio: React.FC = () => {
       description: s.description || `Panel shared: ${s.label || key}`,
       content: '',
       shared: key,
+      editable: false,
     };
     setNotice(`Imported "${key}" — use {{component:${key}}} in content.`);
     setComponents((prev) => {

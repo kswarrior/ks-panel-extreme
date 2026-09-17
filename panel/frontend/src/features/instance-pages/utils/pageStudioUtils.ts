@@ -237,33 +237,54 @@ export function validateSubRows(rows: SubPageRow[]): string {
 let compSeq = 0;
 export function blankComponent(): ComponentRow {
   compSeq += 1;
-  return { id: `c${Date.now()}-${compSeq}`, name: '', type: 'html', description: '', content: '' };
+  return { id: `c${Date.now()}-${compSeq}`, name: '', type: 'html', description: '', content: '', editable: true };
 }
 
 export function compRowsFromJSON(json: string | undefined | null): ComponentRow[] {
   const defs: PageComponentDef[] = parsePageComponents(json);
   if (defs.length === 0) return [];
-  return defs.map((d) => ({
-    id: `c${compSeq++}-${Math.random().toString(36).slice(2, 8)}`,
-    name: d.name,
-    type: (['html', 'markdown', 'block', 'shared', 'module'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
-    description: d.description || '',
-    content: d.content || '',
-    ...(d.type === 'shared' ? { shared: typeof (d as any).shared === 'string' && (d as any).shared ? (d as any).shared : d.name } : {}),
-  }));
+  return defs.map((d) => {
+    const rawEditable = (d as any).editable;
+    const editable = typeof rawEditable === 'boolean' ? rawEditable : d.type === 'shared' ? false : true;
+    return {
+      id: `c${compSeq++}-${Math.random().toString(36).slice(2, 8)}`,
+      name: d.name,
+      type: (['html', 'markdown', 'block', 'shared', 'module'].includes(d.type) ? d.type : 'html') as ComponentRow['type'],
+      description: d.description || '',
+      content: d.content || '',
+      editable,
+      ...(d.type === 'shared' ? { shared: typeof (d as any).shared === 'string' && (d as any).shared ? (d as any).shared : d.name } : {}),
+    };
+  });
 }
 
 export function compsToJSON(rows: ComponentRow[]): string {
   const defs: PageComponentDef[] = rows
     .filter((r) => r.name.trim() !== '')
-    .map((r) => ({
-      name: r.name.trim(),
-      type: r.type,
-      description: r.description,
-      // Shared refs store no source — the panel supplies it at render time.
-      content: r.type === 'shared' ? '' : r.content,
-      ...(r.type === 'shared' ? { shared: (r.shared || r.name).trim() || r.name.trim() } : {}),
-    }));
+    .map((r) => {
+      const editable = r.editable !== false;
+      // Locked (editable === false): not editable, not saved whole in YAML — minimal shared ref always loads from panel.
+      if (!editable) {
+        const sharedKey = (r.shared || r.name).trim() || r.name.trim();
+        return {
+          name: r.name.trim(),
+          type: 'shared' as const,
+          description: r.description || '',
+          content: '',
+          shared: sharedKey,
+          editable: false,
+        } as PageComponentDef;
+      }
+      return {
+        name: r.name.trim(),
+        type: r.type,
+        description: r.description,
+        // Shared refs store no source — the panel supplies it at render time.
+        content: r.type === 'shared' ? '' : r.content,
+        ...(r.type === 'shared' ? { shared: (r.shared || r.name).trim() || r.name.trim() } : {}),
+        editable: true,
+      } as PageComponentDef;
+    });
   if (defs.length === 0) return '';
   return JSON.stringify(defs);
 }
