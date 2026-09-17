@@ -557,6 +557,28 @@ export interface ThemeCount {
   icon_size: number;        // px
 }
 
+// Scrollbars — the browser-native bars that appear when a surface
+// overflows: the sidebar nav (vertical, many items), the main page column
+// (vertical, long pages) and the horizontal tab strips (instance tabs,
+// preset strips). Each surface owns its own thickness + track / thumb /
+// hover fill + thumb radius so the admin can paint all three independently.
+// Thumb/hover accept any CSS background value (hex, rgba(), or a
+// linear-gradient() expression) — the applier emits them verbatim into the
+// ::-webkit-scrollbar-thumb `background` property.
+export interface ThemeScrollSurface {
+  size: number;            // px — scrollbar thickness (width for vertical, height for horizontal); 0 hides the WebKit bar
+  track: string;           // track fill behind the thumb ('transparent' = none)
+  thumb: string;           // thumb fill (solid colour or gradient expression)
+  hover: string;           // thumb fill on mouse-over
+  radius: number;          // px — thumb corner radius
+}
+
+export interface ThemeScroll {
+  sidebar: ThemeScrollSurface; // sidebar nav (vertical)
+  page: ThemeScrollSurface;    // main page column (vertical + horizontal)
+  tabs: ThemeScrollSurface;    // horizontal tab strips (instance tabs, preset strips)
+}
+
 export interface Theme {
   id: string;                // stable id; 'default' is reserved for the seed
   name: string;
