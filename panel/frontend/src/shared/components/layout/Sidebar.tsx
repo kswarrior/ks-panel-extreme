@@ -363,8 +363,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           )}
         </div>
 
-        {/* Scrollable navigation area — only this section scrolls */}
-        <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
+        {/* Scrollable navigation area — only this section scrolls.
+            ks-sidebar-nav hooks the themed Scrollbar (Theme Studio >
+            Scroll > Sidebar) onto this scroller. */}
+        <nav className="ks-sidebar-nav flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
           {/* Panel items — displayed directly without dropdown, in serial order */}
           {!initialized ? (
             <SidebarSkeleton collapsed={isCollapsed} />

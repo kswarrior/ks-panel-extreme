@@ -1954,7 +1954,12 @@ a.text-blue-300, a.text-blue-400, a.text-sky-300, a.text-sky-400, a.text-blue-50
   }
 
   // --- Decorative scrollbar + selection follow accents (gated) ---
-  if (u.color_primary !== D.utilities.color_primary && isHexish(u.color_primary)) {
+  // The nav-thumb mapping yields to the Scroll tab: once the admin sets an
+  // explicit Tabs scrollbar thumb there, it owns the strip and the legacy
+  // utilities side-effect stops emitting so the two can't fight.
+  const scrollTabsCustom = (theme as any).scroll?.tabs?.thumb !== undefined
+    && (theme as any).scroll.tabs.thumb !== D.scroll.tabs.thumb;
+  if (u.color_primary !== D.utilities.color_primary && isHexish(u.color_primary) && !scrollTabsCustom) {
     blocks.push(`
 /* Utility mapping: nav scrollbar thumb → utilities.color_primary */
 nav.overflow-x-auto::-webkit-scrollbar-thumb { background: ${u.color_primary}; background-clip: content-box; }

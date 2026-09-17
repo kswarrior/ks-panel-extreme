@@ -65,9 +65,10 @@ const Layout: React.FC = () => {
         {/* Floating draggable instance menu (power, actions, status).
             Mounted for instance details only. */}
         {inInstancePanel && <InstanceMenuFab />}
-        {/* Page scroll area. */}
+        {/* Page scroll area. ks-page-scroll hooks the themed Scrollbar
+            (Theme Studio > Scroll > Pages) onto the main column. */}
         <div className="relative flex-1 min-h-0 flex">
-          <main className="flex-1 min-w-0 overflow-auto p-4 sm:p-6">
+          <main className="ks-page-scroll flex-1 min-w-0 overflow-auto p-4 sm:p-6">
             <ErrorBoundary resetKey={location.pathname} label="page">
               <Outlet />
             </ErrorBoundary>
