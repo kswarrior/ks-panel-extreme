@@ -38,6 +38,9 @@ func (f *fakeDriver) Stop(ctx context.Context, name string) (drivers.Result, err
 func (f *fakeDriver) Kill(ctx context.Context, name string) (drivers.Result, error) {
 	return drivers.Result{}, nil
 }
+func (f *fakeDriver) Status(ctx context.Context, name string) (drivers.Result, error) {
+	return drivers.Result{Status: "running"}, nil
+}
 func (f *fakeDriver) Destroy(ctx context.Context, name string) (drivers.Result, error) {
 	return drivers.Result{}, nil
 }
