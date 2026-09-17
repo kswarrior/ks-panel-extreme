@@ -497,6 +497,11 @@ export function renderPreview(contentType: string, content: string, components?:
     // Module rows are virtual files, not fragments — never substitute them.
     const compMap = new Map((components || []).filter((c) => c && (c as any).type !== 'module').map((c) => [c.name, c]));
     const compToPreviewHtml = (comp: PageComponentDef): string => {
+      // Locked components always load from panel system, not stored whole content
+      if ((comp as any).editable === false) {
+        const key = ((comp as any).shared || comp.name || '').trim();
+        return getSharedPanelComponentContent(key) || '';
+      }
       switch (comp.type) {
         case 'shared':
           return getSharedPanelComponentContent((comp as any).shared || comp.name);

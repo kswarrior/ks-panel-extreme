@@ -412,7 +412,17 @@ function resolveAllTokens(text: string, components?: PageComponentDef[], configu
 // componentToHtml converts a component definition to its HTML representation.
 // This is used when substituting {{component:name}} in HTML content.
 // Shared refs carry no source — the HTML comes from the panel registry.
+// Locked components (editable === false) always load from panel system, not
+// the stored whole content — they behave like shared even when type is html.
 function componentToHtml(comp: PageComponentDef): string {
+  if ((comp as any).editable === false) {
+    const key = ((comp as any).shared || comp.name || '').trim();
+    const sharedHtml = getSharedPanelComponentContent(key);
+    if (sharedHtml) return sharedHtml;
+    // Fallback: locked custom html without registry entry — treat as shared (panel) so it loads from system; if no registry, return empty (not the stale YAML content).
+    if (comp.type === 'shared') return sharedHtml;
+    return sharedHtml || '';
+  }
   switch (comp.type) {
     case 'html':
       return comp.content;

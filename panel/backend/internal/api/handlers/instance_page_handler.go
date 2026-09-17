@@ -1304,12 +1304,15 @@ func validateSubPages(raw string) error {
 // instancePageComponent mirrors one entry of the persisted components JSON.
 // Shared refs (type "shared") store only {name, shared} — no source copy —
 // and the panel frontend injects the registry HTML at render time.
+// editable == false → locked: not editable, not saved whole in YAML, always
+// loads from panel system. Absent == true for backward compat (shared defaults false).
 type instancePageComponent struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	Description string `json:"description"`
 	Content     string `json:"content"`
 	Shared      string `json:"shared,omitempty"`
+	Editable    *bool  `json:"editable,omitempty"`
 }
 
 // validateComponentsJSON checks that non-empty components is a JSON array of
