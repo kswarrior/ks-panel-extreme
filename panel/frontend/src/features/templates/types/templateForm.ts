@@ -248,7 +248,7 @@ export interface InstallStep {
   retries: string;
   ignore_errors: boolean;
   /** Persistence: 'container' = ephemeral setup lost on `docker rm`, 'data' = files in bind-mounted host dir (e.g. /var/lib/kspanel/instances/.../mc) that survive container recreation. When a start finds the container missing we reinstall only the needed subset. */
-  type: InstallStepType;
+  type?: InstallStepType;
 }
 
 export interface ActionStep {
