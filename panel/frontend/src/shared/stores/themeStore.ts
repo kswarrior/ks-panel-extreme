@@ -1,6 +1,6 @@
 import create from 'zustand';
 import { stripPanelBase } from '@/shared/utils/panelBase';
-import type { Theme, ThemeKey, ThemeCustomCSS } from '@/features/themes/types/theme';
+import type { Theme, ThemeKey, ThemeCustomCSS, ThemeScroll } from '@/features/themes/types/theme';
 import { DEFAULT_THEME } from '@/theme/defaults';
 import { rgbaAt } from '@/theme/colorUtils';
 import { AREAS, areaFor, bestPageFor, type AreaId } from '@/features/instance-pages/types/pageregistry';
@@ -112,6 +112,20 @@ function migrateCustomCSS(raw: unknown): ThemeCustomCSS {
     base.scopes = cleaned;
   }
   return base;
+}
+
+// migrateScroll backfills the Scrollbar section onto a theme that was
+// persisted before the field existed. Each surface (sidebar/page/tabs) is
+// merged independently so a partially-shaped persisted scroll object can
+// never leave one surface undefined for the studio/applier.
+function migrateScroll(raw: unknown): ThemeScroll {
+  const D = DEFAULT_THEME.scroll;
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<'sidebar' | 'page' | 'tabs', unknown>>;
+  const surface = (key: 'sidebar' | 'page' | 'tabs'): ThemeScroll['sidebar'] => {
+    const v = r[key];
+    return { ...D[key], ...((v && typeof v === 'object' ? v : {}) as object) };
+  };
+  return { sidebar: surface('sidebar'), page: surface('page'), tabs: surface('tabs') };
 }
 
 function persist(state: PersistShape): void {
@@ -468,6 +482,7 @@ function migrateThemeSections(t: any): Theme {
     utilities: sectionBackfill(t?.utilities, DEFAULT_THEME.utilities),
     cards: sectionBackfill(t?.cards, DEFAULT_THEME.cards),
     count: sectionBackfill((t as any)?.count, (DEFAULT_THEME as any).count ?? DEFAULT_THEME.cards),
+    scroll: migrateScroll((t as any)?.scroll),
     customCSS: migrateCustomCSS(t?.customCSS),
   };
 }
@@ -692,6 +707,24 @@ function sanitizeThemeTokens(theme: Theme): Theme {
     return out;
   };
   const t = theme;
+  // Scroll surfaces are nested one level deeper than the flat sections
+  // above (scroll.sidebar / .page / .tabs), so they get their own merge:
+  // unknown/missing surfaces fall back to DEFAULT, strings go through the
+  // same declaration-breakout hardening (gradients survive — they contain
+  // no { } ; \ < > characters), numbers are coerced finite.
+  const scRaw = ((t as any).scroll && typeof (t as any).scroll === 'object' ? (t as any).scroll : {}) as Record<string, unknown>;
+  const cleanScrollSurface = (key: 'sidebar' | 'page' | 'tabs'): Record<string, unknown> => {
+    const base = DEFAULT_THEME.scroll[key] as unknown as Record<string, unknown>;
+    const sec = scRaw[key];
+    if (!sec || typeof sec !== 'object') return { ...base };
+    const out: Record<string, unknown> = { ...base };
+    for (const [k, v] of Object.entries(sec as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = safeCssValue(v);
+      else if (typeof v === 'number') out[k] = Number.isFinite(v) ? v : (base[k] as number);
+      else out[k] = v;
+    }
+    return out;
+  };
   return {
     ...t,
     background: cleanSection(t.background) as unknown as Theme['background'],
@@ -712,6 +745,11 @@ function sanitizeThemeTokens(theme: Theme): Theme {
     utilities: cleanSection(t.utilities) as unknown as Theme['utilities'],
     cards: cleanSection(t.cards) as unknown as Theme['cards'],
     count: cleanSection((t as any).count) as unknown as Theme['count'],
+    scroll: {
+      sidebar: cleanScrollSurface('sidebar'),
+      page: cleanScrollSurface('page'),
+      tabs: cleanScrollSurface('tabs'),
+    } as unknown as Theme['scroll'],
   };
 }
 
@@ -1604,7 +1642,23 @@ function buildSectionVars(theme: Theme): { vars: string } {
   --ks-count-accent: ${safeCssValue((theme as any).count?.accent_color, (D as any).count?.accent_color ?? '#38bdf8')};
   --ks-count-accent-text: ${safeCssValue((theme as any).count?.accent_text_color, (D as any).count?.accent_text_color ?? '#bae6fd')};
   --ks-count-accent-bg: ${safeCssValue((theme as any).count?.accent_background, (D as any).count?.accent_background ?? 'rgba(56,189,248,0.14)')};
-  --ks-count-icon-size: ${num((theme as any).count?.icon_size, (D as any).count?.icon_size ?? 14)}px;`,
+  --ks-count-icon-size: ${num((theme as any).count?.icon_size, (D as any).count?.icon_size ?? 14)}px;
+  /* ---------------- Theme Studio: Scrollbars ---------------- */
+  --ks-scroll-sidebar-size: ${clampNum((theme as any).scroll?.sidebar?.size, D.scroll.sidebar.size, 0, 20)}px;
+  --ks-scroll-sidebar-track: ${safeCssValue((theme as any).scroll?.sidebar?.track, D.scroll.sidebar.track)};
+  --ks-scroll-sidebar-thumb: ${safeCssValue((theme as any).scroll?.sidebar?.thumb, D.scroll.sidebar.thumb)};
+  --ks-scroll-sidebar-hover: ${safeCssValue((theme as any).scroll?.sidebar?.hover, D.scroll.sidebar.hover)};
+  --ks-scroll-sidebar-radius: ${clampNum((theme as any).scroll?.sidebar?.radius, D.scroll.sidebar.radius, 0, 9999)}px;
+  --ks-scroll-page-size: ${clampNum((theme as any).scroll?.page?.size, D.scroll.page.size, 0, 20)}px;
+  --ks-scroll-page-track: ${safeCssValue((theme as any).scroll?.page?.track, D.scroll.page.track)};
+  --ks-scroll-page-thumb: ${safeCssValue((theme as any).scroll?.page?.thumb, D.scroll.page.thumb)};
+  --ks-scroll-page-hover: ${safeCssValue((theme as any).scroll?.page?.hover, D.scroll.page.hover)};
+  --ks-scroll-page-radius: ${clampNum((theme as any).scroll?.page?.radius, D.scroll.page.radius, 0, 9999)}px;
+  --ks-scroll-tabs-size: ${clampNum((theme as any).scroll?.tabs?.size, D.scroll.tabs.size, 0, 20)}px;
+  --ks-scroll-tabs-track: ${safeCssValue((theme as any).scroll?.tabs?.track, D.scroll.tabs.track)};
+  --ks-scroll-tabs-thumb: ${safeCssValue((theme as any).scroll?.tabs?.thumb, D.scroll.tabs.thumb)};
+  --ks-scroll-tabs-hover: ${safeCssValue((theme as any).scroll?.tabs?.hover, D.scroll.tabs.hover)};
+  --ks-scroll-tabs-radius: ${clampNum((theme as any).scroll?.tabs?.radius, D.scroll.tabs.radius, 0, 9999)}px;`,
   };
 }
 
@@ -2647,6 +2701,79 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
   z-index: 30 !important;
   width: max-content !important;
   max-width: min(280px, 80vw) !important;
+}
+
+/* ------------------------------------------------------------------
+   Theme Studio → Scrollbars. The browser-native bars on the three
+   overflow surfaces: the sidebar nav (.ks-sidebar-nav, vertical), the
+   main page column (.ks-page-scroll) and the horizontal tab strips
+   (instance tabs nav + .ks-hscroll preset strips). Each surface paints
+   from its own Scroll-tab vars so all three restyle independently.
+   Firefox consumes scrollbar-color (thumb + track) at a fixed `thin`
+   width — pixel thickness only applies to WebKit/Chromium via
+   ::-webkit-scrollbar. A 0px size hides the WebKit bar.
+   ------------------------------------------------------------------ */
+.ks-sidebar-nav {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ks-scroll-sidebar-thumb) var(--ks-scroll-sidebar-track);
+}
+.ks-sidebar-nav::-webkit-scrollbar {
+  width: var(--ks-scroll-sidebar-size) !important;
+}
+.ks-sidebar-nav::-webkit-scrollbar-track {
+  background: var(--ks-scroll-sidebar-track) !important;
+}
+.ks-sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--ks-scroll-sidebar-thumb) !important;
+  border-radius: var(--ks-scroll-sidebar-radius) !important;
+}
+.ks-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--ks-scroll-sidebar-hover) !important;
+}
+.ks-page-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ks-scroll-page-thumb) var(--ks-scroll-page-track);
+}
+.ks-page-scroll::-webkit-scrollbar {
+  width: var(--ks-scroll-page-size) !important;
+  height: var(--ks-scroll-page-size) !important;
+}
+.ks-page-scroll::-webkit-scrollbar-track {
+  background: var(--ks-scroll-page-track) !important;
+}
+.ks-page-scroll::-webkit-scrollbar-thumb {
+  background: var(--ks-scroll-page-thumb) !important;
+  border-radius: var(--ks-scroll-page-radius) !important;
+}
+.ks-page-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ks-scroll-page-hover) !important;
+}
+/* Tab strips keep the 1px inset thumb (border + content-box) so the
+   Default gradient renders at the same visible thickness as before the
+   Scroll tab existed. */
+nav.overflow-x-auto,
+.ks-hscroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ks-scroll-tabs-thumb) var(--ks-scroll-tabs-track);
+}
+nav.overflow-x-auto::-webkit-scrollbar,
+.ks-hscroll::-webkit-scrollbar {
+  height: var(--ks-scroll-tabs-size) !important;
+}
+nav.overflow-x-auto::-webkit-scrollbar-track,
+.ks-hscroll::-webkit-scrollbar-track {
+  background: var(--ks-scroll-tabs-track) !important;
+}
+nav.overflow-x-auto::-webkit-scrollbar-thumb,
+.ks-hscroll::-webkit-scrollbar-thumb {
+  background: var(--ks-scroll-tabs-thumb) !important;
+  border-radius: var(--ks-scroll-tabs-radius) !important;
+  border: 1px solid transparent !important;
+  background-clip: content-box !important;
+}
+nav.overflow-x-auto::-webkit-scrollbar-thumb:hover,
+.ks-hscroll::-webkit-scrollbar-thumb:hover {
+  background: var(--ks-scroll-tabs-hover) !important;
 }`;
 }
 
