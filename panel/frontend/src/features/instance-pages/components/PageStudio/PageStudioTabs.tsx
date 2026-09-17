@@ -16,6 +16,9 @@ interface PageStudioTabsProps {
   onChange: (id: PageStudioTabId) => void;
   isBuiltin?: boolean;
   tabs?: typeof PAGE_STUDIO_TABS;
+  tabsPillOuterClassName?: string;
+  tabsPillOuterStyle?: React.CSSProperties;
+  tabsPillClassName?: string;
 }
 
 // Icons — same set as the legacy monolithic Studio's TAB_CONFIG so the
@@ -45,7 +48,7 @@ function TemplatesIcon() {
   return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /> </svg>;
 }
 
-export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin, tabs }) => {
+export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, isBuiltin, tabs, tabsPillOuterClassName, tabsPillOuterStyle, tabsPillClassName }) => {
   const meta: Record<PageStudioTabId, { label: string; hint: string; icon: React.ReactNode }> = {
     templates: { label: 'Templates', hint: 'Starter gallery', icon: <TemplatesIcon /> },
     editor: { label: 'Main page', hint: 'HTML · Markdown · Blocks', icon: <EditorIcon /> },
@@ -95,7 +98,7 @@ export const PageStudioTabs: React.FC<PageStudioTabsProps> = ({ tab, onChange, i
       {/* Phone tabs — bottom pill with the same `^` / `v` toggle + collapse
           system as the actions pill (PageTabsPill). No spacer here: the
           caller renders its own. */}
-      <PageTabsPill ariaLabel="Page studio sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label}>
+      <PageTabsPill ariaLabel="Page studio sections" spacer={false} activeLabel={items.find((t) => t.id === tab)?.label} outerClassName={tabsPillOuterClassName} outerStyle={tabsPillOuterStyle} className={tabsPillClassName ?? ''}>
         {items.map((t) => {
           const disabled = isBuiltin && t.id !== 'preview';
           return (
