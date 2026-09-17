@@ -45,9 +45,14 @@ var (
 	nodeProbeSem    = make(chan struct{}, 8)
 	installPollSem  = make(chan struct{}, 8)
 	metricsPollSem  = make(chan struct{}, 16)
+	statusPollSem   = make(chan struct{}, 8)
 	sweepInflightMu sync.Mutex
 	installInflight = map[int64]struct{}{}
 	metricsInflight = map[int64]struct{}{}
+	statusInflight  = map[int64]struct{}{}
+	edgeOnlineMu    sync.Mutex
+	edgeOnlineState = map[int64]bool{}
+	edgeWasRunning  = map[int64]map[int64]bool{} // nodeID -> instanceID -> wasRunningBeforeOffline
 )
 
 func sweepTryAcquire(sem chan struct{}) bool {
@@ -270,6 +275,16 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// "0%" / "—" for the live usage until an operator opens a detail page.
 	// See metricsSweepLoop's doc for cadence / fleet-sizing rationale.
 	go metricsSweepLoop(10*time.Second)
+
+	// Live status reconciliation + auto-restart. Every ~15s we verify the
+	// panel's status column against the edge's real container state via a
+	// lightweight `lifecycle{status}` RPC. If a container was deleted
+	// outside the panel (docker rm -f) we flip the row to "stopped" so the
+	// UI stops claiming "Running" while docker ps is empty. The same loop
+	// enforces per-instance restart_policy (auto_start_on_stop /
+	// auto_start_on_crash / auto_start_on_edge_online) so stopped or
+	// crashed workloads can self-heal without operator intervention.
+	go instanceStatusLoop(15 * time.Second)
 
 	// Start the rolling time-series sampler for the dashboard's host-monitor
 	// charts (CPU%/RAM%/load1 — 1s cadence, 60s window). Must start before
