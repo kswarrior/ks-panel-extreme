@@ -1058,15 +1058,35 @@ content_html: |-
     }
     function renderPhoneTabs() {
       var host = el('ks-ptabs');
-      if (!host) return;
-      var ap = activePane();
-      var label = ap ? paneLabel(ap, panes.indexOf(ap)) : 'Terminal';
+      if (!host) { wirePhonePill(); return; }
+      // Build vertical tab rows like PageTabsPill: full-width, left-aligned, ks-tab-active on selected.
       var h = panes.map(function (p, idx) {
         var st = tabDot(p);
         var active = p.key === activeKey;
-        return '<button type="button" data-ptab="' + p.key + '" role="tab" aria-selected="' + active + '" class="ks-tab" style="padding:6px 12px;font-size:13px;flex-shrink:0;display:inline-flex;align-items:center;gap:6px' + (active ? ';background:var(--ks-tab-active-bg,#fff);color:var(--ks-tab-active-text,#000)' : '') + '"><span style="width:6px;height:6px;border-radius:9999px;' + st.dot + '"></span><span style="white-space:nowrap">' + esc(paneLabel(p, idx)) + '</span></button>';
+        var label = paneLabel(p, idx);
+        var tid = normTid(p.tid);
+        return '<button type="button" data-ptab="' + p.key + '" role="tab" aria-selected="' + active + '" class="ks-tab' + (active ? ' ks-tab-active' : '') + '" style="width:100%;justify-content:flex-start;text-align:left;display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;flex-shrink:0">'
+          + '<span style="width:6px;height:6px;border-radius:9999px;flex-shrink:0;' + st.dot + '"></span>'
+          + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(label) + '</span>'
+          + (tid !== '' ? '<span class="ks-mono" style="font-size:11px;opacity:.6;max-width:7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(tid) + '</span>' : '')
+          + '</button>';
       }).join('');
-      host.innerHTML = '<div style="display:inline-flex;align-items:center;gap:4px;max-width:100%;overflow-x:auto">' + h + '</div>';
+      host.innerHTML = h;
+      // Apply the current open/closed geometry so the content glides like PageTabsPill (max-height + fade + rise).
+      var shell = el('ks-ptabs-shell');
+      if (shell) {
+        var c = shell.querySelector('.ks-pill-content');
+        if (c) {
+          // Ensure the inner list has the correct flex column + scroll max-height.
+          c.style.display = 'flex';
+          c.style.flexDirection = 'column';
+          c.style.gap = '4px';
+          c.style.width = '100%';
+          c.style.minWidth = '0';
+          // Width of the shell: shrink-to-content by default (hugs longest tab), max viewport-clamped.
+        }
+      }
+      // Wire tab selection: selecting a tab collapses back to ^ (PageTabsPill parity) and restores aria.
       var btns = host.querySelectorAll('[data-ptab]');
       for (var i = 0; i < btns.length; i++) {
         (function (b) {
@@ -1074,11 +1094,13 @@ content_html: |-
             activeKey = Number(b.getAttribute('data-ptab'));
             saveSession();
             renderTabs(); renderPanes(); renderPhoneTabs();
+            setPhonePillOpen(false);
           });
         })(btns[i]);
       }
-      var lab = el('ks-ptab-label');
-      if (lab) lab.textContent = label;
+      wirePhonePill();
+      // Keep the toggle's activeLabel in sync (closed shows current pane name).
+      setPhonePillOpen(phonePillOpen);
     }
 
     function renderPanes() {
