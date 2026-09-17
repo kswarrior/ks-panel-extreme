@@ -507,6 +507,7 @@ export interface TemplateFormState {
   labels: Label[];
   devices: Device[];
   healthcheck: Healthcheck;
+  auto_restart: AutoRestart;
   advanced: Advanced;
   pages: PageOverride[];
   // Landing page slug for the instance index route (/instances/:id).
@@ -542,6 +543,7 @@ export type TemplateTabId =
   | 'runtime'
   | 'labels'
   | 'healthcheck'
+  | 'restart'
   | 'pages'
   | 'controls'
   | 'spec';
@@ -555,6 +557,7 @@ export const TEMPLATE_TABS: Array<{ id: TemplateTabId; label: string }> = [
   { id: 'runtime', label: 'Runtime' },
   { id: 'labels', label: 'Labels & Devices' },
   { id: 'healthcheck', label: 'Healthcheck' },
+  { id: 'restart', label: 'Auto Start' },
   { id: 'pages', label: 'Pages' },
   { id: 'controls', label: 'Instance Controls' },
   { id: 'spec', label: 'Spec Preview' },
@@ -630,6 +633,7 @@ export const emptyForm: TemplateFormState = {
     retries: '3',
     start_period_s: '10',
   },
+  auto_restart: { on_stop: false, on_crash: false, on_edge_online: 'off' },
   advanced: {
     startup_command: '',
     startup_terminal_id: '',

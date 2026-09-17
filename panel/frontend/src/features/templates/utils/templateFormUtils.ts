@@ -300,6 +300,17 @@ export function serializeSpec(f: TemplateFormState): string {
       retries: f.healthcheck.retries,
       start_period: f.healthcheck.start_period_s ? `${f.healthcheck.start_period_s}s` : '',
     } : undefined,
+    // Auto-restart policy: persisted only when any sub-field is non-default so
+    // old specs stay byte-identical. The panel's reconciliation loop reads this
+    // block to decide whether to auto-start a stopped/crashed instance or
+    // resurrect it when its edge comes back online.
+    ...((f.auto_restart.on_stop || f.auto_restart.on_crash || f.auto_restart.on_edge_online !== 'off')
+      ? { auto_restart: {
+          on_stop: !!f.auto_restart.on_stop,
+          on_crash: !!f.auto_restart.on_crash,
+          on_edge_online: f.auto_restart.on_edge_online,
+        } }
+      : {}),
     // Every page row is a CUSTOM page (html/markdown/blocks) imported from
     // the Instance Pages library. Rows are written back verbatim so the
     // template spec keeps exactly what the author picked — label and icon
@@ -824,6 +835,29 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
         retries: String(h.retries ?? ''),
         start_period_s: stripUnit(String(h.start_period ?? h.start_period_s ?? '')),
       };
+    }
+    // Auto-restart policy: three knobs that control the panel's live-status
+    // reconciliation loop. Missing / malformed values fall back to "off" so
+    // old specs keep working without a re-save.
+    {
+      const raw = (s as Record<string, any>).auto_restart ?? (s as Record<string, any>).restart_policy;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const m = raw as Record<string, any>;
+        const onStop = !!(m.on_stop ?? m.auto_start_on_stop ?? m.on_normal_exit ?? false);
+        const onCrash = !!(m.on_crash ?? m.auto_start_on_crash ?? m.on_failure ?? false);
+        let onEdge = String(m.on_edge_online ?? m.auto_start_on_edge_online ?? 'off').trim().toLowerCase();
+        if (!['off', 'was_running', 'always'].includes(onEdge)) {
+          // Legacy: "if_was_running" → "was_running", "true" → "always"
+          if (onEdge === 'if_was_running' || onEdge === 'if_running') onEdge = 'was_running';
+          else if (onEdge === 'true' || onEdge === 'on') onEdge = 'always';
+          else onEdge = 'off';
+        }
+        out.auto_restart = {
+          on_stop: onStop,
+          on_crash: onCrash,
+          on_edge_online: onEdge as 'off' | 'was_running' | 'always',
+        };
+      }
     }
     if (s.advanced && typeof s.advanced === 'object') {
       const a = s.advanced as Record<string, any>;
