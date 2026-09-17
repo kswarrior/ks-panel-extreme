@@ -99,13 +99,19 @@ export function specToEditor(spec: string): EditorState {
     }));
   }
   if (Array.isArray(s.install)) {
-    out.install = s.install.map((st: any) => ({
-      action: (st.action ?? 'shell') as InstallAction, command: String(st.command ?? ''),
-      url: String(st.url ?? ''), filename: String(st.filename ?? ''), archive: String(st.archive ?? ''),
-      dest: String(st.dest ?? ''), from: String(st.from ?? ''), to: String(st.to ?? ''),
-      path: String(st.path ?? ''), content: String(st.content ?? ''), branch: String(st.branch ?? ''),
-      retries: String(st.retries ?? ''), ignore_errors: !!st.ignore_errors,
-    }));
+    out.install = s.install.map((st: any) => {
+      const rawType = String(st.type ?? '').trim().toLowerCase();
+      let type: 'container' | 'data' = 'container';
+      if (rawType === 'data' || rawType === 'instance' || rawType === 'persistent') type = 'data';
+      else if (rawType === 'container' || rawType === 'environment') type = 'container';
+      return {
+        action: (st.action ?? 'shell') as InstallAction, command: String(st.command ?? ''),
+        url: String(st.url ?? ''), filename: String(st.filename ?? ''), archive: String(st.archive ?? ''),
+        dest: String(st.dest ?? ''), from: String(st.from ?? ''), to: String(st.to ?? ''),
+        path: String(st.path ?? ''), content: String(st.content ?? ''), branch: String(st.branch ?? ''),
+        retries: String(st.retries ?? ''), ignore_errors: !!st.ignore_errors, type,
+      };
+    });
   }
   if (s.install_timeout_sec !== undefined && s.install_timeout_sec !== null) {
     out.install_timeout_s = String(s.install_timeout_sec);
@@ -366,7 +372,7 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
     install: f.install.map((s) => ({
       action: s.action, command: s.command, url: s.url, filename: s.filename, archive: s.archive,
       dest: s.dest, from: s.from, to: s.to, path: s.path, content: s.content, branch: s.branch,
-      retries: s.retries, ignore_errors: !!s.ignore_errors,
+      retries: s.retries, ignore_errors: !!s.ignore_errors, type: (s as any).type === 'data' ? 'data' : 'container',
     })),
     // Whole-workflow budget for the edge's install runner (seconds). Empty
     // = the edge's 30-minute default.
