@@ -114,7 +114,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
                 </div>
                 {isEditing && (
                   <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-2 items-center flex-wrap">
                       <span className="text-xs text-gray-500 w-8">#{i + 1}</span>
                       <select value={s.action} onChange={(e) => onInstallUpdate(i, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44'}>
                         <option value="shell">Shell Command</option>

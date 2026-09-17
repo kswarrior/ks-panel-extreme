@@ -702,7 +702,7 @@ const TemplateForm: React.FC = () => {
             installTerminalId={form.install_terminal_id}
             onInstallTerminalIdUpdate={(v) => setForm((f) => ({ ...f, install_terminal_id: v }))}
             onInstallUpdate={(i, patch) => setForm((f) => { const s = [...f.install]; s[i] = { ...s[i], ...patch }; return { ...f, install: s }; })}
-            onInstallAdd={() => setForm((f) => ({ ...f, install: [...f.install, { action: 'shell', command: '', url: '', filename: '', archive: '', dest: '', from: '', to: '', path: '', content: '', branch: 'main', retries: '0', ignore_errors: false }] }))}
+            onInstallAdd={() => setForm((f) => ({ ...f, install: [...f.install, { action: 'shell', command: '', url: '', filename: '', archive: '', dest: '', from: '', to: '', path: '', content: '', branch: 'main', retries: '0', ignore_errors: false, type: 'container' as const }] }))}
             onInstallDelete={(i) => setForm((f) => ({ ...f, install: f.install.filter((_, j) => j !== i) }))}
             onInstallMove={(i, dir) => setForm((f) => { const s = [...f.install]; const j = i + dir; if (j < 0 || j >= s.length) return f; [s[i], s[j]] = [s[j], s[i]]; return { ...f, install: s }; })}
             sectionCls={sectionCls}
