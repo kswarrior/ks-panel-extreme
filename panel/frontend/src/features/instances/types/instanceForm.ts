@@ -88,6 +88,8 @@ export interface Device {
 
 export type InstallAction = 'shell' | 'download' | 'extract' | 'move' | 'write' | 'chmod' | 'mkdir' | 'git_clone' | 'pip_install' | 'npm_install' | 'http_check';
 
+export type InstallStepType = 'container' | 'data';
+
 export interface InstallStep {
   action: InstallAction;
   command: string;
@@ -102,6 +104,7 @@ export interface InstallStep {
   branch: string;
   retries: string;
   ignore_errors: boolean;
+  type?: InstallStepType;
 }
 
 export interface ActionStep extends InstallStep {}
