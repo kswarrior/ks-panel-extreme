@@ -24,6 +24,7 @@ import {
   UtilitiesTab,
   CardsTab,
   CountTab,
+  ScrollTab,
   CustomCSSTab,
   MarketTab,
   HistoryTab,
@@ -213,6 +214,15 @@ const ICON_HISTORY = (
     <polyline points="3 4 3 9 8 9" />
     <line x1="12" y1="8" x2="12" y2="12" />
     <line x1="12" y1="12" x2="15" y2="14" />
+  </svg>
+);
+const ICON_SCROLL = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <rect x="16.5" y="6" width="2.5" height="7" rx="1.25" fill="currentColor" stroke="none" />
+    <line x1="7" y1="8" x2="13" y2="8" />
+    <line x1="7" y1="12" x2="13" y2="12" />
+    <line x1="7" y1="16" x2="11" y2="16" />
   </svg>
 );
 const ICON_COUNT = (
