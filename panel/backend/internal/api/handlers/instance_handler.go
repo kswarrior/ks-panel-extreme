@@ -804,6 +804,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 						Branch:       getString(m, "branch"),
 						Retries:      getString(m, "retries"),
 						IgnoreErrors: getBool(m, "ignore_errors"),
+						Type:       getString(m, "type"),
 					})
 				}
 			}
@@ -843,6 +844,7 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 					Branch:       s.Branch,
 					Retries:      s.Retries,
 					IgnoreErrors: s.IgnoreErrors,
+					Type:       s.Type,
 				}
 			}
 			// Resolved KEY=VALUE pairs ride along for {{KEY}} substitution
@@ -1149,7 +1151,8 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 					Branch:       getString(m, "branch"),
 					Retries:      getString(m, "retries"),
 					IgnoreErrors: getBool(m, "ignore_errors"),
-				})
+						Type:       getString(m, "type"),
+					})
 			}
 		}
 	}
@@ -1188,7 +1191,8 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 				Branch:       s.Branch,
 				Retries:      s.Retries,
 				IgnoreErrors: s.IgnoreErrors,
-			}
+					Type:       s.Type,
+				}
 		}
 		envVars := map[string]string{}
 		if em, ok := cfg["env"].(map[string]any); ok {
@@ -1573,7 +1577,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 					Branch:       getString(m, "branch"),
 					Retries:      getString(m, "retries"),
 					IgnoreErrors: getBool(m, "ignore_errors"),
-				})
+						Type:       getString(m, "type"),
+					})
 			}
 		}
 	}
@@ -1887,6 +1892,7 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 					Branch:       s.Branch,
 					Retries:      s.Retries,
 					IgnoreErrors: s.IgnoreErrors,
+					Type:       s.Type,
 				}
 			}
 
@@ -3216,7 +3222,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 	// transcript that the panel polls via /api/edge/install GET.
 	edgeSteps := make([]edge.InstallStep, len(action.Steps))
 	for i, s := range action.Steps {
-		edgeSteps[i] = edge.InstallStep{
+	edgeSteps[i] = edge.InstallStep{
 			Action:       s.Action,
 			Command:      s.Command,
 			URL:          s.URL,
@@ -3230,7 +3236,7 @@ func startTemplateAction(con *sql.DB, inst *models.Instance, actionID string) (s
 			Branch:       s.Branch,
 			Retries:      s.Retries,
 			IgnoreErrors: s.IgnoreErrors,
-		}
+			}
 	}
 
 	// Persist install_state + steps_json BEFORE the InstallStart call so

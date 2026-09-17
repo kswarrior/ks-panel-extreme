@@ -231,6 +231,8 @@ export type LogLevel = 'info' | 'debug' | 'warn' | 'error';
 
 export type InstallAction = 'shell' | 'download' | 'extract' | 'move' | 'write' | 'chmod' | 'mkdir' | 'git_clone' | 'pip_install' | 'npm_install' | 'http_check';
 
+export type InstallStepType = 'container' | 'data';
+
 export interface InstallStep {
   action: InstallAction;
   command: string;
@@ -245,6 +247,8 @@ export interface InstallStep {
   branch: string;
   retries: string;
   ignore_errors: boolean;
+  /** Persistence: 'container' = ephemeral setup lost on `docker rm`, 'data' = files in bind-mounted host dir (e.g. /var/lib/kspanel/instances/.../mc) that survive container recreation. When a start finds the container missing we reinstall only the needed subset. */
+  type: InstallStepType;
 }
 
 export interface ActionStep {
