@@ -277,7 +277,6 @@ interface InstanceCardProps {
 
 const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwner, onEdit, onDelete, onSuspend, onUnsuspend, suspendingId, deleteDisabled, id }) => {
   const navigate = useNavigate();
-  const sm = statusMeta(instance.status);
   const [cachedById, setCachedById] = useState<Record<number, CachedResource>>({});
   const cached = cachedById[instance.id] || null;
   useEffect(() => {
@@ -315,6 +314,20 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
   }
   const res = parseLimits(parseConfig(instance.config), cached);
   const uptime = useUptime(pickSince(instance.started_at, instance.updated_at, instance.created_at), instance.status, cached?.uptime ?? null, cached?.updated_at ?? null);
+  // Prefer live edge status from cached metrics when it's recent (<90s) and
+  // differs from the DB row — makes `docker rm -f` reflect instantly on the
+  // card, before the 15s reconciliation sweep flips the DB row.
+  const liveStatus = (() => {
+    if (!cached || !cached.status) return null;
+    const upd = new Date(cached.updated_at).getTime();
+    if (!Number.isFinite(upd) || Date.now() - upd > 90_000) return null;
+    const s = String(cached.status).toLowerCase();
+    if (s.includes('run') || s === 'running' || s === 'up') return 'running';
+    if (s.includes('stop') || s === 'exited' || s === 'dead' || s === 'not_found' || s === 'stopped') return 'stopped';
+    return null;
+  })();
+  const effectiveStatus = liveStatus || instance.status;
+  const sm = statusMeta(effectiveStatus);
   const glassModifier = useThemeStore((s) => {
     const g = s.active().card.glass_style;
     if (!g || g === 'frosted') return '';

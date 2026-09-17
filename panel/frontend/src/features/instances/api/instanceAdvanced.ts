@@ -299,6 +299,20 @@ export async function listCachedResources(): Promise<CachedResource[]> {
   return Array.isArray(res.data) ? res.data : [];
 }
 
+export interface InstanceLive {
+  id: number;
+  db_status: string;
+  edge_status: string;
+  status: string;
+  uptime: number;
+  alive: boolean;
+}
+
+export async function getInstanceLive(id: number): Promise<InstanceLive> {
+  const res = await client.get<InstanceLive>(`/api/instances/${id}/live`);
+  return res.data;
+}
+
 // ---- Instance actions ----------------------------------------------------
 //
 // The /api/instances/{id}/actions/{actionId}/invoke route is the
