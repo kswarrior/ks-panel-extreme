@@ -76,6 +76,7 @@ install:
   branch: ''
   retries: ''
   ignore_errors: false
+  type: data
 - action: write
   command: ''
   url: ''
@@ -89,6 +90,7 @@ install:
   branch: ''
   retries: ''
   ignore_errors: false
+  type: data
 - action: shell
   command: touch /mc/.install-complete
   url: ''
@@ -102,6 +104,7 @@ install:
   branch: ''
   retries: ''
   ignore_errors: false
+  type: data
 instance_controls:
   show_info_row: true
   show_cpu: true

@@ -101,6 +101,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-white truncate">#{i + 1}</span>
                       <span className="text-[10px] uppercase tracking-wide border px-1.5 py-0.5 rounded bg-sky-900/30 text-sky-300 border-sky-700/40">{typeTag}</span>
+                      <span className={`text-[10px] uppercase tracking-wide border px-1.5 py-0.5 rounded ${s.type === 'data' ? 'bg-amber-900/30 text-amber-300 border-amber-700/40' : 'bg-emerald-900/30 text-emerald-300 border-emerald-700/40'}`}>{s.type === 'data' ? 'data' : 'container'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -116,6 +117,10 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
                   <div className="px-3 pb-3 pt-1 ks-row-card-body space-y-2">
                     <div className="flex gap-2 items-center flex-wrap">
                       <span className="text-xs text-gray-500 w-8">#{i + 1}</span>
+                      <select value={(s as any).type === 'data' ? 'data' : 'container'} onChange={(e) => onInstallUpdate(i, { type: e.target.value as any })} className={glassFieldClass + ' w-32'}>
+                        <option value="container">Container</option>
+                        <option value="data">Data</option>
+                      </select>
                       <select value={s.action} onChange={(e) => onInstallUpdate(i, { action: e.target.value as InstallAction })} className={glassFieldClass + ' w-44'}>
                         <option value="shell">Shell Command</option>
                         <option value="download">Download File</option>
@@ -130,6 +135,7 @@ export const TemplateInstallSection: React.FC<InstallSectionProps> = ({
                         <option value="http_check">HTTP Health Check</option>
                       </select>
                     </div>
+                    <p className="text-[11px] text-gray-500 -mt-1">Type: Container = environment setup lost on container removal (reinstalled always). Data = persistent files in bind-mount (e.g. /var/lib/kspanel/instances/.../mc/server.jar) — skipped when host data still exists on container recreation.</p>
                     {s.action === 'shell' && (
                       <input value={s.command} onChange={(e) => onInstallUpdate(i, { command: e.target.value })} placeholder="command" className={monoCls} />
                     )}
