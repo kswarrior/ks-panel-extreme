@@ -1487,7 +1487,7 @@ func instanceStatusLoop(interval time.Duration) {
 		if err != nil {
 			continue
 		}
-		rows, err := con.Query(`SELECT id, node_id, kind, name, external_id, status, config FROM instances WHERE status IN ('running','installing','stopped','errored','install_failed')`)
+		rows, err := con.Query(`SELECT id, node_id, kind, name, external_id, status, config, updated_at FROM instances WHERE status IN ('running','installing','stopped','errored','install_failed')`)
 		if err != nil {
 			con.Close()
 			continue
@@ -1500,18 +1500,27 @@ func instanceStatusLoop(interval time.Duration) {
 			externalID string
 			status     string
 			config     string
+			updatedAt  time.Time
 		}
 		var toCheck []instRow
 		for rows.Next() {
 			var r instRow
 			var ext sql.NullString
 			var cfg sql.NullString
-			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.name, &ext, &r.status, &cfg); err == nil {
+			var upd sql.NullString
+			if err := rows.Scan(&r.id, &r.nodeID, &r.kind, &r.name, &ext, &r.status, &cfg, &upd); err == nil {
 				if ext.Valid {
 					r.externalID = ext.String
 				}
 				if cfg.Valid {
 					r.config = cfg.String
+				}
+				if upd.Valid {
+					if t, perr := time.Parse("2006-01-02 15:04:05", upd.String); perr == nil {
+						r.updatedAt = t
+					} else if t, perr := time.Parse(time.RFC3339, upd.String); perr == nil {
+						r.updatedAt = t
+					}
 				}
 				toCheck = append(toCheck, r)
 			}
@@ -1658,6 +1667,10 @@ func instanceStatusLoop(interval time.Duration) {
 						// Don't flip installing → running automatically here; installSweepLoop owns that transition.
 						// But do flip running → stopped when edge says stopped.
 						if irCopy.status == "running" && edgeNorm == "stopped" {
+							// Skip if the row was updated very recently (manual restart/stop in flight).
+							if !irCopy.updatedAt.IsZero() && time.Since(irCopy.updatedAt) < 15*time.Second {
+								return
+							}
 							reason := "container is " + edgeRaw + " on edge — reconciled to stopped"
 							if isNotFound {
 								reason = "container not found on edge — reconciled to stopped"
