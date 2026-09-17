@@ -114,6 +114,9 @@ export function pageSourceOf(p: Pick<InstancePage, 'source'> | undefined | null)
 // renderer at transpile time (`import ... from './name'`). Zero migration —
 // it reuses the components column and its 512KiB budget. Excluded from
 // {{component:name}} substitution (not HTML).
+// editable == false → locked: not editable, not saved whole in YAML, always
+// loads from panel system (shared registry). Absent == true for backward compat
+// (except type shared defaults false when missing).
 export interface PageComponentDef {
   name: string;
   type: 'html' | 'markdown' | 'block' | 'shared' | 'module';
@@ -121,6 +124,8 @@ export interface PageComponentDef {
   content: string;
   /** Registry key for type "shared" (defaults to name when omitted). */
   shared?: string;
+  /** When false component is locked: not editable, not saved whole in YAML — always loads from panel. */
+  editable?: boolean;
 }
 
 // InstancePageSubPage is one extra page shipped inside a library page

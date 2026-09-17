@@ -35,6 +35,8 @@ export interface PageComponentDef {
   content: string;
   /** Registry key for type "shared" (defaults to name when omitted). */
   shared?: string;
+  /** When false component is locked: not editable, not saved whole in YAML — always loads from panel. */
+  editable?: boolean;
 }
 
 export interface PageConfigureVar {

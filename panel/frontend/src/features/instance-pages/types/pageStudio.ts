@@ -62,6 +62,8 @@ export interface ComponentRow {
   content: string;
   /** Registry key for type "shared" (defaults to name when omitted). */
   shared?: string;
+  /** When false component is locked: not editable, not saved whole in YAML — always loads from panel system. */
+  editable?: boolean;
 }
 
 export interface SubPageRow {
