@@ -182,6 +182,7 @@ const InstanceAdvancedTabContent: React.FC<InstanceAdvancedTabContentProps> = ({
             branch: 'main',
             retries: '0',
             ignore_errors: false,
+            type: 'container' as const,
           },
         ],
       })),
