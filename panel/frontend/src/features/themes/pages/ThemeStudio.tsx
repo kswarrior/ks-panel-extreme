@@ -262,6 +262,7 @@ const TABS: Array<{ key: TabKey; label: string; hint: string; icon: React.ReactN
   { key: 'utilities', label: 'Utilities', hint: 'Tokens, shadows & z-index', icon: ICON_UTILITIES },
   { key: 'cards', label: 'Cards', hint: 'List, stat, form, row & page cards', icon: ICON_CARD },
   { key: 'count', label: 'Count', hint: 'List count badge pill', icon: ICON_COUNT },
+  { key: 'scroll', label: 'Scroll', hint: 'Sidebar, page & tab scrollbars', icon: ICON_SCROLL },
   { key: 'customCSS', label: 'Custom CSS', hint: 'Raw CSS, global & scoped', icon: ICON_CSS },
   { key: 'market', label: 'Market', hint: 'Browse & install themes', icon: ICON_MARKET },
   { key: 'history', label: 'History', hint: 'Versions & restore', icon: ICON_HISTORY },
@@ -516,6 +517,7 @@ const ThemeStudio: React.FC = () => {
             {tab === 'utilities' && <UtilitiesTab draft={draft} patch={patch} />}
             {tab === 'cards' && <CardsTab draft={draft} patch={patch} />}
             {tab === 'count' && <CountTab draft={draft} patch={patch} />}
+            {tab === 'scroll' && <ScrollTab draft={draft} patch={patch} />}
             {tab === 'customCSS' && <CustomCSSTab draft={draft} patch={patch} />}
             {tab === 'market' && <MarketTab />}
             {tab === 'history' && <HistoryTab />}
