@@ -328,6 +328,12 @@ export interface Healthcheck {
   start_period_s: string;
 }
 
+export interface AutoRestart {
+  on_stop: boolean;
+  on_crash: boolean;
+  on_edge_online: 'off' | 'was_running' | 'always';
+}
+
 export interface PageOverride {
   slug: string;
   enabled: boolean;
