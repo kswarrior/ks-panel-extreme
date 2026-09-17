@@ -12,6 +12,8 @@ export { TemplateLabelsDevicesSection } from './TemplateLabelsDevicesSection';
 export type { LabelsDevicesSectionProps } from './TemplateLabelsDevicesSection';
 export { TemplateHealthcheckSection } from './TemplateHealthcheckSection';
 export type { HealthcheckSectionProps } from './TemplateHealthcheckSection';
+export { TemplateRestartSection } from './TemplateRestartSection';
+export type { TemplateRestartSectionProps } from './TemplateRestartSection';
 export { TemplateImagesSection } from './TemplateImagesSection';
 export type { ImagesSectionProps } from './TemplateImagesSection';
 export { TemplateControlsSection } from './TemplateControlsSection';

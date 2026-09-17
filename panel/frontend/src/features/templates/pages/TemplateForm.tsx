@@ -19,6 +19,7 @@ import {
   TemplateRuntimeSection,
   TemplateLabelsDevicesSection,
   TemplateHealthcheckSection,
+  TemplateRestartSection,
   TemplateControlsSection,
   TemplateImagesSection,
   TemplateSpecPreviewSection,
@@ -774,6 +775,15 @@ const TemplateForm: React.FC = () => {
             addBtn={addBtn}
           />
           </>
+        )}
+
+        {tab === 'restart' && (
+          <TemplateRestartSection
+            autoRestart={form.auto_restart}
+            onUpdate={(patch) => setForm((f) => ({ ...f, auto_restart: { ...f.auto_restart, ...patch } }))}
+            sectionCls={sectionCls}
+            labelCls={labelCls}
+          />
         )}
 
         {tab === 'controls' && (
