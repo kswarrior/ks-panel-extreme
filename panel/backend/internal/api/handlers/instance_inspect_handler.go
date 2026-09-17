@@ -444,6 +444,94 @@ func MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(metricsOut))
 }
 
+// ----- Live status (edge truth) --------------------------------------------
+
+// GetInstanceLiveHandler returns the *real* edge-side status + uptime for one
+// instance by dialing the edge directly (lifecycle status + inspect metrics).
+// It is the "up to date real by check from edge" endpoint the operator asked
+// for: the DB row's status is stale after an external `docker rm -f`, but this
+// endpoint always reflects what the edge currently sees. The SPA's detail
+// page and InstanceCard poll it to render a green "Running · 2h 3m" that is
+// actually true, not the last DB write's phrasing. On edge unreachable it
+// falls back to the cached live-state / DB status so the page never blanks
+// to an error while the edge is offline.
+func GetInstanceLiveHandler(w http.ResponseWriter, r *http.Request) {
+	inst, ec, name, ok := loadInstNode(w, r)
+	if !ok {
+		return
+	}
+	// Fast path: lifecycle status (lightweight, no shell inside container)
+	edgeStatus := ""
+	edgeAlive := true
+	if resp, err := ec.Lifecycle(edge.LifecycleRequest{Action: "status", Kind: inst.Kind, Name: name}); err == nil {
+		edgeStatus = resp.Status
+	} else {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "dial edge") || strings.Contains(msg, "edge not connected") || strings.Contains(msg, "timeout") {
+			edgeAlive = false
+		} else if strings.Contains(msg, "no such") || strings.Contains(msg, "not found") {
+			edgeStatus = "not_found"
+		} else {
+			edgeStatus = "unknown"
+		}
+	}
+	// Best-effort metrics for uptime: use cached live-state when edge is down,
+	// otherwise live inspect (short timeout, same 10s as the sweep).
+	var uptimeSec int64
+	var metricsBlob string
+	con, err := repository.OpenDB()
+	if err == nil {
+		defer con.Close()
+		if edgeAlive {
+			// Try live inspect for fresh uptime; on failure fall back to cache.
+			if live := refreshLiveState(inst, ec); live != nil && live.Metrics != "" {
+				metricsBlob = live.Metrics
+			} else if cached, _ := repository.NewLiveStateRepository(con).Get(inst.ID); cached != nil {
+				metricsBlob = cached.Metrics
+			}
+		} else {
+			if cached, _ := repository.NewLiveStateRepository(con).Get(inst.ID); cached != nil {
+				metricsBlob = cached.Metrics
+			}
+		}
+		if metricsBlob != "" {
+			var m map[string]any
+			if json.Unmarshal([]byte(metricsBlob), &m) == nil {
+				if v, ok := m["uptime"].(float64); ok {
+					uptimeSec = int64(v)
+				}
+			}
+		}
+	}
+	// Normalize edge status for the SPA (running vs stopped) but also keep raw.
+	norm := edgeStatus
+	if norm == "not_found" {
+		norm = "stopped"
+	} else if norm != "" {
+		low := strings.ToLower(norm)
+		switch low {
+		case "running", "restarting", "paused":
+			norm = "running"
+		case "exited", "dead", "created", "stopped":
+			norm = "stopped"
+		default:
+			if strings.Contains(low, "run") {
+				norm = "running"
+			} else {
+				norm = "stopped"
+			}
+		}
+	}
+	writeJSON(w, map[string]any{
+		"id":          inst.ID,
+		"db_status":   inst.Status,
+		"edge_status": edgeStatus,
+		"status":      norm, // canonical live status the card should paint
+		"uptime":      uptimeSec,
+		"alive":       edgeAlive,
+	})
+}
+
 // ----- Ports moved to instance_port_handler.go (ListPortsHandler now merges DB allocs) -----
 
 // ----- Snapshots ------------------------------------------------------------
@@ -585,7 +673,11 @@ func DeleteSnapshotHandler(w http.ResponseWriter, r *http.Request) {
 // CachedResourcesItem is the shape the SPA's InstanceCard reads when its own
 // stored config has no `limits` block. Keys are panel-friendly metric names
 // so the card can show the workload's reported reservation (mem_total /
-// disk_total) or "—" when the cache is empty.
+// disk_total) or "—" when the cache is empty. Uptime is the container's
+// live uptime in seconds (from /proc/uptime inside the namespace, via the
+// edge metrics shell), and Status is the last-known live blob's status
+// ("running"/"stopped") so the card can show real edge state instead of a
+// stale DB row after an external `docker rm -f`.
 type CachedResourcesItem struct {
 	ID        int64   `json:"id"`
 	CPUPct    float64 `json:"cpu_pct"`
@@ -593,6 +685,8 @@ type CachedResourcesItem struct {
 	MemTotal  int64   `json:"mem_total"`
 	DiskUsed  int64   `json:"disk_used"`
 	DiskTotal int64   `json:"disk_total"`
+	Uptime    int64   `json:"uptime"`
+	Status    string  `json:"status,omitempty"`
 	UpdatedAt string  `json:"updated_at"`
 }
 
@@ -685,6 +779,14 @@ func ListCachedResourcesHandler(w http.ResponseWriter, r *http.Request) {
 				item.DiskTotal = int64(v)
 			} else if v, ok := m["disk_total"].(int64); ok {
 				item.DiskTotal = v
+			}
+			if v, ok := m["uptime"].(float64); ok {
+				item.Uptime = int64(v)
+			} else if v, ok := m["uptime"].(int64); ok {
+				item.Uptime = v
+			}
+			if v, ok := m["status"].(string); ok {
+				item.Status = v
 			}
 		}
 		out = append(out, item)
