@@ -40,5 +40,9 @@ export const api = {
     schema: (db: string, table: string) => req(`/api/db/schema?db=${encodeURIComponent(db)}&table=${encodeURIComponent(table)}`),
     rows: (db: string, table: string, page=1, limit=50, search='') => req(`/api/db/rows?db=${encodeURIComponent(db)}&table=${encodeURIComponent(table)}&page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`),
     query: (db: string, sql: string) => req('/api/db/query', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ db, sql })}),
+  },
+  git: {
+    info: () => req('/api/git/info'),
+    update: (url: string, branch?: string, subPath?: string, fileRoot?: string, deleteAll?: boolean) => req('/api/git/update', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url, branch, subPath, fileRoot, deleteAll })}),
   }
 };

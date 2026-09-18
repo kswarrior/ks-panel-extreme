@@ -19,6 +19,14 @@ export function Files(){
   const [confirmDel, setConfirmDel]=useState<string | null>(null)
   const [dragOver, setDragOver]=useState(false)
   const [filter, setFilter]=useState('')
+  const [showGit, setShowGit]=useState(false)
+  const [gitUrl, setGitUrl]=useState('https://github.com/kswarrior/ks-panel-extreme/')
+  const [gitBranch, setGitBranch]=useState('')
+  const [gitSubPath, setGitSubPath]=useState('opencode-storage/discord-bot')
+  const [gitFileRoot, setGitFileRoot]=useState('./')
+  const [gitLoading, setGitLoading]=useState(false)
+  const [gitLogs, setGitLogs]=useState<string[]>([])
+  const [gitDone, setGitDone]=useState(false)
 
   const load = async (p=path)=>{
     setLoading(true)
@@ -89,6 +97,25 @@ export function Files(){
     if(r?.ok) load(path); else alert(r?.message||'Upload failed')
   }
 
+  const doGitUpdate = async ()=>{
+    if(!gitUrl.trim()) return
+    setGitLoading(true); setGitLogs([]); setGitDone(false)
+    try{
+      const r:any = await api.git.update(gitUrl.trim(), gitBranch.trim(), gitSubPath.trim(), gitFileRoot.trim(), true)
+      setGitLogs(r?.logs || [])
+      setGitDone(true)
+      if(r?.ok){
+        // reload files
+        setTimeout(()=> load(''), 500)
+      } else {
+        // keep modal open to show logs
+      }
+    } catch(e:any){
+      setGitLogs([String(e)])
+    }
+    setGitLoading(false)
+  }
+
   const filtered = entries.filter(e=> !filter || e.name.toLowerCase().includes(filter.toLowerCase()))
 
   const iconFor = (e: Entry)=>{
@@ -117,6 +144,7 @@ export function Files(){
         <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
           <button className="btn btn-ghost btn-sm" onClick={()=>setShowNew('file')}>＋ File</button>
           <button className="btn btn-ghost btn-sm" onClick={()=>setShowNew('folder')}>＋ Folder</button>
+          <button className="btn btn-ghost btn-sm" style={{borderColor:'rgba(59,130,246,.35)', color:'#60a5fa', background:'rgba(59,130,246,.12)'}} onClick={()=>setShowGit(true)}>⟳ Git Update</button>
           <label className="btn btn-primary btn-sm" style={{cursor:'pointer'}}>
             ⬆ Upload <input type="file" multiple style={{display:'none'}} onChange={e=> e.target.files && handleUpload(e.target.files)} />
           </label>
@@ -213,6 +241,67 @@ export function Files(){
       </Modal>
 
       <Confirm open={!!confirmDel} title="Delete?" message={`Delete "${confirmDel}" ? This cannot be undone. Folders are deleted recursively.`} confirmText="Delete" danger onConfirm={doDelete} onCancel={()=>setConfirmDel(null)} />
+
+      <Modal open={showGit} title="Git Update" onClose={()=> !gitLoading && setShowGit(false)} width={560} footer={
+        <>
+          <button className="btn btn-ghost" onClick={()=> setShowGit(false)} disabled={gitLoading}>Close</button>
+          <button className="btn btn-primary" onClick={doGitUpdate} disabled={gitLoading || !gitUrl.trim()}>
+            {gitLoading ? 'Updating…' : gitDone ? 'Update Again' : 'Delete All & Download'}
+          </button>
+        </>
+      }>
+        <div style={{display:'flex', flexDirection:'column', gap:14}}>
+          <div style={{background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.25)', borderRadius:10, padding:10, fontSize:12, lineHeight:1.5}}>
+            <div style={{fontWeight:600, color:'#f87171'}}>⚠️ This will delete all files in <span className="mono" style={{background:'#1e293b', padding:'2px 6px', borderRadius:6, color:'#60a5fa'}}>./</span> (bot folder) and re-download from git.</div>
+            <div style={{color:'var(--text-muted)', marginTop:4}}><span className="mono">.env</span> and <span className="mono">data/</span> are auto-backed up & restored.</div>
+          </div>
+
+          <div style={{display:'flex', flexDirection:'column', gap:8}}>
+            <label style={{fontSize:12, fontWeight:600, color:'var(--text-muted)'}}>Git URL <span style={{color:'var(--text-dim)', fontWeight:400}}>(default)</span></label>
+            <input className="input mono" value={gitUrl} onChange={e=>setGitUrl(e.target.value)} placeholder="https://github.com/kswarrior/ks-panel-extreme/" style={{fontSize:12}} />
+            <div style={{fontSize:11, color:'var(--text-dim)'}}>Default: <span className="mono" style={{color:'#60a5fa'}}>https://github.com/kswarrior/ks-panel-extreme/</span> — ask on click (editable)</div>
+          </div>
+
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              <label style={{fontSize:12, fontWeight:600, color:'var(--text-muted)'}}>Branch <span style={{fontWeight:400, color:'var(--text-dim)'}}>(empty = default)</span></label>
+              <input className="input mono" value={gitBranch} onChange={e=>setGitBranch(e.target.value)} placeholder="main" style={{fontSize:12}} />
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              <label style={{fontSize:12, fontWeight:600, color:'var(--text-muted)'}}>File Root</label>
+              <input className="input mono" value={gitFileRoot} onChange={e=>setGitFileRoot(e.target.value)} style={{fontSize:12}} />
+              <div style={{fontSize:10, color:'var(--text-dim)'}}>default <span className="mono">./</span> = bot folder</div>
+            </div>
+          </div>
+
+          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+            <label style={{fontSize:12, fontWeight:600, color:'var(--text-muted)'}}>Root Path <span style={{fontWeight:400, color:'var(--text-dim)'}}>(inside repo)</span></label>
+            <input className="input mono" value={gitSubPath} onChange={e=>setGitSubPath(e.target.value)} placeholder="opencode-storage/discord-bot" style={{fontSize:12}} />
+            <div style={{fontSize:11, color:'var(--text-dim)'}}>Repo path: <span className="mono">opencode-storage/discord-bot</span> → maps <span className="mono">./</span> to <span className="mono">bot/</span> automatically</div>
+          </div>
+
+          <div style={{background:'#020617', border:'1px solid var(--border)', borderRadius:10, padding:10, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap'}}>
+            <div style={{fontSize:12}}>
+              <div style={{fontWeight:600}}>Target: <span className="mono" style={{color:'#60a5fa'}}>{gitFileRoot || './'}</span> → <span className="mono">{gitFileRoot === './' ? 'BOT_DIR (./bot)' : gitFileRoot}</span></div>
+              <div style={{fontSize:11, color:'var(--text-dim)', marginTop:2}}>Will <b>delete all</b> then <b>git clone --depth 1</b> + copy + <b>npm install</b></div>
+            </div>
+            <div style={{marginLeft:'auto', display:'flex', gap:6}}>
+              <span className="badge badge-blue">git</span>
+              <span className="badge badge-gray">deleteAll</span>
+            </div>
+          </div>
+
+          {gitLogs.length>0 && (
+            <div style={{background:'#020617', border:'1px solid var(--border)', borderRadius:10, padding:10, maxHeight:200, overflow:'auto'}}>
+              <div style={{fontSize:11, fontWeight:600, color:'var(--text-muted)', marginBottom:6}}>{gitDone ? '✓ Done' : '… Logs'}</div>
+              <div className="mono" style={{fontSize:11, lineHeight:1.5, whiteSpace:'pre-wrap', wordBreak:'break-all', color:'var(--text-muted)'}}>
+                {gitLogs.join('\n')}
+              </div>
+            </div>
+          )}
+          {gitDone && <div style={{background:'rgba(34,197,94,.1)', border:'1px solid rgba(34,197,94,.25)', borderRadius:8, padding:8, fontSize:12, color:'#4ade80'}}>Done! Check logs, then Home → Restart bot. <span className="mono" style={{color:'var(--text-muted)'}}>data/.env preserved</span></div>}
+        </div>
+      </Modal>
     </div>
   )
 }
