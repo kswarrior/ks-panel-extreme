@@ -26,10 +26,10 @@ export function specToEditor(spec: string): EditorState {
   const out = emptyEditor();
   const s = parseConfig(spec);
   if (Array.isArray(s.ports)) {
-    out.ports = s.ports.map((p: any) => ({
-      host: String(p.host ?? p.host_port ?? ''),
-      guest: String(p.guest ?? p.container ?? ''),
-      protocol: (p.protocol === 'udp' ? 'udp' : 'tcp') as 'tcp' | 'udp',
+    out.ports = s.ports.filter((p: any) => p != null).map((p: any) => ({
+      host: String(p?.host ?? p?.host_port ?? ''),
+      guest: String(p?.guest ?? p?.container ?? ''),
+      protocol: (p?.protocol === 'udp' ? 'udp' : 'tcp') as 'tcp' | 'udp',
     }));
   }
   if (Array.isArray(s.mounts)) {
@@ -77,7 +77,7 @@ export function specToEditor(spec: string): EditorState {
     out.caps = { databases: String(c.databases ?? ''), backups: String(c.backends ?? c.backups ?? ''), networks: String(c.networks ?? '') };
   }
   if (Array.isArray(s.env)) {
-    out.env = s.env.map((e: any) => ({
+    out.env = s.env.filter((e: any) => e != null && typeof e === 'object').map((e: any) => ({
       name: String(e.name ?? ''), label: String(e.label ?? ''), description: String(e.description ?? ''),
       default: String(e.default ?? ''), user_viewable: !!e.user_viewable, user_editable: !!e.user_editable,
       required: !!e.required, rule: String(e.rule ?? ''),
@@ -99,7 +99,7 @@ export function specToEditor(spec: string): EditorState {
     }));
   }
   if (Array.isArray(s.install)) {
-    out.install = s.install.map((st: any) => {
+    out.install = s.install.filter((st: any) => st != null && typeof st === 'object').map((st: any) => {
       const rawType = String(st.type ?? '').trim().toLowerCase();
       let type: 'container' | 'data' = 'container';
       if (rawType === 'data' || rawType === 'instance' || rawType === 'persistent') type = 'data';
@@ -120,7 +120,7 @@ export function specToEditor(spec: string): EditorState {
     out.install_terminal_id = s.install_terminal_id.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
   }
   if (Array.isArray(s.actions)) {
-    out.actions = s.actions.map((a: any) => ({
+    out.actions = s.actions.filter((a: any) => a != null && typeof a === 'object').map((a: any) => ({
       id: String(a.id ?? ''), name: String(a.name ?? ''), description: String(a.description ?? ''),
       icon_svg: String(a.icon_svg ?? ''),
       icon_color: String(a.icon_color ?? ''),
@@ -141,7 +141,7 @@ export function specToEditor(spec: string): EditorState {
       terminal_allowed_commands: Array.isArray(a.terminal_allowed_commands) ? (a.terminal_allowed_commands as string[]).join('\n') : String(a.terminal_allowed_commands ?? ''),
       terminal_blocked_commands: Array.isArray(a.terminal_blocked_commands) ? (a.terminal_blocked_commands as string[]).join(', ') : String(a.terminal_blocked_commands ?? ''),
       terminal_timeout_s: String(a.terminal_timeout_s ?? ''),
-      steps: Array.isArray(a.steps) ? a.steps.map((st: any) => ({
+      steps: Array.isArray(a.steps) ? a.steps.filter((st: any) => st != null && typeof st === 'object').map((st: any) => ({
         action: (st.action ?? 'shell') as InstallAction, command: String(st.command ?? ''),
         url: String(st.url ?? ''), filename: String(st.filename ?? ''), archive: String(st.archive ?? ''),
         dest: String(st.dest ?? ''), from: String(st.from ?? ''), to: String(st.to ?? ''),
@@ -259,9 +259,9 @@ export function specToEditor(spec: string): EditorState {
 
     out.pages = pages;
   }
-  if (Array.isArray(s.labels)) out.labels = s.labels.map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
+  if (Array.isArray(s.labels)) out.labels = s.labels.filter((l: any) => l != null && typeof l === 'object').map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
   if (Array.isArray(s.devices)) {
-    out.devices = s.devices.map((d: any) => ({ host: String(d.host ?? ''), container: String(d.container ?? ''), cgroup: !!d.cgroup }));
+    out.devices = s.devices.filter((d: any) => d != null && typeof d === 'object').map((d: any) => ({ host: String(d.host ?? ''), container: String(d.container ?? ''), cgroup: !!d.cgroup }));
   }
   if (s.healthcheck && typeof s.healthcheck === 'object') {
     const h = s.healthcheck as Record<string, any>;
@@ -370,8 +370,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
   const spec: Record<string, unknown> = {
     category: f.category,
     type: f.type,
-    ports: f.ports.filter((p) => p.host || p.guest).map((p) => ({ host: p.host, container: p.guest, protocol: p.protocol })),
-    mounts: f.mounts.filter((m) => m.source || m.target).map((m) => ({ source: m.source, target: m.target, mode: m.mode })),
+    ports: f.ports.filter((p) => p?.host || p?.guest).map((p) => ({ host: p.host, container: p.guest, protocol: p.protocol })),
+    mounts: f.mounts.filter((m) => m?.source || m?.target).map((m) => ({ source: m.source, target: m.target, mode: m.mode })),
     command: f.advanced.startup_command
       ? ['sh', '-c', f.advanced.startup_command]
       : undefined,
@@ -383,8 +383,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       'memory-swap': f.limits.swap_mb ? `${f.limits.swap_mb}M` : '',
     },
     caps: { databases: f.caps.databases, backups: f.caps.backups, networks: f.caps.networks },
-    env: f.env,
-    install: f.install.map((s) => ({
+    env: (f.env ?? []).filter((e) => e != null),
+    install: (f.install ?? []).filter((s) => s != null).map((s) => ({
       action: s.action, command: s.command, url: s.url, filename: s.filename, archive: s.archive,
       dest: s.dest, from: s.from, to: s.to, path: s.path, content: s.content, branch: s.branch,
       retries: s.retries, ignore_errors: !!s.ignore_errors, type: (s as any).type === 'data' ? 'data' : 'container',
@@ -393,7 +393,7 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
     // = the edge's 30-minute default.
     install_timeout_sec: f.install_timeout_s ? Number(f.install_timeout_s) : undefined,
     install_terminal_id: (f.install_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '') || undefined,
-    actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
+    actions: f.actions.filter((a) => a?.id?.trim() !== '').map((a) => ({
       id: a.id, name: a.name, description: a.description,
       icon_svg: (a.icon_svg || '').trim(),
       icon_color: (a.icon_color || '').trim().toUpperCase(),
@@ -413,21 +413,21 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       terminal_allowed_commands: a.terminal_allowed_commands.split('\n').map((x) => x.trim()).filter(Boolean),
       terminal_blocked_commands: a.terminal_blocked_commands.split(',').map((x) => x.trim()).filter(Boolean),
       terminal_timeout_s: a.terminal_timeout_s,
-      steps: a.steps.map((s) => ({
+      steps: (a.steps ?? []).filter((s) => s != null).map((s) => ({
         action: s.action, command: s.command, url: s.url, filename: s.filename, archive: s.archive,
         dest: s.dest, from: s.from, to: s.to, path: s.path, content: s.content, branch: s.branch,
         retries: s.retries, ignore_errors: !!s.ignore_errors,
       })),
     })),
-    labels: f.labels.filter((l) => l.key).map((l) => ({ key: l.key, value: l.value })),
-    devices: f.devices.filter((d) => d.host || d.container).map((d) => ({ host: d.host, container: d.container, cgroup: !!d.cgroup })),
-    pages: f.pages.map((p) => {
+    labels: f.labels.filter((l) => l?.key).map((l) => ({ key: l.key, value: l.value })),
+    devices: f.devices.filter((d) => d?.host || d?.container).map((d) => ({ host: d.host, container: d.container, cgroup: !!d.cgroup })),
+    pages: (f.pages ?? []).filter((p) => p != null && p.slug).map((p) => {
       // Every page row is a custom page — write it verbatim (label and icon
       // are always persisted; there is no built-in default to diff against).
       const out: Record<string, unknown> = { slug: p.slug, kind: 'custom' };
       if (!p.enabled) out.enabled = false;
-      if (p.label.trim() !== '') out.label = p.label.trim();
-      if (p.icon_svg.trim() !== '') out.icon_svg = p.icon_svg.trim();
+      if (p.label?.trim() !== '') out.label = p.label.trim();
+      if (p.icon_svg?.trim() !== '') out.icon_svg = p.icon_svg.trim();
       if (p.content_type) out.content_type = p.content_type;
       if (p.content_html) out.content_html = p.content_html;
       if (p.content_markdown) out.content_markdown = p.content_markdown;
