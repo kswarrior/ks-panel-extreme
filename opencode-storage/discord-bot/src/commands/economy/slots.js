@@ -4,8 +4,8 @@ const economy = require("../../utils/economy");
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("blackjack")
-    .setDescription("Play a quick round of Blackjack")
+    .setName("slots")
+    .setDescription("Spin the slot machine to win big!")
     .addIntegerOption(o => o.setName("amount").setDescription("Amount to bet").setRequired(true)),
 
   async execute(interaction) {
@@ -19,36 +19,34 @@ module.exports = {
       return interaction.reply({ content: "❌ You don't have enough credits!", ephemeral: true });
     }
 
-    // Simplified Blackjack: User gets a random total 12-21, Dealer gets 12-21
-    const userHand = Math.floor(Math.random() * 10) + 12;
-    const dealerHand = Math.floor(Math.random() * 10) + 12;
+    const emojis = ["🍎", "💎", "🍀", "🍋", "🍒"];
+    const spin = [
+      emojis[Math.floor(Math.random() * emojis.length)],
+      emojis[Math.floor(Math.random() * emojis.length)],
+      emojis[Math.floor(Math.random() * emojis.length)]
+    ];
 
-    let result = "";
-    let won = false;
+    let multiplier = 0;
+    if (spin[0] === spin[1] && spin[1] === spin[2]) multiplier = 10; // Jackpot
+    else if (spin[0] === spin[1] || spin[1] === spin[2] || spin[0] === spin[2]) multiplier = 2; // Pair
 
-    if (userHand > dealerHand) {
-      result = "You won!";
-      won = true;
-    } else if (userHand < dealerHand) {
-      result = "Dealer won!";
-    } else {
-      result = "Push (Tie)!";
-    }
+    const won = multiplier > 0;
+    const winnings = amount * multiplier;
 
     if (!isOwner) {
       if (won) {
-        economy.addBalance(interaction.user.id, amount);
-      } else if (result !== "Push (Tie)!") {
+        economy.addBalance(interaction.user.id, winnings - amount);
+      } else {
         economy.removeBalance(interaction.user.id, amount);
       }
     }
 
     const finalBalance = economy.getUser(interaction.user.id).balance;
     const embed = new EmbedBuilder()
-      .setTitle("🃏 Blackjack")
-      .setDescription(`Your Hand: **${userHand}**\nDealer Hand: **${dealerHand}**\n\n**${result}**`)
+      .setTitle(won ? "🎰 JACKPOT!" : "🎰 Bad Luck!")
+      .setDescription(`**[ ${spin.join(" | ")} ]**\n\n${won ? `You won **${winnings.toLocaleString()} KC**!` : `You lost your bet.`}`)
       .addFields({ name: "New Balance", value: `${finalBalance.toLocaleString()} KC` })
-      .setColor(won ? config.colors.success : (result === "Push (Tie)!" ? config.colors.info : config.colors.error))
+      .setColor(won ? config.colors.success : config.colors.error)
       .setTimestamp();
 
     await interaction.reply({ embeds: [embed] });
