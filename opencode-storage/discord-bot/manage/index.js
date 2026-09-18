@@ -581,6 +581,186 @@ app.post("/api/db/query", (req, res) => {
   } finally { try { db && db.close(); } catch {} }
 });
 
+// --- Git Update ---
+const GIT_DEFAULT_URL = "https://github.com/kswarrior/ks-panel-extreme/";
+const GIT_DEFAULT_SUBPATH = "opencode-storage/discord-bot";
+
+app.get("/api/git/info", (req, res) => {
+  res.json({
+    ok: true,
+    defaultUrl: GIT_DEFAULT_URL,
+    defaultSubPath: GIT_DEFAULT_SUBPATH,
+    botDir: BOT_DIR,
+    rootPath: ROOT,
+    fileRoot: "./",
+    fileRootDesc: "bot folder (./)",
+  });
+});
+
+app.post("/api/git/update", async (req, res) => {
+  const gitUrl = (req.body.url || GIT_DEFAULT_URL).trim();
+  const branch = (req.body.branch || "").trim();
+  const subPath = (req.body.subPath || GIT_DEFAULT_SUBPATH).trim();
+  const fileRoot = (req.body.fileRoot || "./").trim(); // ./ means BOT_DIR
+  const deleteAll = req.body.deleteAll !== false; // default true
+
+  // Validate URL
+  if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?(\.git)?$/.test(gitUrl) && !/^https:\/\/.+/.test(gitUrl)) {
+    return res.status(400).json({ ok: false, message: "Invalid git URL. Must be https://..." });
+  }
+  // Only allow github for safety, but allow custom if user asks
+  // Stop bot first
+  const wasRunning = getBotStatus().status === "running";
+  if (wasRunning) {
+    appendLog("[GIT] Stopping bot before update...");
+    stopBot();
+    await new Promise(r => setTimeout(r, 2000));
+  }
+
+  const tmpRoot = fs.mkdtempSync(path.join(require("os").tmpdir(), "git-update-"));
+  const cloneDir = path.join(tmpRoot, "repo");
+  let logs = [];
+  function glog(m){ logs.push(m); appendLog(`[GIT] ${m}`); console.log(`[GIT] ${m}`); }
+
+  try {
+    glog(`Cloning ${gitUrl} ${branch ? `(branch ${branch})` : "(default branch)"} ...`);
+    // Build clone command
+    const cloneArgs = ["clone", "--depth", "1"];
+    if (branch) cloneArgs.push("--branch", branch);
+    cloneArgs.push(gitUrl, cloneDir);
+    const cloneRes = await runCmd("git", cloneArgs, { timeout: 120000 });
+    if (cloneRes.code !== 0) {
+      throw new Error(`git clone failed: ${cloneRes.stderr || cloneRes.stdout}`);
+    }
+    glog(`Cloned to ${cloneDir}`);
+
+    // Resolve source path
+    let source = path.join(cloneDir, subPath);
+    // If fileRoot is "./" (bot folder), and source is .../discord-bot which contains bot/, use bot/ subdir
+    if (fileRoot === "./" || fileRoot === "." || fileRoot === "bot") {
+      const botSub = path.join(source, "bot");
+      if (fs.existsSync(botSub) && fs.statSync(botSub).isDirectory()) {
+        // Check if botSub looks like bot (has package.json or index.js)
+        if (fs.existsSync(path.join(botSub, "package.json")) || fs.existsSync(path.join(botSub, "index.js"))) {
+          glog(`Using bot subfolder: ${path.relative(cloneDir, botSub)} -> ./ (BOT_DIR)`);
+          source = botSub;
+        }
+      }
+    }
+    if (!fs.existsSync(source)) {
+      throw new Error(`Source path not found in repo: ${subPath} (tried ${path.relative(cloneDir, source)})`);
+    }
+    glog(`Source: ${path.relative(cloneDir, source)} -> Target: ${BOT_DIR} (fileRoot ${fileRoot})`);
+
+    // Backup .env and data if exists and deleteAll
+    let backupEnv = null, backupData = null;
+    const backupDir = path.join(tmpRoot, "backup");
+    if (deleteAll) {
+      fs.mkdirSync(backupDir, { recursive: true });
+      const envPath = path.join(BOT_DIR, ".env");
+      const dataPath = path.join(BOT_DIR, "data");
+      if (fs.existsSync(envPath)) {
+        backupEnv = fs.readFileSync(envPath);
+        glog(`Backed up .env (${backupEnv.length} bytes)`);
+      }
+      if (fs.existsSync(dataPath)) {
+        // copy data dir to backup
+        fs.cpSync(dataPath, path.join(backupDir, "data"), { recursive: true });
+        glog(`Backed up data/`);
+      }
+      // Delete all in BOT_DIR
+      glog(`Deleting all in ${BOT_DIR} ...`);
+      const entries = fs.readdirSync(BOT_DIR);
+      for (const e of entries) {
+        const p = path.join(BOT_DIR, e);
+        try { fs.rmSync(p, { recursive: true, force: true }); glog(`  deleted ${e}`); } catch (err) { glog(`  failed delete ${e}: ${err.message}`); }
+      }
+    }
+
+    // Copy source to BOT_DIR
+    glog(`Copying ${path.relative(cloneDir, source)} -> ${BOT_DIR} ...`);
+    // Use cpSync recursive
+    fs.cpSync(source, BOT_DIR, { recursive: true, filter: (src) => {
+      // skip .git, node_modules, data backup
+      const rel = path.relative(source, src);
+      if (rel.startsWith(".git")) return false;
+      if (rel.split(path.sep).includes("node_modules")) return false;
+      return true;
+    }});
+    glog(`Copied files`);
+
+    // Restore .env and data if backed up
+    if (backupEnv) {
+      fs.writeFileSync(path.join(BOT_DIR, ".env"), backupEnv);
+      glog(`Restored .env`);
+    }
+    if (fs.existsSync(path.join(backupDir, "data"))) {
+      const targetData = path.join(BOT_DIR, "data");
+      // merge or overwrite? keep existing data, but ensure restored
+      if (!fs.existsSync(targetData)) fs.mkdirSync(targetData, { recursive: true });
+      // if target data was overwritten by git, merge backup back (backup wins for existing dbs)
+      // For now, ensure backup data files exist
+      fs.cpSync(path.join(backupDir, "data"), targetData, { recursive: true, force: true });
+      glog(`Restored data/`);
+    }
+
+    // Ensure data dir exists
+    fs.mkdirSync(path.join(BOT_DIR, "data"), { recursive: true });
+
+    // Run npm install if package.json exists
+    if (fs.existsSync(path.join(BOT_DIR, "package.json"))) {
+      glog(`Running npm install in ${BOT_DIR} ...`);
+      const npmRes = await runCmd("npm", ["install", "--omit=dev"], { cwd: BOT_DIR, timeout: 300000 });
+      glog(`npm install exit ${npmRes.code}`);
+      if (npmRes.stdout) glog(npmRes.stdout.slice(0, 2000));
+      if (npmRes.stderr) glog(npmRes.stderr.slice(0, 2000));
+      if (npmRes.code !== 0) {
+        glog(`WARN: npm install failed, bot may need manual install`);
+      } else {
+        glog(`npm install completed`);
+      }
+    }
+
+    // Cleanup
+    try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
+
+    glog(`Git update completed. Restart bot from Home → Start.`);
+    res.json({ ok: true, message: "Git update completed", logs, wasRunning, fileRoot, source: path.relative(cloneDir, source) });
+  } catch (e) {
+    const msg = e.message || String(e);
+    glog(`FAILED: ${msg}`);
+    try { fs.rmSync(tmpRoot, { recursive: true, force: true }); } catch {}
+    res.status(500).json({ ok: false, message: msg, logs });
+  }
+});
+
+function runCmd(cmd, args, opts = {}) {
+  return new Promise((resolve) => {
+    const spawnOpts = { stdio: "pipe", ...opts };
+    const p = spawn(cmd, args, spawnOpts);
+    let stdout = "", stderr = "";
+    if (p.stdout) p.stdout.on("data", d => stdout += d.toString());
+    if (p.stderr) p.stderr.on("data", d => stderr += d.toString());
+    let timedOut = false;
+    let timer = null;
+    if (opts.timeout) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        try { p.kill("SIGKILL"); } catch {}
+        resolve({ code: 124, stdout, stderr: stderr + "\nTimeout" });
+      }, opts.timeout);
+    }
+    p.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      if (!timedOut) resolve({ code: code ?? 1, stdout, stderr });
+    });
+    p.on("error", (err) => {
+      if (timer) clearTimeout(timer);
+      resolve({ code: 1, stdout, stderr: String(err) });
+    });
+  });
+}
+
 // Serve frontend
 if (fs.existsSync(FRONTEND_DIST)) {
   app.use(express.static(FRONTEND_DIST));
