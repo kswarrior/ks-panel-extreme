@@ -663,53 +663,82 @@ obfuscate_frontend() {
         return 0
     fi
 
-    local count=0 failed=0
+    local count=0 failed=0 skipped=0
     local js
-    # Use null-delimited find to handle spaces
+    # Use null-delimited find to handle spaces; sort by size smallest first so
+    # logs show progress even if giant workers time out.
     while IFS= read -r -d '' js; do
         local tmp="${js}.obf.tmp"
-        # Hardened but safe preset: attacker must de-stringArray + demangle
-        # per-chunk; selfDefending + compact breaks simple beautifiers.
-        # Avoid controlFlowFlattening (breaks monaco/xterm workers).
+        local fsize
+        fsize=$(stat -c%s "$js" 2>/dev/null || stat -f%z "$js" 2>/dev/null || echo 0)
+        # Adaptive preset: giant workers (ts.worker 5.8M) cannot take heavy
+        # thresholds — OOM. Scale hardening to file size.
+        local thresh="0.75" wrappers="2" selfdef="true" simplify="true" thr_args=()
+        if [[ "$fsize" -gt 2000000 ]]; then
+            # >2M: skip or light — keep build fast, workers are not sensitive UI code
+            log_info "Skipping heavy obfuscation for large $(basename "$js") ($fsize bytes) — applying light mangling"
+            thresh="0.35"; wrappers="1"; selfdef="false"; simplify="false"
+        elif [[ "$fsize" -gt 500000 ]]; then
+            thresh="0.50"; wrappers="1"; selfdef="false"; simplify="false"
+        elif [[ "$fsize" -gt 150000 ]]; then
+            thresh="0.60"; wrappers="1"; selfdef="false"; simplify="true"
+        fi
         local rc=0
+        # Timeout per-file so a stuck worker doesn't kill the whole build (60s)
+        local timeout_cmd=""
+        if has_cmd timeout; then timeout_cmd="timeout 60"; fi
         if [[ "$obfuscator_bin" == npx* ]]; then
             # shellcheck disable=SC2086
-            $obfuscator_bin "$js" \
+            $timeout_cmd $obfuscator_bin "$js" \
                 --compact true \
-                --stringArray true --stringArrayThreshold 0.75 --stringArrayEncoding base64 \
-                --stringArrayWrappersCount 2 --stringArrayWrappersChainedCalls true \
+                --stringArray true --stringArrayThreshold "$thresh" --stringArrayEncoding base64 \
+                --stringArrayWrappersCount "$wrappers" --stringArrayWrappersChainedCalls true \
                 --transformObjectKeys true --unicodeEscapeSequence true \
                 --identifierNamesGenerator mangled --renameGlobals false \
-                --selfDefending true --disableConsoleOutput false --simplify true \
-                --output "$tmp" 2>/dev/null || rc=$?
+                --selfDefending "$selfdef" --disableConsoleOutput false --simplify "$simplify" \
+                --output "$tmp" 2>"${tmp}.log" || rc=$?
         else
-            "$obfuscator_bin" "$js" \
+            $timeout_cmd "$obfuscator_bin" "$js" \
                 --compact true \
-                --stringArray true --stringArrayThreshold 0.75 --stringArrayEncoding base64 \
-                --stringArrayWrappersCount 2 --stringArrayWrappersChainedCalls true \
+                --stringArray true --stringArrayThreshold "$thresh" --stringArrayEncoding base64 \
+                --stringArrayWrappersCount "$wrappers" --stringArrayWrappersChainedCalls true \
                 --transformObjectKeys true --unicodeEscapeSequence true \
                 --identifierNamesGenerator mangled --renameGlobals false \
-                --selfDefending true --disableConsoleOutput false --simplify true \
-                --output "$tmp" 2>/dev/null || rc=$?
+                --selfDefending "$selfdef" --disableConsoleOutput false --simplify "$simplify" \
+                --output "$tmp" 2>"${tmp}.log" || rc=$?
         fi
         if [[ $rc -eq 0 && -s "$tmp" ]]; then
-            # Only replace if output is valid JS and not empty; keep original size sanity (>50% and <500% of original)
             local orig_size new_size
             orig_size=$(stat -c%s "$js" 2>/dev/null || stat -f%z "$js" 2>/dev/null || echo 0)
             new_size=$(stat -c%s "$tmp" 2>/dev/null || stat -f%z "$tmp" 2>/dev/null || echo 0)
             if [[ "$new_size" -gt 0 && "$orig_size" -gt 0 ]]; then
-                mv -f "$tmp" "$js" 2>/dev/null || { rm -f "$tmp"; failed=$((failed+1)); continue; }
+                # Validate obfuscated file is still JS (basic syntax check with node --check if available)
+                if has_cmd node && ! node --check "$tmp" 2>/dev/null; then
+                    log_warn "obfuscation produced invalid JS for $(basename "$js") — discarding"
+                    rm -f "$tmp" "${tmp}.log" 2>/dev/null || true
+                    failed=$((failed+1))
+                    continue
+                fi
+                mv -f "$tmp" "$js" 2>/dev/null || { rm -f "$tmp" "${tmp}.log"; failed=$((failed+1)); continue; }
+                rm -f "${tmp}.log" 2>/dev/null || true
                 count=$((count+1))
             else
-                rm -f "$tmp" 2>/dev/null || true
+                rm -f "$tmp" "${tmp}.log" 2>/dev/null || true
                 failed=$((failed+1))
             fi
         else
-            rm -f "$tmp" 2>/dev/null || true
+            # Log first line of error for diagnostics
+            local errline
+            errline=$(head -n1 "${tmp}.log" 2>/dev/null || true)
+            if [[ -n "$errline" ]]; then
+                log_warn "obfuscation failed for $(basename "$js") ($fsize bytes, thresh=$thresh): $errline"
+            else
+                log_warn "obfuscation failed for $(basename "$js") ($fsize bytes, rc=$rc)"
+            fi
+            rm -f "$tmp" "${tmp}.log" 2>/dev/null || true
             failed=$((failed+1))
-            log_warn "obfuscation failed for $(basename "$js")"
         fi
-    done < <(find "$assets" -maxdepth 1 -name "*.js" -type f -print0 2>/dev/null)
+    done < <(find "$assets" -maxdepth 1 -name "*.js" -type f -printf '%s %p\0' 2>/dev/null | sort -z -n | cut -z -d' ' -f2- || find "$assets" -maxdepth 1 -name "*.js" -type f -print0 2>/dev/null)
 
      # Mirror obfuscated assets back to panel/frontend/dist if it exists (keeps both trees in sync)
     if [[ -d "$PANEL_FRONTEND_DIR/dist/assets" && "$PANEL_FRONTEND_DIR/dist" != "$dist" ]]; then
