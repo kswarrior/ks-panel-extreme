@@ -777,7 +777,65 @@ func (d *docker) Runner(ctx context.Context, name string) (metrics, processes, p
 			}
 		}
 	}
+	// Override uptime with container uptime (not host uptime). The in-container
+	// metrics shell reads /proc/uptime which is host-not-namespaced for docker
+	// (sharing the host kernel), so it reported the host's uptime (e.g. 30d)
+	// instead of the container's (e.g. 5m). docker inspect's State.StartedAt
+	// is the true container start time; use it to compute container age.
+	// Best-effort, non-fatal: on any failure keep the shell-derived value.
+	if up, ok := dockerContainerUptimeSec(ctx, name); ok {
+		var m map[string]any
+		if json.Unmarshal([]byte(metrics), &m) == nil {
+			m["uptime"] = up
+			if b, err := json.Marshal(m); err == nil {
+				metrics = string(b)
+			}
+		}
+	}
 	return metrics, processes, ports, info, err
+}
+
+// dockerContainerUptimeSec returns the docker container's uptime in seconds
+// (now - State.StartedAt) and ok=true. When the container is not running it
+// returns 0,true so the metrics uptime is 0 instead of the host's uptime.
+// On any inspect/parse failure it returns ok=false so the caller keeps the
+// shell-derived host uptime (better than 0, still wrong but not blank).
+func dockerContainerUptimeSec(ctx context.Context, name string) (int64, bool) {
+	out, err := asExec(ctx, "", "docker", "inspect", name, "--format", "{{.State.Status}}|{{.State.StartedAt}}")
+	if err != nil {
+		return 0, false
+	}
+	parts := strings.SplitN(strings.TrimSpace(out), "|", 2)
+	if len(parts) != 2 {
+		return 0, false
+	}
+	status := strings.TrimSpace(strings.ToLower(parts[0]))
+	if status == "" {
+		return 0, false
+	}
+	if status != "running" {
+		return 0, true
+	}
+	startedStr := strings.TrimSpace(parts[1])
+	if startedStr == "" || startedStr == "0001-01-01T00:00:00Z" {
+		return 0, false
+	}
+	var t time.Time
+	var perr error
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02T15:04:05.999999999Z07:00"} {
+		t, perr = time.Parse(layout, startedStr)
+		if perr == nil {
+			break
+		}
+	}
+	if perr != nil {
+		return 0, false
+	}
+	secs := int64(time.Since(t).Seconds())
+	if secs < 0 {
+		secs = 0
+	}
+	return secs, true
 }
 
 // dockerBindMountBytes sums du -sb over the container's host bind-mount
