@@ -1,0 +1,10 @@
+node_modules
+bot/node_modules
+manage/node_modules
+manage/frontend/node_modules
+manage/frontend/dist
+.git
+.opencode
+*.log
+bot/data/*.db-wal
+bot/data/*.db-shm
