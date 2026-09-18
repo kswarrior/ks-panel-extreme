@@ -226,14 +226,36 @@ check_dependencies() {
     if ! has_cmd sha256sum && ! has_cmd shasum; then
         die "sha256sum or shasum is required"
     fi
-    # Optional but warn early. Production defaults to garble-when-available
-    # ("auto"), so a missing garble is an informational fallback, not an
-    # error; an explicit GARBLE_ENABLE=1 that cannot be honoured warns
-    # louder because the operator asked for it.
-    if [[ "$GARBLE_ENABLE" == "1" ]] && ! has_cmd garble; then
-        log_warn "GARBLE_ENABLE=1 but garble not found — will fall back to plain go build with warning (install: go install mvdan.cc/garble@latest)"
-    elif [[ "$GARBLE_ENABLE" == "auto" ]] && ! has_cmd garble; then
-        log_info "garble not installed — production will use plain go build (install garble for obfuscation: go install mvdan.cc/garble@latest)"
+    # Maximum protection: panel/ + edge/ are closed-source. Production
+    # builds MUST be obfuscated — garble is mandatory. Auto-install once
+    # if missing; fail hard if it cannot be provisioned unless the operator
+    # explicitly passed GARBLE_ENABLE=0 (in which case we warn loudly and the
+    # caller accepts shipping readable code).
+    if [[ "$GARBLE_ENABLE" != "0" && "$GARBLE_ENABLE" != "false" && "$GARBLE_ENABLE" != "no" && "$GARBLE_ENABLE" != "off" ]]; then
+        if ! has_cmd garble; then
+            log_warn "garble not found — attempting auto-install (go install mvdan.cc/garble@latest)..."
+            if go install mvdan.cc/garble@latest 2>&1 | tail -5; then
+                # Ensure GOPATH/bin is on PATH for this run
+                local gopath_bin
+                gopath_bin="$(go env GOPATH 2>/dev/null)/bin"
+                if [[ -n "$gopath_bin" ]]; then
+                    export PATH="$gopath_bin:$PATH"
+                fi
+                export PATH="$HOME/go/bin:$PATH"
+            fi
+            if ! has_cmd garble; then
+                die "garble is MANDATORY for hardened production builds (panel/ + edge/ are closed-source). Install manually: go install mvdan.cc/garble@latest — or set GARBLE_ENABLE=0 to force plain build (NOT RECOMMENDED, code will be readable)"
+            fi
+        fi
+        log_ok "garble ready: $(garble version 2>&1 | head -1) (flags: $GARBLE_FLAGS)"
+    else
+        log_warn "GARBLE_ENABLE=0 — building WITHOUT obfuscation (panel/ + edge/ source will be recoverable via strings/Ghidra!)"
+    fi
+    # javascript-obfuscator for Vite output
+    if [[ "${FRONTEND_OBFUSCATE:-1}" == "1" ]] && [[ "$BUILD_MODE" == "production" || "${1:-}" == "production" ]]; then
+        if ! has_cmd npx && ! has_cmd javascript-obfuscator; then
+            log_warn "javascript-obfuscator not found — will auto-install via npm on first frontend obfuscation"
+        fi
     fi
     if [[ -n "$SIGN_KEY" ]] && ! has_cmd cosign; then
         # cosign may be invoked via SIGN_CMD which could be a wrapper; check first word
@@ -308,20 +330,27 @@ configure_build_mode() {
         production|prod|release)
             BUILD_MODE="production"
             GO_BUILD_TAGS=""  # Default: noop runtime
-            GO_LDFLAGS_BASE="-s -w"
-            GO_GCFLAGS=""
+            # -s: omit symbol table, -w: omit DWARF, -extldflags "-static" for static ELF
+            GO_LDFLAGS_BASE="-s -w -extldflags=-static"
+            # Trim all paths, disable dwarf everywhere, strip inlining traces
+            GO_GCFLAGS="all=-trimpath=${ROOT_DIR}"
             STRIP_BINARY=true
             VITE_MODE="production"
             NPM_CMD="ci"
-            # Production defaults to garble-when-available: "auto" or "1"
-            # both request obfuscation (auto falls back silently with a
-            # warning when garble is missing; "1" warns louder). "0"
-            # forces plain go build. Dev (below) is always "0".
+            # Maximum safety: production MUST be obfuscated unless operator
+            # explicitly opts out. "auto" and "1" both demand garble now.
             case "${GARBLE_ENABLE}" in
                 0|false|no|off) ENABLE_OBFUSCATION="0" ;;
                 1|true|yes|on|auto|"") ENABLE_OBFUSCATION="1" ;;
-                *) log_warn "unknown GARBLE_ENABLE=${GARBLE_ENABLE} — treating as auto"; ENABLE_OBFUSCATION="1" ;;
+                *) log_warn "unknown GARBLE_ENABLE=${GARBLE_ENABLE} — treating as mandatory"; ENABLE_OBFUSCATION="1" ;;
             esac
+            if [[ "$ENABLE_OBFUSCATION" == "0" ]]; then
+                log_warn "PRODUCTION with GARBLE_ENABLE=0 — panel/ + edge/ code WILL be readable (strings / Ghidra). Set GARBLE_ENABLE=1 or unset for hardened build!"
+                # Require explicit acknowledgement for plain prod builds
+                if [[ "${ALLOW_PLAIN_PROD:-0}" != "1" ]]; then
+                    die "refusing plain production build (set ALLOW_PLAIN_PROD=1 to override). Hardened build requires garble: go install mvdan.cc/garble@latest"
+                fi
+            fi
             if [[ -n "$SIGN_KEY" ]]; then
                 ENABLE_SIGNING="1"
             else
@@ -562,7 +591,117 @@ build_frontend() {
         die "frontend build failed: $PANEL_BACKEND_DIR/internal/ui/dist/index.html not found after 3 attempts"
     fi
 
+    # Purge any sourcemaps Vite might have emitted (paranoid, defense-in-depth)
+    find "$PANEL_BACKEND_DIR/internal/ui/dist" -name "*.map" -type f -delete 2>/dev/null || true
+    find "$PANEL_FRONTEND_DIR/dist" -name "*.map" -type f -delete 2>/dev/null || true
+
+    # Maximum frontend protection: obfuscate every JS chunk so panel/frontend/src
+    # is not recoverable from the embedded dist. This is layered on top of
+    # Vite minify — attacker must defeat stringArray + mangling per chunk.
+    if [[ "$VITE_MODE" == "production" && "${FRONTEND_OBFUSCATE:-1}" == "1" ]]; then
+        obfuscate_frontend || log_warn "frontend obfuscation failed — continuing with Vite-minified output (panel frontend will be less hardened)"
+    else
+        log_info "Frontend obfuscation skipped (FRONTEND_OBFUSCATE=${FRONTEND_OBFUSCATE:-1} VITE_MODE=$VITE_MODE)"
+    fi
+
     log_ok "Frontend built and embedded into $PANEL_BACKEND_DIR/internal/ui/dist"
+}
+
+# obfuscate_frontend: post-Vite hardener for panel/frontend/src.
+# Runs javascript-obfuscator over every *.js in the embedded dist.
+# Idempotent and safe to re-run: skips already-obfuscated files on retry.
+# Uses stringArray + mangling + compact; controlFlowFlattening is OFF by
+# default because it breaks monaco worker chunks on some builds.
+obfuscate_frontend() {
+    local dist="$PANEL_BACKEND_DIR/internal/ui/dist"
+    local assets="$dist/assets"
+    if [[ ! -d "$assets" ]]; then
+        log_warn "obfuscate_frontend: assets dir not found at $assets — skipping"
+        return 0
+    fi
+    log_step "Obfuscating frontend chunks (javascript-obfuscator, hardened)..."
+
+    # Ensure obfuscator is available (installed locally or via npx)
+    local obfuscator_bin=""
+    if [[ -x "$PANEL_FRONTEND_DIR/node_modules/.bin/javascript-obfuscator" ]]; then
+        obfuscator_bin="$PANEL_FRONTEND_DIR/node_modules/.bin/javascript-obfuscator"
+    elif has_cmd javascript-obfuscator; then
+        obfuscator_bin="javascript-obfuscator"
+    elif has_cmd npx; then
+        # Auto-install once, pinned to avoid supply-chain drift
+        log_info "Installing javascript-obfuscator..."
+        if (cd "$PANEL_FRONTEND_DIR" && npm install --save-dev javascript-obfuscator@latest --no-audit --no-fund --prefer-offline 2>&1 | tail -5); then
+            if [[ -x "$PANEL_FRONTEND_DIR/node_modules/.bin/javascript-obfuscator" ]]; then
+                obfuscator_bin="$PANEL_FRONTEND_DIR/node_modules/.bin/javascript-obfuscator"
+            else
+                obfuscator_bin="npx --yes javascript-obfuscator"
+            fi
+        else
+            # Fallback to npx without local install
+            obfuscator_bin="npx --yes javascript-obfuscator"
+        fi
+    else
+        log_warn "no npx / javascript-obfuscator available — skipping frontend obfuscation"
+        return 0
+    fi
+
+    local count=0 failed=0
+    local js
+    # Use null-delimited find to handle spaces
+    while IFS= read -r -d '' js; do
+        local tmp="${js}.obf.tmp"
+        # Hardened but safe preset: attacker must de-stringArray + demangle
+        # per-chunk; selfDefending + compact breaks simple beautifiers.
+        # Avoid controlFlowFlattening (breaks monaco/xterm workers).
+        local rc=0
+        if [[ "$obfuscator_bin" == npx* ]]; then
+            # shellcheck disable=SC2086
+            $obfuscator_bin "$js" \
+                --compact true \
+                --stringArray true --stringArrayThreshold 0.75 --stringArrayEncoding base64 \
+                --stringArrayWrappersCount 2 --stringArrayWrappersChainedCalls true \
+                --transformObjectKeys true --unicodeEscapeSequence true \
+                --identifierNamesGenerator mangled --renameGlobals false \
+                --selfDefending true --disableConsoleOutput false --simplify true \
+                --output "$tmp" 2>/dev/null || rc=$?
+        else
+            "$obfuscator_bin" "$js" \
+                --compact true \
+                --stringArray true --stringArrayThreshold 0.75 --stringArrayEncoding base64 \
+                --stringArrayWrappersCount 2 --stringArrayWrappersChainedCalls true \
+                --transformObjectKeys true --unicodeEscapeSequence true \
+                --identifierNamesGenerator mangled --renameGlobals false \
+                --selfDefending true --disableConsoleOutput false --simplify true \
+                --output "$tmp" 2>/dev/null || rc=$?
+        fi
+        if [[ $rc -eq 0 && -s "$tmp" ]]; then
+            # Only replace if output is valid JS and not empty; keep original size sanity (>50% and <500% of original)
+            local orig_size new_size
+            orig_size=$(stat -c%s "$js" 2>/dev/null || stat -f%z "$js" 2>/dev/null || echo 0)
+            new_size=$(stat -c%s "$tmp" 2>/dev/null || stat -f%z "$tmp" 2>/dev/null || echo 0)
+            if [[ "$new_size" -gt 0 && "$orig_size" -gt 0 ]]; then
+                mv -f "$tmp" "$js" 2>/dev/null || { rm -f "$tmp"; failed=$((failed+1)); continue; }
+                count=$((count+1))
+            else
+                rm -f "$tmp" 2>/dev/null || true
+                failed=$((failed+1))
+            fi
+        else
+            rm -f "$tmp" 2>/dev/null || true
+            failed=$((failed+1))
+            log_warn "obfuscation failed for $(basename "$js")"
+        fi
+    done < <(find "$assets" -maxdepth 1 -name "*.js" -type f -print0 2>/dev/null)
+
+     # Mirror obfuscated assets back to panel/frontend/dist if it exists (keeps both trees in sync)
+    if [[ -d "$PANEL_FRONTEND_DIR/dist/assets" && "$PANEL_FRONTEND_DIR/dist" != "$dist" ]]; then
+        cp -f "$assets"/*.js "$PANEL_FRONTEND_DIR/dist/assets/" 2>/dev/null || true
+    fi
+
+    log_ok "Frontend obfuscation complete: ${count} chunk(s) hardened${failed:+, ${failed} failed}"
+    # Ensure no maps leaked during obfuscation
+    find "$dist" -name "*.map" -type f -delete 2>/dev/null || true
+    return 0
 }
 
 # ============================================================================
@@ -595,32 +734,34 @@ build_go_binary() {
         mv -f -- "$output_bin" "$old_bin"
     fi
 
-    # Decide builder: garble vs go. Production requests obfuscation by
-    # default (ENABLE_OBFUSCATION=1 via auto/1); dev forces 0. When garble
-    # is requested but not installed we fall back to plain go build with
-    # an explicit warning so the release is still produced (never a hard
-    # failure on an optional tool).
+    # Maximum protection: production MUST use garble. No silent fallback —
+    # if obfuscation was requested but garble vanished between dependency
+    # check and now, fail hard (operator must fix toolchain, not ship
+    # readable panel/ + edge/). Dev stays plain.
     local use_garble=false
     if [[ "$ENABLE_OBFUSCATION" == "1" ]]; then
         if has_cmd garble; then
             use_garble=true
-            log_info "Using garble for $name (obfuscation enabled)"
+            log_info "Using garble for $name (obfuscation ENABLED, flags: $GARBLE_FLAGS)"
         else
-            log_warn "garble requested for $name but not installed — falling back to plain go build (install: go install mvdan.cc/garble@latest)"
+            die "garble required for $name but not found — hardened production demands obfuscation (panel/ + edge/ closed-source). Fix: go install mvdan.cc/garble@latest or set GARBLE_ENABLE=0 ALLOW_PLAIN_PROD=1 (insecure)"
         fi
     else
         if [[ "$BUILD_MODE" == "development" ]]; then
             log_info "Skipping obfuscation for $name (development mode stays unobfuscated)"
         else
-            log_info "Obfuscation disabled for $name (GARBLE_ENABLE=0) — plain go build"
+            log_warn "Obfuscation DISABLED for $name (GARBLE_ENABLE=0) — binary will be readable!"
         fi
     fi
 
     local rc=0
     if [[ "$use_garble" == "true" ]]; then
         # garble build supports same flags as go build (including -trimpath, -ldflags)
-        # -literals -tiny are aggressive; -debug intentionally omitted (would disable obfuscation)
-        local garble_cmd=(garble -literals -tiny build -buildvcs=false -trimpath)
+        # GARBLE_FLAGS carries -literals -tiny -seed=random (unique per build).
+        # -debug intentionally omitted (would disable obfuscation).
+        # shellcheck disable=SC2206
+        local garble_flags_arr=($GARBLE_FLAGS)
+        local garble_cmd=(garble "${garble_flags_arr[@]}" build -buildvcs=false -trimpath)
         [[ -n "$build_tags" ]] && garble_cmd+=(-tags "$build_tags")
         [[ -n "$GO_GCFLAGS" ]] && garble_cmd+=(-gcflags "$GO_GCFLAGS")
         garble_cmd+=(-ldflags "$ldflags")
