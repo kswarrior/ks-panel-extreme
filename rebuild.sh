@@ -83,11 +83,20 @@ else
     TARGET_GOARCH="$(uname -m 2>/dev/null | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/' -e 's/armv.*l/arm/' || echo amd64)"
 fi
 
-# Obfuscation: production defaults to garble-when-available ("auto");
-# dev always stays unobfuscated (see configure_build_mode). Explicit
-# GARBLE_ENABLE=0 forces plain go build; =1 requires garble (warn + fallback
-# when missing so CI never hard-fails on a missing optional tool).
+# Maximum protection: panel/ + edge/ source is closed — production MUST be
+# obfuscated. Default is garble-mandatory ("auto" or "1" both require
+# garble); only an explicit GARBLE_ENABLE=0 forces a plain build (and
+# production will refuse to continue with it unless overridden). Seed is
+# random per build so every artifact is unique even at the same version;
+# set GARBLE_SEED to a base64 value for reproducible CI.
 GARBLE_ENABLE="${GARBLE_ENABLE:-auto}"
+GARBLE_SEED="${GARBLE_SEED:-random}"
+# Strongest safe garble flags: encrypt all literals + minimise binary size.
+# -tiny drops reversible symbols; -seed=random prevents deterministic deobf.
+GARBLE_FLAGS="${GARBLE_FLAGS:--literals -tiny -seed=${GARBLE_SEED}}"
+# Frontend maximum obfuscation toggle (production only): 1 = run
+# javascript-obfuscator over every Vite chunk; 0 = skip (emergency).
+FRONTEND_OBFUSCATE="${FRONTEND_OBFUSCATE:-1}"
 
 # Signing
 SIGN_KEY="${SIGN_KEY:-}"
