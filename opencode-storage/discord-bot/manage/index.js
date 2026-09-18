@@ -13,7 +13,7 @@ const LOG_FILE = path.join(BOT_DIR, "bot.log");
 const DATA_DIR = path.join(BOT_DIR, "data");
 const FRONTEND_DIST = path.join(__dirname, "frontend", "dist");
 
-const PORT = process.env.MANAGE_PORT || 3000;
+const PORT = process.env.MANAGE_PORT || 10000;
 
 // Ensure BOT_DIR exists
 if (!fs.existsSync(BOT_DIR)) {
