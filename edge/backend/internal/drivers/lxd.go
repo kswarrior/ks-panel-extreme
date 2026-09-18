@@ -356,6 +356,20 @@ func (d *lxd) Runner(ctx context.Context, name string) (metrics, processes, port
 			}
 		}
 	}
+	// Override uptime with LXD container uptime (not host). /proc/uptime
+	// inside an LXD container without lxcfs reports host uptime, same bug
+	// as docker. With lxcfs it already reports container uptime, but the
+	// lxc info Started timestamp is still the authoritative container start,
+	// so we prefer it. Best-effort: on failure keep shell-derived value.
+	if up, ok := lxdContainerUptimeSec(ctx, name); ok {
+		var m map[string]any
+		if json.Unmarshal([]byte(metrics), &m) == nil {
+			m["uptime"] = up
+			if b, err := json.Marshal(m); err == nil {
+				metrics = string(b)
+			}
+		}
+	}
 	return metrics, processes, ports, info, err
 }
 
@@ -477,4 +491,49 @@ func parseLXDMemory(s string) int64 {
 		return int64(v * float64(mult))
 	}
 	return 0
+}
+
+// lxdContainerUptimeSec returns the LXD container's uptime (now - Started) and
+// ok=true. When the container is not running it returns 0,true so the metrics
+// uptime is 0 instead of host uptime. On any parse failure ok=false.
+func lxdContainerUptimeSec(ctx context.Context, name string) (int64, bool) {
+	out, err := asExec(ctx, "", "lxc", "info", name)
+	if err != nil {
+		return 0, false
+	}
+	status := ""
+	startedStr := ""
+	for _, ln := range strings.Split(out, "\n") {
+		trim := strings.TrimSpace(ln)
+		low := strings.ToLower(trim)
+		if strings.HasPrefix(low, "status:") {
+			status = strings.TrimSpace(trim[len("Status:"):])
+		}
+		if strings.HasPrefix(trim, "Started:") {
+			startedStr = strings.TrimSpace(strings.TrimPrefix(trim, "Started:"))
+		}
+	}
+	if status != "" && strings.ToLower(status) != "running" {
+		return 0, true
+	}
+	if startedStr == "" {
+		return 0, false
+	}
+	// Started formats: "2024/02/15 12:34 UTC" or "2024/02/15 12:34:56 UTC"
+	var t time.Time
+	var perr error
+	for _, layout := range []string{"2006/01/02 15:04:05 MST", "2006/01/02 15:04 MST", time.RFC3339Nano, time.RFC3339} {
+		t, perr = time.Parse(layout, startedStr)
+		if perr == nil {
+			break
+		}
+	}
+	if perr != nil {
+		return 0, false
+	}
+	secs := int64(time.Since(t).Seconds())
+	if secs < 0 {
+		secs = 0
+	}
+	return secs, true
 }

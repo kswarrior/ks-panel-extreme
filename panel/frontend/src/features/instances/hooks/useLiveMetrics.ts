@@ -17,6 +17,7 @@ export interface LivePoint {
   memTotal: number | null;
   diskUsed: number | null;
   diskTotal: number | null;
+  uptime: number | null;
 }
 
 function toPoint(m: MetricsSnapshot): LivePoint {
@@ -39,6 +40,7 @@ function toPoint(m: MetricsSnapshot): LivePoint {
     memTotal,
     diskUsed,
     diskTotal,
+    uptime: metricsNum(m?.uptime),
   };
 }
 

@@ -50,20 +50,14 @@ function pickSince(...vals: Array<string | undefined | null>): string | null {
 }
 
 // Live uptime since the instance last entered "running" (started_at).
-// Same shape as InstanceCard's useUptime: ticks every second while running,
-// '—' otherwise (stopped rows, missing/invalid timestamps).
-function useUptime(sinceISO: string | undefined | null, status: string): string {
-  const [, force] = useState(0);
-  useEffect(() => {
-    if (!sinceISO || status !== 'running') return;
-    const t = setInterval(() => force((v) => v + 1), 1000);
-    return () => clearInterval(t);
-  }, [sinceISO, status]);
-  if (!sinceISO) return '—';
-  const start = new Date(sinceISO).getTime();
-  if (!Number.isFinite(start)) return '—';
-  if (status !== 'running') return '—';
-  let s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+// Prefers live container uptime from edge metrics (container age, not host
+// /proc/uptime) when available — same fix as InstanceCard: the in-container
+// shell's /proc/uptime reports host uptime for docker/LXD without lxcfs, so
+// the edge now overrides it with docker inspect / lxc info start time. The
+// DB's started_at is stale after an external restart, so live wins when
+// fresh (<90s stale window tied to the 10s sweep / 4s poll).
+function formatSeconds(s: number): string {
+  s = Math.max(0, Math.floor(s));
   const d = Math.floor(s / 86400); s -= d * 86400;
   const h = Math.floor(s / 3600); s -= h * 3600;
   const m = Math.floor(s / 60); s -= m * 60;
@@ -71,6 +65,39 @@ function useUptime(sinceISO: string | undefined | null, status: string): string 
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+function useUptime(sinceISO: string | undefined | null, status: string, liveUptimeSec?: number | null, liveT?: number | null): string {
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (status !== 'running') return;
+    if (liveUptimeSec != null && liveUptimeSec >= 0) {
+      const t = setInterval(() => force((v) => v + 1), 1000);
+      return () => clearInterval(t);
+    }
+    if (!sinceISO) return;
+    const t = setInterval(() => force((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, [sinceISO, status, liveUptimeSec]);
+  // Live container uptime takes precedence when we have a recent snapshot.
+  // useLiveMetrics polls every 4s, so a snapshot older than 90s means the
+  // edge is unreachable — fall back to DB which is more honest than a frozen
+  // value.
+  if (status === 'running' && liveUptimeSec != null && liveUptimeSec >= 0 && liveT != null) {
+    if (Number.isFinite(liveT) && Date.now() - liveT < 90_000) {
+      const ageSec = Math.floor((Date.now() - liveT) / 1000);
+      return formatSeconds(liveUptimeSec + ageSec);
+    }
+  }
+  if (status === 'running' && liveUptimeSec != null && liveUptimeSec >= 0 && liveT == null) {
+    return formatSeconds(liveUptimeSec);
+  }
+  if (!sinceISO) return '—';
+  const start = new Date(sinceISO).getTime();
+  if (!Number.isFinite(start)) return '—';
+  if (status !== 'running') return '—';
+  const s = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  return formatSeconds(s);
 }
 
 // fmtBytesShort renders bytes compactly for the narrow menu row.
