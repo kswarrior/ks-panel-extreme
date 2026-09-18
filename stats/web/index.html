@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stats — panel fleet</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:#0b0f14;color:#e6edf3}
+header{padding:14px 18px;border-bottom:1px solid #1f2937;display:flex;gap:12px;align-items:center;justify-content:space-between}
+header h1{margin:0;font-size:15px;font-weight:650;letter-spacing:.02em}
+header .sub{font-size:12px;color:#9ca3af}
+#map{height:360px;border-bottom:1px solid #1f2937}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid #1b2430;text-align:left;white-space:nowrap}
+th{color:#9ca3af;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:#0b0f14}
+tr:hover td{background:#111827}
+.badge{padding:2px 7px;border-radius:999px;font-size:11px;font-weight:600}
+.online{background:#065f46;color:#a7f3d0}
+.offline{background:#7f1d1d;color:#fecaca}
+a{color:#93c5fd}
+.wrap{max-width:1200px;margin:0 auto}
+.meta{padding:10px 14px;color:#9ca3af;font-size:12px;display:flex;gap:14px;flex-wrap:wrap}
+.kv b{color:#e5e7eb}
+</style>
+</head>
+<body>
+<header><div><h1>KS Panel — Fleet Stats</h1><div class="sub">owner only • WSS heartbeat every 30s • online if seen &lt;75s</div></div><div class="sub" id="clock"></div></header>
+<div id="map"></div>
+<div class="wrap">
+<div class="meta" id="meta"></div>
+<table>
+<thead><tr><th>status</th><th>panel</th><th>version</th><th>ip</th><th>location</th><th>cpu</th><th>ram</th><th>disk</th><th>load</th><th>nodes</th><th>instances</th><th>uptime</th><th>last seen</th></tr></thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+<script>
+const map = L.map('map', {zoomControl:true}).setView([20,0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18, attribution:'© OSM'}).addTo(map);
+let markers=[];
+function fmtMB(v){ if(!v) return '—'; return v.toFixed(0)+' MB'; }
+function fmtGB(v){ if(!v) return '—'; return v.toFixed(1)+' GB'; }
+function fmtUptime(s){ if(!s) return '—'; let d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60); if(d) return d+'d '+h+'h'; if(h) return h+'h '+m+'m'; return m+'m'; }
+function fmtAgo(ts){ if(!ts) return '—'; let d=new Date(ts),diff=(Date.now()-d.getTime())/1000; if(diff<60) return Math.floor(diff)+'s ago'; if(diff<3600) return Math.floor(diff/60)+'m ago'; if(diff<86400) return Math.floor(diff/3600)+'h ago'; return d.toLocaleString(); }
+async function load(){
+  let r = await fetch('/api/panels', {credentials:'include'});
+  if(r.status===401){ location.href='/login'; return; }
+  let j = await r.json();
+  let rows=j||[];
+  document.getElementById('meta').innerHTML = `<span class="kv"><b>${rows.length}</b> panels</span><span class="kv"><b>${rows.filter(x=>x.online).length}</b> online</span><span class="kv">updated <b>${new Date().toLocaleTimeString()}</b></span>`;
+  let tb=document.getElementById('tbody'); tb.innerHTML='';
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+  let bounds=[];
+  for(let p of rows){
+    let tr=document.createElement('tr');
+    let loc = [p.city,p.region,p.country].filter(Boolean).join(', ')||'—';
+    if(p.country_code) loc = (loc?loc+' ':'')+'('+p.country_code+')';
+    tr.innerHTML=`<td><span class="badge ${p.online?'online':'offline'}">${p.online?'online':'offline'}</span></td>
+      <td title="${p.panel_id}"><b>${p.hostname||p.panel_id}</b><div style="font-size:11px;color:#9ca3af">${p.panel_id}</div></td>
+      <td>${p.version||'—'}<div style="font-size:11px;color:#9ca3af">${p.commit||''}</div></td>
+      <td>${p.ip||'—'}</td>
+      <td>${loc}<div style="font-size:11px;color:#9ca3af">${p.lat&&p.lon?p.lat.toFixed(2)+','+p.lon.toFixed(2):''}</div></td>
+      <td>${p.cpu_percent? p.cpu_percent.toFixed(1)+'%':'—'}</td>
+      <td>${fmtMB(p.ram_used_mb)} / ${fmtMB(p.ram_total_mb)} <div style="font-size:11px;color:#9ca3af">${p.ram_used_pct?p.ram_used_pct.toFixed(1)+'%':''}</div></td>
+      <td>${fmtGB(p.disk_used_gb)} / ${fmtGB(p.disk_total_gb)}</td>
+      <td>${p.load1?p.load1.toFixed(2):'—'} / ${p.load5?p.load5.toFixed(2):'—'}</td>
+      <td>${p.nodes||0}</td>
+      <td>${p.instrunning||0}/${p.instances||0}</td>
+      <td>${fmtUptime(p.uptime_sec)}</td>
+      <td>${fmtAgo(p.last_seen)}</td>`;
+    tb.appendChild(tr);
+    if(p.lat&&p.lon){ let m=L.marker([p.lat,p.lon]).addTo(map).bindPopup(`<b>${p.hostname||p.panel_id}</b><br>${loc}<br>${p.ip||''}<br>${p.version||''}`); markers.push(m); bounds.push([p.lat,p.lon]); }
+  }
+  if(bounds.length===1) map.setView(bounds[0], 5);
+  else if(bounds.length>1) map.fitBounds(bounds, {padding:[20,20]});
+}
+load(); setInterval(load,5000);
+setInterval(()=>document.getElementById('clock').textContent=new Date().toLocaleString(),1000);
+</script>
+</body>
+</html>
