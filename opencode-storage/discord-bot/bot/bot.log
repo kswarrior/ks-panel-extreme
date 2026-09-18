@@ -67,3 +67,41 @@ Loaded 7 events
 [ERR] [ERROR] Command registration attempt 1 failed: 401: Unauthorized
 [INFO] Retrying in 5s...
 [MANAGER] Sent SIGTERM to pid=17456
+[MANAGER] Bot started pid=20695
+◇ injected env (6) from .env // tip: ◈ encrypted .env [www.dotenvx.com]
+[FRONTING] REST host "gateway.discord.com" (dial gateway.discord.gg) -> unblocks discord.com.
+   ██╗  ██╗███████╗    ██████╗  ██████╗ ████████╗
+   ██║ ██╔╝██╔════╝    ██╔══██╗██╔═══██╗╚══██╔══╝
+   █████╔╝ ███████╗    ██████╔╝██║   ██║   ██║   
+   ██╔═██╗ ╚════██║    ██╔══██╗██║   ██║   ██║   
+   ██║  ██╗███████║    ██████╔╝╚██████╔╝   ██║   
+   ╚═╝  ╚═╝╚══════╝    ╚═════╝  ╚═════╝    ╚═╝   
+   Owner: KS Warrior (@ks_warrior_pro)
+   Discord Server: KS Hub
+[DB] Using database directory: /home/runner/work/ks-panel-extreme/ks-panel-extreme/opencode-storage/discord-bot/bot/data/ksdcbot
+[CMD]   Loaded 88 commands
+[INFO] Registering commands (attempt 1/3)...
+[ERR] [ERROR] Command registration failed: 401 Unauthorized — invalid token.
+[ERR] [HINT] Get a new token at https://discord.com/developers/applications/1521773942463791154/bot → Reset Token, then update bot/.env TOKEN=... and restart.
+[ERR] [HINT] You can edit bot/.env via Manager → Files → .env → Edit → Save → Restart
+[ERR] [ERROR] All registration attempts failed. Bot will continue without registered commands.
+[EVT] Loaded 7 event handler(s)
+[CHECK] Verifying privileged Gateway Intents...
+  [INTENT] MessageContent - REQUIRED
+  [INTENT] GuildMembers - REQUIRED
+  [INTENT] GuildPresences - REQUIRED
+  If the bot fails with 'Used disallowed intents', go to:
+  Discord Developer Portal > Your Bot > Settings > Bot
+  Scroll to 'Privileged Gateway Intents' and ENABLE all 3:
+    1. Presence Intent
+    2. Server Members Intent
+    3. Message Content Intent
+  Then restart the bot.
+[LOGIN] Connecting to Discord Gateway...
+[ERR] [FATAL] Invalid token — Discord rejected the token (401 Unauthorized).
+[ERR] [HINT] Your TOKEN in bot/.env is invalid/revoked. Get a new one:
+[ERR]   1) https://discord.com/developers/applications/1521773942463791154/bot → Reset Token → Copy
+[ERR]   2) Edit bot/.env via Manager → Files → .env → replace TOKEN=... → Save
+[ERR]   3) Manager → Home → Restart
+[ERR]   Current TOKEN prefix: MTUyMTc3Mzk0... (check bot/.env)
+[MANAGER] Bot exited code=1 signal=null
