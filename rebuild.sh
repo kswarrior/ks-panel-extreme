@@ -698,18 +698,18 @@ obfuscate_frontend() {
                 --compact true \
                 --string-array true --string-array-threshold "$thresh" --string-array-encoding base64 \
                 --string-array-wrappers-count "$wrappers" --string-array-wrappers-chained-calls true \
-                --transform-object-keys true --unicode-escape-sequence true \
+                --transform-object-keys false --unicode-escape-sequence true \
                 --identifier-names-generator mangled --rename-globals false \
-                --self-defending "$selfdef" --disable-console-output false --simplify "$simplify" \
+                --self-defending "$selfdef" --disable-console-output false --simplify false \
                 --output "$tmp" 2>"${tmp}.log" || rc=$?
         else
             $timeout_cmd "$obfuscator_bin" "$js" \
                 --compact true \
                 --string-array true --string-array-threshold "$thresh" --string-array-encoding base64 \
                 --string-array-wrappers-count "$wrappers" --string-array-wrappers-chained-calls true \
-                --transform-object-keys true --unicode-escape-sequence true \
+                --transform-object-keys false --unicode-escape-sequence true \
                 --identifier-names-generator mangled --rename-globals false \
-                --self-defending "$selfdef" --disable-console-output false --simplify "$simplify" \
+                --self-defending "$selfdef" --disable-console-output false --simplify false \
                 --output "$tmp" 2>"${tmp}.log" || rc=$?
         fi
         if [[ $rc -eq 0 && -s "$tmp" ]]; then
