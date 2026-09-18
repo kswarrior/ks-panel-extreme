@@ -691,20 +691,20 @@ obfuscate_frontend() {
             # shellcheck disable=SC2086
             $timeout_cmd $obfuscator_bin "$js" \
                 --compact true \
-                --stringArray true --stringArrayThreshold "$thresh" --stringArrayEncoding base64 \
-                --stringArrayWrappersCount "$wrappers" --stringArrayWrappersChainedCalls true \
-                --transformObjectKeys true --unicodeEscapeSequence true \
-                --identifierNamesGenerator mangled --renameGlobals false \
-                --selfDefending "$selfdef" --disableConsoleOutput false --simplify "$simplify" \
+                --string-array true --string-array-threshold "$thresh" --string-array-encoding base64 \
+                --string-array-wrappers-count "$wrappers" --string-array-wrappers-chained-calls true \
+                --transform-object-keys true --unicode-escape-sequence true \
+                --identifier-names-generator mangled --rename-globals false \
+                --self-defending "$selfdef" --disable-console-output false --simplify "$simplify" \
                 --output "$tmp" 2>"${tmp}.log" || rc=$?
         else
             $timeout_cmd "$obfuscator_bin" "$js" \
                 --compact true \
-                --stringArray true --stringArrayThreshold "$thresh" --stringArrayEncoding base64 \
-                --stringArrayWrappersCount "$wrappers" --stringArrayWrappersChainedCalls true \
-                --transformObjectKeys true --unicodeEscapeSequence true \
-                --identifierNamesGenerator mangled --renameGlobals false \
-                --selfDefending "$selfdef" --disableConsoleOutput false --simplify "$simplify" \
+                --string-array true --string-array-threshold "$thresh" --string-array-encoding base64 \
+                --string-array-wrappers-count "$wrappers" --string-array-wrappers-chained-calls true \
+                --transform-object-keys true --unicode-escape-sequence true \
+                --identifier-names-generator mangled --rename-globals false \
+                --self-defending "$selfdef" --disable-console-output false --simplify "$simplify" \
                 --output "$tmp" 2>"${tmp}.log" || rc=$?
         fi
         if [[ $rc -eq 0 && -s "$tmp" ]]; then
@@ -1401,12 +1401,17 @@ security_verification() {
             log_err "Source maps found in panel/frontend/dist (hardened production must not have them)"
             all_ok=false
         fi
-        # Also check that obfuscated chunks don't leak sourcemap directives (not just mentions)
-        if grep -r -q "sourceMappingURL=" "$PANEL_BACKEND_DIR/internal/ui/dist" 2>/dev/null; then
+        # Also check that obfuscated chunks don't leak sourcemap directives (not just mentions).
+        # Exclude *.worker.js — they legitimately contain code that WRITES sourceMappingURL= strings at runtime (ts.worker), not actual maps.
+        local has_sourcemap=false
+        while IFS= read -r -d '' f; do
+            if grep -q "sourceMappingURL=" "$f" 2>/dev/null; then has_sourcemap=true; break; fi
+        done < <(find "$PANEL_BACKEND_DIR/internal/ui/dist" -type f -name "*.js" ! -name "*.worker*.js" -print0 2>/dev/null)
+        if [[ "$has_sourcemap" == "true" ]]; then
             log_err "sourceMappingURL= directive found in embedded frontend (sourcemap leaked)"
             all_ok=false
         else
-            log_ok "No sourceMappingURL= in embedded frontend"
+            log_ok "No sourceMappingURL= in embedded frontend (workers excluded)"
         fi
         # Ensure no panel/frontend/src plaintext in dist JS — warn only, not fail,
         # because Vite comments may survive until obfuscator hides them; after
