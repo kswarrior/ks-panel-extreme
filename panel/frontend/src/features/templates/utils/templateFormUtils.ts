@@ -287,8 +287,8 @@ export function serializeSpec(f: TemplateFormState): string {
         ignore_errors: !!s.ignore_errors,
       })),
     })),
-    labels: f.labels.filter((l) => l.key).map((l) => ({ key: l.key, value: l.value })),
-    devices: f.devices.filter((d) => d.host || d.container).map((d) => ({
+    labels: f.labels.filter((l) => l?.key).map((l) => ({ key: l.key, value: l.value })),
+    devices: f.devices.filter((d) => d?.host || d?.container).map((d) => ({
       host: d.host,
       container: d.container,
       cgroup: !!d.cgroup,
@@ -525,7 +525,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       };
     }
     if (Array.isArray(s.env)) {
-      out.env = s.env.map((e: any) => ({
+      out.env = s.env.filter((e: any) => e != null && typeof e === 'object').map((e: any) => ({
         name: String(e.name ?? ''),
         label: String(e.label ?? ''),
         description: String(e.description ?? ''),
@@ -615,7 +615,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       }
     }
     if (Array.isArray(s.install)) {
-      out.install = s.install.map((st: any) => {
+      out.install = s.install.filter((st: any) => st != null && typeof st === 'object').map((st: any) => {
         const rawType = String(st.type ?? '').trim().toLowerCase();
         let type: 'container' | 'data' = 'container';
         if (rawType === 'data' || rawType === 'instance' || rawType === 'persistent') type = 'data';
@@ -651,7 +651,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       };
     }
     if (Array.isArray(s.actions)) {
-      out.actions = s.actions.map((a: any) => {
+      out.actions = s.actions.filter((a: any) => a != null && typeof a === 'object').map((a: any) => {
         const baseSession: TemplateAction['session'] = (['long_running', 'console_session', 'vm_full'].includes(a.session) ? a.session : 'long_running');
         return {
           id: String(a.id ?? ''),
@@ -684,7 +684,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
           terminal_allowed_commands: Array.isArray(a.terminal_allowed_commands) ? (a.terminal_allowed_commands as string[]).join('\n') : String(a.terminal_allowed_commands ?? ''),
           terminal_blocked_commands: Array.isArray(a.terminal_blocked_commands) ? (a.terminal_blocked_commands as string[]).join(', ') : String(a.terminal_blocked_commands ?? ''),
           terminal_timeout_s: String(a.terminal_timeout_s ?? ''),
-          steps: Array.isArray(a.steps) ? a.steps.map((st: any) => ({
+          steps: Array.isArray(a.steps) ? a.steps.filter((st: any) => st != null && typeof st === 'object').map((st: any) => ({
             action: (st.action ?? 'shell') as InstallAction,
             command: String(st.command ?? ''),
             url: String(st.url ?? ''),
@@ -703,7 +703,7 @@ export function parseSpec(raw: string): Partial<TemplateFormState> {
       });
     }
     if (Array.isArray(s.labels)) {
-      out.labels = s.labels.map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
+      out.labels = s.labels.filter((l: any) => l != null && typeof l === 'object').map((l: any) => ({ key: String(l.key ?? ''), value: String(l.value ?? '') }));
     }
     if (Array.isArray(s.pages)) {
       // Every row is treated as a custom page. Legacy rows that predate the

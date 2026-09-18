@@ -441,7 +441,7 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
       if (p.actions && p.actions.length > 0) out.actions = p.actions;
       // Multi-page support: nested sub-pages ride on the parent row.
       if (p.sub_pages && p.sub_pages.length > 0) {
-        out.sub_pages = p.sub_pages.map((s) => ({
+        out.sub_pages = p.sub_pages.filter((s) => s != null && s.path).map((s) => ({
           path: s.path,
           name: s.name,
           content_type: s.content_type,
