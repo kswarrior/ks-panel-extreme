@@ -931,6 +931,7 @@ const InstancePageStudio: React.FC = () => {
               onUpdate={updateComponent}
               onImport={importSharedComponent}
               sectionCls={sectionCls}
+              configure={configure}
             />
           )}
 

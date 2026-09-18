@@ -244,7 +244,32 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
                         <span className="text-xs text-gray-400">Description</span>
                         <input value={c.description} onChange={(e) => onUpdate(c.id, { description: e.target.value })} className={glassFieldClass} placeholder="Reusable panel UI" />
                       </label>
-                      <p className="text-[11px] text-sky-300/80">Shared import — no source is stored when locked. Toggle <span className="text-white">OFF</span> to lock and load from panel. Use <code className="font-mono">{"{{component:"}{c.name.trim() || 'name'}{"}}"}</code> in content.</p>
+                      {/* Editable shared — forked content editor. Seeded from the panel registry when toggled ON so the component doesn't go blank, and config tokens inside it keep working. */}
+                      <label className="block">
+                        <span className="text-xs text-gray-400">Content (forked from panel — editable) </span>
+                        <textarea value={c.content} onChange={(e) => onUpdate(c.id, { content: e.target.value })} rows={6} className={`${glassFieldClass} font-mono`} placeholder={getSharedPanelComponentContent(c.shared || c.name)?.slice(0, 120) || "<div>...</div>"} />
+                      </label>
+                      <p className="text-[11px] text-emerald-300/80">✏️ Editable — forked copy saved whole in YAML. Use <code className="font-mono">{"{{component:"}{c.name.trim() || 'name'}{"}}"}</code> and <code className="font-mono">{"{{config:NAME}}"}</code> inside it.</p>
+                      {/* Config context box — must remain visible when a shared import is toggled editable (bug: it vanished). */}
+                      <div className="rounded border border-emerald-700/30 bg-emerald-900/10 p-3 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Config context</p>
+                        {configure.length > 0 ? (
+                          <>
+                            <p className="text-[11px] text-gray-400">Available <code className="font-mono">{"{{config:NAME}}"}</code> tokens from the Configure tab:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {configure.map((v) => (
+                                <span key={v.id} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/30 border border-white/10 text-[11px] font-mono text-gray-300" title={`${v.label || v.name}${v.description ? ' — ' + v.description : ''} (default: ${v.default || '""'})`}>
+                                  <span className="text-emerald-300">{"{{config:"}{v.name}{"}}"}</span>
+                                  <span className="text-gray-500 hidden sm:inline">· {v.display}</span>
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-gray-500">Values are set per template via the template editor&apos;s Configure button.</p>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-500">No configure variables yet — add them in the <span className="text-white">Configure</span> tab; they&apos;ll appear here as <code className="font-mono">{"{{config:NAME}}"}</code> tokens.</p>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <>
@@ -273,6 +298,25 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
                         <textarea value={c.content} onChange={(e) => onUpdate(c.id, { content: e.target.value })} rows={6} className={`${glassFieldClass} font-mono`} placeholder="<div>...</div>" />
                       </label>
                       <p className="text-[11px] text-emerald-300/80">✏️ Editable — content will be saved whole in YAML.</p>
+                      {/* Config context box for editable custom components */}
+                      <div className="rounded border border-emerald-700/30 bg-emerald-900/10 p-3 space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Config context</p>
+                        {configure.length > 0 ? (
+                          <>
+                            <p className="text-[11px] text-gray-400">Available <code className="font-mono">{"{{config:NAME}}"}</code> tokens:</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {configure.map((v) => (
+                                <span key={v.id} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-black/30 border border-white/10 text-[11px] font-mono text-gray-300" title={`${v.label || v.name}${v.description ? ' — ' + v.description : ''}`}>
+                                  <span className="text-emerald-300">{"{{config:"}{v.name}{"}}"}</span>
+                                  <span className="text-gray-500 hidden sm:inline">· {v.display}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-[11px] text-gray-500">No configure variables yet — add them in the Configure tab.</p>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
