@@ -84,7 +84,16 @@ docker run -d \
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+KS Panel is source-available, not open source.
+
+The source code may be inspected, used privately, and modified for private or
+internal purposes under the KS Panel Source-Available License.
+
+Public redistribution, public forks, released modified versions, resale,
+rebranding, and public hosted/competing services are not permitted without
+written permission from KS Warrior.
+
+See [LICENSE](./LICENSE) for the full terms.
 
 ---
 
