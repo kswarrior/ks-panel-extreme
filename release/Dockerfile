@@ -15,7 +15,7 @@ COPY kspanel ./kspanel
 COPY ksedge ./ksedge
 RUN chmod +x ./kspanel ./ksedge || chmod +x ./kspanel
 
-EXPOSE 8080 4040
+EXPOSE 10000 4040
 
 # keep data persistent if you mount a volume
 VOLUME ["/app/data"]
@@ -27,4 +27,4 @@ VOLUME ["/app/data"]
 # NOTE: removed trailing `&` from your commands - backgrounding would make
 # the container exit immediately. Only the final `launch` should be foreground (exec).
 # `|| true` allows re-runs to succeed if user/template/node already exists.
-CMD ["sh", "-c", "export KSPANEL_SESSION_SECRET=\"${KSPANEL_SESSION_SECRET:-$(openssl rand -base64 32)}\" && echo \"KSPANEL_SESSION_SECRET=$KSPANEL_SESSION_SECRET\" && chmod +x ./kspanel && ./kspanel seed || true; ./kspanel create:user --username kshosting --email kshosting@ksmail.com --password \"kshosting@55\" --role 1 || true; ./kspanel import:template minecraft || true; ./kspanel setup:localnode --port 4040 || true; exec ./kspanel launch --port 8080"]
+CMD ["sh", "-c", "export KSPANEL_SESSION_SECRET=\"${KSPANEL_SESSION_SECRET:-$(openssl rand -base64 32)}\" && echo \"KSPANEL_SESSION_SECRET=$KSPANEL_SESSION_SECRET\" && chmod +x ./kspanel && ./kspanel seed || true; ./kspanel create:user --username kshosting --email kshosting@ksmail.com --password \"kshosting@55\" --role 1 || true; ./kspanel import:template minecraft || true; ./kspanel setup:localnode --port 4040 || true; exec ./kspanel launch --port 10000"]
