@@ -207,7 +207,19 @@ if [ -r /proc/net/dev ]; then
   no=$(awk 'NR>2 && $1!~/lo:/{s+=$10} END{print s+0}' /proc/net/dev)
 fi
 l1=$(awk '{print $1}' /proc/loadavg 2>/dev/null); [ -z "$l1" ] && l1=0
-up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null); [ -z "$up" ] && up=0
+# Container-aware uptime: PID 1's elapsed seconds, not host /proc/uptime.
+# /proc/uptime is host-not-namespaced for docker / LXD without lxcfs, so it
+# reports host uptime (30d) instead of container age (5m). PID 1's etimes
+# (elapsed seconds since it started) is the true container/VM age for all
+# drivers; fall back to /proc/uptime only when ps can't report it (distroless
+# or BusyBox without etimes support).
+up=""
+if command -v ps >/dev/null 2>&1; then
+  up=$(ps -o etimes= -p 1 2>/dev/null | tr -d ' \n\r\t')
+  case "$up" in ''|*[!0-9]*) up="" ;; esac
+fi
+[ -z "$up" ] && up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+[ -z "$up" ] && up=0
 printf '{"cpu_pct":%s,"mem_used":%d,"mem_total":%d,"disk_used":%d,"disk_total":%d,"net_in":%d,"net_out":%d,"load1":%s,"uptime":%d,"mem":%d,"disk":%d,"cpu":%s}\n' "$cpu" "$mu" "$mt" "$du" "$dt" "$ni" "$no" "$l1" "$up" "$mu" "$du" "$cpu"
 `
 

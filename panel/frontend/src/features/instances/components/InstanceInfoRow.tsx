@@ -158,10 +158,6 @@ const InstanceInfoRow: React.FC = () => {
   const instanceId = Number(id);
   const { instance, loading } = useInstance(instanceId);
 
-  const uptime = useUptime(
-    pickSince(instance?.started_at, instance?.updated_at, instance?.created_at),
-    instance?.status ?? '',
-  );
   const isRunning = instance?.status === 'running';
 
   // Live resource stats — only polled while running. While the first
@@ -169,6 +165,13 @@ const InstanceInfoRow: React.FC = () => {
   // for not-running / denied / unavailable. Hooks stay above the early
   // returns so hook order is stable across loading → loaded renders.
   const { latest: metrics, loading: metricsLoading } = useLiveMetrics(instanceId, isRunning);
+
+  const uptime = useUptime(
+    pickSince(instance?.started_at, instance?.updated_at, instance?.created_at),
+    instance?.status ?? '',
+    metrics?.uptime ?? null,
+    metrics?.t ?? null,
+  );
 
   // Template allow-list (instance.Config snapshot, allow-all default).
   const controls = useMemo(() => resolveInstanceControls(instance?.config), [instance?.config]);
