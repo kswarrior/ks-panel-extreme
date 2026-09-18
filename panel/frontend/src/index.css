@@ -1502,9 +1502,19 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
 .ks-chipscroll {
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
 }
 .ks-chipscroll::-webkit-scrollbar {
   display: none;
+}
+.ks-chipscroll-vertical {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
 }
 .ks-chipscroll.can-scroll-r:not(.can-scroll-l) {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 22px), transparent);
@@ -1529,6 +1539,54 @@ html[data-ks-reduced-motion='1'] .ks-system-tab-bar[data-active='true'] {
 .ks-chipscroll-vertical.can-scroll-t.can-scroll-b {
   -webkit-mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
   mask-image: linear-gradient(to bottom, transparent, black 22px, black calc(100% - 22px), transparent);
+}
+
+/* Theme Studio + Layout scroll containers: enable momentum touch scroll
+   on phones. Without -webkit-overflow-scrolling:touch / touch-action, the
+   page column (ks-page-scroll) and chip rails (ks-chipscroll) scroll with
+   wheel/mouse on laptop but one-finger touch drag is ignored on iOS/Android
+   (the terminal already carried this fix — the rest of the app did not). */
+.ks-page-scroll,
+.ks-sidebar-nav {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: auto;
+}
+.ks-page-scroll {
+  overscroll-behavior-y: auto;
+}
+/* Chip taps: ensure the pill button is a 44px touch target and that taps
+   fire immediately (manipulation removes the 300ms double-tap delay and
+   keeps the tap from being swallowed as a scroll when the finger moves
+   slightly). */
+.ks-rail-tab.ks-chip {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 639px) {
+  .ks-rail-tab.ks-chip {
+    min-height: 44px;
+  }
+}
+/* Range sliders in Theme Studio (Slider brick): make the thumb easier to
+   grab on phones and ensure horizontal drag moves the thumb instead of the
+   page. Without touch-action the page steals the gesture on some browsers. */
+input[type="range"] {
+  touch-action: pan-y;
+  -webkit-tap-highlight-color: transparent;
+}
+input[type="range"]::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+}
+@media (max-width: 639px) {
+  input[type="range"] {
+    min-height: 44px;
+  }
 }
 
 /* Pill search-open on phones: search takes the whole pill — every other

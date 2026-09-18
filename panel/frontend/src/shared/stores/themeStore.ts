@@ -2779,7 +2779,35 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb,
 nav.overflow-x-auto::-webkit-scrollbar-thumb:hover,
 .ks-hscroll::-webkit-scrollbar-thumb:hover {
   background: var(--ks-scroll-tabs-hover) !important;
-}`;
+}
+/* Touch handling for phone: momentum scroll + correct pan axis so
+   one-finger drag works on iOS/Android. Mirrors the fix already in
+   index.css for .ks-terminal-wrap .xterm-viewport — without this the
+   page column and tab strips scroll with wheel on laptop but are inert
+   on phone (the reported Theme Studio regression). */
+.ks-sidebar-nav, .ks-page-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: auto;
+}
+.ks-chipscroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto;
+}
+.ks-chipscroll-vertical {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: auto;
+}
+nav.overflow-x-auto, .ks-hscroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-x: contain;
+}
+.ks-rail-tab.ks-chip { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }`;
 }
 
 // resolveThemeFromStore is the merged resolver the store uses on every

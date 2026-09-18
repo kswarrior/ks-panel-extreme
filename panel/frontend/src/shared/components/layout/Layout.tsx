@@ -68,7 +68,10 @@ const Layout: React.FC = () => {
         {/* Page scroll area. ks-page-scroll hooks the themed Scrollbar
             (Theme Studio > Scroll > Pages) onto the main column. */}
         <div className="relative flex-1 min-h-0 flex">
-          <main className="ks-page-scroll flex-1 min-w-0 overflow-auto p-4 sm:p-6">
+          <main
+            className="ks-page-scroll flex-1 min-w-0 overflow-auto p-4 sm:p-6"
+            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'auto' } as React.CSSProperties}
+          >
             <ErrorBoundary resetKey={location.pathname} label="page">
               <Outlet />
             </ErrorBoundary>

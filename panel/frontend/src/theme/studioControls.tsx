@@ -41,7 +41,9 @@ export const Slider: React.FC<SliderProps> = ({ label, value, min = 0, max, step
       step={step}
       value={value}
       onChange={(e) => onChange(Number(e.target.value))}
-      className="w-full accent-white"
+      onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
+      style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+      className="w-full accent-white touch-manipulation min-h-[44px] sm:min-h-0 py-2 sm:py-0"
     />
   </div>
 );
@@ -120,7 +122,9 @@ export const ColorField: React.FC<ColorProps> = ({ label, value, onChange, place
             type="color"
             value={isHex && value.length === 7 ? value : '#000000'}
             onChange={(e) => onChange(e.target.value)}
-            className="w-9 h-9 rounded-md border border-white/10 bg-transparent cursor-pointer p-0"
+            onInput={(e) => onChange((e.target as HTMLInputElement).value)}
+            style={{ touchAction: 'manipulation' } as React.CSSProperties}
+            className="w-9 h-9 sm:w-9 sm:h-9 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 rounded-md border border-white/10 bg-transparent cursor-pointer p-0 touch-manipulation"
             aria-label={`${label} color picker`}
           />
         </div>

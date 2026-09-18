@@ -29,7 +29,6 @@ content_html: |-
     <div id="ks-stopped" style="display:none"></div>
     <div id="ks-live">
       <div id="ks-pill" class="ks-card ks-pill-anim ks-actions-pill" role="toolbar" aria-label="Terminal actions" style="position:fixed;top:12px;right:12px;z-index:40;display:flex;align-items:center;gap:4px;padding:6px;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,0.40);--ks-card-padding:6px"></div>
-      <div id="ks-tabs" role="tablist" aria-label="Terminals" style="display:flex;align-items:center;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:4px"></div>
       <div id="ks-panes" style="display:flex;flex-direction:column;gap:12px"></div>
       <!-- Tabs pill (bottom): panel PageTabsPill parity — ks-card ks-pill-anim ks-tabs-pill shell,
            ks-pill-content vertical list (max-h 50vh), ks-tab ks-pill-toggle with ^/v,
@@ -1027,33 +1026,9 @@ content_html: |-
     }
 
     function renderTabs() {
-      var host = el('ks-tabs');
-      if (!host) return;
-      var h = panes.map(function (p, idx) {
-        var st = tabDot(p);
-        var active = p.key === activeKey;
-        var label = paneLabel(p, idx);
-        var tid = normTid(p.tid);
-        return '<div data-tab="' + p.key + '" role="tab" aria-selected="' + active + '" title="' + esc(label + (tid ? ' · ' + tid + ' · ' + st.label : ' · ' + st.label)) + '" style="display:inline-flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;border-radius:8px;border:1px solid ' + (active ? 'rgba(255,255,255,0.20)' : 'rgba(255,255,255,0.10)') + ';background:' + (active ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.20)') + ';color:' + (active ? '#fff' : 'var(--ks-muted)') + ';font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0">'
-          + '<span style="width:6px;height:6px;border-radius:9999px;flex-shrink:0;' + st.dot + '"></span>'
-          + '<span style="max-width:10rem;overflow:hidden;text-overflow:ellipsis">' + esc(label) + '</span>'
-          + (tid !== '' ? '<span class="ks-mono" style="max-width:8rem;overflow:hidden;text-overflow:ellipsis;font-size:11px;opacity:.6">' + esc(tid) + '</span>' : '')
-          + (panes.length > 1 ? '<button type="button" data-close="' + p.key + '" title="Close ' + esc(label) + '" aria-label="Close ' + esc(label) + '" style="padding:4px;border-radius:6px;color:var(--ks-muted);background:transparent;border:none;cursor:pointer">✕</button>' : '')
-          + '</div>';
-      }).join('');
-      host.innerHTML = h;
-      var tabs = host.querySelectorAll('[data-tab]');
-      for (var i = 0; i < tabs.length; i++) {
-        (function (t) {
-          t.addEventListener('click', function (e) {
-            var c = e.target && e.target.closest ? e.target.closest('[data-close]') : null;
-            if (c) { removePane(Number(c.getAttribute('data-close'))); return; }
-            activeKey = Number(t.getAttribute('data-tab'));
-            saveSession();
-            renderTabs(); renderPanes(); renderPhoneTabs();
-          });
-        })(tabs[i]);
-      }
+      // Top tabs removed per request — sole tab UI is now the bottom pill
+      // (panel PageTabsPill parity: ks-ptabs / ks-ptabs-shell). Keep alias so
+      // existing call sites (tick, setPillOff, enforceLimits) still refresh tabs.
       renderPhoneTabs();
     }
     function renderPhoneTabs() {
@@ -1065,11 +1040,12 @@ content_html: |-
         var active = p.key === activeKey;
         var label = paneLabel(p, idx);
         var tid = normTid(p.tid);
-        return '<button type="button" data-ptab="' + p.key + '" role="tab" aria-selected="' + active + '" class="ks-tab' + (active ? ' ks-tab-active' : '') + '" style="width:100%;justify-content:flex-start;text-align:left;display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;flex-shrink:0">'
+        return '<div data-ptab="' + p.key + '" role="tab" aria-selected="' + active + '" class="ks-tab' + (active ? ' ks-tab-active' : '') + '" style="width:100%;justify-content:flex-start;text-align:left;display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;flex-shrink:0;cursor:pointer">'
           + '<span style="width:6px;height:6px;border-radius:9999px;flex-shrink:0;' + st.dot + '"></span>'
           + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(label) + '</span>'
           + (tid !== '' ? '<span class="ks-mono" style="font-size:11px;opacity:.6;max-width:7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(tid) + '</span>' : '')
-          + '</button>';
+          + (panes.length > 1 ? '<button type="button" data-close="' + p.key + '" title="Close ' + esc(label) + '" aria-label="Close ' + esc(label) + '" style="padding:4px;border-radius:6px;color:var(--ks-muted);background:transparent;border:none;cursor:pointer;flex-shrink:0">✕</button>' : '')
+          + '</div>';
       }).join('');
       host.innerHTML = h;
       // Apply the current open/closed geometry so the content glides like PageTabsPill (max-height + fade + rise).
@@ -1086,11 +1062,13 @@ content_html: |-
           // Width of the shell: shrink-to-content by default (hugs longest tab), max viewport-clamped.
         }
       }
-      // Wire tab selection: selecting a tab collapses back to ^ (PageTabsPill parity) and restores aria.
+      // Wire tab selection: selecting a tab collapses back to ^ (PageTabsPill parity) and restores aria. Close button handled first.
       var btns = host.querySelectorAll('[data-ptab]');
       for (var i = 0; i < btns.length; i++) {
         (function (b) {
-          b.addEventListener('click', function () {
+          b.addEventListener('click', function (e) {
+            var c = e.target && e.target.closest ? e.target.closest('[data-close]') : null;
+            if (c) { removePane(Number(c.getAttribute('data-close'))); return; }
             activeKey = Number(b.getAttribute('data-ptab'));
             saveSession();
             renderTabs(); renderPanes(); renderPhoneTabs();

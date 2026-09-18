@@ -123,11 +123,14 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
   }, [chips, vertical, tabs.length]);
 
   // Keep the active chip centered on its scroll axis (block:'nearest' /
-  // inline:'nearest' never moves the page on the cross axis).
+  // inline:'nearest' never moves the page on the cross axis). On phones
+  // (hover: none) use instant scroll — smooth can jank with momentum and
+  // makes taps feel sluggish when the scroller is being dragged.
   useEffect(() => {
     if (!chips) return;
+    const smooth = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches;
     refs.current[active]?.scrollIntoView({
-      behavior: 'smooth',
+      behavior: smooth ? 'smooth' : 'auto',
       block: vertical ? 'center' : 'nearest',
       inline: vertical ? 'nearest' : 'center',
     });
@@ -150,6 +153,15 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
         aria-label={ariaLabel}
         aria-orientation={orientation}
         onKeyDown={onKeyDown}
+        style={
+          chips
+            ? vertical
+              ? { WebkitOverflowScrolling: 'touch' as any, touchAction: 'pan-y', overscrollBehaviorY: 'contain' as any }
+              : { WebkitOverflowScrolling: 'touch' as any, touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' as any }
+            : vertical
+              ? { WebkitOverflowScrolling: 'touch' as any, touchAction: 'pan-y' }
+              : { WebkitOverflowScrolling: 'touch' as any, touchAction: 'pan-x pan-y', overscrollBehaviorX: 'contain' as any }
+        }
         className={
           vertical
             ? chips
@@ -177,7 +189,8 @@ export const SectionRailTabs: React.FC<SectionRailTabsProps> = ({
               onClick={() => onChange(t.id)}
               data-active={isActive}
               data-orientation={orientation}
-              className={`ks-rail-tab ks-rail-anim group flex items-center min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}
+              className={`ks-rail-tab ks-rail-anim group flex items-center min-w-0 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black touch-manipulation select-none ${
                 chips
                   ? vertical
                     ? 'ks-chip w-full gap-1.5 px-3 py-1.5 text-left'
