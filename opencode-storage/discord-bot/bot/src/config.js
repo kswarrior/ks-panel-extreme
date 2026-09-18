@@ -1,9 +1,15 @@
 require("dotenv").config();
 
-const token = process.env.TOKEN;
+let token = (process.env.TOKEN || "").trim();
+// Remove accidental quotes or whitespace
+if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) token = token.slice(1,-1).trim();
 if (!token) {
   console.error("[FATAL] TOKEN is not set in .env. Please fill in your bot token and restart.");
+  console.error("[HINT] Edit bot/.env → TOKEN=your_new_token (from https://discord.com/developers/applications )");
   process.exit(1);
+}
+if (token.split('.').length !== 3) {
+  console.warn("[WARN] TOKEN doesn't look like a Discord bot token (should be 3 parts separated by dots). Check bot/.env");
 }
 
 module.exports = {

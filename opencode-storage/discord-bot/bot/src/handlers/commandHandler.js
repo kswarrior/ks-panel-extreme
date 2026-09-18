@@ -77,12 +77,14 @@ module.exports = {
   },
 
   async registerCommands(commandsData) {
-    const rest = new REST({ version: "10", agent: getRestAgent() }).setToken(config.token);
     const maxRetries = 3;
     let attempt = 0;
 
     while (attempt < maxRetries) {
       attempt++;
+      // Recreate REST each attempt: @discordjs/rest clears token on 401 (manager.setToken(null)),
+      // so reusing same instance makes retries fail with "Expected token to be set".
+      const rest = new REST({ version: "10", agent: getRestAgent() }).setToken(config.token);
       try {
         console.log(`[INFO] Registering commands (attempt ${attempt}/${maxRetries})...`);
 
@@ -99,7 +101,17 @@ module.exports = {
         }
         return;
       } catch (error) {
-        console.error(`[ERROR] Command registration attempt ${attempt} failed: ${error.message}`);
+        const status = error.status ?? error.code ?? "";
+        const msg = error.message || String(error);
+        // 401 = invalid token - don't retry, it's fatal and will just clear token for next attempts
+        if (String(status) === "401" || msg.includes("401") || msg.includes("Unauthorized")) {
+          console.error(`[ERROR] Command registration failed: 401 Unauthorized — invalid token.`);
+          console.error(`[HINT] Get a new token at https://discord.com/developers/applications/${config.clientId}/bot → Reset Token, then update bot/.env TOKEN=... and restart.`);
+          console.error(`[HINT] You can edit bot/.env via Manager → Files → .env → Edit → Save → Restart`);
+          console.error("[ERROR] All registration attempts failed. Bot will continue without registered commands.");
+          return;
+        }
+        console.error(`[ERROR] Command registration attempt ${attempt} failed: ${msg}`);
         if (attempt < maxRetries) {
           const delay = attempt * 5000;
           console.log(`[INFO] Retrying in ${delay / 1000}s...`);

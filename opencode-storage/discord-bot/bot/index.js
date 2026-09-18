@@ -106,7 +106,18 @@ async function start() {
     await client.login(config.token);
     console.log("\n[OK]    Bot authenticated successfully!");
   } catch (error) {
-    if (error.message?.includes("Used disallowed intents")) {
+    const msg = error.message || String(error);
+    const isTokenError = msg.includes("invalid token") || msg.includes("401") || msg.includes("Unauthorized") || error.code === 401 || String(error.status) === "401";
+    if (isTokenError) {
+      console.error("\n[FATAL] Invalid token — Discord rejected the token (401 Unauthorized).");
+      console.error(`[HINT] Your TOKEN in bot/.env is invalid/revoked. Get a new one:`);
+      console.error(`  1) https://discord.com/developers/applications/${config.clientId}/bot → Reset Token → Copy`);
+      console.error(`  2) Edit bot/.env via Manager → Files → .env → replace TOKEN=... → Save`);
+      console.error(`  3) Manager → Home → Restart`);
+      console.error(`  Current TOKEN prefix: ${config.token ? config.token.slice(0,12) + "..." : "none"} (check bot/.env)\n`);
+      process.exit(1);
+    }
+    if (msg?.includes("Used disallowed intents")) {
       console.error("\n[ERROR] Privileged Intents are NOT enabled!");
       await ensurePrivilegedIntents();
 
@@ -121,7 +132,7 @@ async function start() {
         process.exit(1);
       }
     } else {
-      console.error("\n[FATAL] Failed to start:", error.message || error, "\n");
+      console.error("\n[FATAL] Failed to start:", msg || error, "\n");
       process.exit(1);
     }
   }
