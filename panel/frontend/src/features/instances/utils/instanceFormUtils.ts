@@ -419,8 +419,8 @@ export function serializeEditor(f: EditorState): Record<string, unknown> {
         retries: s.retries, ignore_errors: !!s.ignore_errors,
       })),
     })),
-    labels: f.labels.filter((l) => l?.key).map((l) => ({ key: l.key, value: l.value })),
-    devices: f.devices.filter((d) => d?.host || d?.container).map((d) => ({ host: d.host, container: d.container, cgroup: !!d.cgroup })),
+    labels: (f.labels ?? []).filter((l) => l != null && typeof l === 'object' && (l as any).key).map((l) => ({ key: String((l as any).key ?? ''), value: String((l as any).value ?? '') })),
+    devices: (f.devices ?? []).filter((d) => d != null && typeof d === 'object' && ((d as any).host || (d as any).container)).map((d) => ({ host: String((d as any).host ?? ''), container: String((d as any).container ?? ''), cgroup: !!(d as any).cgroup })),
     pages: (f.pages ?? []).filter((p) => p != null && p.slug).map((p) => {
       // Every page row is a custom page — write it verbatim (label and icon
       // are always persisted; there is no built-in default to diff against).

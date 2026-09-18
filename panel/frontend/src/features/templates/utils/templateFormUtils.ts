@@ -287,11 +287,11 @@ export function serializeSpec(f: TemplateFormState): string {
         ignore_errors: !!s.ignore_errors,
       })),
     })),
-    labels: f.labels.filter((l) => l?.key).map((l) => ({ key: l.key, value: l.value })),
-    devices: f.devices.filter((d) => d?.host || d?.container).map((d) => ({
-      host: d.host,
-      container: d.container,
-      cgroup: !!d.cgroup,
+    labels: (f.labels ?? []).filter((l) => l != null && typeof l === 'object' && (l as any).key).map((l) => ({ key: String((l as any).key ?? ''), value: String((l as any).value ?? '') })),
+    devices: (f.devices ?? []).filter((d) => d != null && typeof d === 'object' && ((d as any).host || (d as any).container)).map((d) => ({
+      host: String((d as any).host ?? ''),
+      container: String((d as any).container ?? ''),
+      cgroup: !!(d as any).cgroup,
     })),
     healthcheck: f.healthcheck.enabled ? {
       test: f.healthcheck.test_command,
