@@ -1,0 +1,166 @@
+KS PANEL SOURCE-AVAILABLE LICENSE
+Version 1.0
+Copyright (c) 2026 KS Warrior
+
+This license applies to the KS Panel software and source code ("Software")
+unless a different license is expressly included with a specific component.
+
+1. COPYRIGHT AND OWNERSHIP
+
+The Software, including its source code, original documentation, original
+graphics, configuration, and other original materials, is owned by KS Warrior
+and/or its applicable copyright holders.
+
+This license grants limited permission to use the Software. It does not
+transfer ownership of the Software or its intellectual property.
+
+2. PERMITTED USE
+
+Subject to the restrictions in this license, you may:
+
+a. download and inspect the Software;
+
+b. install and run the Software for personal use;
+
+c. install and run the Software for private or internal use by yourself,
+your organization, or a private group of authorized users;
+
+d. modify, adapt, configure, compile, or otherwise change the Software for
+your own private or internal use;
+
+e. create private copies of the Software for the permitted uses above; and
+
+f. test and evaluate the Software in private environments.
+
+Any modified version remains subject to this license unless KS Warrior grants
+written permission for another license.
+
+3. NO PUBLIC REDISTRIBUTION
+
+You may NOT, without prior written permission from KS Warrior:
+
+a. publish or redistribute the Software;
+
+b. publish or redistribute a modified or derivative version of the Software;
+
+c. distribute the Software or a modified version as a public GitHub repository,
+public fork, mirror, package, download, archive, installer, container image,
+or other publicly accessible distribution;
+
+d. sublicense, sell, lease, rent, or otherwise transfer the Software or a
+modified version to another person or organization;
+
+e. release the Software or a modified version as your own software product;
+
+f. create or distribute a competing panel, platform, or service substantially
+based on the Software;
+
+g. remove or alter copyright, attribution, license, or ownership notices;
+
+h. use the KS Panel name, KS Warrior name, official logos, trademarks, or
+branding to imply that a modified version is official, endorsed, or
+supported by KS Warrior; or
+
+i. make the Software or a modified version available as a public hosted,
+SaaS, managed, rental, or other service for third parties.
+
+4. PRIVATE MODIFICATIONS
+
+You are permitted to create private modifications and private forks for the
+uses allowed by Section 2.
+
+A private modification must remain private and must not be published,
+redistributed, sublicensed, sold, or otherwise made available outside the
+authorized private users of the licensee.
+
+For clarity, modifying the Software privately is permitted; publishing or
+distributing that modified version is not permitted without written permission
+from KS Warrior.
+
+5. PUBLIC PROJECTS AND FORKS
+
+A person or organization may not create a public project, public fork, public
+repository, public distribution, or public derivative product based on the
+Software without prior written permission from KS Warrior.
+
+The existence of a GitHub fork or copy does not itself grant permission to
+publicly distribute or use that copy. Permission is determined by this license
+and applicable law.
+
+6. TRADEMARKS AND BRANDING
+
+This license grants no right to use the names "KS Panel", "KS Warrior", or any
+associated logos, trademarks, product names, domain names, or branding except
+as necessary to refer accurately to the original Software.
+
+A modified version must not be presented as an official KS Panel product.
+
+7. THIRD-PARTY SOFTWARE
+
+The Software may include, depend upon, or interact with third-party software,
+libraries, frameworks, assets, or other materials that are governed by their
+own licenses.
+
+This license does not replace, restrict, or override those third-party licenses.
+
+You are responsible for complying with the applicable licenses of third-party
+components.
+
+8. CONTRIBUTIONS
+
+Unless otherwise agreed in writing, any contribution submitted to the KS Panel
+project may be used, modified, and distributed by KS Warrior as part of KS
+Panel under the project's applicable licensing terms.
+
+By submitting a contribution, you represent that you have the necessary rights
+to submit it.
+
+9. TERMINATION
+
+Your rights under this license automatically terminate if you materially
+violate the terms of this license.
+
+Upon termination, you must stop using and delete or destroy copies of the
+Software that you are no longer authorized to possess or use, except where
+retention is required by applicable law.
+
+KS Warrior may also terminate a specific permission granted under this license
+by written notice where the license has been materially violated.
+
+10. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, TITLE, OR NON-INFRINGEMENT, TO THE MAXIMUM EXTENT
+PERMITTED BY APPLICABLE LAW.
+
+11. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, KS WARRIOR SHALL NOT BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR OTHER
+DAMAGES ARISING FROM OR RELATED TO THE USE OF THE SOFTWARE.
+
+12. RESERVATION OF RIGHTS
+
+All rights not expressly granted by this license are reserved by KS Warrior
+and/or the applicable copyright holders.
+
+No permission is granted by implication, estoppel, or otherwise beyond the
+permissions expressly stated in this license.
+
+13. WRITTEN PERMISSION
+
+KS Warrior may grant additional permissions, exceptions, commercial licenses,
+distribution rights, or alternative licensing terms in writing.
+
+Any such permission applies only to the scope expressly granted.
+
+14. LICENSE NOTICE
+
+A copy of this license should accompany authorized copies of the Software.
+
+Nothing in this license should be interpreted as transferring ownership of the
+Software or granting rights to publicly distribute or release derivative
+versions.
+
+END OF LICENSE
