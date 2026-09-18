@@ -133,8 +133,8 @@ build_bin() {
     [[ -d "$cmd_dir" ]] || { echo "[s-rebuild] ERR cmd dir missing $cmd_dir" >&2; exit 1; }
     [[ -d "$out" ]] && rm -rf -- "$out"
     mkdir -p -- "$(dirname "$out")"
-    CGO_ENABLED=0 GOOS="${GOOS:-linux}" GOARCH="${GOARCH:-$(go env GOARCH 2>/dev/null || echo amd64)}" \
-        go build -trimpath -ldflags "$ldflags" -o "$out" .
+    (cd "$cmd_dir" && CGO_ENABLED=0 GOOS="${GOOS:-linux}" GOARCH="${GOARCH:-$(go env GOARCH 2>/dev/null || echo amd64)}" \
+        go build -trimpath -ldflags "$ldflags" -o "$out" .)
     # deliberately no strip, no garble
     chmod 755 -- "$out"
     echo "[s-rebuild] $name built: $(ls -lh "$out" | awk '{print $5, $9}')"
