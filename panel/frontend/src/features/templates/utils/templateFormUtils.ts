@@ -146,12 +146,12 @@ export function serializeSpec(f: TemplateFormState): string {
   const spec: Record<string, unknown> = {
     category: f.category,
     type: f.type,
-    ports: f.ports.filter((p) => p.host || p.guest).map((p) => ({
+    ports: f.ports.filter((p) => p?.host || p?.guest).map((p) => ({
       host: p.host,
       container: p.guest,
       protocol: p.protocol,
     })),
-    mounts: f.mounts.filter((m) => m.source || m.target).map((m) => ({
+    mounts: f.mounts.filter((m) => m?.source || m?.target).map((m) => ({
       source: m.source,
       target: m.target,
       mode: m.mode,
@@ -178,7 +178,7 @@ export function serializeSpec(f: TemplateFormState): string {
     // persist when present (legacy comma `options` is re-synced from the
     // values so old readers keep working); checkbox send-values persist
     // when set.
-    env: f.env.map((e) => {
+    env: f.env.filter((e) => e != null).map((e) => {
       const scopes = normalizeEnvScopes(e.scopes);
       const images = normalizeEnvImages((e as any).images);
       const behavior = normalizeEnvBehavior((e as any).behavior);
@@ -220,7 +220,7 @@ export function serializeSpec(f: TemplateFormState): string {
     ...(imageRows.some((r) => r.name.toLowerCase() === defaultImageName.toLowerCase()) && defaultImageName
       ? { default_image: defaultImageName }
       : {}),
-    install: f.install.map((s) => ({
+    install: f.install.filter((s) => s != null).map((s) => ({
       action: s.action,
       command: s.command,
       url: s.url,
@@ -244,7 +244,7 @@ export function serializeSpec(f: TemplateFormState): string {
     // Installation console binding (attach-by-ID handle for the install
     // workflow). Omitted when empty so old specs stay byte-identical.
     install_terminal_id: (f.install_terminal_id || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '') || undefined,
-    actions: f.actions.filter((a) => a.id.trim() !== '').map((a) => ({
+    actions: f.actions.filter((a) => a?.id?.trim() !== '').map((a) => ({
       id: a.id,
       name: a.name,
       description: a.description,
@@ -271,7 +271,7 @@ export function serializeSpec(f: TemplateFormState): string {
       terminal_allowed_commands: a.terminal_allowed_commands.split('\n').map((x) => x.trim()).filter(Boolean),
       terminal_blocked_commands: a.terminal_blocked_commands.split(',').map((x) => x.trim()).filter(Boolean),
       terminal_timeout_s: a.terminal_timeout_s,
-      steps: a.steps.map((s) => ({
+      steps: (a.steps ?? []).filter((s) => s != null).map((s) => ({
         action: s.action,
         command: s.command,
         url: s.url,
