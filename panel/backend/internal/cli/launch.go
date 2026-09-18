@@ -23,6 +23,7 @@ import (
 	"github.com/example/kspanel/internal/cli/print"
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/db"
+	"github.com/example/kspanel/internal/telemetry"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/probe"
@@ -291,6 +292,7 @@ go nodeSweepLoop(90*time.Second, time.Minute)
 	// the listener so the first dashboard round-trip after launch already
 	// has one or two real data points instead of a flat line.
 	sysinfo.Start()
+	telemetry.Start()
 
 	// Start the per-instance automation scheduler. It sweeps Due() automation
 	// jobs every minute and dials the owning edge's exec-rpc with each job's
