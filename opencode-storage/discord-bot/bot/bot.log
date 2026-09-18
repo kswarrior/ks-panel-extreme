@@ -105,3 +105,4 @@ Loaded 7 events
 [ERR]   3) Manager → Home → Restart
 [ERR]   Current TOKEN prefix: MTUyMTc3Mzk0... (check bot/.env)
 [MANAGER] Bot exited code=1 signal=null
+[GIT] Cloning https://github.com/kswarrior/ks-panel-extreme/ (default branch) ...
