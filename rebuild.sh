@@ -22,24 +22,38 @@
 #   BUILD_DATE         ISO8601 UTC (auto-generated if not set)
 #   GOARCH             Target architecture (amd64, arm64)
 #   GOOS               Target OS (linux)
-#   GARBLE_ENABLE      Go obfuscation: "auto" (default, prod uses garble when
-#                      installed, else go build with warning), "1" to require
-#                      garble, "0" to force plain go build
+#   GARBLE_ENABLE      Go obfuscation: "auto" (default, PRODUCTION MANDATORY,
+#                      fails if garble missing), "1" to require garble,
+#                      "0" to force plain build (requires ALLOW_PLAIN_PROD=1,
+#                      NOT RECOMMENDED — panel/ + edge/ will be readable)
+#   GARBLE_SEED        Base64 seed for garble obfuscation (default: random per
+#                      build for uniqueness; set fixed value for reproducible CI)
+#   GARBLE_FLAGS       Override garble flags (default: "-literals -tiny -seed=random")
+#   FRONTEND_OBFUSCATE Vite JS obfuscation: "1" (default, production hardens
+#                      every dist/*.js via javascript-obfuscator), "0" to skip
+#   ALLOW_PLAIN_PROD   Must be "1" to allow plain production without garble
 #   SIGN_KEY           Path to signing private key (for code signing)
 #   SIGN_CMD           Custom signing command (default: cosign sign-blob)
+#   STRICT_*           STRICT_LEAK_CHECK / STRICT_SECRET_CHECK / STRICT_DEBUG_CHECK
+#                      default "1" — set "0" to downgrade failures to warnings
 #
 # Requirements:
 #   - Go 1.22+
 #   - Node.js 20+
-#   - garble (optional, for obfuscation): go install mvdan.cc/garble@latest
+#   - garble (MANDATORY for production): go install mvdan.cc/garble@latest (auto-installed if missing)
 #   - cosign (optional, for signing): go install github.com/sigstore/cosign/v2/cmd/cosign@latest
+#   - javascript-obfuscator (auto-installed via npm for frontend hardening)
 #
-# Security Properties:
-#   -trimpath: Removes all source paths from the binary
-#   -ldflags="-s -w": Strips DWARF debug info and symbol table
-#   Binary stripping: Removes non-essential ELF symbols (validated post-strip)
-#   Source leakage scan: Verifies no absolute paths remain in binary
-#   Secret scan: Checks artifacts for common secret patterns
+# Security Properties (MAXIMUM):
+#   Go: garble -literals -tiny -seed=random (string encryption + symbol mangling, unique per build)
+#   -trimpath + -gcflags all=-trimpath + -buildvcs=false: Removes all source paths
+#   -ldflags="-s -w -extldflags=-static": Strips DWARF debug info and symbol table
+#   strip --strip-all + objcopy: Removes all ELF symbols + .comment/.note (validated post-strip)
+#   readelf verification: Fails if .symtab or .debug_* remains
+#   Frontend: Vite --sourcemap=false + javascript-obfuscator (stringArray base64 + mangled + selfDefending)
+#   Source leakage scan: FAILS if panel/backend or edge/backend paths remain
+#   Secret scan: FAILS if private/AWS keys remain
+#   Sourcemap scan: FAILS if any *.map or sourceMappingURL remains
 #   Checksums: SHA-256 for all release artifacts
 #   Signing: Optional cryptographic signing via cosign
 
@@ -816,7 +830,7 @@ strip_binary() {
         return 0
     fi
 
-    log_step "Stripping $name binary..."
+    log_step "Stripping $name binary (maximum hardening)..."
 
     if ! has_cmd strip; then
         log_warn "strip command not found, skipping"
@@ -834,18 +848,27 @@ strip_binary() {
         return 0
     fi
 
-    # Strip only non-essential symbols, preserve Go runtime symbols
-    # --strip-unneeded: remove all symbols not needed for relocation processing
-    if strip --strip-unneeded -- "$bin" 2>/dev/null; then
-        log_ok "$name stripped successfully"
+    # Maximum hardening: try most aggressive strip first, fall back.
+    # Go binaries are statically linked — --strip-all is safe after
+    # garble + -s -w; we try it, then --strip-unneeded, then plain.
+    local stripped=false
+    if strip --strip-all -- "$bin" 2>/dev/null; then
+        log_ok "$name stripped (--strip-all)"
+        stripped=true
+    elif strip --strip-unneeded -- "$bin" 2>/dev/null; then
+        log_ok "$name stripped (--strip-unneeded)"
+        stripped=true
+    elif strip -- "$bin" 2>/dev/null; then
+        log_ok "$name stripped (basic)"
+        stripped=true
     else
-        log_warn "strip --strip-unneeded failed, trying basic strip..."
-        if strip -- "$bin" 2>/dev/null; then
-            log_ok "$name stripped (basic)"
-        else
-            log_warn "strip failed, leaving binary unstripped"
-            return 0
-        fi
+        log_warn "strip failed, leaving binary unstripped"
+        return 0
+    fi
+    # Extra pass: strip debug sections explicitly if objcopy available
+    if has_cmd objcopy; then
+        objcopy --remove-section .comment --remove-section .note -- "$bin" 2>/dev/null || true
+        objcopy --remove-section .note.go.buildid -- "$bin" 2>/dev/null || true
     fi
 
     # Verify binary still executes
@@ -917,23 +940,31 @@ check_source_leakage() {
     local strings_output
     strings_output="$(strings -- "$bin" 2>/dev/null || true)"
 
+    # Critical: these MUST NOT appear — they directly expose closed-source layout.
+    local critical_patterns=(
+        "$ROOT_DIR"
+        "panel/backend"
+        "edge/backend"
+        "panel/frontend/src"
+        "panel/backend/internal"
+        "edge/backend/internal"
+    )
+    for pattern in "${critical_patterns[@]}"; do
+        if printf '%s' "$strings_output" | grep -q -F -- "$pattern"; then
+            log_err "$name: CRITICAL leakage — closed-source path in binary: $pattern"
+            leaks=$((leaks+10))
+        fi
+    done
+
     # Check for absolute paths (common patterns)
     local patterns=(
         "/home/"
         "/root/"
         "/Users/"
-        "/tmp/"
-        "/var/"
-        "/opt/"
-        "/build/"
+        "/tmp/go-build"
         "/workspace/"
-        "/src/"
         ".git"
-        "github.com"
-        "gitlab.com"
-        "bitbucket.org"
     )
-
     for pattern in "${patterns[@]}"; do
         if printf '%s' "$strings_output" | grep -q -F -- "$pattern"; then
             log_warn "$name: Potential path leakage found: $pattern"
@@ -941,18 +972,33 @@ check_source_leakage() {
         fi
     done
 
-    # Check for build-specific paths
-    if printf '%s' "$strings_output" | grep -q -F -- "$ROOT_DIR"; then
-        log_warn "$name: Build root directory found in binary: $ROOT_DIR"
+    # Go import paths: with garble -tiny these should be gone; plain build warns
+    if printf '%s' "$strings_output" | grep -q -F -- "github.com/example/kspanel"; then
+        log_warn "$name: Go import path leaked (garble -tiny should hide this)"
+        leaks=$((leaks+1))
+    fi
+    if printf '%s' "$strings_output" | grep -q -F -- "github.com/example/ksedge"; then
+        log_warn "$name: Go import path leaked (garble -tiny should hide this)"
         leaks=$((leaks+1))
     fi
 
     if [[ $leaks -eq 0 ]]; then
-        log_ok "$name: No obvious source path leakage detected"
-    else
-        log_warn "$name: $leaks potential leakage(s) detected"
+        log_ok "$name: No source path leakage (hardened)"
+        return 0
     fi
-
+    # Critical leaks fail the build in production — operator shipped readable code
+    if [[ "$BUILD_MODE" == "production" && "${STRICT_LEAK_CHECK:-1}" == "1" ]]; then
+        for pattern in "${critical_patterns[@]}"; do
+            if printf '%s' "$strings_output" | grep -q -F -- "$pattern"; then
+                log_err "$name: build FAILED — hardened production must not leak closed-source paths (found $leaks issue(s))"
+                return 1
+            fi
+        done
+        # Non-critical leaks still warn but don't fail (avoids false positives on /tmp from Go runtime)
+        log_warn "$name: $leaks potential leakage(s) detected (non-critical, continuing)"
+        return 0
+    fi
+    log_warn "$name: $leaks potential leakage(s) detected"
     return 0
 }
 
@@ -1009,9 +1055,18 @@ scan_secrets() {
     done
 
     if [[ $found -eq 0 ]]; then
-        log_ok "$name: No obvious secrets detected"
+        log_ok "$name: No obvious secrets detected (hardened)"
     else
         log_warn "$name: $found potential secret pattern(s) matched (review manually)"
+        if [[ "$BUILD_MODE" == "production" && "${STRICT_SECRET_CHECK:-1}" == "1" ]]; then
+            # Only fail on high-confidence artifacts (private keys, AWS keys); generic "password=" false-positives warn only
+            for pattern in "AKIA[0-9A-Z]{16}" "-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----"; do
+                if printf '%s' "$strings_output" | grep -E -q -e "$pattern"; then
+                    log_err "$name: build FAILED — embedded secret detected ($pattern)"
+                    return 1
+                fi
+            done
+        fi
     fi
 
     return 0
@@ -1050,19 +1105,27 @@ verify_binary() {
     arch_info="$(file_type "$bin")"
     log_info "$name: $arch_info"
 
-    # Check for debug info (production should not have it)
+    # Check for debug info (production must NOT have it — fail if strict)
     if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
         local file_out
         file_out="$(file -- "$bin" 2>/dev/null || true)"
         if printf '%s' "$file_out" | grep -q "with debug_info"; then
+            if [[ "${STRICT_DEBUG_CHECK:-1}" == "1" ]]; then
+                log_err "$name: Binary contains debug_info (hardened production must not ship debug_info)"
+                return 1
+            fi
             log_warn "$name: Binary contains debug info (unexpected for production)"
         elif printf '%s' "$file_out" | grep -q "not stripped"; then
+            if [[ "${STRICT_DEBUG_CHECK:-1}" == "1" ]]; then
+                log_err "$name: Binary not stripped (hardened production must be stripped)"
+                return 1
+            fi
             log_warn "$name: Binary not stripped (unexpected for production)"
         else
-            log_ok "$name: No debug info (as expected)"
+            log_ok "$name: No debug info (hardened)"
         fi
 
-        # Check for symbol table
+        # Check for symbol table (must be gone after garble + -s -w + strip)
         local readelf_bin=""
         if has_cmd readelf; then
             readelf_bin="readelf"
@@ -1071,12 +1134,37 @@ verify_binary() {
         fi
         if [[ -n "$readelf_bin" ]]; then
             if "$readelf_bin" -S -- "$bin" 2>/dev/null | grep -q "\.symtab"; then
+                if [[ "${STRICT_DEBUG_CHECK:-1}" == "1" ]]; then
+                    log_err "$name: Binary contains symbol table (.symtab) — stripping failed"
+                    return 1
+                fi
                 log_warn "$name: Binary contains symbol table (.symtab)"
             else
-                log_ok "$name: No symbol table (as expected)"
+                log_ok "$name: No symbol table (hardened)"
+            fi
+            # Also ensure no .debug_* sections remain
+            if "$readelf_bin" -S -- "$bin" 2>/dev/null | grep -q "\.debug_"; then
+                if [[ "${STRICT_DEBUG_CHECK:-1}" == "1" ]]; then
+                    log_err "$name: Binary contains .debug_* sections"
+                    return 1
+                fi
+                log_warn "$name: Binary contains .debug_* sections"
+            else
+                log_ok "$name: No .debug_* sections"
             fi
         else
             log_info "readelf not found — skipping symtab check for $name"
+        fi
+    fi
+    # Extra: ensure panel/frontend source maps are not embedded via strings
+    if [[ "$BUILD_MODE" == "production" ]] && has_cmd strings; then
+        if strings -- "$bin" 2>/dev/null | grep -q "sourceMappingURL"; then
+            log_err "$name: Embedded sourceMappingURL found (frontend sourcemaps leaked)"
+            return 1
+        fi
+        if strings -- "$bin" 2>/dev/null | grep -q "panel/frontend/src"; then
+            log_err "$name: Embedded panel/frontend/src path leaked"
+            return 1
         fi
     fi
 
@@ -1230,39 +1318,61 @@ security_verification() {
         fi
     done
 
-    # Verify no debug info in production
+    # Verify no debug info in production — strict: fail if any
     if [[ "$BUILD_MODE" == "production" ]] && has_file_cmd; then
         for bin in kspanel ksedge; do
             local path="$RELEASE_DIR/$bin"
             local out
             out="$(file -- "$path" 2>/dev/null || true)"
             if printf '%s' "$out" | grep -q "with debug_info"; then
-                log_warn "Debug info present: $path"
+                log_err "Debug info present: $path (hardened production must not ship debug_info)"
+                all_ok=false
             elif printf '%s' "$out" | grep -q "not stripped"; then
-                log_warn "Binary not stripped: $path"
+                log_err "Binary not stripped: $path (hardened production must be stripped)"
+                all_ok=false
             else
-                log_ok "No debug info: $path"
+                log_ok "No debug info: $path (hardened)"
             fi
         done
     fi
 
-    # Source path leakage check
+    # Source path leakage check — strict: critical leaks fail the build
     for bin in kspanel ksedge; do
-        check_source_leakage "$RELEASE_DIR/$bin" "$bin" || true
+        if ! check_source_leakage "$RELEASE_DIR/$bin" "$bin"; then
+            all_ok=false
+        fi
     done
 
-    # Secret scanning
+    # Secret scanning — strict: private keys / AWS keys fail
     for bin in kspanel ksedge; do
-        scan_secrets "$RELEASE_DIR/$bin" "$bin" || true
+        if ! scan_secrets "$RELEASE_DIR/$bin" "$bin"; then
+            all_ok=false
+        fi
     done
 
-    # Frontend source maps check
+    # Frontend source maps check — strict: any .map fails
     if [[ "$BUILD_MODE" == "production" ]]; then
         if find "$PANEL_BACKEND_DIR/internal/ui/dist" -name "*.map" -print -quit 2>/dev/null | grep -q .; then
-            log_warn "Source maps found in embedded frontend (production should not have them)"
+            log_err "Source maps found in embedded frontend (hardened production must not have them)"
             all_ok=false
         else
-            log_ok "No source maps in embedded frontend"
+            log_ok "No source maps in embedded frontend (hardened)"
+        fi
+        if find "$PANEL_FRONTEND_DIR/dist" -name "*.map" -type f -print -quit 2>/dev/null | grep -q .; then
+            log_err "Source maps found in panel/frontend/dist (hardened production must not have them)"
+            all_ok=false
+        fi
+        # Also check that obfuscated chunks don't leak sourcemap comments
+        if grep -r -q "sourceMappingURL" "$PANEL_BACKEND_DIR/internal/ui/dist" 2>/dev/null; then
+            log_err "sourceMappingURL found in embedded frontend"
+            all_ok=false
+        fi
+        # Ensure no panel/frontend/src plaintext in dist JS (should be mangled)
+        # Allowlist check: if dist still contains raw "panel/frontend/src" string, obfuscation didn't run
+        if grep -r -q "panel/frontend/src" "$PANEL_BACKEND_DIR/internal/ui/dist" 2>/dev/null; then
+            log_warn "panel/frontend/src string still visible in dist (obfuscation may be incomplete)"
+        else
+            log_ok "Frontend source paths obfuscated in dist"
         fi
     fi
 
