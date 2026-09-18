@@ -638,7 +638,8 @@ obfuscate_frontend() {
         return 0
     fi
     log_step "Obfuscating frontend chunks (javascript-obfuscator, hardened)..."
-
+    # Clean any stale *.obf.tmp directories left by previous buggy runs
+    find "$assets" -maxdepth 1 -name "*.obf.tmp" -exec rm -rf {} + 2>/dev/null || true
     # Ensure obfuscator is available (installed locally or via npx)
     local obfuscator_bin=""
     if [[ -x "$PANEL_FRONTEND_DIR/node_modules/.bin/javascript-obfuscator" ]]; then
@@ -668,7 +669,11 @@ obfuscate_frontend() {
     # Use null-delimited find to handle spaces; sort by size smallest first so
     # logs show progress even if giant workers time out.
     while IFS= read -r -d '' js; do
-        local tmp="${js}.obf.tmp"
+        # Use mktemp for obfuscator output — avoids collisions and the
+        # javascript-obfuscator directory-creation footgun when output path
+        # already exists as a directory (previous failed runs left *.obf.tmp dirs).
+        local tmp
+        tmp=$(mktemp /tmp/obf-XXXXXX.js)
         local fsize
         fsize=$(stat -c%s "$js" 2>/dev/null || stat -f%z "$js" 2>/dev/null || echo 0)
         # Adaptive preset: giant workers (ts.worker 5.8M) cannot take heavy
