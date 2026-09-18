@@ -198,16 +198,20 @@ Environment Variables:
   BUILD_DATE         ISO8601 UTC build date (auto-generated if not set)
   GOOS               Target OS (default: linux)
   GOARCH             Target architecture (default: host arch)
-  GARBLE_ENABLE      auto (default, prod garbles when installed) | 1 (require) | 0 (force plain)
+  GARBLE_ENABLE      auto (default, PRODUCTION MANDATORY) | 1 (require) | 0 (plain, needs ALLOW_PLAIN_PROD=1)
+  GARBLE_SEED        Base64 seed for garble (default: random per build)
+  GARBLE_FLAGS       Override flags (default: "-literals -tiny -seed=random")
+  FRONTEND_OBFUSCATE 1 (default, obfuscate Vite JS) | 0 (skip)
   SIGN_KEY           Path to signing private key
   SIGN_CMD           Custom signing command (default: cosign sign-blob)
 
 Examples:
-  ./rebuild.sh                          # Production build, auto-bump VERSION + stamp version.json
+  ./rebuild.sh                          # Hardened production (garble+strip+frontend obfuscate, mandatory)
   ./rebuild.sh dev                      # Development build (never obfuscated, no bump)
   VERSION=1.2.3 ./rebuild.sh            # Production build with explicit version (persisted)
-  GARBLE_ENABLE=0 ./rebuild.sh          # Production build without obfuscation
-  GARBLE_ENABLE=1 ./rebuild.sh          # Production build, require obfuscation
+  GARBLE_SEED=fixed ./rebuild.sh        # Reproducible obfuscation (fixed seed)
+  ALLOW_PLAIN_PROD=1 GARBLE_ENABLE=0 ./rebuild.sh  # INSECURE plain build (not recommended)
+  FRONTEND_OBFUSCATE=0 ./rebuild.sh     # Skip JS obfuscation (emergency)
   SIGN_KEY=/path/key ./rebuild.sh       # Production build with signing
 
 Output (production):
@@ -1675,24 +1679,24 @@ main() {
     ls -lh -- "$RELEASE_DIR"/
     echo
     if [[ "$BUILD_MODE" == "production" ]]; then
-        echo "Production build complete. Binaries are hardened:"
-        echo "  -trimpath: Source paths removed"
-        echo "  -ldflags=-s -w: Debug info & symbol table stripped"
-        echo "  strip --strip-unneeded: Non-essential ELF symbols removed"
-        echo "  Source leakage: Verified clean"
-        echo "  Secret scan: No obvious secrets found"
+        echo "Production build complete. Binaries are MAXIMUM HARDENED (panel/ + edge/ closed-source):"
+        echo "  -trimpath + -gcflags all=-trimpath + -buildvcs=false: Source paths removed"
+        echo "  -ldflags=-s -w -extldflags=-static: Debug info & symbol table stripped"
+        echo "  strip --strip-all + objcopy: All ELF symbols + .comment/.note removed"
+        echo "  readelf: Verified no .symtab / .debug_*"
+        echo "  Source leakage: Verified clean (panel/backend + edge/backend must NOT leak)"
+        echo "  Secret scan: No private/AWS keys found"
+        echo "  Frontend: Vite --sourcemap=false + javascript-obfuscator (stringArray base64 + mangled + selfDefending)"
+        echo "  Sourcemaps: Verified no *.map / sourceMappingURL"
         echo "  Checksums: SHA-256 generated"
         if [[ "$ENABLE_SIGNING" == "1" ]]; then
             echo "  Signing: Artifacts signed"
         fi
         if [[ "$ENABLE_OBFUSCATION" == "1" ]]; then
-            if has_cmd garble; then
-                echo "  Obfuscation: garble applied by default (literals + tiny)"
-            else
-                echo "  Obfuscation: garble not installed — plain go build with warning (install garble for default obfuscation)"
-            fi
+            echo "  Obfuscation: garble MANDATORY ($GARBLE_FLAGS) — panel/ + edge/ symbols & literals encrypted"
+            echo "               (unique per build via -seed=random; set GARBLE_SEED=fixed for reproducible)"
         else
-            echo "  Obfuscation: disabled via GARBLE_ENABLE=0"
+            echo "  Obfuscation: DISABLED via GARBLE_ENABLE=0 (INSECURE — binary readable!)"
         fi
     else
         echo "Development build complete. Binaries contain debug symbols."
