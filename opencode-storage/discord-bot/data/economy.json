@@ -1,0 +1,56 @@
+{
+  "users": {
+    "test123": {
+      "balance": 1000,
+      "daily": 0,
+      "lastDaily": null,
+      "lastWork": null,
+      "lastBeg": null,
+      "lastRob": null,
+      "inventory": [],
+      "badges": [],
+      "totalEarned": 1000,
+      "totalSpent": 0,
+      "messageCount": 0
+    },
+    "testUser": {
+      "balance": 600,
+      "daily": 0,
+      "lastDaily": null,
+      "lastWork": null,
+      "lastBeg": null,
+      "lastRob": null,
+      "inventory": [],
+      "badges": [],
+      "totalEarned": 200,
+      "totalSpent": 100,
+      "messageCount": 0
+    },
+    "diceUser": {
+      "balance": null,
+      "daily": 0,
+      "lastDaily": null,
+      "lastWork": null,
+      "lastBeg": null,
+      "lastRob": null,
+      "inventory": [],
+      "badges": [],
+      "totalEarned": 0,
+      "totalSpent": null,
+      "messageCount": 0
+    },
+    "msgUser": {
+      "balance": 1000,
+      "daily": 0,
+      "lastDaily": null,
+      "lastWork": null,
+      "lastBeg": null,
+      "lastRob": null,
+      "inventory": [],
+      "badges": [],
+      "totalEarned": 1000,
+      "totalSpent": 0,
+      "messageCount": 0
+    }
+  }
+}
