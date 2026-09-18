@@ -423,6 +423,14 @@ function componentToHtml(comp: PageComponentDef): string {
     if (comp.type === 'shared') return sharedHtml;
     return sharedHtml || '';
   }
+  // Editable shared with forked content (imported then made editable and
+  // seeded from the registry) — use the stored fork so the config context
+  // box ({{config:NAME}} inside the fork) keeps rendering. Empty content
+  // still falls back to the registry so a freshly-toggled import doesn't
+  // go blank before the fork is seeded.
+  if (comp.type === 'shared' && (comp as any).editable !== false && typeof comp.content === 'string' && comp.content.trim() !== '') {
+    return comp.content;
+  }
   switch (comp.type) {
     case 'html':
       return comp.content;

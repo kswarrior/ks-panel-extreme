@@ -3,8 +3,8 @@ import GlassCard from '@/shared/components/ui/Card';
 import Modal from '@/shared/components/ui/Modal';
 import { glassFieldClass } from '@/shared/components/ui/Field';
 import { sectionCls } from '@/features/instance-pages/types/pageStudio';
-import type { ComponentRow } from '@/features/instance-pages/types/pageStudio';
-import { SHARED_PANEL_COMPONENTS, type SharedPanelComponent } from '@/features/instance-pages/sharedPanelComponents';
+import type { ComponentRow, ConfigureRow } from '@/features/instance-pages/types/pageStudio';
+import { SHARED_PANEL_COMPONENTS, getSharedPanelComponentContent, type SharedPanelComponent } from '@/features/instance-pages/sharedPanelComponents';
 import { PAGE_UI_COMPONENTS } from '@/features/instance-pages/pageUIComponents';
 
 export interface PageStudioComponentsSectionProps {
@@ -18,6 +18,12 @@ export interface PageStudioComponentsSectionProps {
    *  React renderer maps to KSUI. */
   onImport?: (shared: Pick<SharedPanelComponent, 'name' | 'label' | 'description'>) => void;
   sectionCls?: string;
+  /** Page-level configure vars for the config context helper. When present
+   *  the editor shows a box listing available {{config:NAME}} tokens so
+   *  authors can wire component content to those vars. This box must stay
+   *  visible even when a shared import is toggled to editable (the bug was
+   *  that it vanished after import+editable). */
+  configure?: ConfigureRow[];
 }
 
 export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionProps> = ({
@@ -27,6 +33,7 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
   onUpdate,
   onImport,
   sectionCls: cls = sectionCls,
+  configure = [],
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -77,8 +84,29 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
   const allEditable = components.length > 0 && components.every((c) => c.editable !== false);
   const setAllEditable = (v: boolean) => {
     components.forEach((c) => {
-      if ((c.editable !== false) !== v) onUpdate(c.id, { editable: v } as Partial<ComponentRow>);
+      if ((c.editable !== false) !== v) {
+        if (v && c.type === 'shared' && (!c.content || !c.content.trim())) {
+          const key = (c.shared || c.name || '').trim();
+          const seed = getSharedPanelComponentContent(key);
+          if (seed) {
+            onUpdate(c.id, { editable: v, content: seed } as Partial<ComponentRow>);
+            return;
+          }
+        }
+        onUpdate(c.id, { editable: v } as Partial<ComponentRow>);
+      }
     });
+  };
+  const handleEditableToggle = (c: ComponentRow, next: boolean) => {
+    if (next && c.type === 'shared' && (!c.content || !c.content.trim())) {
+      const key = (c.shared || c.name || '').trim();
+      const seed = getSharedPanelComponentContent(key);
+      if (seed) {
+        onUpdate(c.id, { editable: next, content: seed } as Partial<ComponentRow>);
+        return;
+      }
+    }
+    onUpdate(c.id, { editable: next } as Partial<ComponentRow>);
   };
 
   return (
@@ -138,7 +166,7 @@ export const PageStudioComponentsSection: React.FC<PageStudioComponentsSectionPr
                         <input
                           type="checkbox"
                           checked={isEditable}
-                          onChange={(e) => onUpdate(c.id, { editable: e.target.checked } as Partial<ComponentRow>)}
+                          onChange={(e) => handleEditableToggle(c, e.target.checked)}
                           className="sr-only"
                           aria-label="Editable toggle"
                         />

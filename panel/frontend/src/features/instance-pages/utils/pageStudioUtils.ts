@@ -275,6 +275,22 @@ export function compsToJSON(rows: ComponentRow[]): string {
           editable: false,
         } as PageComponentDef;
       }
+      // Editable: persist whole content. For shared type with forked content
+      // (imported then made editable and edited), keep that content so the
+      // fork renders instead of the registry — this is what makes the config
+      // context box survive the toggle (the forked HTML still contains
+      // {{config:NAME}} tokens that the renderer substitutes).
+      if (r.type === 'shared' && r.content && r.content.trim() !== '') {
+        const sharedKey = (r.shared || r.name).trim() || r.name.trim();
+        return {
+          name: r.name.trim(),
+          type: 'shared' as const,
+          description: r.description,
+          content: r.content,
+          shared: sharedKey,
+          editable: true,
+        } as PageComponentDef;
+      }
       return {
         name: r.name.trim(),
         type: r.type,
@@ -501,6 +517,11 @@ export function renderPreview(contentType: string, content: string, components?:
       if ((comp as any).editable === false) {
         const key = ((comp as any).shared || comp.name || '').trim();
         return getSharedPanelComponentContent(key) || '';
+      }
+      // Editable shared with forked content — use the stored fork so config
+      // tokens inside it survive the toggle (same as CustomPageView).
+      if (comp.type === 'shared' && typeof comp.content === 'string' && comp.content.trim() !== '' && (comp as any).editable !== false) {
+        return comp.content;
       }
       switch (comp.type) {
         case 'shared':
