@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"embed"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -13,10 +12,8 @@ import (
 	"stats/internal/auth"
 	"stats/internal/db"
 	"stats/internal/hub"
+	"stats/web"
 )
-
-//go:embed all:../../web
-var webFS embed.FS
 
 func main() {
 	port := 9090
@@ -88,15 +85,10 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		b, err := webFS.ReadFile("web/index.html")
-		// fallback path if embed layout differs (cmd/server -> ../../web)
-		if err != nil {
-			// try alternative relative for when built from stats/
-			b, err = os.ReadFile("web/index.html")
-			if err != nil {
-				http.Error(w, "dashboard missing", 500)
-				return
-			}
+		b := web.Index()
+		if len(b) == 0 {
+			http.Error(w, "dashboard missing", 500)
+			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
