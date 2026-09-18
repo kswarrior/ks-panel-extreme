@@ -7,8 +7,8 @@ module.exports = {
     .setName("slowmode")
     .setDescription("Set slowmode for a channel")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
-    .addChannelOption((o) => o.setName("channel").setDescription("Channel").setRequired(false))
-    .addIntegerOption((o) => o.setName("seconds").setDescription("Delay in seconds (0 to disable)").setRequired(true).setMinValue(0).setMaxValue(21600)),
+    .addIntegerOption((o) => o.setName("seconds").setDescription("Delay in seconds (0 to disable)").setRequired(true).setMinValue(0).setMaxValue(21600))
+    .addChannelOption((o) => o.setName("channel").setDescription("Channel").setRequired(false)),
 
   async execute(interaction) {
     const channel = interaction.options.getChannel("channel") || interaction.channel;
