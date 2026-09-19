@@ -279,3 +279,20 @@ Run `npm audit` for details.
 [LOGIN] Connecting to Discord Gateway...
 [MANAGER] Sent SIGTERM to pid=19480
 [ALWAYS-ON] Scheduling restart in 1.0s (reason: manager-start)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=19661
+[STABLE] pid 19661
+[MANAGER] Sent SIGTERM to pid=19661
+[MANAGER] Bot exited code=null signal=SIGTERM
+[ALWAYS-ON] Scheduling restart in 1.0s (reason: exit code=null signal=SIGTERM)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=19700
+[STABLE] pid 19700
+[ALWAYS-ON] Enabled (interval 2.0s)
+[MANAGER] Sent SIGTERM to pid=19700
+[MANAGER] Bot exited code=null signal=SIGTERM
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: exit code=null signal=SIGTERM)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=19721
+[STABLE] pid 19721
+[MANAGER] Sent SIGTERM to pid=19721
