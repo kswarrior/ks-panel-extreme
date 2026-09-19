@@ -1,3 +1,75 @@
-[1;33m[WARN][0m release/kspanel not found — auto-running ./rebuild.sh first...
-[ERR] another build is running (lock /home/runner/work/ks-panel-extreme/ks-panel-extreme/.build.lock exists pid 116279) — remove it if stale: rm -rf "/home/runner/work/ks-panel-extreme/ks-panel-extreme/.build.lock"
-[0;31m[ERR][0m rebuild.sh failed. Aborting.
+[0;34m==>[0m Preparing test sandbox at /tmp/kspanel-retest...
+[0;34m[INFO][0m Ephemeral DB: /tmp/kspanel-retest/kspanel.db (in /tmp, fresh each run)
+[0;34m[INFO][0m Panel port: 8080 (KSPANEL_PORT=8080)
+[0;34m[INFO][0m Copying binaries from release/ ...
+[0;32m[OK][0m Test folder ready:
+total 63M
+-rwxr-xr-x 1 runner runner  16M Sep 19 02:01 ksedge
+-rwxr-xr-x 1 runner runner  47M Sep 19 02:01 kspanel
+drwxr-xr-x 3 runner runner 4.0K Sep 19 02:01 localnode
+→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+✓ connected    sqlite ready
+→ migrations   running
+✓ migrations   applied
+→ seed         core roles + permissions
+✓ seed         ready
+
+✓ panel seed   ready
+  next: ./kspanel launch --type sqlite
+→ database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema + roles present
+→ username     kshosting
+→ email        kshosting@ksmail.com
+→ role         admin
+✓ user created id 1
+→ database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema + roles present
+→ username     kswarrior
+→ email        kswarriorpro@gmail.com
+→ role         user
+✓ user created id 2
+→ database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema present
+→ template     Minecraft (docker, eclipse-temurin:21-jre)
+✓ imported     id 1 (built-in "minecraft")
+✓ database     ready
+→ node         local-edge @ 127.0.0.1:4040 (id 1)
+→ download     ksedge already present, skipping
+→ config       localnode/ksedge/config.toml
+→ panel        started (pid 2573) on 127.0.0.1:8080
+✓ panel        ready at http://127.0.0.1:8080
+→ launch       started ksedge (pid 2602) on 127.0.0.1:4040
+✓ edge         up and reachable (name="local-edge", log=localnode/ksedge/ksedge.log)
+
+node id:      1
+edge port:    4040
+binary:       localnode/ksedge/ksedge
+config:       localnode/ksedge/config.toml
+log:          localnode/ksedge/ksedge.log
+[0;34m[INFO][0m Stopping intermediate panel from setup:localnode before final launch...
+[0;34m[INFO][0m Stopping old kspanel (pid 2573)...
+
+[0;34m==>[0m Launching kspanel on port 8080 (background)...
+[0;32m[OK][0m kspanel running in background (PID 2618)
+[0;32m[OK][0m Logs:   /tmp/kspanel-retest/kspanel.log
+[0;32m[OK][0m Stop:   kill $(cat /tmp/kspanel-retest/kspanel.pid)
+ █████╔╝ ███████╗    ██████╔╝███████║██╔██╗ ██║█████╗  ██║
+ ██╔═██╗ ╚════██║    ██╔═══╝ ██╔══██║██║╚██╗██║██╔══╝  ██║
+ ██║  ██╗███████║    ██║      ██║  ██║██║ ╚████║███████╗███████╗
+ ╚═╝  ╚═╝╚══════╝    ╚═╝      ╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝
+→ database     sqlite — /tmp/kspanel-retest/kspanel.db
+✓ database     sqlite ready
+→ ui           embedded bundle
+✓ ui           served from api/handlers
+
+panel pid:    2618
+engine:       sqlite
+dsn:          /tmp/kspanel-retest/kspanel.db
+listen:       :8080
+open:         http://10.1.0.146:8080
+bind ifs:     10.1.0.146, 172.17.0.1
+go:           1.26.7
+goos:         linux/amd64
+cpus:         4
+
+✓ panel ready  running
