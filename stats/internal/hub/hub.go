@@ -3,6 +3,7 @@ package hub
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strings"

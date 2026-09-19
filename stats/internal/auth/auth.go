@@ -48,8 +48,9 @@ func IsConfigured() bool { return token() != "" }
 
 func Check(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// public: /ws, /health
-		if strings.HasPrefix(r.URL.Path, "/ws") || r.URL.Path == "/health" {
+		// public: /ws, /health, /url.json, /uil.json, /api/stats/ws (panel ingest)
+		if r.URL.Path == "/health" || r.URL.Path == "/url.json" || r.URL.Path == "/uil.json" ||
+			strings.HasPrefix(r.URL.Path, "/ws") || strings.HasPrefix(r.URL.Path, "/api/stats/ws") {
 			next.ServeHTTP(w, r)
 			return
 		}
