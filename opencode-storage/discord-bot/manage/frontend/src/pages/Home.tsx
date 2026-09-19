@@ -22,18 +22,18 @@ export function Home(){
   const [logs, setLogs] = useState<string[]>([])
   const [autoScroll, setAutoScroll] = useState(true)
   const [confirm, setConfirm] = useState<null | 'stop' | 'restart' | 'clear'>(null)
-  const [alwaysOn, setAlwaysOn] = useState(false)
-  const [intervalSec, setIntervalSec] = useState(5)
-  const [intervalDraft, setIntervalDraft] = useState('5')
+  const [alwaysOn, setAlwaysOn] = useState(true)
+  const [intervalSec, setIntervalSec] = useState(1)
+  const [intervalDraft, setIntervalDraft] = useState('1')
   const logRef = useRef<HTMLDivElement>(null)
   const evRef = useRef<EventSource | null>(null)
 
   const load = async ()=>{
     const s = await api.status(); setStatus(s)
     if (s) {
-      const ao = !!s.alwaysOn
-      const sec = s.alwaysOnIntervalSec ?? s.intervalSec ?? 5
-      setAlwaysOn(ao)
+      const ao = s.alwaysOn ?? true
+      const sec = s.alwaysOnIntervalSec ?? s.intervalSec ?? 1
+      setAlwaysOn(!!ao)
       setIntervalSec(sec)
       setIntervalDraft(String(sec))
     }
@@ -149,7 +149,7 @@ export function Home(){
                 <span style={{fontSize:12, color:'var(--text-muted)'}}>sec</span>
                 <button className="btn btn-ghost btn-sm" onClick={saveInterval} disabled={parseFloat(intervalDraft)===intervalSec}>Save</button>
               </div>
-              <div style={{fontSize:11, color:'var(--text-dim)'}}>Range 1–3600s • recommended 5s • stored in <span className="mono">bot/data/manager-state.json</span></div>
+              <div style={{fontSize:11, color:'var(--text-dim)'}}>Range 1–3600s • default 1s • stored in <span className="mono">manage/data.json</span></div>
             </div>
             <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
               <span style={{fontSize:12, color: alwaysOn ? '#22c55e' : 'var(--text-dim)'}} className="mono">{alwaysOn ? `● Will restart in ${intervalSec}s after stop` : '○ Disabled — no auto-restart'}</span>

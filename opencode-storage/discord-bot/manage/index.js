@@ -28,15 +28,27 @@ const MAX_LOG_LINES = 5000;
 let sseClients = [];
 
 // --- Always-On ---
-const MANAGER_STATE_FILE = path.join(DATA_DIR, "manager-state.json");
-let alwaysOn = false;
-let alwaysOnIntervalMs = 5000; // restart delay
+// All manager data saved in manage/data.json (per user request). Default: alwaysOn=true, reconnect 1s.
+const MANAGER_STATE_FILE = path.join(__dirname, "data.json");
+const LEGACY_MANAGER_STATE_FILE = path.join(DATA_DIR, "manager-state.json");
+let alwaysOn = true; // default ON - always restart if stopped, in any way
+let alwaysOnIntervalMs = 1000; // default 1s reconnect
 let alwaysOnTimer = null;
 
 function loadManagerState() {
   try {
+    let raw = null;
+    let source = null;
     if (fs.existsSync(MANAGER_STATE_FILE)) {
-      const raw = fs.readFileSync(MANAGER_STATE_FILE, "utf8");
+      raw = fs.readFileSync(MANAGER_STATE_FILE, "utf8");
+      source = MANAGER_STATE_FILE;
+    } else if (fs.existsSync(LEGACY_MANAGER_STATE_FILE)) {
+      // migrate legacy
+      raw = fs.readFileSync(LEGACY_MANAGER_STATE_FILE, "utf8");
+      source = LEGACY_MANAGER_STATE_FILE;
+      console.log(`[MANAGER] Migrating legacy state ${LEGACY_MANAGER_STATE_FILE} -> ${MANAGER_STATE_FILE}`);
+    }
+    if (raw) {
       const j = JSON.parse(raw);
       if (typeof j.alwaysOn === "boolean") alwaysOn = j.alwaysOn;
       if (typeof j.alwaysOnIntervalMs === "number" && j.alwaysOnIntervalMs >= 1000 && j.alwaysOnIntervalMs <= 3600000) {
@@ -50,13 +62,30 @@ function loadManagerState() {
         const ms = Math.round(j.intervalSec * 1000);
         if (ms >= 1000 && ms <= 3600000) alwaysOnIntervalMs = ms;
       }
+      // if migrated, save to new location immediately
+      if (source === LEGACY_MANAGER_STATE_FILE) saveManagerState();
+    } else {
+      // no file -> create with defaults (alwaysOn=true, 1s)
+      saveManagerState();
     }
   } catch (e) { console.warn("[MANAGER] load state failed:", e.message); }
+  // fix: if default is ON, ensure alwaysOn is true in any way when file missing/corrupt? Already default true.
+  // But if user explicitly disabled, respect it. Only enforce default when file not exists.
 }
 function saveManagerState() {
   try {
     fs.mkdirSync(path.dirname(MANAGER_STATE_FILE), { recursive: true });
-    fs.writeFileSync(MANAGER_STATE_FILE, JSON.stringify({ alwaysOn, alwaysOnIntervalMs, intervalSec: Math.round(alwaysOnIntervalMs/1000) }, null, 2));
+    // Save all default data + current state to manage/data.json
+    const data = {
+      alwaysOn,
+      alwaysOnIntervalMs,
+      intervalSec: Math.round(alwaysOnIntervalMs/1000),
+      intervalMs: alwaysOnIntervalMs,
+      // defaults for reference
+      defaults: { alwaysOn: true, intervalSec: 1, intervalMs: 1000 },
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(MANAGER_STATE_FILE, JSON.stringify(data, null, 2));
   } catch (e) { console.warn("[MANAGER] save state failed:", e.message); }
 }
 function clearAlwaysOnTimer() {
