@@ -22,12 +22,36 @@ export function Home(){
   const [logs, setLogs] = useState<string[]>([])
   const [autoScroll, setAutoScroll] = useState(true)
   const [confirm, setConfirm] = useState<null | 'stop' | 'restart' | 'clear'>(null)
+  const [alwaysOn, setAlwaysOn] = useState(false)
+  const [intervalSec, setIntervalSec] = useState(5)
+  const [intervalDraft, setIntervalDraft] = useState('5')
   const logRef = useRef<HTMLDivElement>(null)
   const evRef = useRef<EventSource | null>(null)
 
   const load = async ()=>{
     const s = await api.status(); setStatus(s)
+    if (s) {
+      const ao = !!s.alwaysOn
+      const sec = s.alwaysOnIntervalSec ?? s.intervalSec ?? 5
+      setAlwaysOn(ao)
+      setIntervalSec(sec)
+      setIntervalDraft(String(sec))
+    }
     const l = await api.logs.get(300); if(l?.lines) setLogs(l.lines)
+  }
+  const toggleAlwaysOn = async ()=>{
+    const next = !alwaysOn
+    const sec = parseFloat(intervalDraft) || intervalSec
+    const r: any = await (api as any).alwaysOn.set(next, sec)
+    if (r?.ok) { setAlwaysOn(r.alwaysOn); setIntervalSec(r.intervalSec); setIntervalDraft(String(r.intervalSec)); }
+    await load()
+  }
+  const saveInterval = async ()=>{
+    const v = parseFloat(intervalDraft)
+    if (isNaN(v) || v < 1 || v > 3600) { alert('Interval must be 1-3600 seconds'); return }
+    const r: any = await (api as any).alwaysOn.set(alwaysOn, v)
+    if (r?.ok) { setIntervalSec(r.intervalSec); setIntervalDraft(String(r.intervalSec)); }
+    await load()
   }
   useEffect(()=>{ load(); const i=setInterval(load, 5000); return ()=>clearInterval(i)},[])
   useEffect(()=>{
@@ -85,6 +109,52 @@ export function Home(){
           <div className="stat-label">Manager</div>
           <div className="stat-value" style={{fontSize:18}}>● Online</div>
           <div className="stat-sub mono">Uptime {formatUptime(Math.floor(status?.managerUptime||0))} • Port {status?.botDir ? '3000' : '—'}</div>
+        </div>
+      </div>
+
+      {/* Always-On: if stop than restart everything + start interval */}
+      <div className="card" style={{border: alwaysOn ? '1px solid rgba(34,197,94,.4)' : '1px solid var(--border)', background: alwaysOn ? 'rgba(34,197,94,.06)' : undefined}}>
+        <div className="card-header">
+          <div className="card-title">♾️ Always On <span className={`badge ${alwaysOn ? 'badge-green' : 'badge-gray'}`} style={{marginLeft:8}}>{alwaysOn ? 'ENABLED' : 'DISABLED'}</span></div>
+          <div style={{display:'flex', gap:8, alignItems:'center'}}>
+            <span className="mono" style={{fontSize:12, color:'var(--text-muted)'}}>Interval: {intervalSec}s</span>
+          </div>
+        </div>
+        <div className="card-body" style={{display:'flex', flexDirection:'column', gap:12}}>
+          <div style={{display:'flex', flexWrap:'wrap', gap:10, alignItems:'center', justifyContent:'space-between'}}>
+            <div style={{flex:'1 1 280px'}}>
+              <div style={{fontWeight:600, fontSize:13}}>Auto-restart if bot stops</div>
+              <div style={{fontSize:12, color:'var(--text-muted)', marginTop:4, lineHeight:1.4}}>
+                When <b>Always On</b> is enabled, manager will automatically restart the bot if it stops/crashes — after the interval below. Covers manual Stop too: <span className="mono">Stop → wait {intervalSec}s → Start</span>.
+              </div>
+            </div>
+            <button className={`btn ${alwaysOn ? 'btn-danger' : 'btn-primary'}`} onClick={toggleAlwaysOn} style={{minWidth:140, fontWeight:700}}>
+              {alwaysOn ? '⏸ Disable Always On' : '♾️ Enable Always On'}
+            </button>
+          </div>
+          <div style={{display:'flex', flexWrap:'wrap', gap:10, alignItems:'end', background:'#020617', border:'1px solid var(--border)', borderRadius:10, padding:12}}>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              <label style={{fontSize:11, fontWeight:600, letterSpacing:.06, textTransform:'uppercase', color:'var(--text-dim)'}}>Restart interval (seconds)</label>
+              <div style={{display:'flex', gap:8, alignItems:'center'}}>
+                <input
+                  type="number"
+                  min={1}
+                  max={3600}
+                  step={1}
+                  value={intervalDraft}
+                  onChange={e=>setIntervalDraft(e.target.value)}
+                  style={{width:110, background:'#0f172a', border:'1px solid var(--border)', color:'var(--text)', borderRadius:8, padding:'8px 10px', fontSize:14}}
+                  className="mono"
+                />
+                <span style={{fontSize:12, color:'var(--text-muted)'}}>sec</span>
+                <button className="btn btn-ghost btn-sm" onClick={saveInterval} disabled={parseFloat(intervalDraft)===intervalSec}>Save</button>
+              </div>
+              <div style={{fontSize:11, color:'var(--text-dim)'}}>Range 1–3600s • recommended 5s • stored in <span className="mono">bot/data/manager-state.json</span></div>
+            </div>
+            <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+              <span style={{fontSize:12, color: alwaysOn ? '#22c55e' : 'var(--text-dim)'}} className="mono">{alwaysOn ? `● Will restart in ${intervalSec}s after stop` : '○ Disabled — no auto-restart'}</span>
+            </div>
+          </div>
         </div>
       </div>
 

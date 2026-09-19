@@ -13,6 +13,10 @@ export const api = {
     stop: () => req('/api/bot/stop', { method: 'POST' }),
     restart: () => req('/api/bot/restart', { method: 'POST' }),
   },
+  alwaysOn: {
+    get: () => req('/api/bot/always-on'),
+    set: (enabled: boolean, intervalSec: number) => req('/api/bot/always-on', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ enabled, intervalSec }) }),
+  },
   logs: {
     get: (lines=500) => req(`/api/logs?lines=${lines}`),
     clear: () => req('/api/logs/clear', { method: 'POST' }),
