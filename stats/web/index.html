@@ -209,7 +209,7 @@ pre{margin:0;padding:10px;background:#0b1220;border:1px solid #1e293b;border-rad
   </main>
 </div>
 
-<!-- detail sheet (own page, no browser confirm) -->
+<!-- detail sheet — own modal page -->
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
   <div class="sheet">
     <div class="sheet-head">
@@ -264,7 +264,7 @@ $$('.nav a').forEach(a=>a.addEventListener('click', ()=>switchPage(a.dataset.pag
 $('#refreshBtn').addEventListener('click', load);
 $('#fitBtn').addEventListener('click', fit);
 $('#logoutBtn').addEventListener('click', async ()=>{
-  // own page — no confirm()
+  // own page — custom modal flow, no browser dialog
   try{ await fetch('/logout',{method:'GET'});}catch{}
   location.href='/login';
 });

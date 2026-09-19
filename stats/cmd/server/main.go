@@ -70,6 +70,17 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(`{"ok":true}`)) })
+	// url.json for panel remote fetch debug — same as stats/url.json (mirrored to uil.json)
+	mux.HandleFunc("/url.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write([]byte(`{"url":"https://ks-panel-extreme-7wut.onrender.com/","ws":"wss://ks-panel-extreme-7wut.onrender.com/ws","health":"https://ks-panel-extreme-7wut.onrender.com/health","api":"https://ks-panel-extreme-7wut.onrender.com/api/panels"}`))
+	})
+	mux.HandleFunc("/uil.json", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Write([]byte(`{"url":"https://ks-panel-extreme-7wut.onrender.com/","ws":"wss://ks-panel-extreme-7wut.onrender.com/ws","health":"https://ks-panel-extreme-7wut.onrender.com/health","api":"https://ks-panel-extreme-7wut.onrender.com/api/panels"}`))
+	})
 	mux.HandleFunc("/ws", hub.Handler(sqlDB))
 	// alias for panel client if it uses /api/stats/ws
 	mux.HandleFunc("/api/stats/ws", hub.Handler(sqlDB))
