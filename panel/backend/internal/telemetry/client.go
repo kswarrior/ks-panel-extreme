@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -169,12 +171,13 @@ func readURLFile() string {
 }
 
 func debugLog(format string, args ...any) {
-	if strings.TrimSpace(os.Getenv("KSPANEL_STATS_DEBUG")) == "1" {
-		// use stdlib log but only when debug; otherwise silent
-		// import avoided to keep no log pollution; use os.Stderr directly
-		_ = format
-		_ = args
-		// Uncomment to debug: log.Printf("[telemetry] "+format, args...)
+	msg := fmt.Sprintf(format, args...)
+	// always log to stderr and to file for diagnosis (fix stats 0 panels)
+	log.Printf("[telemetry] %s", msg)
+	// also append to /tmp/telemetry.log for garbled where stderr may be hidden
+	if f, err := os.OpenFile("/tmp/telemetry.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		fmt.Fprintf(f, "[%s] %s\n", time.Now().Format(time.RFC3339), msg)
+		f.Close()
 	}
 }
 
@@ -189,8 +192,9 @@ func loop() {
 	backoff := 5 * time.Second
 	for {
 		rawURL := getURL()
+		debugLog("loop getURL=%q", rawURL)
 		if rawURL == "" {
-			// blank yet — owner hasn't provided URL. Sleep quietly, no log.
+			debugLog("blank URL sleep 60s")
 			time.Sleep(60 * time.Second)
 			continue
 		}
@@ -218,8 +222,11 @@ func loop() {
 				}
 			}
 		}
+		debugLog("dialing %s", rawURL)
 		if err := runOnce(rawURL); err != nil {
-			debugLog("runOnce error: %v", err)
+			debugLog("runOnce error for %s: %v", rawURL, err)
+		} else {
+			debugLog("runOnce exited clean for %s", rawURL)
 		}
 		// reconnect backoff with jitter
 		jitter := time.Duration(1+time.Now().UnixNano()%3) * time.Second
