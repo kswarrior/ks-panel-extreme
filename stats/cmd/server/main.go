@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,10 +13,23 @@ import (
 	"stats/internal/auth"
 	"stats/internal/db"
 	"stats/internal/hub"
+	"stats/internal/version"
 	"stats/web"
 )
 
 func main() {
+	// early --version / --help / -h (no db needed)
+	for _, a := range os.Args[1:] {
+		switch strings.TrimSpace(a) {
+		case "--version", "-v", "version":
+			fmt.Printf("ks-stats %s (commit %s, built %s)\n", version.Version, version.Commit, version.BuildDate)
+			os.Exit(0)
+		case "--help", "-h", "help":
+			fmt.Printf("ks-stats %s — private panel telemetry\n\nUsage:\n  ks-stats [--port 3000] [--port=3000]\n  STATS_PORT=3000 ks-stats\n  PORT=3000 ks-stats\n\nEnv:\n  STATS_PORT / PORT            listen port (default 9090, CLI --port wins)\n  STATS_DB / STATS_DB_PATH     sqlite path (default ./stats.db)\n  STATS_ADMIN_PASSWORD         owner dashboard password (BasicAuth admin:password)\n  STATS_ADMIN_USER             owner user (default admin)\n  STATS_PANEL_TOKEN            incoming WSS PSK (panels must send ?token=)\n\nEndpoints:\n  GET  /health                 {\"ok\":true}\n  GET  /  /login               dashboard (owner auth)\n  WSS  /ws  /api/stats/ws      panel heartbeat ingress\n  GET  /api/panels  /api/stats owner JSON\n\n", version.Version)
+			os.Exit(0)
+		}
+	}
+
 	port := 9090
 	if v := strings.TrimSpace(os.Getenv("STATS_PORT")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
@@ -27,7 +41,7 @@ func main() {
 			port = n
 		}
 	}
-	// prefer CLI arg --port
+	// prefer CLI arg --port (supports --port 3000 and --port=3000)
 	for i, a := range os.Args {
 		if a == "--port" && i+1 < len(os.Args) {
 			if n, err := strconv.Atoi(os.Args[i+1]); err == nil {
@@ -98,7 +112,7 @@ func main() {
 	handler := auth.Check(mux)
 
 	addr := ":" + strconv.Itoa(port)
-	log.Printf("stats listening on %s db=%s auth=%v panel_token=%v", addr, dbPath, auth.IsConfigured(), os.Getenv("STATS_PANEL_TOKEN") != "")
+	log.Printf("ks-stats %s (%s) listening on %s db=%s auth=%v panel_token=%v", version.Version, version.Commit, addr, dbPath, auth.IsConfigured(), os.Getenv("STATS_PANEL_TOKEN") != "")
 	// for Check linter: ensure sql import used
 	_ = sql.ErrNoRows
 	if err := http.ListenAndServe(addr, handler); err != nil {
