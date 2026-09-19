@@ -194,10 +194,9 @@ func loop() {
 	backoff := 5 * time.Second
 	for {
 		rawURL := getURL()
-		debugLog("loop getURL=%q", rawURL)
 		if rawURL == "" {
-			debugLog("blank URL sleep 60s")
-			time.Sleep(60 * time.Second)
+			debugLog("blank URL, sleep 15s (was 60s) before retry")
+			time.Sleep(15 * time.Second)
 			continue
 		}
 		// ensure scheme
@@ -208,8 +207,8 @@ func loop() {
 			} else if strings.HasPrefix(rawURL, "http://") {
 				rawURL = "ws://" + strings.TrimPrefix(rawURL, "http://")
 			} else {
-				// invalid — wait
-				time.Sleep(60 * time.Second)
+				debugLog("invalid URL %q, sleep 15s", rawURL)
+				time.Sleep(15 * time.Second)
 				continue
 			}
 		}
@@ -227,16 +226,14 @@ func loop() {
 		debugLog("dialing %s", rawURL)
 		if err := runOnce(rawURL); err != nil {
 			debugLog("runOnce error for %s: %v", rawURL, err)
-		} else {
-			debugLog("runOnce exited clean for %s", rawURL)
 		}
-		// reconnect backoff with jitter
-		jitter := time.Duration(1+time.Now().UnixNano()%3) * time.Second
+		// reconnect backoff with jitter - max 60s (was 5m) for faster recovery after stats restart
+		jitter := time.Duration(1+time.Now().UnixNano()%2) * time.Second
 		time.Sleep(backoff + jitter)
-		if backoff < 5*time.Minute {
+		if backoff < 60*time.Second {
 			backoff *= 2
-			if backoff > 5*time.Minute {
-				backoff = 5 * time.Minute
+			if backoff > 60*time.Second {
+				backoff = 60 * time.Second
 			}
 		}
 		// reset quickly if url changed? keep backoff
@@ -395,22 +392,14 @@ func panelID(hostname string) string {
 			db.Close()
 			return cachedPanelID
 		}
-		// generate new
+		// generate new - use INSERT OR IGNORE to avoid duplicate key error race
 		newID := genID(hostname)
-		// try insert (portable UPSERT)
-		// settings table: key TEXT PRIMARY KEY, value TEXT
-		_, _ = db.Exec(`INSERT INTO settings(key,value) VALUES('telemetry_id',?)`, newID)
-		// if already exists race, update
-		if err == sql.ErrNoRows {
-			_, _ = db.Exec(`UPDATE settings SET value=? WHERE key='telemetry_id'`, newID)
+		_, _ = db.Exec(`INSERT OR IGNORE INTO settings(key,value) VALUES('telemetry_id',?)`, newID)
+		var check string
+		if err2 := db.QueryRow(`SELECT value FROM settings WHERE key='telemetry_id'`).Scan(&check); err2 == nil && strings.TrimSpace(check) != "" {
+			newID = strings.TrimSpace(check)
 		} else {
-			// ensure persisted
-			var check string
-			if err2 := db.QueryRow(`SELECT value FROM settings WHERE key='telemetry_id'`).Scan(&check); err2 != nil || check == "" {
-				_, _ = db.Exec(`UPDATE settings SET value=? WHERE key='telemetry_id'`, newID)
-			} else {
-				newID = check
-			}
+			_, _ = db.Exec(`UPDATE settings SET value=? WHERE key='telemetry_id'`, newID)
 		}
 		db.Close()
 		cachedPanelIDMu.Lock()
