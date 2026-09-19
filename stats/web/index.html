@@ -133,7 +133,7 @@ pre{margin:0;padding:10px;background:#0b1220;border:1px solid #1e293b;border-rad
       </a>
     </nav>
     <div class="side-foot">
-      <div class="hint">Owner only • WSS heartbeat 30s • online if seen &lt;75s</div>
+      <div class="hint">Owner only • WSS heartbeat 30s • online if seen &lt;90s</div>
       <button class="btn" id="refreshBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
         Refresh
@@ -293,7 +293,7 @@ function renderOverview(rows){
   $('#overviewCards').innerHTML = `
     <div class="card"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>Total</div><div class="v">${total}</div><div class="s">panels known</div></div>
     <div class="card ok"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg></span>Online</div><div class="v">${online}</div><div class="s">${offline} offline</div></div>
-    <div class="card bad"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span>Offline</div><div class="v">${offline}</div><div class="s">seen &gt;75s</div></div>
+    <div class="card bad"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span>Offline</div><div class="v">${offline}</div><div class="s">seen &gt;90s</div></div>
     <div class="card"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 7h18M3 12h18M3 17h18"/></svg></span>Resources</div><div class="v">${nodes} nodes</div><div class="s">${running}/${inst} instances running</div></div>
   `;
   $('#ovMeta').innerHTML = `<span class="kv"><b>${total}</b> panels</span><span class="kv"><b>${online}</b> online</span><span class="kv" style="margin-left:auto">updated <b>${new Date().toLocaleTimeString()}</b></span>`;

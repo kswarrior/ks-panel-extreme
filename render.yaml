@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: ks-panel-extreme-7wut
+    env: docker
+    dockerfilePath: ./stats/Dockerfile
+    dockerContext: ./stats
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    branch: main
+    envVars:
+      - key: STATS_PORT
+        value: 10000
+      - key: PORT
+        value: 10000
+      - key: STATS_DB
+        value: /data/stats.db
+      # Owner dashboard auth — set these in Render dashboard as secret env vars:
+      # - key: STATS_ADMIN_PASSWORD
+      #   sync: false
+      # - key: STATS_ADMIN_USER
+      #   value: admin
+      # Optional per-panel PSK — if set, panels must send ?token= or X-Panel-Token
+      # - key: STATS_PANEL_TOKEN
+      #   sync: false
+    disk:
+      name: stats-data
+      mountPath: /data
+      sizeGB: 1

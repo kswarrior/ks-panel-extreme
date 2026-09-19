@@ -91,6 +91,14 @@ func main() {
 	mux.HandleFunc("/api/stats/ws", hub.Handler(sqlDB))
 
 	mux.HandleFunc("/api/panels", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Method == "OPTIONS" {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.WriteHeader(204)
+			return
+		}
 		panels, err := db.ListPanels(sqlDB)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -101,6 +109,14 @@ func main() {
 	})
 	// also owner may want raw count
 	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Method == "OPTIONS" {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.WriteHeader(204)
+			return
+		}
 		panels, _ := db.ListPanels(sqlDB)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"panels": panels, "count": len(panels)})
