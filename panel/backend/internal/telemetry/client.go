@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -109,38 +110,30 @@ func fetchRemoteOne(u string) string {
 	if resp.StatusCode != 200 {
 		return ""
 	}
-	var data struct {
-		URL     string `json:"url"`
-		WS      string `json:"ws"`
-		WsURL   string `json:"ws_url"`
-		WsUrl   string `json:"wsUrl"`
-		StatsURL string `json:"stats_url"`
-		Endpoint string `json:"endpoint"`
+	// limit 64KB — stats/url.json is <1KB
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+	if err != nil || len(body) == 0 {
+		return ""
 	}
 	// also accept plain string JSON "https://..."
 	var plain string
-	body, err := func() ([]byte, error) {
-		// small body only — stats/url.json is <1KB
-		b := make([]byte, 8192)
-		n, _ := resp.Body.Read(b)
-		if n == 0 {
-			return nil, nil
-		}
-		return b[:n], nil
-	}()
-	if err != nil || body == nil {
-		return ""
-	}
-	// try plain string first (e.g. "https://..." quoted)
 	if err2 := json.Unmarshal(body, &plain); err2 == nil {
 		if v := strings.TrimSpace(plain); v != "" {
 			return v
 		}
 	}
+	var data struct {
+		URL      string `json:"url"`
+		WS       string `json:"ws"`
+		WsURL    string `json:"ws_url"`
+		WsUrl    string `json:"wsUrl"`
+		StatsURL string `json:"stats_url"`
+		Endpoint string `json:"endpoint"`
+	}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return ""
 	}
-	// prefer explicit ws fields
+	// prefer explicit ws fields (wss://.../ws), then https url
 	for _, v := range []string{data.WS, data.WsURL, data.WsUrl, data.StatsURL, data.Endpoint, data.URL} {
 		if v = strings.TrimSpace(v); v != "" {
 			return v
