@@ -171,3 +171,30 @@ Run `npm audit` for details.
 [STUB BOT] exiting with 1 to simulate crash
 [MANAGER] Bot exited code=1 signal=null
 [ALWAYS-ON] Scheduling restart in 2.0s (reason: exit code=1 signal=null)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=8237
+[STUB BOT] starting pid 8237
+[STUB BOT] exiting with 1 to simulate crash
+[MANAGER] Bot exited code=1 signal=null
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: exit code=1 signal=null)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=8274
+[STUB BOT] starting pid 8274
+[ALWAYS-ON] Disabled
+[MANAGER] Sent SIGTERM to pid=8274
+[MANAGER] Bot exited code=null signal=SIGTERM
+[ALWAYS-ON] Enabled (interval 2.0s)
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: enabled-while-stopped)
+[MANAGER] Bot started pid=8445
+[STABLE BOT] running pid 8445
+[MANAGER] Sent SIGTERM to pid=8445
+[MANAGER] Bot exited code=null signal=SIGTERM
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: exit code=null signal=SIGTERM)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=8461
+[STABLE BOT] running pid 8461
+[STABLE BOT] heartbeat
+[ALWAYS-ON] Enabled (interval 5.0s)
+[MANAGER] Sent SIGTERM to pid=8461
+[MANAGER] Bot exited code=null signal=SIGTERM
+[ALWAYS-ON] Scheduling restart in 5.0s (reason: exit code=null signal=SIGTERM)
