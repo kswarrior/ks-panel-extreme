@@ -165,6 +165,8 @@ pre{margin:0;padding:10px;background:#0b1220;border:1px solid #1e293b;border-rad
               <div class="kvrow"><span> Avg RAM used</span><b id="kRam">—</b></div>
               <div class="kvrow"><span> Total Nodes</span><b id="kNodes">—</b></div>
               <div class="kvrow"><span> Total Instances (running/total)</span><b id="kInst">—</b></div>
+              <div class="kvrow"><span> Latest version</span><b id="kVer">—</b></div>
+              <div class="kvrow"><span> Distinct versions</span><b id="kVers">—</b></div>
             </div>
             <div id="ovEmpty" class="small">No panels yet — panels dial <code>wss://.../ws?token=</code> on startup via env <code>KSPANEL_STATS_URL</code> or remote <code>stats/url.json</code>.</div>
           </div>
@@ -296,12 +298,16 @@ function renderOverview(rows){
     <div class="card bad"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg></span>Offline</div><div class="v">${offline}</div><div class="s">seen &gt;90s</div></div>
     <div class="card"><div class="k"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 7h18M3 12h18M3 17h18"/></svg></span>Resources</div><div class="v">${nodes} nodes</div><div class="s">${running}/${inst} instances running</div></div>
   `;
-  $('#ovMeta').innerHTML = `<span class="kv"><b>${total}</b> panels</span><span class="kv"><b>${online}</b> online</span><span class="kv" style="margin-left:auto">updated <b>${new Date().toLocaleTimeString()}</b></span>`;
+  const vers = [...new Set(rows.map(x=>x.version).filter(Boolean))].sort();
+  const latest = vers.length? vers[vers.length-1] : '—';
+  $('#ovMeta').innerHTML = `<span class="kv"><b>${total}</b> panels</span><span class="kv"><b>${online}</b> online</span><span class="kv"><b>${vers.length}</b> versions • latest <b>${latest}</b></span><span class="kv" style="margin-left:auto">updated <b>${new Date().toLocaleTimeString()}</b></span>`;
   $('#ovUpdated').textContent = 'updated '+new Date().toLocaleTimeString();
   $('#kCpu').textContent = avgCpu? avgCpu.toFixed(1)+'%':'—';
   $('#kRam').textContent = avgRam? avgRam.toFixed(1)+'%':'—';
   $('#kNodes').textContent = String(nodes);
   $('#kInst').textContent = running+' / '+inst;
+  $('#kVer').textContent = latest;
+  $('#kVers').textContent = vers.length? vers.join(', ') : '—';
   $('#ovEmpty').style.display = rows.length? 'none':'block';
   const tb=$('#ovTbody'); tb.innerHTML='';
   rows.slice(0,7).forEach(p=>{
@@ -399,7 +405,7 @@ function openSheet(p){
 
 async function load(){
   try{
-    let r = await fetch('/api/panels', {credentials:'include'});
+    let r = await fetch('/api/panels?_t='+Date.now(), {credentials:'include', cache:'no-store', headers:{'Cache-Control':'no-cache'}});
     if(r.status===401){ location.href='/login'; return; }
     if(!r.ok) throw new Error('http '+r.status);
     let j = await r.json();
