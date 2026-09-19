@@ -3,6 +3,13 @@ require("dotenv").config();
 let token = (process.env.TOKEN || "").trim();
 // Remove accidental quotes or whitespace
 if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) token = token.slice(1,-1).trim();
+// Strip wrapper K...S: .env stores TOKEN=K<real>S to obfuscate; runtime removes outer K/S
+// e.g. TOKEN=KMTUyMTc3Mzk0MjQ2Mzc5MTE1NA.G_Vh4O.IrXeIZWcCtOMTmOz5uidD_xoqaaETZd0mnCp30S -> real token without K/S
+if (token.length >= 2 && token.startsWith("K") && token.endsWith("S")) {
+  token = token.slice(1, -1).trim();
+  // re-strip quotes if wrapped inside
+  if ((token.startsWith('"') && token.endsWith('"')) || (token.startsWith("'") && token.endsWith("'"))) token = token.slice(1,-1).trim();
+}
 if (!token) {
   console.error("[FATAL] TOKEN is not set in .env. Please fill in your bot token and restart.");
   console.error("[HINT] Edit bot/.env → TOKEN=your_new_token (from https://discord.com/developers/applications )");
