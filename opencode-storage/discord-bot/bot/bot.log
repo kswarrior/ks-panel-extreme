@@ -198,3 +198,9 @@ Run `npm audit` for details.
 [MANAGER] Sent SIGTERM to pid=8461
 [MANAGER] Bot exited code=null signal=SIGTERM
 [ALWAYS-ON] Scheduling restart in 5.0s (reason: exit code=null signal=SIGTERM)
+[ALWAYS-ON] Auto-restarting bot...
+[MANAGER] Bot started pid=8589
+[STABLE BOT] running pid 8589
+[ALWAYS-ON] Disabled
+[MANAGER] Sent SIGTERM to pid=8589
+[MANAGER] Bot exited code=null signal=SIGTERM
