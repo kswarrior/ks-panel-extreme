@@ -27,6 +27,80 @@ let logBuffer = []; // keep last 5000 lines
 const MAX_LOG_LINES = 5000;
 let sseClients = [];
 
+// --- Always-On ---
+const MANAGER_STATE_FILE = path.join(DATA_DIR, "manager-state.json");
+let alwaysOn = false;
+let alwaysOnIntervalMs = 5000; // restart delay
+let alwaysOnTimer = null;
+
+function loadManagerState() {
+  try {
+    if (fs.existsSync(MANAGER_STATE_FILE)) {
+      const raw = fs.readFileSync(MANAGER_STATE_FILE, "utf8");
+      const j = JSON.parse(raw);
+      if (typeof j.alwaysOn === "boolean") alwaysOn = j.alwaysOn;
+      if (typeof j.alwaysOnIntervalMs === "number" && j.alwaysOnIntervalMs >= 1000 && j.alwaysOnIntervalMs <= 3600000) {
+        alwaysOnIntervalMs = j.alwaysOnIntervalMs;
+      } else if (typeof j.alwaysOnIntervalSec === "number") {
+        const ms = Math.round(j.alwaysOnIntervalSec * 1000);
+        if (ms >= 1000 && ms <= 3600000) alwaysOnIntervalMs = ms;
+      }
+      // legacy interval in seconds
+      if (typeof j.intervalSec === "number") {
+        const ms = Math.round(j.intervalSec * 1000);
+        if (ms >= 1000 && ms <= 3600000) alwaysOnIntervalMs = ms;
+      }
+    }
+  } catch (e) { console.warn("[MANAGER] load state failed:", e.message); }
+}
+function saveManagerState() {
+  try {
+    fs.mkdirSync(path.dirname(MANAGER_STATE_FILE), { recursive: true });
+    fs.writeFileSync(MANAGER_STATE_FILE, JSON.stringify({ alwaysOn, alwaysOnIntervalMs, intervalSec: Math.round(alwaysOnIntervalMs/1000) }, null, 2));
+  } catch (e) { console.warn("[MANAGER] save state failed:", e.message); }
+}
+function clearAlwaysOnTimer() {
+  if (alwaysOnTimer) { clearTimeout(alwaysOnTimer); alwaysOnTimer = null; }
+}
+function scheduleAlwaysOnRestart(reason) {
+  if (!alwaysOn) return;
+  clearAlwaysOnTimer();
+  const sec = (alwaysOnIntervalMs/1000).toFixed(1);
+  appendLog(`[ALWAYS-ON] Scheduling restart in ${sec}s (reason: ${reason})`);
+  alwaysOnTimer = setTimeout(() => {
+    alwaysOnTimer = null;
+    const st = getBotStatus();
+    if (st.status === "running") {
+      appendLog(`[ALWAYS-ON] Bot already running, skip auto-restart`);
+      return;
+    }
+    appendLog(`[ALWAYS-ON] Auto-restarting bot...`);
+    const r = startBot();
+    if (!r.ok) {
+      appendLog(`[ALWAYS-ON] Start failed: ${r.message} — retry in ${sec}s`);
+      scheduleAlwaysOnRestart("retry");
+    }
+  }, alwaysOnIntervalMs);
+}
+function setAlwaysOn(enabled, intervalMs) {
+  alwaysOn = !!enabled;
+  if (typeof intervalMs === "number" && intervalMs >= 1000 && intervalMs <= 3600000) {
+    alwaysOnIntervalMs = Math.round(intervalMs);
+  }
+  saveManagerState();
+  if (alwaysOn) {
+    appendLog(`[ALWAYS-ON] Enabled (interval ${(alwaysOnIntervalMs/1000).toFixed(1)}s)`);
+    // if bot is stopped, schedule start immediately
+    const st = getBotStatus();
+    if (st.status === "stopped") scheduleAlwaysOnRestart("enabled-while-stopped");
+  } else {
+    clearAlwaysOnTimer();
+    appendLog(`[ALWAYS-ON] Disabled`);
+  }
+  return { ok: true, alwaysOn, intervalMs: alwaysOnIntervalMs, intervalSec: Math.round(alwaysOnIntervalMs/1000) };
+}
+loadManagerState();
+
 function appendLog(line) {
   const ts = new Date().toISOString();
   // keep original line
@@ -89,12 +163,19 @@ function startBot() {
       botProcess = null;
       botStartTime = null;
     }
+    // Always-On: auto-restart if enabled (covers crash + manual stop)
+    if (alwaysOn) {
+      // don't restart if manager is shutting down? child close during manager exit will still schedule but manager exits soon
+      scheduleAlwaysOnRestart(`exit code=${code} signal=${signal}`);
+    }
   });
   child.on("error", (e) => {
     appendLog(`[MANAGER] Bot spawn error: ${e.message}`);
+    if (alwaysOn) scheduleAlwaysOnRestart(`spawn error`);
   });
 
   appendLog(`[MANAGER] Bot started pid=${child.pid}`);
+  clearAlwaysOnTimer(); // cancel pending restart since we are now running
   return { ok: true, message: "Bot started", status: "running", pid: child.pid };
 }
 
@@ -220,6 +301,9 @@ app.get("/api/status", (req, res) => {
     memory: mem,
     dbCount: dbFiles.length,
     logLines: logBuffer.length,
+    alwaysOn,
+    alwaysOnIntervalMs,
+    alwaysOnIntervalSec: Math.round(alwaysOnIntervalMs/1000),
   });
 });
 
@@ -234,6 +318,28 @@ app.post("/api/bot/stop", (req, res) => {
 app.post("/api/bot/restart", async (req, res) => {
   const r = await restartBot();
   res.json(r);
+});
+
+// --- Always-On API ---
+app.get("/api/bot/always-on", (req, res) => {
+  res.json({ ok: true, alwaysOn, intervalMs: alwaysOnIntervalMs, intervalSec: Math.round(alwaysOnIntervalMs/1000) });
+});
+app.post("/api/bot/always-on", (req, res) => {
+  let { enabled, intervalSec, intervalMs, interval } = req.body || {};
+  if (typeof enabled !== "boolean") {
+    // allow toggle without explicit value -> toggle
+    if (typeof req.body.enabled === "undefined") enabled = !alwaysOn;
+  }
+  let ms = alwaysOnIntervalMs;
+  if (typeof intervalMs === "number") ms = intervalMs;
+  else if (typeof intervalSec === "number") ms = Math.round(intervalSec * 1000);
+  else if (typeof interval === "number") ms = interval * 1000 > 3600000 ? interval : Math.round(interval * 1000); // if >3600 treat as ms else sec
+  else if (typeof interval === "string") { const v = parseFloat(interval); if (!isNaN(v)) ms = Math.round(v*1000); }
+
+  if (ms < 1000) ms = 1000;
+  if (ms > 3600000) ms = 3600000;
+  const r = setAlwaysOn(enabled, ms);
+  res.json({ ok: true, ...r, status: getBotStatus() });
 });
 
 // --- Logs ---
@@ -779,19 +885,28 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`[MANAGER] Listening on http://0.0.0.0:${PORT}`);
   console.log(`[MANAGER] Bot dir: ${BOT_DIR}`);
   console.log(`[MANAGER] Frontend: ${fs.existsSync(FRONTEND_DIST) ? FRONTEND_DIST : "not built"}`);
+  console.log(`[MANAGER] Always-On: ${alwaysOn ? `ON (${(alwaysOnIntervalMs/1000).toFixed(1)}s interval)` : "OFF"}`);
   // auto start bot?
   if (process.env.AUTO_START_BOT === "1") {
     console.log("[MANAGER] Auto-starting bot...");
     startBot();
+  } else if (alwaysOn) {
+    const st = getBotStatus();
+    if (st.status === "stopped") {
+      console.log(`[ALWAYS-ON] Bot stopped while manager was offline — scheduling restart in ${(alwaysOnIntervalMs/1000).toFixed(1)}s`);
+      scheduleAlwaysOnRestart("manager-start");
+    }
   }
 });
 
 process.on("SIGTERM", () => {
   console.log("[MANAGER] SIGTERM");
+  clearAlwaysOnTimer();
   stopBot();
   server.close(() => process.exit(0));
 });
 process.on("SIGINT", () => {
+  clearAlwaysOnTimer();
   stopBot();
   server.close(() => process.exit(0));
 });
