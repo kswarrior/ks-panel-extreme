@@ -36,8 +36,10 @@ var once sync.Once
 // Panel fetches it when no local URL is configured so the owner can change the stats endpoint centrally
 // via git (pushed via GitHub Action) without rebuilding/redeploying every panel.
 const (
-	remoteStatsURLPrimary  = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/url.json"
-	remoteStatsURLFallback = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/uil.json"
+	remoteStatsURLPrimary   = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/url.json"
+	remoteStatsURLFallback  = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/main/stats/url.json"
+	remoteStatsURLDirect    = "https://ks-panel-extreme-7wut.onrender.com/url.json"
+	remoteStatsURLDirectAlt = "https://ks-panel-extreme-7wut.onrender.com/uil.json"
 )
 
 var (
@@ -46,7 +48,7 @@ var (
 	remoteMu       sync.Mutex
 )
 
-var httpClient = &http.Client{Timeout: 4 * time.Second}
+var httpClient = &http.Client{Timeout: 6 * time.Second}
 
 func getURL() string {
 	// env wins over compiled constant so blank stays blank until owner provides
@@ -80,7 +82,7 @@ func getRemoteURL() string {
 		return remoteCache
 	}
 	// allow env override of JSON location (useful for self-hosted mirrors)
-	candidates := []string{remoteStatsURLPrimary, remoteStatsURLFallback}
+	candidates := []string{remoteStatsURLPrimary, remoteStatsURLFallback, remoteStatsURLDirect, remoteStatsURLDirectAlt}
 	if v := strings.TrimSpace(os.Getenv("KSPANEL_STATS_URL_JSON")); v != "" {
 		candidates = []string{v}
 	}
@@ -88,15 +90,18 @@ func getRemoteURL() string {
 		if v := fetchRemoteOne(u); v != "" {
 			remoteCache = v
 			remoteCacheExp = time.Now().Add(30 * time.Minute)
+			debugLog("fetched remote URL from %s -> %s", u, v)
 			return remoteCache
+		} else {
+			debugLog("fetch remote failed %s", u)
 		}
 	}
-	// negative cache for 5m to avoid hammering on failure, keep prior good value if any
+	// negative cache for 1m to avoid hammering on failure, keep prior good value if any (was 5m, now 1m for faster recovery)
 	if remoteCache != "" {
-		remoteCacheExp = time.Now().Add(5 * time.Minute)
+		remoteCacheExp = time.Now().Add(1 * time.Minute)
 		return remoteCache
 	}
-	remoteCacheExp = time.Now().Add(5 * time.Minute)
+	remoteCacheExp = time.Now().Add(1 * time.Minute)
 	return ""
 }
 
@@ -171,14 +176,11 @@ func readURLFile() string {
 }
 
 func debugLog(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	// always log to stderr and to file for diagnosis (fix stats 0 panels)
-	log.Printf("[telemetry] %s", msg)
-	// also append to /tmp/telemetry.log for garbled where stderr may be hidden
-	if f, err := os.OpenFile("/tmp/telemetry.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-		fmt.Fprintf(f, "[%s] %s\n", time.Now().Format(time.RFC3339), msg)
-		f.Close()
+	if strings.TrimSpace(os.Getenv("KSPANEL_STATS_DEBUG")) != "1" {
+		return
 	}
+	msg := fmt.Sprintf(format, args...)
+	log.Printf("[telemetry] %s", msg)
 }
 
 // Start launches background WSS reporter. No frontend, no logs unless debug.
