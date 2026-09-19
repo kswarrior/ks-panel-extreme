@@ -42,18 +42,20 @@ function get(guildId) {
 }
 
 function set(guildId, data) {
-  // Upsert – insert if not exists else update
+  // Upsert – insert if not exists else update (positional ? for Turso+SQLite compatibility)
   const existing = db.prepare('SELECT 1 FROM guild_config WHERE guildId = ?').get(guildId);
   if (existing) {
     const fields = Object.keys(data);
-    const assignments = fields.map(f => `${f} = @${f}`).join(', ');
-    const stmt = db.prepare(`UPDATE guild_config SET ${assignments} WHERE guildId = @guildId`);
-    stmt.run({ guildId, ...data });
+    if (fields.length === 0) return;
+    const assignments = fields.map(f => `${f} = ?`).join(', ');
+    const stmt = db.prepare(`UPDATE guild_config SET ${assignments} WHERE guildId = ?`);
+    stmt.run(...fields.map(f => data[f]), guildId);
   } else {
     const fields = ['guildId', ...Object.keys(data)];
-    const placeholders = fields.map(f => `@${f}`).join(', ');
+    const placeholders = fields.map(() => '?').join(', ');
     const stmt = db.prepare(`INSERT INTO guild_config (${fields.join(', ')}) VALUES (${placeholders})`);
-    stmt.run({ guildId, ...data });
+    const values = [guildId, ...Object.keys(data).map(k => data[k])];
+    stmt.run(...values);
   }
 }
 
