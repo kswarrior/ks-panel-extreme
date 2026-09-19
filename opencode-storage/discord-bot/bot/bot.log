@@ -163,3 +163,11 @@ Run `npm audit` for details.
 [GIT] Git update completed. Restart bot from Home → Start.
 [ALWAYS-ON] Enabled (interval 3.0s)
 [ALWAYS-ON] Scheduling restart in 3.0s (reason: enabled-while-stopped)
+[ALWAYS-ON] Scheduling restart in 3.0s (reason: manager-start)
+[ALWAYS-ON] Enabled (interval 2.0s)
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: enabled-while-stopped)
+[MANAGER] Bot started pid=8122
+[STUB BOT] starting pid 8122
+[STUB BOT] exiting with 1 to simulate crash
+[MANAGER] Bot exited code=1 signal=null
+[ALWAYS-ON] Scheduling restart in 2.0s (reason: exit code=1 signal=null)

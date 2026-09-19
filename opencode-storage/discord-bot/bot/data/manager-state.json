@@ -1,5 +1,5 @@
 {
   "alwaysOn": true,
-  "alwaysOnIntervalMs": 3000,
-  "intervalSec": 3
+  "alwaysOnIntervalMs": 2000,
+  "intervalSec": 2
 }
