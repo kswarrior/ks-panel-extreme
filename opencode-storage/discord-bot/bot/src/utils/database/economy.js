@@ -1,14 +1,10 @@
-const { DB_DIR } = require('../database');
-const path = require('path');
-const Database = require('better-sqlite3');
+const { get: dbGet } = require('../database');
+const db = dbGet('economy');
 
-const dbPath = path.join(DB_DIR, 'economy.db');
-const db = new Database(dbPath);
-
-db.pragma('journal_mode = WAL');
-db.pragma('synchronous = NORMAL');
-db.pragma('foreign_keys = ON');
-db.pragma('cache_size = -20000');
+try { db.pragma('foreign_keys = ON'); } catch {}
+try { db.pragma('journal_mode = WAL'); } catch {}
+try { db.pragma('synchronous = NORMAL'); } catch {}
+try { db.pragma('cache_size = -20000'); } catch {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
