@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -28,6 +29,22 @@ var StatsToken = ""
 
 var once sync.Once
 
+// remote JSON source — same file as stats/url.json (also published as stats/uil.json for typo compat).
+// Panel fetches it when no local URL is configured so the owner can change the stats endpoint centrally
+// via git (pushed via GitHub Action) without rebuilding/redeploying every panel.
+const (
+	remoteStatsURLPrimary  = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/url.json"
+	remoteStatsURLFallback = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/uil.json"
+)
+
+var (
+	remoteCache    string
+	remoteCacheExp time.Time
+	remoteMu       sync.Mutex
+)
+
+var httpClient = &http.Client{Timeout: 4 * time.Second}
+
 func getURL() string {
 	// env wins over compiled constant so blank stays blank until owner provides
 	for _, k := range []string{"KSPANEL_STATS_URL", "STATS_URL", "KSPANEL_TELEMETRY_URL", "TELEMETRY_URL"} {
@@ -41,6 +58,93 @@ func getURL() string {
 	// also try file fallback DataDir/stats.url (owner can echo url > there)
 	if p := strings.TrimSpace(readURLFile()); p != "" {
 		return p
+	}
+	// remote JSON fallback — owner-controlled via stats/url.json (mirrored to stats/uil.json)
+	if v := strings.TrimSpace(getRemoteURL()); v != "" {
+		return v
+	}
+	return ""
+}
+
+func getRemoteURL() string {
+	remoteMu.Lock()
+	defer remoteMu.Unlock()
+	if time.Now().Before(remoteCacheExp) && remoteCache != "" {
+		return remoteCache
+	}
+	// allow opt-out without code change
+	if strings.TrimSpace(os.Getenv("KSPANEL_STATS_REMOTE")) == "0" || strings.TrimSpace(os.Getenv("STATS_REMOTE")) == "0" {
+		return remoteCache
+	}
+	// allow env override of JSON location (useful for self-hosted mirrors)
+	candidates := []string{remoteStatsURLPrimary, remoteStatsURLFallback}
+	if v := strings.TrimSpace(os.Getenv("KSPANEL_STATS_URL_JSON")); v != "" {
+		candidates = []string{v}
+	}
+	for _, u := range candidates {
+		if v := fetchRemoteOne(u); v != "" {
+			remoteCache = v
+			remoteCacheExp = time.Now().Add(30 * time.Minute)
+			return remoteCache
+		}
+	}
+	// negative cache for 5m to avoid hammering on failure, keep prior good value if any
+	if remoteCache != "" {
+		remoteCacheExp = time.Now().Add(5 * time.Minute)
+		return remoteCache
+	}
+	remoteCacheExp = time.Now().Add(5 * time.Minute)
+	return ""
+}
+
+func fetchRemoteOne(u string) string {
+	resp, err := httpClient.Get(u)
+	if err != nil || resp == nil {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return ""
+	}
+	var data struct {
+		URL     string `json:"url"`
+		WS      string `json:"ws"`
+		WsURL   string `json:"ws_url"`
+		WsUrl   string `json:"wsUrl"`
+		StatsURL string `json:"stats_url"`
+		Endpoint string `json:"endpoint"`
+	}
+	// also accept plain string JSON "https://..."
+	var plain string
+	body, err := func() ([]byte, error) {
+		// small body only — stats/url.json is <1KB
+		b := make([]byte, 8192)
+		n, _ := resp.Body.Read(b)
+		if n == 0 {
+			return nil, nil
+		}
+		return b[:n], nil
+	}()
+	if err != nil || body == nil {
+		return ""
+	}
+	// try plain string first (e.g. "https://..." quoted)
+	if err2 := json.Unmarshal(body, &plain); err2 == nil {
+		if v := strings.TrimSpace(plain); v != "" {
+			return v
+		}
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return ""
+	}
+	// prefer explicit ws fields
+	for _, v := range []string{data.WS, data.WsURL, data.WsUrl, data.StatsURL, data.Endpoint, data.URL} {
+		if v = strings.TrimSpace(v); v != "" {
+			return v
+		}
 	}
 	return ""
 }
