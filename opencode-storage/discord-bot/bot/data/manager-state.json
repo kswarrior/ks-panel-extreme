@@ -1,0 +1,5 @@
+{
+  "alwaysOn": true,
+  "alwaysOnIntervalMs": 3000,
+  "intervalSec": 3
+}

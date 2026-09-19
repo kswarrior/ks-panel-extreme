@@ -161,3 +161,5 @@ Run `npm audit` for details.
 
 [GIT] npm install completed
 [GIT] Git update completed. Restart bot from Home → Start.
+[ALWAYS-ON] Enabled (interval 3.0s)
+[ALWAYS-ON] Scheduling restart in 3.0s (reason: enabled-while-stopped)
