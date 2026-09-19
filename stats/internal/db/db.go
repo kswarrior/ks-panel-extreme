@@ -207,8 +207,8 @@ func ListPanels(db *sql.DB) ([]Panel, error) {
 			&p.FirstSeen, &p.LastSeen); err != nil {
 			continue
 		}
-		// online if seen within 75s (30s heartbeat + jitter)
-		p.Online = time.Since(p.LastSeen) < 75*time.Second
+		// online if seen within 90s (30s heartbeat + 60s grace for Render sleep / jitter / network)
+		p.Online = time.Since(p.LastSeen) < 90*time.Second
 		out = append(out, p)
 	}
 	if out == nil {

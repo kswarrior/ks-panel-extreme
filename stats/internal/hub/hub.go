@@ -58,8 +58,10 @@ func Handler(sqlDB *sql.DB) http.HandlerFunc {
 		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
+			log.Printf("hub upgrade failed from %s: %v", geo.ClientIP(r), err)
 			return
 		}
+		log.Printf("hub connected from %s url=%s", geo.ClientIP(r), r.URL.String())
 		defer conn.Close()
 		conn.SetReadLimit(1 << 20)
 		_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
@@ -89,6 +91,7 @@ func Handler(sqlDB *sql.DB) http.HandlerFunc {
 		for {
 			_, msg, err := conn.ReadMessage()
 			if err != nil {
+				log.Printf("hub disconnect from %s: %v", ip, err)
 				return
 			}
 			_ = conn.SetReadDeadline(time.Now().Add(90 * time.Second))
@@ -113,7 +116,11 @@ func Handler(sqlDB *sql.DB) http.HandlerFunc {
 			}
 			g := geo.Lookup(realIP)
 			raw := string(msg)
-			_ = db.UpsertPanel(sqlDB, hb, realIP, g, raw)
+			if err := db.UpsertPanel(sqlDB, hb, realIP, g, raw); err != nil {
+				log.Printf("hub upsert failed id=%s host=%s ip=%s: %v", hb.PanelID, hb.Hostname, realIP, err)
+			} else {
+				log.Printf("hub heartbeat id=%s host=%s ver=%s ip=%s geo=%s", hb.PanelID, hb.Hostname, hb.Version, realIP, g.City)
+			}
 			_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 			_ = conn.WriteMessage(websocket.TextMessage, []byte(`{"ok":true}`))
 		}
