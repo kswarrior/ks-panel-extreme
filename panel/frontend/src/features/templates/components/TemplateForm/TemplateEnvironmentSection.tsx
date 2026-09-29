@@ -65,11 +65,47 @@ export const TemplateEnvironmentSection: React.FC<EnvironmentSectionProps> = ({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editingMountIdx, setEditingMountIdx] = useState<number | null>(null);
   const nonDocker = kind !== 'docker';
+  const isHost = kind === 'host';
   const runtimeLabel = kind === 'docker' ? 'Docker image (registry)' 
     : kind === 'multipass' ? 'Multipass image (e.g. ubuntu-lts)'
     : kind === 'kvm' ? 'KVM ISO path'
     : kind === 'host' ? 'Image (optional label, host runs directly on the edge filesystem)'
     : 'LXD image (e.g. images:ubuntu/22.04)';
+
+  // Host services run directly on the edge filesystem: no image, no port
+  // mappings, no mounts. Section B for host is limits + caps only so an
+  // operator can never author image/ports/mounts that the host driver
+  // would ignore (or that would trigger a needless recreate on edit).
+  if (isHost) {
+    return (
+      <>
+        {/* Section B: Infra & Environment (host: no image / ports / mounts) */}
+        <div className={sectionCls}>
+          <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Section B · Infra & Environment</h4>
+          <p className="text-xs text-emerald-400">Host services run directly on the edge host — no image, no port mappings, no mounts. Configure the startup command under Runtime.</p>
+
+          <div>
+            <label className={labelCls}>Resource Limits</label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <input value={limits.ram_mb} onChange={(e) => onLimitsUpdate({ ram_mb: e.target.value })} placeholder="RAM MB" className={glassFieldClass} />
+              <input value={limits.cpu_pct} onChange={(e) => onLimitsUpdate({ cpu_pct: e.target.value })} placeholder="CPU %" className={glassFieldClass} />
+              <input value={limits.disk_mb} onChange={(e) => onLimitsUpdate({ disk_mb: e.target.value })} placeholder="Disk MB" className={glassFieldClass} />
+              <input value={limits.swap_mb} onChange={(e) => onLimitsUpdate({ swap_mb: e.target.value })} placeholder="Swap MB" className={glassFieldClass} />
+            </div>
+          </div>
+
+          <div>
+            <label className={labelCls}>Feature Caps (max counts)</label>
+            <div className="grid grid-cols-3 gap-2">
+              <input value={caps.databases} onChange={(e) => onCapsUpdate({ databases: e.target.value })} placeholder="Databases" className={glassFieldClass} />
+              <input value={caps.backups} onChange={(e) => onCapsUpdate({ backups: e.target.value })} placeholder="Backups" className={glassFieldClass} />
+              <input value={caps.networks} onChange={(e) => onCapsUpdate({ networks: e.target.value })} placeholder="Network mappings" className={glassFieldClass} />
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
