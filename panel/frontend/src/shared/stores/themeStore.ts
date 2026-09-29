@@ -2707,6 +2707,23 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
   width: max-content !important;
   max-width: min(280px, 80vw) !important;
 }
+@media (max-width: 640px) {
+  .ks-count-badge {
+    flex-wrap: wrap !important;
+    row-gap: 2px !important;
+    border-radius: 16px !important;
+  }
+  .ks-count-dot-extra {
+    display: none !important;
+  }
+  .ks-count-extra {
+    flex-basis: 100% !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.5 !important;
+  }
+}
 
 /* ------------------------------------------------------------------
    Theme Studio → Scrollbars. The browser-native bars on the three

@@ -557,6 +557,26 @@ input:-internal-autofill-selected:focus {
   width: max-content;
   max-width: min(280px, 80vw);
 }
+/* Phone: ListCount splits into two lines — line 1 "N of M stacks shown",
+   line 2 the `extra` stats ("0 active · 0 pending grants"). Applies to
+   every page using ListCount since it lives on the shared badge. */
+@media (max-width: 640px) {
+  .ks-count-badge {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    border-radius: 16px;
+  }
+  .ks-count-dot-extra {
+    display: none;
+  }
+  .ks-count-extra {
+    flex-basis: 100%;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.5;
+  }
+}
 
 /* dvh-safe reset so the layout hits the dynamic viewport unit on
  * mobile (avoids the iOS Safari URL bar jump). Setting this on

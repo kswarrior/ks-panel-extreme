@@ -140,7 +140,7 @@ export const ListCount: React.FC<ListCountProps> = ({
         )}
         {extra && (
           <>
-            <span className="ks-count-dot" aria-hidden="true" />
+            <span className="ks-count-dot ks-count-dot-extra" aria-hidden="true" />
             <span className="ks-count-extra">{extra}</span>
           </>
         )}
@@ -188,7 +188,7 @@ export const ListCount: React.FC<ListCountProps> = ({
         )}
         {extra && (
           <>
-            <span className="ks-count-dot" aria-hidden="true" />
+            <span className="ks-count-dot ks-count-dot-extra" aria-hidden="true" />
             <span className="ks-count-extra">{extra}</span>
           </>
         )}
