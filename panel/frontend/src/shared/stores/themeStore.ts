@@ -2530,6 +2530,28 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
   gap: var(--ks-pill-gap) !important;
   transition-duration: var(--ks-pill-anim-duration) !important;
 }
+.ks-actions-pill {
+  max-width: calc(100vw - 2rem) !important;
+}
+@media (max-width: 639px) {
+  .ks-actions-pill .ks-pill-content {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    -webkit-overflow-scrolling: touch !important;
+    touch-action: pan-x pan-y !important;
+  }
+  .ks-actions-pill .ks-pill-content::-webkit-scrollbar {
+    display: none !important;
+  }
+  .ks-actions-pill .ks-pill-content > * {
+    flex-shrink: 0 !important;
+  }
+}
 
 /* ------------------------------------------------------------------
    Theme Studio → Menu. The floating instance-menu square toggle, its

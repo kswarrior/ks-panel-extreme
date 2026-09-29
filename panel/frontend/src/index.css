@@ -1713,6 +1713,33 @@ input[type="search"] {
   }
 }
 
+/* Top-right action pill (PageActionsPill, shared by every page): never
+   exceed the viewport, and allow horizontal swipe-scroll on narrow
+   screens instead of clipping actions off-screen. Desktop keeps
+   overflow visible so absolute filter/sort dropdowns are never cut. */
+.ks-actions-pill {
+  max-width: calc(100vw - 2rem);
+}
+@media (max-width: 639px) {
+  .ks-actions-pill .ks-pill-content {
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+  }
+  .ks-actions-pill .ks-pill-content::-webkit-scrollbar {
+    display: none;
+  }
+  .ks-actions-pill .ks-pill-content > * {
+    flex-shrink: 0;
+  }
+}
+
 /* Instance terminal: touch scroll + slim scrollbar.
    The xterm viewport is the actual scroller (overflow-y: scroll in
    xterm.css). On phones one-finger swipes must scroll the scrollback
