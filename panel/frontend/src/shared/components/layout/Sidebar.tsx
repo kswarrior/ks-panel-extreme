@@ -337,23 +337,31 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   };
 
   const adminEntries = adminSubItems.filter((i) => hasSidebarAccess(i.permission));
-  const canAdmin = adminEntries.length > 0;
 
-  // Extensions category: Mods + Applications + Stacks grouped under one
-  // section header (same static-header pattern as the Pages section below).
-  const extensionTos = new Set(['/mods', '/applications', '/stacks']);
-  const extensionEntries = adminEntries.filter((i) => extensionTos.has(i.to));
-  // Split the remaining (non-extension) entries around the original
-  // Extensions position (after Instance Pages, before Themes) so the visual
-  // order is unchanged: <before> + Extensions + <after>.
-  const firstExtensionIdx = adminSubItems.findIndex((i) => extensionTos.has(i.to));
-  const mainEntries = adminEntries.filter((i) => !extensionTos.has(i.to));
-  const mainBefore = mainEntries.filter(
-    (i) => adminSubItems.findIndex((s) => s.to === i.to) < firstExtensionIdx,
-  );
-  const mainAfter = mainEntries.filter(
-    (i) => adminSubItems.findIndex((s) => s.to === i.to) > firstExtensionIdx,
-  );
+  // Sidebar categories: every admin entry belongs to exactly one section.
+  // Section order below sets the display order; item order inside a section
+  // follows adminSubItems. Empty sections (no permission) render nothing.
+  const sectionOrder = ['Overview', 'Management', 'Infrastructure', 'Extensions', 'Appearance', 'Support'];
+  const sectionOf: Record<string, string> = {
+    '/system': 'Overview',
+    '/security': 'Overview',
+    '/activity': 'Overview',
+    '/database': 'Overview',
+    '/users': 'Management',
+    '/roles': 'Management',
+    '/settings': 'Management',
+    '/api-keys': 'Management',
+    '/nodes': 'Infrastructure',
+    '/templates': 'Infrastructure',
+    '/instances': 'Infrastructure',
+    '/instance-pages': 'Infrastructure',
+    '/mods': 'Extensions',
+    '/applications': 'Extensions',
+    '/stacks': 'Extensions',
+    '/themes': 'Appearance',
+    '/tickets': 'Support',
+    '/notifications': 'Support',
+  };
 
   const renderNavItem = (item: SubItem) => (
     <NavLink
@@ -407,22 +415,20 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
             <SidebarSkeleton collapsed={isCollapsed} />
           ) : (
             <>
-            {canAdmin && mainBefore.map((item) => renderNavItem(item))}
-            {/* Extensions category — one section for Mods + Applications + Stacks.
-                Static header (mirrors the Pages section pattern); hidden when
-                collapsed, icons stay visible. Hidden entirely when the role
-                has none of the three permissions. */}
-            {extensionEntries.length > 0 && (
-              <>
-                {!isCollapsed && (
-                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                    Extensions
-                  </p>
-                )}
-                {extensionEntries.map((item) => renderNavItem(item))}
-              </>
-            )}
-            {canAdmin && mainAfter.map((item) => renderNavItem(item))}
+            {sectionOrder.map((title) => {
+              const items = adminEntries.filter((i) => sectionOf[i.to] === title);
+              if (items.length === 0) return null;
+              return (
+                <React.Fragment key={title}>
+                  {!isCollapsed && (
+                    <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                      {title}
+                    </p>
+                  )}
+                  {items.map((item) => renderNavItem(item))}
+                </React.Fragment>
+              );
+            })}
             {/* Custom pages (Settings > Pages: About, Docs, …). Enabled +
                 role-filtered server-side; each carries its own SVG glyph. */}
             {panelPagesNav.length > 0 && (
