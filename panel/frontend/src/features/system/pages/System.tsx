@@ -113,22 +113,43 @@ const System: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* System scope switcher — this page's own tab style (scope cards, not
-          the generic ks-tab strip / bottom pill): Host = machine health,
-          Panel = app + updates. One tap on every breakpoint, with a live
-          footnote so the choice is obvious at a glance. */}
-      <SystemTabs
-        tab={tab}
-        onChange={setTab}
-        hostMeta={hostMeta}
-        panelMeta={panelMeta}
-        lastUpdated={lastUpdated}
-        onRefresh={load}
-      />
+      {/* Section header — the Scope switcher cards now live in the sidebar
+          (System › Host / Panel). This row keeps the live footnote plus the
+          manual refresh that used to sit in the Scope bar toolbar. */}
+      <div className="flex items-center gap-2">
+        <span className="relative flex w-2 h-2 shrink-0" aria-hidden="true">
+          <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+          <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400" />
+        </span>
+        <span id="system-section-title" className="text-sm font-semibold text-gray-100">
+          {tab === 'host' ? 'Host' : 'Panel'}
+        </span>
+        <span className="text-xs text-gray-500 truncate">
+          {tab === 'host' ? hostMeta : panelMeta}
+        </span>
+        <span className="flex-1" />
+        {lastUpdated && (
+          <span className="hidden sm:inline text-[11px] text-gray-500 font-mono" title={lastUpdated.toLocaleString()}>
+            {lastUpdated.toLocaleTimeString()}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => void load()}
+          title="Refresh snapshot now"
+          aria-label="Refresh snapshot now"
+          className="ks-icon-btn inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+        </button>
+      </div>
 
       <div className="space-y-4">
         {tab === 'host' && (
-          <div role="tabpanel" id="system-panel-host" aria-labelledby="system-tab-host">
+          <div role="tabpanel" id="system-panel-host" aria-labelledby="system-section-title">
             {/* Host section */}
             <div>
               {host && (
@@ -145,7 +166,7 @@ const System: React.FC = () => {
         )}
 
         {tab === 'panel' && (
-          <div role="tabpanel" id="system-panel-panel" aria-labelledby="system-tab-panel">
+          <div role="tabpanel" id="system-panel-panel" aria-labelledby="system-section-title">
             <PanelTab
               snap={snap}
               info={info}
