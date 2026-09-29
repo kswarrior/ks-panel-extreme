@@ -103,6 +103,9 @@ func hostDirFor(name string) (string, error) {
 }
 
 // hostStoredConfig is the persisted deploy spec for a host instance.
+// Note: host never uses an image — the service runs directly on the edge
+// filesystem. The field is kept (always empty) only so old config.json rows
+// still unmarshal; Deploy never reads cfg["image"].
 type hostStoredConfig struct {
 	Command    string            `json:"command"`
 	Env        map[string]string `json:"env,omitempty"`
@@ -319,8 +322,10 @@ func (d *host) Deploy(ctx context.Context, name string, cfg map[string]any) (Res
 	command := extractHostCommand(cfg)
 	env := extractHostEnv(cfg)
 	working := extractHostWorkingDir(cfg)
-	image, _ := cfg["image"].(string)
-	stored := hostStoredConfig{Command: command, Env: env, WorkingDir: working, Image: image}
+	// Host never uses an image: ignore cfg["image"]/cfg["images"] even when
+	// a stale panel payload still carries them. Persist empty so the stored
+	// config can never suggest an image exists.
+	stored := hostStoredConfig{Command: command, Env: env, WorkingDir: working, Image: ""}
 	raw, _ := json.MarshalIndent(stored, "", "  ")
 	if err := os.WriteFile(hostConfigPath(dir), raw, 0o644); err != nil {
 		return Result{}, fmt.Errorf("host: write config: %w", err)

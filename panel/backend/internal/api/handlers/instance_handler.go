@@ -1613,14 +1613,31 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	if cfg == nil {
 		cfg = map[string]any{}
 	}
-	cfg["image"] = selectedImage.Image
+	// Host runs directly on the edge filesystem: no image, no multi-image
+	// map, no ports, no mounts. Strip them before the edge ever sees the
+	// config so stale rows from a previous kind can't leak into a deploy.
+	if strings.TrimSpace(strings.ToLower(tmpl.Kind)) == "host" {
+		for _, k := range []string{"image", "image_name", "images", "docker_images", "default_image", "ports", "mounts", "volumes", "image_key"} {
+			delete(cfg, k)
+		}
+	} else {
+		cfg["image"] = selectedImage.Image
+	}
 	for k, v := range req.Overrides {
+		// Never let an override re-introduce a stripped host key
+		// (e.g. a stale editor payload carrying ports/image).
+		if strings.TrimSpace(strings.ToLower(tmpl.Kind)) == "host" {
+			switch strings.ToLower(strings.TrimSpace(k)) {
+			case "image", "image_name", "images", "docker_images", "default_image", "ports", "mounts", "volumes", "image_key":
+				continue
+			}
+		}
 		cfg[k] = v
 	}
 	// Record which named runtime this deploy used (audit + edge
 	// visibility). An explicit overrides["image"] still wins above for
 	// power users; the name then describes the selection, not the override.
-	if hasMultiImage {
+	if hasMultiImage && strings.TrimSpace(strings.ToLower(tmpl.Kind)) != "host" {
 		cfg["image_name"] = selectedImage.Name
 	}
 	delete(cfg, "image_key")
@@ -1679,8 +1696,8 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	// the opaque `docker: Error … Bind for 0.0.0.0:25565 failed: port is
 	// already allocated` (exit 125) plus a leftover Created container.
 	// Answer 409 now with the owner so the operator picks a free host port.
-	// Host services bind host ports directly, so they get the same guard.
-	if tmpl.Kind == "docker" || tmpl.Kind == "host" {
+	// Host carries no ports (stripped above), so only docker is guarded.
+	if tmpl.Kind == "docker" {
 		if want := extractRequestedPorts(cfg); len(want) > 0 {
 			if bad, owner, found := findPortCollision(con, req.NodeID, 0, want); found {
 				writeJSONStatus(w, http.StatusConflict, map[string]any{
