@@ -339,6 +339,41 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const adminEntries = adminSubItems.filter((i) => hasSidebarAccess(i.permission));
   const canAdmin = adminEntries.length > 0;
 
+  // Extensions category: Mods + Applications + Stacks grouped under one
+  // section header (same static-header pattern as the Pages section below).
+  const extensionTos = new Set(['/mods', '/applications', '/stacks']);
+  const extensionEntries = adminEntries.filter((i) => extensionTos.has(i.to));
+  // Split the remaining (non-extension) entries around the original
+  // Extensions position (after Instance Pages, before Themes) so the visual
+  // order is unchanged: <before> + Extensions + <after>.
+  const firstExtensionIdx = adminSubItems.findIndex((i) => extensionTos.has(i.to));
+  const mainEntries = adminEntries.filter((i) => !extensionTos.has(i.to));
+  const mainBefore = mainEntries.filter(
+    (i) => adminSubItems.findIndex((s) => s.to === i.to) < firstExtensionIdx,
+  );
+  const mainAfter = mainEntries.filter(
+    (i) => adminSubItems.findIndex((s) => s.to === i.to) > firstExtensionIdx,
+  );
+
+  const renderNavItem = (item: SubItem) => (
+    <NavLink
+      key={item.to}
+      to={item.to}
+      onClick={onClose}
+      className={({ isActive }) =>
+        `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+          isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
+        } ${isActive ? 'ks-nav-active' : ''}`
+      }
+      title={isCollapsed ? item.label : undefined}
+    >
+      <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
+        {Icons[item.icon]}
+      </span>
+      {!isCollapsed && <span className="truncate">{item.label}</span>}
+    </NavLink>
+  );
+
   return (
     <>
       {/* Mobile backdrop */}
