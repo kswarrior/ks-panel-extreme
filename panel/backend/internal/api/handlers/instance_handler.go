@@ -523,6 +523,18 @@ func commandScript(v any) string {
 // one and reports whether any recreate-only field changed. The driver
 // runtime blocks (kvm/multipass/lxd) provision disks and CPU at create
 // time, so ANY change inside them forces a recreate.
+//
+// Host instances never need a recreate: there is no VM/container to tear
+// down — the service runs directly on the edge filesystem. Edits to a host
+// instance are always DB-only (the new command/env applies on the next
+// start/deploy); destroying the host dir on edit would wipe service files.
+func configNeedsRecreateForKind(kind string, old, new map[string]any) bool {
+	if strings.TrimSpace(strings.ToLower(kind)) == "host" {
+		return false
+	}
+	return configNeedsRecreate(old, new)
+}
+
 func configNeedsRecreate(old, new map[string]any) bool {
 	for _, k := range recreateTopKeys {
 		if k == "command" {
@@ -658,8 +670,16 @@ func UpdateInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	for k, v := range newCfg {
 		merged[k] = v
 	}
+	// Host has no VM/container: never store image/ports/mounts and never
+	// recreate on edit — the stored config stays limited to what the host
+	// driver consumes (command/env/working_dir).
+	if strings.TrimSpace(strings.ToLower(inst.Kind)) == "host" {
+		for _, k := range []string{"image", "image_name", "images", "docker_images", "default_image", "ports", "mounts", "volumes"} {
+			delete(merged, k)
+		}
+	}
 
-	needsRecreate := configNeedsRecreate(oldCfg, merged) &&
+	needsRecreate := configNeedsRecreateForKind(inst.Kind, oldCfg, merged) &&
 		inst.ExternalID != "" &&
 		inst.Status != "destroyed"
 

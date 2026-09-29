@@ -618,7 +618,16 @@ const TemplateForm: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <GlassField label="Kind" htmlFor="kind">
-                <select id="kind" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as DriverKind })} className="glass-field">
+                <select id="kind" value={form.kind} onChange={(e) => {
+                  const next = e.target.value as DriverKind;
+                  // Switching to host drops image/ports/mounts/multi-image at
+                  // once so Section B + Spec Preview never show stale rows.
+                  if (next === 'host') {
+                    setForm({ ...form, kind: next, image: '', images: [], ports: [], mounts: [] });
+                  } else {
+                    setForm({ ...form, kind: next });
+                  }
+                }} className="glass-field">
                   <option value="docker">Docker</option>
                   <option value="lxd">LXD</option>
                   <option value="kvm">KVM</option>
@@ -626,12 +635,20 @@ const TemplateForm: React.FC = () => {
                   <option value="host">Host (direct shell service)</option>
                 </select>
               </GlassField>
+              {form.kind === 'host' ? (
+                <div>
+                  <span className="block text-sm font-medium text-gray-300 mb-1 ks-label">Image</span>
+                  <p className="text-xs text-emerald-400 border border-emerald-700/30 bg-emerald-950/20 rounded px-3 py-2">Host templates need no image — the service runs directly on the edge host.</p>
+                </div>
+              ) : (
               <div>
-                <GlassField label={form.kind === 'host' ? 'Image (optional label)' : 'Image'} htmlFor="image">
-                  <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder={form.kind === 'host' ? 'optional label (e.g. host-service:1.0)' : 'e.g. itzg/minecraft-server:latest or {{IMAGE}}'} required={form.kind !== 'host'} />
+                <GlassField label="Image" htmlFor="image">
+                  <input id="image" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} placeholder="e.g. itzg/minecraft-server:latest or {{IMAGE}}" required />
                 </GlassField>
                 <p className="text-[11px] text-gray-500 mt-1">Default runtime. {'{{IMAGE}}'} / {'${IMAGE}'} / {'$(IMAGE)'} + a select env var also works, but named runtimes below are the first-class multi-image map.</p>
               </div>
+              )}
+              {form.kind !== 'host' && (
               <TemplateImagesSection
                 images={form.images}
                 onImageUpdate={(i, patch) => setForm((f) => { const im = [...f.images]; im[i] = { ...im[i], ...patch }; return { ...f, images: im }; })}
@@ -643,6 +660,7 @@ const TemplateForm: React.FC = () => {
                 monoCls={monoCls}
                 addBtn={addBtn}
               />
+              )}
               <GlassField label="Category" htmlFor="category">
                 <TagPicker value={form.category} options={['game', 'web', 'database', 'proxy', 'bot', 'other']} placeholder="game" onChange={(v) => setForm({ ...form, category: v })} onAdd={(v) => setForm({ ...form, category: v })} onDelete={() => setForm({ ...form, category: '' })} />
               </GlassField>
