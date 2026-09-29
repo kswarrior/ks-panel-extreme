@@ -305,6 +305,28 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const panelPagesNav = usePanelPagesStore((s) => s.nav);
   const loadPanelPages = usePanelPagesStore((s) => s.load);
   const isCollapsed = collapsed;
+  const location = useLocation();
+
+  // System submenu — the System page no longer has its own scope tabs; the
+  // Host/Panel choice lives here (?tab=host|panel on /system). The group
+  // auto-expands whenever the user lands on /system (link, refresh, bell).
+  const onSystem = location.pathname === '/system';
+  const systemTab = new URLSearchParams(location.search).get('tab') === 'panel' ? 'panel' : 'host';
+  const [systemOpen, setSystemOpen] = React.useState(onSystem);
+  React.useEffect(() => {
+    if (location.pathname === '/system') setSystemOpen(true);
+  }, [location.pathname]);
+
+  const toggleSystem = () => {
+    // Collapsed rail has no room for children: expand the sidebar and open
+    // the group instead so Host/Panel stay one tap away.
+    if (isCollapsed) {
+      setCollapsed(false);
+      setSystemOpen(true);
+      return;
+    }
+    setSystemOpen((v) => !v);
+  };
 
   // Custom pages (Settings > Pages) for the sidebar. Server-filtered by the
   // caller's role; loaded once a session exists and refreshed whenever the
@@ -380,6 +402,62 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     '/notifications': 'Support',
   };
 
+  // System group — one card holding the System row plus its Host/Panel
+  // sub-links. Only the sub-links navigate (and close the sidebar, incl.
+  // the phone overlay via onClose); the System row itself just expands.
+  const renderSystemGroup = (item: SubItem) => {
+    const subs = [
+      { to: '/system?tab=host', label: 'Host', icon: 'Host', active: onSystem && systemTab === 'host' },
+      { to: '/system?tab=panel', label: 'Panel', icon: 'Panel', active: onSystem && systemTab === 'panel' },
+    ];
+    const expanded = systemOpen && !isCollapsed;
+    return (
+      <div
+        key={item.to}
+        className={`rounded-lg border transition-colors ${expanded ? 'border-white/10 bg-white/[0.03] p-1 space-y-1' : 'border-transparent'}`}
+      >
+        <button
+          type="button"
+          onClick={toggleSystem}
+          aria-expanded={expanded}
+          aria-controls="system-submenu"
+          title={isCollapsed ? item.label : undefined}
+          className={`flex w-full items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+            isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
+          } ${onSystem ? 'ks-nav-active' : ''}`}
+        >
+          <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
+            {Icons[item.icon]}
+          </span>
+          {!isCollapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
+          {!isCollapsed && (
+            <span className={`shrink-0 text-gray-500 transition-transform ${systemOpen ? 'rotate-180' : ''}`}>
+              {Icons.Chevron}
+            </span>
+          )}
+        </button>
+        {expanded && (
+          <div id="system-submenu" className="space-y-1 pb-0.5">
+            {subs.map((s) => (
+              <Link
+                key={s.to}
+                to={s.to}
+                onClick={onClose}
+                aria-current={s.active ? 'page' : undefined}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 pl-9 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
+              >
+                <span className="shrink-0 flex items-center justify-center">
+                  {Icons[s.icon]}
+                </span>
+                <span className="truncate">{s.label}</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderNavItem = (item: SubItem) => (
     <NavLink
       key={item.to}
@@ -442,7 +520,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
                       {title}
                     </p>
                   )}
-                  {items.map((item) => renderNavItem(item))}
+                  {items.map((item) => (item.to === '/system' ? renderSystemGroup(item) : renderNavItem(item)))}
                 </React.Fragment>
               );
             })}

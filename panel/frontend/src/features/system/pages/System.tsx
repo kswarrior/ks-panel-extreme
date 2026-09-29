@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { systemSnapshot } from '@/shared/api/admin';
 import type {
   SystemSnapshot,
@@ -15,7 +15,6 @@ import type {
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
-import SystemTabs from '../components/SystemTabs';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
 import HostPanel from '../components/HostPanel';
 import PanelTab from '../components/PanelTab';
@@ -36,7 +35,10 @@ const System: React.FC = () => {
   const [recentCPU, setRecentCPU] = useState<number[]>([]);
   const [recentRAM, setRecentRAM] = useState<number[]>([]);
   const [recentLoad, setRecentLoad] = useState<number[]>([]);
-  const [tab, setTab] = useState<'host' | 'panel'>('host');
+  // Scope selection moved to the sidebar (System › Host / Panel). The tab
+  // is URL-driven (?tab=panel) so sub-links, refresh and back-button agree.
+  const [searchParams] = useSearchParams();
+  const tab = searchParams.get('tab') === 'panel' ? 'panel' : 'host';
 
   const { info, infoLoading, infoErr, reload } = useUpdateInfo();
 
