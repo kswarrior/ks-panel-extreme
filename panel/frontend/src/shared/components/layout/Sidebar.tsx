@@ -407,25 +407,22 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
             <SidebarSkeleton collapsed={isCollapsed} />
           ) : (
             <>
-            {canAdmin &&
-            adminEntries.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
-                    isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
-                  } ${isActive ? 'ks-nav-active' : ''}`
-                }
-                title={isCollapsed ? item.label : undefined}
-              >
-                <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
-                  {Icons[item.icon]}
-                </span>
-                {!isCollapsed && <span className="truncate">{item.label}</span>}
-              </NavLink>
-            ))}
+            {canAdmin && mainBefore.map((item) => renderNavItem(item))}
+            {/* Extensions category — one section for Mods + Applications + Stacks.
+                Static header (mirrors the Pages section pattern); hidden when
+                collapsed, icons stay visible. Hidden entirely when the role
+                has none of the three permissions. */}
+            {extensionEntries.length > 0 && (
+              <>
+                {!isCollapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                    Extensions
+                  </p>
+                )}
+                {extensionEntries.map((item) => renderNavItem(item))}
+              </>
+            )}
+            {canAdmin && mainAfter.map((item) => renderNavItem(item))}
             {/* Custom pages (Settings > Pages: About, Docs, …). Enabled +
                 role-filtered server-side; each carries its own SVG glyph. */}
             {panelPagesNav.length > 0 && (
