@@ -398,13 +398,19 @@ const TemplateForm: React.FC = () => {
     setSaving(true);
     setError('');
     try {
-      const spec = serializeSpec(form);
+      // Host runs directly on the edge filesystem: never persist an image,
+      // multi-image runtimes, ports or mounts. Strip them here so stale
+      // values from a previous kind (or an old spec) self-heal on save.
+      const effectiveForm = form.kind === 'host'
+        ? { ...form, image: '', images: [], ports: [], mounts: [] }
+        : form;
+      const spec = serializeSpec(effectiveForm);
       const icon = (form as any).icon?.trim?.() || '';
       const color = (form as any).color?.trim?.().toUpperCase() || '';
       if (editing) {
-        await updateTemplate(Number(id), { name: form.name, spec, image: form.image, kind: form.kind, description: form.description, icon, color });
+        await updateTemplate(Number(id), { name: form.name, spec, image: effectiveForm.image, kind: form.kind, description: form.description, icon, color });
       } else {
-        await createTemplate({ name: form.name, spec, image: form.image, kind: form.kind, description: form.description, icon, color });
+        await createTemplate({ name: form.name, spec, image: effectiveForm.image, kind: form.kind, description: form.description, icon, color });
       }
       hist.commit();
       navigate('/templates');
