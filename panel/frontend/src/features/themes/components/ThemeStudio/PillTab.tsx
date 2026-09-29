@@ -37,9 +37,9 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
   };
   const hiddenTransform =
     p.animation === 'fade' ? 'none'
-    : p.animation === 'scale' ? 'scale(0.92)'
+    : p.animation === 'scale' ? 'scale(0.9)'
     : p.animation === 'none' ? 'none'
-    : 'translateX(8px)';
+    : 'translateX(12px) scale(0.97)';
   // Tabs Pill menu rises vertically (PageTabsPill), so its slide axis is Y.
   const tabsHiddenTransform =
     p.animation === 'fade' ? 'none'
@@ -204,8 +204,10 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
                       maxWidth: 0,
                       opacity: 0,
                       transform: hiddenTransform,
+                      filter: p.animation === 'fade' || p.animation === 'none' ? undefined : 'blur(4px)',
                       transformOrigin: p.animation === 'scale' ? 'right center' : undefined,
                       transitionDuration: `${p.animation_duration}ms`,
+                      transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
                       transitionProperty: p.animation === 'none' ? 'none' : undefined,
                       pointerEvents: 'none',
                       visibility: 'hidden',
@@ -217,7 +219,9 @@ export const PillTab: React.FC<PillTabProps> = ({ draft, patch }) => {
                       maxWidth: 400,
                       opacity: 1,
                       transform: 'none',
+                      filter: 'blur(0px)',
                       transitionDuration: `${p.animation_duration}ms`,
+                      transitionTimingFunction: 'cubic-bezier(0.32, 0.72, 0, 1)',
                       transitionProperty: p.animation === 'none' ? 'none' : undefined,
                       padding: 0,
                       margin: 0,

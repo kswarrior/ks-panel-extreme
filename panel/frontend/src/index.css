@@ -1720,6 +1720,59 @@ input[type="search"] {
 .ks-actions-pill {
   max-width: calc(100vw - 2rem);
 }
+/* Refined pill motion + glass — theme-driven via --ks-pill-* vars.
+   One spring-like easing everywhere so collapse/expand, mount and the
+   chevron rotation feel like a single gesture. Matches the panel glass:
+   blur + saturate frost plus a faint top sheen via ::before (overlay only,
+   theme background stays on the shell). */
+.ks-card.ks-pill-anim.ks-actions-pill,
+.ks-card.ks-pill-anim.ks-form-actions-pill,
+.ks-card.ks-pill-anim.ks-tabs-pill {
+  transition-property: transform, opacity, padding-left, padding-right, background-color, border-color, box-shadow;
+  transition-duration: var(--ks-pill-anim-duration, 300ms);
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform, padding;
+  backdrop-filter: blur(var(--ks-pill-blur, 6px)) saturate(1.35);
+  -webkit-backdrop-filter: blur(var(--ks-pill-blur, 6px)) saturate(1.35);
+}
+.ks-actions-pill .ks-pill-content,
+.ks-tabs-pill .ks-pill-content {
+  transition-property: max-width, opacity, transform, filter;
+  transition-duration: var(--ks-pill-anim-duration, 300ms);
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: max-width, opacity, transform, filter;
+}
+.ks-pill-toggle-chev {
+  transition: transform var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1);
+  will-change: transform;
+}
+.ks-card.ks-pill-anim.ks-pill-instant,
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-content,
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-toggle,
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-toggle-chev {
+  transition: none;
+}
+@keyframes ks-pill-mount {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ks-pill-outer {
+  animation: ks-pill-mount var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1);
+}
+.ks-actions-pill .ks-pill-toggle:focus-visible,
+.ks-tabs-pill .ks-pill-toggle:focus-visible {
+  outline: 2px solid var(--ks-pill-text, #e5e7eb);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ks-card.ks-pill-anim,
+  .ks-card.ks-pill-anim .ks-pill-content,
+  .ks-card.ks-pill-anim .ks-pill-toggle-chev,
+  .ks-pill-outer {
+    transition: none;
+    animation: none;
+  }
+}
 @media (max-width: 639px) {
   .ks-actions-pill .ks-pill-content {
     min-width: 0;

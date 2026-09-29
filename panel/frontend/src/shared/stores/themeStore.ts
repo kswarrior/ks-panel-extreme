@@ -2502,12 +2502,18 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
    toggle --ks-tab-px theme <-> 4px) animates with the content instead of
    snapping — without this the shell jumps ~16px at the toggle instant
    while .ks-pill-content's max-width still slides over 300ms. Duration
-   follows the Pill tab so all three stay in sync. */
+   follows the Pill tab so all three stay in sync. One spring-like easing
+   everywhere + GPU-friendly props (transform/opacity/filter) keep the
+   motion buttery; saturate on the frost matches the panel glass. */
 .ks-card.ks-pill-anim.ks-actions-pill,
 .ks-card.ks-pill-anim.ks-form-actions-pill,
 .ks-card.ks-pill-anim.ks-tabs-pill {
-  transition-property: transform, opacity, padding-left, padding-right !important;
+  transition-property: transform, opacity, padding-left, padding-right, background-color, border-color, box-shadow !important;
   transition-duration: var(--ks-pill-anim-duration, 300ms) !important;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+  will-change: transform, padding !important;
+  backdrop-filter: blur(var(--ks-pill-blur)) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(var(--ks-pill-blur)) saturate(1.35) !important;
 }
 .ks-actions-pill .ks-pill-toggle,
 .ks-form-actions-pill .ks-pill-toggle,
@@ -2528,7 +2534,39 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
 .ks-actions-pill .ks-pill-content,
 .ks-tabs-pill .ks-pill-content {
   gap: var(--ks-pill-gap) !important;
+  transition-property: max-width, opacity, transform, filter !important;
   transition-duration: var(--ks-pill-anim-duration) !important;
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+  will-change: max-width, opacity, transform, filter !important;
+}
+.ks-pill-toggle-chev {
+  transition: transform var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1) !important;
+  will-change: transform !important;
+}
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-content,
+.ks-card.ks-pill-anim.ks-pill-instant .ks-pill-toggle-chev {
+  transition: none !important;
+}
+@keyframes ks-pill-mount {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ks-pill-outer {
+  animation: ks-pill-mount var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+.ks-actions-pill .ks-pill-toggle:focus-visible,
+.ks-tabs-pill .ks-pill-toggle:focus-visible {
+  outline: 2px solid var(--ks-pill-text) !important;
+  outline-offset: 2px !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ks-card.ks-pill-anim,
+  .ks-card.ks-pill-anim .ks-pill-content,
+  .ks-card.ks-pill-anim .ks-pill-toggle-chev,
+  .ks-pill-outer {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 .ks-actions-pill {
   max-width: calc(100vw - 2rem) !important;
