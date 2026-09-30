@@ -414,11 +414,11 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     '/notifications': 'Support',
   };
 
-  // System group — closed shows the single System row; open REPLACES it in
-  // place with Host + Panel rows inside the same card at the same alignment
-  // (same gap/px/py as System, no pl-9 indent). Only Host/Panel navigate
-  // (and close the phone overlay via onClose). The chevron button collapses
-  // back to the single System row without navigating.
+  // System group — closed shows the single System row; open shows the same
+  // card with "[SVG] System" on top (click collapses back without
+  // navigating) and "[SVG] Host" + "[SVG] Panel" in ONE horizontal line
+  // below. Only Host/Panel navigate (and close the phone overlay via
+  // onClose).
   const renderSystemGroup = (item: SubItem) => {
     const subs = [
       { to: '/system?tab=host', label: 'Host', icon: 'Host', active: onSystem && systemTab === 'host' },
@@ -455,22 +455,8 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       <div
         key={item.to}
         id="system-submenu"
-        className="relative rounded-lg border border-white/10 bg-white/[0.03] p-1 space-y-1"
+        className="rounded-lg border border-white/10 bg-white/[0.03] p-1 space-y-1"
       >
-        {subs.map((s) => (
-          <Link
-            key={s.to}
-            to={s.to}
-            onClick={onClose}
-            aria-current={s.active ? 'page' : undefined}
-            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 pr-9 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
-          >
-            <span className="shrink-0 flex items-center justify-center">
-              {Icons[s.icon]}
-            </span>
-            <span className="truncate flex-1 text-left">{s.label}</span>
-          </Link>
-        ))}
         <button
           type="button"
           onClick={collapseSystem}
@@ -478,10 +464,32 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           aria-controls="system-submenu"
           aria-label="Collapse System"
           title="Back to System"
-          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-md text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition text-gray-400 ks-nav-item ${onSystem ? 'ks-nav-active' : ''}`}
         >
-          <span className="block rotate-180">{Icons.Chevron}</span>
+          <span className="shrink-0 flex items-center justify-center">
+            {Icons[item.icon]}
+          </span>
+          <span className="truncate flex-1 text-left">{item.label}</span>
+          <span className="shrink-0 text-gray-500 transition-transform rotate-180">
+            {Icons.Chevron}
+          </span>
         </button>
+        <div className="flex gap-1">
+          {subs.map((s) => (
+            <Link
+              key={s.to}
+              to={s.to}
+              onClick={onClose}
+              aria-current={s.active ? 'page' : undefined}
+              className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
+            >
+              <span className="shrink-0 flex items-center justify-center">
+                {Icons[s.icon]}
+              </span>
+              <span className="truncate">{s.label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     );
   };
