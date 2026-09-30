@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
@@ -306,10 +306,14 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const loadPanelPages = usePanelPagesStore((s) => s.load);
   const isCollapsed = collapsed;
   const location = useLocation();
+  const navigate = useNavigate();
 
-  // System submenu — the System page no longer has its own scope tabs; the
-  // Host/Panel choice lives here (?tab=host|panel on /system). The group
-  // auto-expands whenever the user lands on /system (link, refresh, bell).
+  // System group — single "System" row that, once clicked, is REPLACED in
+  // place by its Host/Panel rows inside the same card at the same alignment
+  // (no indented dropdown). Before: Overview > System, Security, Activity,
+  // Database. After one click: Overview > Host, Panel, Security, Activity,
+  // Database. The group auto-expands whenever the user lands on /system
+  // (link, refresh, bell).
   const onSystem = location.pathname === '/system';
   const systemTab = new URLSearchParams(location.search).get('tab') === 'panel' ? 'panel' : 'host';
   const [systemOpen, setSystemOpen] = React.useState(onSystem);
@@ -325,8 +329,16 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       setSystemOpen(true);
       return;
     }
-    setSystemOpen((v) => !v);
+    // Closed → open in place and land on Host so one click shows content.
+    if (!systemOpen) {
+      setSystemOpen(true);
+      if (location.pathname !== '/system') navigate('/system?tab=host');
+      return;
+    }
+    setSystemOpen(false);
   };
+
+  const collapseSystem = () => setSystemOpen(false);
 
   // Custom pages (Settings > Pages) for the sidebar. Server-filtered by the
   // caller's role; loaded once a session exists and refreshed whenever the
