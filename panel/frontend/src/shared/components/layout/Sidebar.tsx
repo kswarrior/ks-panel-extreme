@@ -308,17 +308,17 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const location = useLocation();
   const navigate = useNavigate();
 
-  // System group — single "System" row that, once clicked, is REPLACED in
-  // place by its Host/Panel rows inside the same card at the same alignment
-  // (no indented dropdown). Before: Overview > System, Security, Activity,
-  // Database. After one click: Overview > Host, Panel, Security, Activity,
-  // Database. The group auto-expands whenever the user lands on /system
-  // (link, refresh, bell).
+  // System group — closed: single "System" row. Open: same card shows
+  // "[SVG] System" on top plus "[SVG] Host" + "[SVG] Panel" side by side in
+  // ONE horizontal line below (no vertical dropdown). Clicking any other
+  // page (Security/Activity/Database/…) collapses back to the single System
+  // row. Auto-expands whenever the user lands on /system (link, refresh,
+  // bell).
   const onSystem = location.pathname === '/system';
   const systemTab = new URLSearchParams(location.search).get('tab') === 'panel' ? 'panel' : 'host';
   const [systemOpen, setSystemOpen] = React.useState(onSystem);
   React.useEffect(() => {
-    if (location.pathname === '/system') setSystemOpen(true);
+    setSystemOpen(location.pathname === '/system');
   }, [location.pathname]);
 
   const toggleSystem = () => {
