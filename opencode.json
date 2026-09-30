@@ -21,7 +21,7 @@
     },
     "sqlite": {
       "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./backend/kspanel.db"],
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./panel/backend/kspanel.db"],
       "enabled": false
     }
   }
