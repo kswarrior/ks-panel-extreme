@@ -414,58 +414,74 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     '/notifications': 'Support',
   };
 
-  // System group — one card holding the System row plus its Host/Panel
-  // sub-links. Only the sub-links navigate (and close the sidebar, incl.
-  // the phone overlay via onClose); the System row itself just expands.
+  // System group — closed shows the single System row; open REPLACES it in
+  // place with Host + Panel rows inside the same card at the same alignment
+  // (same gap/px/py as System, no pl-9 indent). Only Host/Panel navigate
+  // (and close the phone overlay via onClose). The chevron button collapses
+  // back to the single System row without navigating.
   const renderSystemGroup = (item: SubItem) => {
     const subs = [
       { to: '/system?tab=host', label: 'Host', icon: 'Host', active: onSystem && systemTab === 'host' },
       { to: '/system?tab=panel', label: 'Panel', icon: 'Panel', active: onSystem && systemTab === 'panel' },
     ];
     const expanded = systemOpen && !isCollapsed;
+    if (!expanded) {
+      return (
+        <div key={item.to} className="rounded-lg border border-transparent">
+          <button
+            type="button"
+            onClick={toggleSystem}
+            aria-expanded={false}
+            aria-controls="system-submenu"
+            title={isCollapsed ? item.label : undefined}
+            className={`flex w-full items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+              isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
+            } ${onSystem ? 'ks-nav-active' : ''}`}
+          >
+            <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
+              {Icons[item.icon]}
+            </span>
+            {!isCollapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
+            {!isCollapsed && (
+              <span className="shrink-0 text-gray-500 transition-transform">
+                {Icons.Chevron}
+              </span>
+            )}
+          </button>
+        </div>
+      );
+    }
     return (
       <div
         key={item.to}
-        className={`rounded-lg border transition-colors ${expanded ? 'border-white/10 bg-white/[0.03] p-1 space-y-1' : 'border-transparent'}`}
+        id="system-submenu"
+        className="relative rounded-lg border border-white/10 bg-white/[0.03] p-1 space-y-1"
       >
+        {subs.map((s) => (
+          <Link
+            key={s.to}
+            to={s.to}
+            onClick={onClose}
+            aria-current={s.active ? 'page' : undefined}
+            className={`flex w-full items-center gap-3 rounded-md px-3 py-2 pr-9 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
+          >
+            <span className="shrink-0 flex items-center justify-center">
+              {Icons[s.icon]}
+            </span>
+            <span className="truncate flex-1 text-left">{s.label}</span>
+          </Link>
+        ))}
         <button
           type="button"
-          onClick={toggleSystem}
-          aria-expanded={expanded}
+          onClick={collapseSystem}
+          aria-expanded={true}
           aria-controls="system-submenu"
-          title={isCollapsed ? item.label : undefined}
-          className={`flex w-full items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
-            isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
-          } ${onSystem ? 'ks-nav-active' : ''}`}
+          aria-label="Collapse System"
+          title="Back to System"
+          className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-md text-gray-500 hover:text-white hover:bg-white/10 transition-colors"
         >
-          <span className={`shrink-0 flex items-center justify-center ${isCollapsed ? 'text-gray-100' : ''}`}>
-            {Icons[item.icon]}
-          </span>
-          {!isCollapsed && <span className="truncate flex-1 text-left">{item.label}</span>}
-          {!isCollapsed && (
-            <span className={`shrink-0 text-gray-500 transition-transform ${systemOpen ? 'rotate-180' : ''}`}>
-              {Icons.Chevron}
-            </span>
-          )}
+          <span className="block rotate-180">{Icons.Chevron}</span>
         </button>
-        {expanded && (
-          <div id="system-submenu" className="space-y-1 pb-0.5">
-            {subs.map((s) => (
-              <Link
-                key={s.to}
-                to={s.to}
-                onClick={onClose}
-                aria-current={s.active ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 pl-9 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
-              >
-                <span className="shrink-0 flex items-center justify-center">
-                  {Icons[s.icon]}
-                </span>
-                <span className="truncate">{s.label}</span>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
     );
   };
