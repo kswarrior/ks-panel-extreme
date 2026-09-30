@@ -18,11 +18,6 @@
       "headers": {
         "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
-    },
-    "sqlite": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-sqlite", "--db-path", "./panel/backend/kspanel.db"],
-      "enabled": false
     }
   }
 }
