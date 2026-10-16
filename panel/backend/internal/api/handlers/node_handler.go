@@ -362,10 +362,24 @@ func validateNodeDisplay(name, label, category, notes, icon, color string) strin
 // probeResultJSON is what the probe handlers emit per node. reachability is a
 // tri-state ("yes"|"no"|"unknown") so the frontend can display the four
 // distinct cases without forwarding a nullable bool through JSX holes.
+// latency_ms is the measured panel→edge RTT for this probe (additive field;
+// older frontends ignore it).
 type probeResultJSON struct {
 	NodeID    int64  `json:"node_id"`
 	Reachable string `json:"reachable"` // "yes" | "no" | "unknown"
 	Name      string `json:"name,omitempty"`
+	Note      string `json:"note,omitempty"`
+	LatencyMs int64  `json:"latency_ms"`
+}
+
+// pingResultJSON is what the lightweight GET /api/nodes/{id}/ping endpoint
+// emits. Unlike the POST /probe verbs it performs NO DB write and NO audit
+// row so the nodes grid can poll it every second for the live ms badge
+// without spamming node rows or activity_logs.
+type pingResultJSON struct {
+	NodeID    int64  `json:"node_id"`
+	Reachable string `json:"reachable"` // "yes" | "no"
+	LatencyMs int64  `json:"latency_ms"`
 	Note      string `json:"note,omitempty"`
 }
 

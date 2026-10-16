@@ -122,7 +122,20 @@ func clientFor(node models.Node) *http.Client {
 // The address may carry no port (e.g. a Cloudflare-tunnel hostname); the HTTP
 // client then dials the default port for the scheme. Per-node HealthTimeout
 // and SkipTLSVerify override the package defaults when set.
+//
+// Probe is a timing wrapper: it records wall-clock latency into
+// Result.LatencyMs on every path so callers (notably the card's 1s ping
+// badge) get a true panel→edge RTT without a second dial.
 func Probe(node models.Node) Result {
+	start := time.Now()
+	res := probeInner(node)
+	res.LatencyMs = time.Since(start).Milliseconds()
+	return res
+}
+
+// probeInner holds the original dial + classify logic. Probe wraps it to
+// stamp LatencyMs.
+func probeInner(node models.Node) Result {
 	// For WSS tunnel modes, probe via tunnel connectivity instead of direct HTTP.
 	// Dual-transport modes (both/local_both) prefer the tunnel when connected
 	// and fall back to direct HTTP otherwise (same as local_wss). Only
