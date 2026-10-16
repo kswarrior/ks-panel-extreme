@@ -550,8 +550,11 @@ const AdminNodes: React.FC = () => {
                       <p className="text-xs truncate" style={{ color: 'var(--ks-text-body)' }}>{n.notes}</p>
                     )}
                   </div>
-                  <div className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wide px-2 py-1 rounded-md border ${st.badge}`}>
-                    {st.label}
+                  <div
+                    className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded-md border tabular-nums ${st.badge} ${resolved === 'up' && pingMap[n.id] !== undefined ? 'normal-case tracking-normal font-mono' : 'uppercase tracking-wide'}`}
+                    title={resolved === 'up' ? 'Live panel→edge ping, refreshes every second' : undefined}
+                  >
+                    {resolved === 'up' && pingMap[n.id] !== undefined ? `${pingMap[n.id]} ms` : st.label}
                   </div>
                 </header>
 
