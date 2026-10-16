@@ -1483,6 +1483,47 @@ const NodeForm: React.FC = () => {
               </pre>
             </div>
           )}
+
+          {tokenInfo.configToken && (
+            <div className="mt-4 border-t border-white/10 pt-3">
+              <p className="text-sm text-gray-300 mb-1">
+                One-command setup on the edge — writes config.toml itself via WSS with the one-time token (single use, expires in 30 min):
+              </p>
+              <div className="space-y-3 mt-2">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-xs text-gray-400">ksedge already installed — fetch config.toml over WSS:</p>
+                    <button
+                      onClick={() => copyText(buildConfigFetchCmd(tokenInfo.configToken!))}
+                      className="ks-primary-btn shrink-0 inline-flex items-center gap-1.5 bg-white text-black text-xs px-2.5 py-1.5 rounded hover:bg-gray-200"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto">
+                    {buildConfigFetchCmd(tokenInfo.configToken)}
+                  </pre>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-xs text-gray-400">Fresh host — install ksedge, fetch config.toml and launch:</p>
+                    <button
+                      onClick={() => copyText(buildInstallConfigCmd(tokenInfo.configToken!))}
+                      className="ks-primary-btn shrink-0 inline-flex items-center gap-1.5 bg-white text-black text-xs px-2.5 py-1.5 rounded hover:bg-gray-200"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre className="bg-black border border-white/10 rounded-md px-3 py-2 text-xs text-gray-200 overflow-x-auto">
+                    {buildInstallConfigCmd(tokenInfo.configToken)}
+                  </pre>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-1.5">
+                Both commands redeem the same single-use token — pick one. The edge dials the panel over WSS, receives the generated config.toml and writes it next to the ksedge binary.
+              </p>
+            </div>
+          )}
         </GlassModal>
       )}
 
