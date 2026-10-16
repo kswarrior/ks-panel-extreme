@@ -54,6 +54,7 @@ verbatim onto the edge machine.`,
 	root.AddCommand(launchCmd())
 	root.AddCommand(superviseCmd())
 	root.AddCommand(updateCmd())
+	root.AddCommand(configCmd())
 	return root
 }
 
