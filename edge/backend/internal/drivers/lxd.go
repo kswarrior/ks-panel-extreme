@@ -47,7 +47,7 @@ func (d *lxd) Deploy(ctx context.Context, name string, cfg map[string]any) (Resu
 
 // buildLXDDeployArgs turns the merged template spec the panel hands us into
 // the `lxc launch` argv. Factored out so the profile-alias resolution that
-// the four-driver "template → instance" flow depends on is unit-testable
+// the five-driver "template → instance" flow depends on is unit-testable
 // without shelling out to `lxc`.
 //
 // Profile field-name aliases:

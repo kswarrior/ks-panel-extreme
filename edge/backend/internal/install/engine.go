@@ -1,6 +1,6 @@
 // Package install implements the post-deploy "install workflow" that runs
-// inside a freshly-deployed workload (a docker container today, lxd/kvm/
-// multipass tomorrow via the same Driver.Exec contract).
+// inside a freshly-deployed workload (docker/lxd/kvm/multipass/host via the
+// same Driver.Exec contract).
 //
 // The panel captures the operator-authored spec.install[] workflow in the
 // TemplateForm UI (download / extract / write / chmod / move / mkdir /
