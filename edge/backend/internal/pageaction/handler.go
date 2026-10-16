@@ -39,7 +39,7 @@ const (
 // Input is the request body for page action execution
 type Input struct {
 	Token    string                 `json:"token"`
-	Kind     string                 `json:"kind"`    // docker, lxd, kvm, multipass
+	Kind     string                 `json:"kind"`    // docker, lxd, kvm, multipass, host
 	Name     string                 `json:"name"`    // instance name
 	Type     ActionType             `json:"type"`    // action type
 	Command  string                 `json:"command"` // command to execute (for shell)

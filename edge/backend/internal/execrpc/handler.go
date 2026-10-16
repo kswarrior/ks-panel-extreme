@@ -13,7 +13,7 @@
 // already use serves us. Env is exported at the top of the script because the
 // Driver.Exec interface has no env hook (docker exec would need per-run -e
 // flags; sh-level export keeps the code path identical across docker/lxd/
-// multipass/kvm).
+// multipass/kvm/host).
 package execrpc
 
 import (

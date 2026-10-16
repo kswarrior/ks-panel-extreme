@@ -88,8 +88,8 @@ type Driver interface {
 	// main process's stdin (tps / op / stop …); Stdout/Stderr carry its
 	// console output. Implementations SHOULD replay recent history first
 	// (e.g. `docker logs --tail`) so a freshly-attached console is not
-	// blank. Drivers without main-process attach (kvm, lxd, multipass)
-	// return an error and the caller surfaces it fail-closed.
+	// blank. Drivers without main-process attach (kvm, lxd, multipass,
+	// host) return an error and the caller surfaces it fail-closed.
 	// The container normally needs an open stdin (docker: started with
 	// `-i`) for input to land; without it output still streams but
 	// writes are dropped by the runtime.
@@ -112,7 +112,7 @@ Runner(ctx context.Context, name string) (metrics, processes, ports, info string
 // into the live container. For docker it re-creates the container with
 // new -p flags when it is running; for stopped / missing containers it
 // is a no-op (DB-only path). Drivers that don't support ports (kvm,
-// lxd, multipass) return nil without touching the workload.
+// lxd, multipass, host) return nil without touching the workload.
 UpdatePorts(ctx context.Context, name string, allocs []PortAllocation) error
 // Snapshot creates, restores, or deletes a snapshot of the instance.
 // Action is one of "create", "restore", "delete".

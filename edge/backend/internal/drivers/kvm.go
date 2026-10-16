@@ -42,7 +42,7 @@ func (d *kvm) Deploy(ctx context.Context, name string, cfg map[string]any) (Resu
 
 // buildKVMDeployArgs turns the merged template spec the panel hands us into
 // the `virt-install` argv. It is factored out of Deploy so the alias
-// resolution + empty-flag skipping logic the four-driver "template →
+// resolution + empty-flag skipping logic the five-driver "template →
 // instance" flow depends on is unit-testable without shelling out to
 // virt-install.
 //

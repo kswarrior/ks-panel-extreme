@@ -114,6 +114,17 @@ func launchCmd() *cobra.Command {
 			if skipVerify {
 				cfg.SkipVerify = true
 			}
+			// Bridge the operator-configured instances_dir to the drivers
+			// package: the host driver (drivers/host.go) and the kind=host
+			// file manager (files/host_instance.go) read
+			// KSPANEL_INSTANCES_DIR, so exporting the resolved value keeps
+			// them on the same root as /api/edge/hostfiles (which reads the
+			// config directly). Only exported when explicitly configured —
+			// otherwise the drivers keep their documented default with the
+			// non-root temp fallback.
+			if strings.TrimSpace(cfg.InstancesDir) != "" {
+				_ = os.Setenv("KSPANEL_INSTANCES_DIR", cfg.InstancesDirOr(""))
+			}
 
 			// Surface obvious misconfigurations loudly before they manifest
 			// as a card that never turns green. validateConfigFormat runs the
