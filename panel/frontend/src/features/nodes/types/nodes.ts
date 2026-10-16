@@ -38,9 +38,10 @@ export const STATE_STYLES: Record<Node['state'] & string, StateStyle> = {
   },
 };
 
-export const DRIVER_ARCS: { key: 'driver_docker' | 'driver_kvm' | 'driver_multipass' | 'driver_lxd'; color: string; label: string }[] = [
+export const DRIVER_ARCS: { key: 'driver_docker' | 'driver_kvm' | 'driver_multipass' | 'driver_lxd' | 'driver_host'; color: string; label: string }[] = [
   { key: 'driver_docker', color: '#60a5fa', label: 'Docker' },
   { key: 'driver_kvm', color: '#34d399', label: 'KVM' },
   { key: 'driver_multipass', color: '#fbbf24', label: 'Multipass' },
   { key: 'driver_lxd', color: '#f472b6', label: 'LXD' },
+  { key: 'driver_host', color: '#22d3ee', label: 'Host' },
 ];

@@ -255,18 +255,20 @@ const NodeStats: React.FC = () => {
   [nodeStats.byLocation]);
 
   const driverSlices = useMemo(() => {
-    const drivers = { docker: 0, kvm: 0, multipass: 0, lxd: 0 };
+    const drivers = { docker: 0, kvm: 0, multipass: 0, lxd: 0, host: 0 };
     filteredNodes.forEach((n) => {
       if (n.driver_docker) drivers.docker++;
       if (n.driver_kvm) drivers.kvm++;
       if (n.driver_multipass) drivers.multipass++;
       if (n.driver_lxd) drivers.lxd++;
+      if (n.driver_host) drivers.host++;
     });
     return [
       { label: 'Docker', value: drivers.docker, color: '#60a5fa' },
       { label: 'KVM', value: drivers.kvm, color: '#34d399' },
       { label: 'Multipass', value: drivers.multipass, color: '#fbbf24' },
       { label: 'LXD', value: drivers.lxd, color: '#f472b6' },
+      { label: 'Host', value: drivers.host, color: '#22d3ee' },
     ].filter(s => s.value > 0);
   }, [filteredNodes]);
 

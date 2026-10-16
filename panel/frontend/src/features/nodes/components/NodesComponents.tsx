@@ -45,7 +45,7 @@ export const DriverRing: React.FC<{ node: Node }> = ({ node }) => {
   const r = 11;
   const stroke = 5;
   const c = 2 * Math.PI * r;
-  const seg = c / 4;
+  const seg = c / DRIVER_ARCS.length;
   const grey = '#374151';
   const driversOk = node.hw_drivers_ok !== false;
   return (

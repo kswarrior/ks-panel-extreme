@@ -33,7 +33,7 @@ export interface Node {
   /** Override for the local-edge install directory (empty = ./localnode/ksedge-<id>). */
   install_dir: string;
   /** Comma-locked set of instance kinds that may deploy to this edge
-   * ("docker,kvm,multipass,lxd"). Empty = no restriction. */
+   * ("docker,kvm,multipass,lxd,host"). Empty = no restriction. */
   allowed_kinds: string;
   /** Panel-side memory cap (MiB). 0 = unset / inherit live telemetry. */
   alloc_mem_mib: number;
@@ -79,11 +79,12 @@ export interface Node {
   state?: 'pending' | 'down' | 'partial' | 'up';
   /** 0-100 rolling uptime over the trailing 24h. */
   uptime_pct: number;
-  /** Driver availability reported by ksedge — drives the 4-segment ring. */
+  /** Driver availability reported by ksedge — drives the 5-segment ring. */
   driver_docker: boolean;
   driver_kvm: boolean;
   driver_multipass: boolean;
   driver_lxd: boolean;
+  driver_host: boolean;
   /**
    * Per-metric "did the edge actually collect this?" flags. A false on
    * `hw_ram_ok` means "the edge swallowed a /proc error and sent a fake 0",

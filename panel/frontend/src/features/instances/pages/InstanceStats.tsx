@@ -155,7 +155,7 @@ const InstanceStats: React.FC = () => {
       .map(([label, value], i) => ({
         label,
         value,
-        color: label === 'docker' ? '#38bdf8' : label === 'lxd' ? '#a78bfa' : label === 'kvm' ? '#f97316' : label === 'multipass' ? '#ec4899' : '#9ca3af',
+        color: label === 'docker' ? '#38bdf8' : label === 'lxd' ? '#a78bfa' : label === 'kvm' ? '#f97316' : label === 'multipass' ? '#ec4899' : label === 'host' ? '#34d399' : '#9ca3af',
       })),
   [stats.byKind]);
 

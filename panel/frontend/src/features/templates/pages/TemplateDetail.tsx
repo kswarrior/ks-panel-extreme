@@ -57,6 +57,7 @@ function kindMeta(kind: string) {
   if (k === 'lxd') return { label: 'LXD', cls: 'bg-indigo-900/50 border-indigo-700/40 text-indigo-200', dot: 'bg-indigo-400' };
   if (k === 'kvm') return { label: 'KVM', cls: 'bg-orange-900/50 border-orange-700/40 text-orange-200', dot: 'bg-orange-400' };
   if (k === 'multipass') return { label: 'Multipass', cls: 'bg-fuchsia-900/50 border-fuchsia-700/40 text-fuchsia-200', dot: 'bg-fuchsia-400' };
+  if (k === 'host') return { label: 'Host', cls: 'bg-emerald-900/50 border-emerald-700/40 text-emerald-200', dot: 'bg-emerald-400' };
   return { label: kind || 'Unknown', cls: 'bg-white/5 border-white/10 text-gray-300', dot: 'bg-gray-500' };
 }
 

@@ -234,6 +234,7 @@ const TemplateStats: React.FC = () => {
                           <option value="lxd">LXD</option>
                           <option value="kvm">KVM</option>
                           <option value="multipass">Multipass</option>
+                          <option value="host">Host</option>
                         </select>
                       </div>
                       <div>
