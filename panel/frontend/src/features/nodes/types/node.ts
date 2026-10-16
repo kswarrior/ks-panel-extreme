@@ -128,12 +128,25 @@ export interface CreateNodeResult {
  * ProbeResult is what the panel's `/api/nodes/{id}/probe` endpoint
  * returns. `reachable: "yes"` means a real ksedge answered with its name;
  * "no" is everything from "port closed" to "a different webserver is
- * squatting the port".
+ * squatting the port". `latency_ms` is the measured panel→edge RTT.
  */
 export interface ProbeResult {
   node_id: number;
   reachable: 'yes' | 'no' | 'unknown';
   name?: string;
+  note?: string;
+  latency_ms?: number;
+}
+
+/**
+ * PingResult is what the lightweight `GET /api/nodes/{id}/ping` endpoint
+ * returns. Same dial as probe but with NO DB write and NO audit row, so
+ * the nodes grid can poll it every second for the live ms badge.
+ */
+export interface PingResult {
+  node_id: number;
+  reachable: 'yes' | 'no';
+  latency_ms: number;
   note?: string;
 }
 

@@ -1,7 +1,7 @@
 import client from '@/shared/api/client';
 import type { User, Role, Permission } from '@/shared/types/user';
 import type { ApiKey, ApiKeyMutationPayload } from '@/features/api-keys/types/apiKey';
-import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, SetupLocalResult, NodeUpdateInfoResponse, NodeUpdateCheckResponse, NodeUpdateApplyResponse, NodeReinstallBackgroundResponse, RollingFleetUpdatePayload, RollingFleetUpdateResponse, UpdateWindow, UpdateWindowUpsert } from '@/features/nodes/types/node';
+import type { Node, NodeHeartbeat, CreateNodeResult, ProbeResult, PingResult, SetupLocalResult, NodeUpdateInfoResponse, NodeUpdateCheckResponse, NodeUpdateApplyResponse, NodeReinstallBackgroundResponse, RollingFleetUpdatePayload, RollingFleetUpdateResponse, UpdateWindow, UpdateWindowUpsert } from '@/features/nodes/types/node';
 import type { Template, Instance, DeployRequest } from '@/features/instances/types/instance';
 import type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload } from '@/features/instance-pages/types/instancePage';
 export type { InstancePage, CreateInstancePagePayload, UpdateInstancePagePayload };
