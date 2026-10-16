@@ -1,6 +1,6 @@
 // Package edge is the panel's outbound RPC client to a ksedge daemon.
 //
-// The panel never executes docker/lxd/kvm/multipass itself — it always asks
+// The panel never executes docker/lxd/kvm/multipass/host itself — it always asks
 // the owning edge node to do it. Keeping execution on the edge keeps the
 // panel stateless, lets a single panel drive many heterogeneous hosts, and
 // mirrors the same trust boundary the heartbeat ingest already uses: the
@@ -317,7 +317,7 @@ type LifecycleRequest struct {
 	Token string `json:"token"`
 	// "deploy" | "start" | "stop" | "destroy" | "inspect".
 	Action string `json:"action"`
-	// "docker" | "lxd" | "kvm" | "multipass".
+	// "docker" | "lxd" | "kvm" | "multipass" | "host".
 	Kind string `json:"kind"`
 	// Instance label (unique per panel).
 	Name string `json:"name"`

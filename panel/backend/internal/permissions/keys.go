@@ -16,7 +16,7 @@ const (
 	// privileges.
 	ManageNodesKey = "MANAGE_NODES"
 	// ManageTemplatesKey gates the Templates admin page — operators define
-	// reusable blueprints for docker/lxd/kvm/multipass instances here.
+	// reusable blueprints for docker/lxd/kvm/multipass/host instances here.
 	ManageTemplatesKey = "MANAGE_TEMPLATES"
 	// ManageInstancesKey gates the Instances admin page — deploy/start/stop
 	// destroy workloads on edge nodes. Kept separate from MANAGE_NODES so a

@@ -558,7 +558,7 @@ func NewRouter() http.Handler {
 		// Admin: template management. MANAGE_TEMPLATES (umbrella) implies
 		// every action; TEMPLATES_* narrow each route. Templates are pure
 		// data — the panel stores a JSON spec; ksedge interprets it through
-		// the matching docker/lxd/kvm/multipass driver at deploy.
+		// the matching docker/lxd/kvm/multipass/host driver at deploy.
 		r.Route("/api/templates", func(r chi.Router) {
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionView)).Get("/", handlers.ListTemplatesHandler)
 			r.With(requireUmbrellaOrAction(templatesG, permissions.ActionCreate)).Post("/", handlers.CreateTemplateHandler)

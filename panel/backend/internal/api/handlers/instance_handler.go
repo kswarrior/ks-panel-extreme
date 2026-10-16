@@ -2158,7 +2158,7 @@ func edgeWorkflowName(inst *models.Instance) string {
 // validInstanceName checks the instance name against docker-compatible rules.
 // 1-63 chars, [a-zA-Z0-9_-], must start with [a-zA-Z0-9], no leading hyphen.
 // The check is intentionally strict: a name that passes here is valid on
-// docker, lxd, kvm and multipass. We don't try to be cleverer than docker's
+// docker, lxd, kvm, multipass and host. We don't try to be cleverer than docker's
 // own validator — if docker rejects a name we missed, the edge's RPC will
 // return the precise rejection message back to the panel UI.
 func validInstanceName(name string) bool {

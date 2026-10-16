@@ -11,7 +11,7 @@ import (
 
 // InstanceRepository manages the `instances` table. The row is the panel's
 // bookkeeping view of a workload; the real lifecycle (docker/lxd/kvm/
-// multipass) is owned by ksedge and reconciled back here via the external_id
+// multipass/host) is owned by ksedge and reconciled back here via the external_id
 // and status columns.
 type InstanceRepository struct {
 	db *sql.DB

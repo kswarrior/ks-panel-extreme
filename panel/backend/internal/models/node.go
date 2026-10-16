@@ -30,7 +30,7 @@ type Node struct {
 	// operator can place the edge on a specific disk.
 	InstallDir string `json:"install_dir"`
 	// AllowedKinds is a comma-locked set of instance kinds that may deploy
-	// to this edge ("docker,kvm,multipass,lxd"). Empty means no
+	// to this edge ("docker,kvm,multipass,lxd,host"). Empty means no
 	// restriction; the deploy handler refuses anything not on the list.
 	AllowedKinds string `json:"allowed_kinds"`
 	// Panel-side resource allocation overrides. These are the caps the

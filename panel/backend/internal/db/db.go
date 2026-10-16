@@ -2027,7 +2027,7 @@ func SeedCore(d Dialect, db *sql.DB) error {
 		('VIEW_SETTINGS', 'View the settings page'),
 		('MANAGE_API_KEYS', 'Create and manage API keys'),
 		('MANAGE_NODES', 'Manage edge nodes (register, edit, remove)'),
-		('MANAGE_TEMPLATES', 'Manage deployment templates (docker/lxd/kvm/multipass)'),
+		('MANAGE_TEMPLATES', 'Manage deployment templates (docker/lxd/kvm/multipass/host)'),
 		('MANAGE_INSTANCES', 'Deploy and control instances on edge nodes'),
 		('MANAGE_THEMES', 'Manage the theme system (umbrella key – enables the theme surface for a role)'),
 		('MANAGE_MODS', 'Upload, edit and activate/deactivate Mods (panel add-ons)'),
