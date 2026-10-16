@@ -87,7 +87,7 @@ func TestEdgeConfigHandlerServesConfigOnce(t *testing.T) {
 		`name = "edge-config-test"`,
 		`connection_mode = "local_port"`,
 		`listen_port = 4321`,
-		`panel_url = "` + strings.TrimPrefix(srv.URL, "http://") + `"`,
+		`panel_url = "` + srv.URL + `"`,
 	} {
 		if !strings.Contains(resp.Config, want) {
 			t.Errorf("config.toml missing %q\n%s", want, resp.Config)
