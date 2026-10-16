@@ -16,7 +16,7 @@ import LocationField from '@/shared/components/forms/LocationField/LocationField
 import FormSkeleton from '@/shared/components/ui/FormSkeleton';
 import type { ConnectionMode, Form, NodeFormTabId, WssChannel, WssTask, WssTransport } from '../types/nodeForm';
 import { emptyForm, KSEDGE_URL, ALL_KINDS, NODEFORM_TABS, isLocalMode, isTunnelMode, isDualMode, WSS_TASKS, WSS_TRANSPORTS } from '../types/nodeForm';
-import { buildEdgeConfig, buildBootstrapCmd } from '../utils/nodeFormUtils';
+import { buildEdgeConfig, buildBootstrapCmd, buildConfigFetchCmd, buildInstallConfigCmd } from '../utils/nodeFormUtils';
 import { NODE_ICONS, NODE_COLORS, NodeIcon, isCustomNodeIconSvg } from '../utils/nodeIcons';
 
 // Display names for the preset colour dropdown (keys match NODE_COLORS).
@@ -100,6 +100,8 @@ const NodeForm: React.FC = () => {
     token: string;
     title: string;
     configJson?: string;
+    /** One-time token (ksc_…) the edge redeems over WSS to fetch config.toml. */
+    configToken?: string;
     bootstrapCmd?: string;
     isLocalhost?: boolean;
     isTunnel?: boolean;
