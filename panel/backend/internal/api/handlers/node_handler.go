@@ -1186,19 +1186,7 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	port := portFromAddress(node.Address, "4040")
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	// Prefer X-Forwarded-Proto when behind a proxy.
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		if proto == "https" {
-			scheme = "https"
-		} else if proto == "http" {
-			scheme = "http"
-		}
-	}
-	panelURL := scheme + "://" + r.Host
+	panelURL := panelURLFromRequest(r)
 
 	// Per-node working directory under the panel data dir so multiple local
 	// edges (or a re-setup) don't stomp each other's binaries. We honour
