@@ -920,11 +920,12 @@ type IngestInput struct {
 	DiskTotal  int64
 	UptimeSecs int64
 	// Driver availability reported by the edge so the panel can render the
-	// four-segment ring on the node card.
+	// five-segment ring on the node card.
 	DriverDocker    bool
 	DriverKVM       bool
 	DriverMultipass bool
 	DriverLXD       bool
+	DriverHost      bool
 	// Per-metric "collected ok" flags the edge ships so the panel can show a
 	// "partial" card separately from a "down" card. Zero values default to
 	// false (legacy edges that don't ship them), which the supplied-legacy
@@ -966,7 +967,7 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 	if _, err := r.db.Exec(`UPDATE nodes SET
 		ram_used = ?, ram_total = ?, cpu_percent = ?, disk_used = ?, disk_total = ?,
 		uptime_secs = ?, status = 'up', last_seen_at = ?,
-		driver_docker = ?, driver_kvm = ?, driver_multipass = ?, driver_lxd = ?,
+		driver_docker = ?, driver_kvm = ?, driver_multipass = ?, driver_lxd = ?, driver_host = ?,
 		hw_ram_ok = ?, hw_cpu_ok = ?, hw_disk_ok = ?, hw_uptime_ok = ?, hw_drivers_ok = ?,
 		uptime_pct = CASE WHEN uptime_pct IS NULL THEN 0 ELSE uptime_pct END
 		WHERE id = ?`,
@@ -974,6 +975,7 @@ func (r *NodeRepository) IngestHeartbeat(in IngestInput) (int64, error) {
 		in.UptimeSecs, now,
 		boolToInt(in.DriverDocker), boolToInt(in.DriverKVM),
 		boolToInt(in.DriverMultipass), boolToInt(in.DriverLXD),
+		boolToInt(in.DriverHost),
 		boolToInt(in.HwRAMOK), boolToInt(in.HwCPUOK), boolToInt(in.HwDiskOK),
 		boolToInt(in.HwUptimeOK), boolToInt(in.HwDriversOK), id.Int64); err != nil {
 		return 0, err

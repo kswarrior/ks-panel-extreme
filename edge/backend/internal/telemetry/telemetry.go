@@ -43,20 +43,21 @@ type Snapshot struct {
 	HwDiskOK   bool `json:"hw_disk_ok"`
 	HwUptimeOK bool `json:"hw_uptime_ok"`
 	// Drivers reports which workload drivers the edge can actually execute.
-	// The panel renders the four known kinds (docker/kvm/multipass/lxd) as a
-	// coloured ring on the node card; a driver not installed on the host is
-	// reported false so its arc stays grey.
+	// The panel renders the five known kinds (docker/kvm/multipass/lxd/host)
+	// as a coloured ring on the node card; a driver not installed on the
+	// host is reported false so its arc stays grey.
 	Drivers    Drivers `json:"drivers"`
 	HwDriversOK bool    `json:"hw_drivers_ok"`
 }
 
 // Drivers is the per-driver availability map the heartbeat ships. Keys mirror
-// the ksedge driver registry ("docker" | "kvm" | "multipass" | "lxd").
+// the ksedge driver registry ("docker" | "kvm" | "multipass" | "lxd" | "host").
 type Drivers struct {
 	Docker    bool `json:"docker"`
 	KVM       bool `json:"kvm"`
 	Multipass bool `json:"multipass"`
 	LXD       bool `json:"lxd"`
+	Host      bool `json:"host"`
 }
 
 // Collect gathers a fresh Snapshot from the host right now. Each collector

@@ -869,13 +869,14 @@ type heartbeatRequest struct {
 	DiskTotal  int64   `json:"disk_total"`
 	UptimeSecs int64   `json:"uptime_secs"`
 	// Drivers reports which workload drivers the edge can execute (docker,
-	// kvm, multipass, lxd). The panel renders a four-segment ring on the
-	// node card; a missing driver keeps its arc grey.
+	// kvm, multipass, lxd, host). The panel renders a five-segment ring on
+	// the node card; a missing driver keeps its arc grey.
 	Drivers struct {
 		Docker    bool `json:"docker"`
 		KVM       bool `json:"kvm"`
 		Multipass bool `json:"multipass"`
 		LXD       bool `json:"lxd"`
+		Host      bool `json:"host"`
 	} `json:"drivers"`
 	// Per-metric "did the edge actually collect this?" flags the edge now
 	// ships alongside every telemetry snapshot. Missing on legacy edges,
@@ -921,6 +922,7 @@ func HeartbeatIngestHandler(w http.ResponseWriter, r *http.Request) {
 		DriverKVM:       req.Drivers.KVM,
 		DriverMultipass: req.Drivers.Multipass,
 		DriverLXD:       req.Drivers.LXD,
+		DriverHost:      req.Drivers.Host,
 		HwRAMOK:         req.HwRAMOK,
 		HwCPUOK:         req.HwCPUOK,
 		HwDiskOK:        req.HwDiskOK,

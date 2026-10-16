@@ -3257,8 +3257,13 @@ func driverMissingOn(node models.Node, kind string) string {
 			return "lxd (lxc)"
 		}
 	case "host":
-		// Host needs no CLI (/bin/sh only) — always available.
-		return ""
+		// Host needs no CLI (/bin/sh only), but only an edge running the
+		// ksedge build that bundles the host driver advertises it. Gate on
+		// the heartbeat so a deploy to an outdated edge fails fast with an
+		// actionable message instead of a 502 from the lifecycle call.
+		if !node.DriverHost {
+			return "host driver (update ksedge)"
+		}
 	}
 	return ""
 }
