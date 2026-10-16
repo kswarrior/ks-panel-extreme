@@ -48,8 +48,9 @@ instance. Configure it by placing a config.toml next to the binary (or pass
 
   ./ksedge launch
 
-The config file is produced by the panel when you register a node and copied
-verbatim onto the edge machine.`,
+The config file is produced by the panel when you register a node — copy it
+verbatim onto the edge machine, or let the edge fetch it itself with
+`+ "`./ksedge config --panel <panel-url> --config-token <ksc_…>`" + `.`,
 	}
 	root.AddCommand(launchCmd())
 	root.AddCommand(superviseCmd())
