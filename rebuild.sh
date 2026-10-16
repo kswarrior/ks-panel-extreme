@@ -252,7 +252,12 @@ check_dependencies() {
     if [[ "$GARBLE_ENABLE" != "0" && "$GARBLE_ENABLE" != "false" && "$GARBLE_ENABLE" != "no" && "$GARBLE_ENABLE" != "off" ]]; then
         if ! has_cmd garble; then
             log_warn "garble not found — attempting auto-install (go install mvdan.cc/garble@latest)..."
-            if go install mvdan.cc/garble@latest 2>&1 | tail -5; then
+            if ! go install mvdan.cc/garble@latest 2>&1 | tail -5; then
+                # Latest garble (v0.18+) needs go >= 1.27; runners on go 1.25/1.26
+                # fall back to v0.17.0, the last release supporting them.
+                log_warn "garble@latest failed — trying garble@v0.17.0 (go 1.25/1.26 compatible)..."
+                go install mvdan.cc/garble@v0.17.0 2>&1 | tail -5
+            fi
                 # Ensure GOPATH/bin is on PATH for this run
                 local gopath_bin
                 gopath_bin="$(go env GOPATH 2>/dev/null)/bin"
@@ -260,7 +265,6 @@ check_dependencies() {
                     export PATH="$gopath_bin:$PATH"
                 fi
                 export PATH="$HOME/go/bin:$PATH"
-            fi
             if ! has_cmd garble; then
                 die "garble is MANDATORY for hardened production builds (panel/ + edge/ are closed-source). Install manually: go install mvdan.cc/garble@latest — or set GARBLE_ENABLE=0 to force plain build (NOT RECOMMENDED, code will be readable)"
             fi
