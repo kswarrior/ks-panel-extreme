@@ -503,7 +503,11 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/heartbeats", handlers.NodeHeartbeatsHandler)
 			// Active /health probes dial the edge directly so operators can
 			// "re-check" a card's verdict without waiting for the heartbeat.
+			// GET /{id}/ping is the lightweight sibling: same dial, no DB
+			// write and no audit row, so the nodes grid can poll it every
+			// second for the live ms badge on UP cards.
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Post("/{id}/probe", handlers.ProbeNodeHandler)
+			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Get("/{id}/ping", handlers.NodePingHandler)
 			r.With(requireUmbrellaOrAction(nodesG, permissions.ActionView)).Post("/probe", handlers.ProbeAllNodesHandler)
 			// Named WSS channels per node (migration 062): the NodeForm WSS
 			// box rows (name/task/transport/fallback). Reads are view-level;

@@ -963,6 +963,42 @@ func ProbeNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Reachable: probeReachableString(res.Reachable),
 		Name:      res.SeenName,
 		Note:      res.Note,
+		LatencyMs: res.LatencyMs,
+	})
+}
+
+// NodePingHandler is the lightweight live-latency probe behind the node
+// card's top-right ms badge. It dials the same GET /health as Probe but
+// performs NO DB write and NO audit row so the grid can poll it every
+// second without spamming node rows or activity_logs. View-level like
+// heartbeats; ownership scope mirrors ProbeNodeHandler.
+func NodePingHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer con.Close()
+	repo := repository.NewNodeRepository(con)
+	nd, err := repo.GetNode(id)
+	if err != nil || nd == nil {
+		http.Error(w, "node not found", http.StatusNotFound)
+		return
+	}
+	if nodeOwnForbidden(w, r, nd.OwnerID) {
+		return
+	}
+	res := probe.Probe(*nd)
+	writeJSON(w, pingResultJSON{
+		NodeID:    id,
+		Reachable: probeReachableString(res.Reachable),
+		LatencyMs: res.LatencyMs,
+		Note:      res.Note,
 	})
 }
 
@@ -1005,6 +1041,7 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 		reachable bool
 		seenName  string
 		note      string
+		latencyMs int64
 	}
 
 	// Probe nodes with bounded concurrency: acquire the semaphore BEFORE
@@ -1026,6 +1063,7 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 				reachable: res.Reachable,
 				seenName:  res.SeenName,
 				note:      res.Note,
+				latencyMs: res.LatencyMs,
 			}
 		}(i, nd)
 	}
@@ -1049,6 +1087,7 @@ func ProbeAllNodesHandler(w http.ResponseWriter, r *http.Request) {
 					Reachable: probeReachableString(r.reachable),
 					Name:      r.seenName,
 					Note:      r.note,
+					LatencyMs: r.latencyMs,
 				}
 			}
 			return out
