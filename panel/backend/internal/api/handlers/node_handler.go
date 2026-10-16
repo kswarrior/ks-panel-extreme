@@ -543,6 +543,19 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Mint the one-time config-fetch token the post-create modal's two
+	// bootstrap commands embed (`ksedge config --config-token …`). The edge
+	// redeems it over WSS at /api/edge/config to receive the generated
+	// config.toml without copy/pasting it. Best-effort: the node row is
+	// already committed, so a mint failure must not turn the response into
+	// a 500 that makes the operator believe creation failed — the modal
+	// simply omits the two commands.
+	configToken := ""
+	if t, terr := repo.MintConfigToken(node.ID, repository.ConfigTokenTTL); terr != nil {
+		log.Println("CreateNode config token error:", terr)
+	} else {
+		configToken = t
+	}
 	nid := node.ID
 	RecordActivity(r, repository.ActivityInput{
 		Category:    models.ActivityCategoryNode,
@@ -552,7 +565,7 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     fmt.Sprintf("registered edge %q at %s", node.Name, node.Address),
 	})
 	w.WriteHeader(http.StatusCreated)
-	writeJSON(w, map[string]any{
+	resp := map[string]any{
 		"id":           node.ID,
 		"name":         node.Name,
 		"address":      node.Address,
@@ -560,7 +573,11 @@ func CreateNodeHandler(w http.ResponseWriter, r *http.Request) {
 		"token_prefix": node.TokenPrefix,
 		"status":       node.Status,
 		"token":        token, // returned ONCE – never again.
-	})
+	}
+	if configToken != "" {
+		resp["config_token"] = configToken // one-time, returned ONCE.
+	}
+	writeJSON(w, resp)
 }
 
 // nodeOwnForbidden returns a 403 when the caller holds NODES_OWN

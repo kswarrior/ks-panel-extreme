@@ -805,6 +805,108 @@ func (r *NodeRepository) PlainToken(id int64) (string, error) {
 	return token.String, nil
 }
 
+// ========================== ONE-TIME CONFIG TOKENS ==========================
+
+// ConfigTokenPrefix brands the one-time config-fetch token minted by
+// MintConfigToken, distinguishable from the regular edge token (kse_…) and
+// an API key (ksk_…). Only the plaintext's SHA-256 digest is stored; the
+// plaintext is handed to the operator exactly once (post-create modal).
+const ConfigTokenPrefix = "ksc_"
+
+// ConfigTokenTTL bounds how long a freshly minted one-time config token
+// stays redeemable by the edge's `ksedge config` command.
+const ConfigTokenTTL = 30 * time.Minute
+
+// generateConfigToken returns a fresh one-time config token.
+func generateConfigToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return ConfigTokenPrefix + hex.EncodeToString(b), nil
+}
+
+// rebind rewrites "?" binds for the repository's live engine (no-op on
+// SQLite/MySQL, $N on Postgres). New statements go through it so the
+// config-token flow runs on all three engines — mirrors page_kv_repo.go.
+// (The older node statements predate this helper and are left untouched.)
+func (r *NodeRepository) rebind(query string) string {
+	return db.Rebind(detectEngine(r.db), query)
+}
+
+// MintConfigToken issues a fresh one-time config-fetch token for a node and
+// returns the plaintext once. Any previously minted token is replaced, so at
+// most one redemption path is live per node; RotateToken also clears it.
+func (r *NodeRepository) MintConfigToken(id int64, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = ConfigTokenTTL
+	}
+	token, err := generateConfigToken()
+	if err != nil {
+		return "", err
+	}
+	res, err := r.db.Exec(
+		r.rebind(`UPDATE nodes SET config_token_hash = ?, config_token_expires_at = ? WHERE id = ?`),
+		hashEdgeToken(token), time.Now().UTC().Add(ttl), id,
+	)
+	if err != nil {
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return "", fmt.Errorf("node not found")
+	}
+	return token, nil
+}
+
+// ConsumeConfigToken validates a one-time config token and burns it (single
+// use, atomic claim). Unknown or expired tokens fail closed; a successful
+// consume blanks both columns exactly once and returns the owning node id.
+func (r *NodeRepository) ConsumeConfigToken(token string) (int64, error) {
+	if strings.TrimSpace(token) == "" {
+		return 0, fmt.Errorf("config token is empty")
+	}
+	// Hash lookup mirrors IngestHeartbeat / the tunnel handler: the digest is
+	// the indexed identity, the plaintext is never stored.
+	hash := hashEdgeToken(token)
+	var id int64
+	var expires sql.NullString
+	err := r.db.QueryRow(
+		r.rebind(`SELECT id, config_token_expires_at FROM nodes WHERE config_token_hash = ?`),
+		hash,
+	).Scan(&id, &expires)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("unknown config token")
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !expires.Valid || expires.String == "" {
+		return 0, fmt.Errorf("config token has no expiry")
+	}
+	exp, perr := parseDBTime(expires.String)
+	if perr != nil || !time.Now().UTC().Before(exp) {
+		// Burn an expired token so it can never be replayed.
+		_, _ = r.db.Exec(
+			r.rebind(`UPDATE nodes SET config_token_hash = NULL, config_token_expires_at = NULL WHERE id = ? AND config_token_hash = ?`),
+			id, hash,
+		)
+		return 0, fmt.Errorf("config token expired")
+	}
+	// Conditional claim: only the first consumer's UPDATE matches the row,
+	// so two concurrent redemptions can never both succeed.
+	res, err := r.db.Exec(
+		r.rebind(`UPDATE nodes SET config_token_hash = NULL, config_token_expires_at = NULL WHERE id = ? AND config_token_hash = ?`),
+		id, hash,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return 0, fmt.Errorf("config token already used")
+	}
+	return id, nil
+}
+
 // IngestInput is the telemetry payload pushed by a ksedge. Status is reported
 // by the edge itself ("up" while running); the panel also flips it to "down"
 // whenever a heartbeat goes stale.
