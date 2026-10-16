@@ -84,7 +84,7 @@ func Collect() Snapshot {
 	return s
 }
 
-// detectDrivers probes the host for the four workload drivers ksedge supports.
+// detectDrivers probes the host for the workload drivers ksedge supports.
 // We use exec.LookPath so a missing tool is simply reported as false — no
 // dependency on a shell-out that could hang. KVM requires BOTH virsh
 // (start/stop/destroy) AND virt-install (deploy): reporting true on virsh
@@ -96,14 +96,18 @@ func Collect() Snapshot {
 // The returned ok is false only if the host filesystem itself is broken in a
 // way exec.LookPath can't tolerate (e.g. PATH unset and a stat returns an
 // unexpected error). A box with no drivers installed at all still returns ok
-// true — having all four flags as false is a legitimate, reportable state, so
+// true — having all flags as false is a legitimate, reportable state, so
 // we shouldn't conflate it with "we couldn't run the probe".
+//
+// Host is always true on an updated edge: the driver shells out to /bin/sh
+// only (drivers/host.go), so there is no binary to probe.
 func detectDrivers() (Drivers, bool) {
 	return Drivers{
 		Docker:    lookPath("docker", "dockerd", "podman"),
 		KVM:       lookPath("virsh") && lookPath("virt-install"),
 		Multipass: lookPath("multipass"),
 		LXD:       lookPath("lxd", "lxc"),
+		Host:      true,
 	}, true
 }
 
