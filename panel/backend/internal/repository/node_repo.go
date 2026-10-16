@@ -199,7 +199,7 @@ func (r *NodeRepository) ListNodes() ([]models.Node, error) {
 	rows, err := r.db.Query(`SELECT id, name, address, use_tls, token_prefix,
 		ram_used, ram_total, cpu_percent, disk_used, disk_total, uptime_secs,
 		status, uptime_pct, last_seen_at, created_at,
-		driver_docker, driver_kvm, driver_multipass, driver_lxd,
+		driver_docker, driver_kvm, driver_multipass, driver_lxd, driver_host,
 		hw_ram_ok, hw_cpu_ok, hw_disk_ok, hw_uptime_ok, hw_drivers_ok,
 		probe_reachable, probe_seen_name, probe_checked_at,
 		health_enabled, health_interval, health_timeout, health_retries,

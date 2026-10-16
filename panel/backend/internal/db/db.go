@@ -74,7 +74,7 @@ var placeholderDialectForTesting Dialect
 //     (idempotent either way).
 //
 // The guarded migrations are: 008, 009, 010, 011, 013, 014, 016, 018, 019,
-// 020, 024, 025_instance_install, 025_node_allocations, 026. They alternate
+// 020, 024, 025_instance_install, 025_node_allocations, 026, 080. They alternate
 // between "skip the whole file" (single ALTER the guard detects) and "skip
 // individual columns within the file" (multi-ALTER file). The dispatch is
 // keyed by the migration basename so the same code path runs against every
@@ -107,6 +107,13 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				{"driver_kvm", "INTEGER NOT NULL DEFAULT 0"},
 				{"driver_multipass", "INTEGER NOT NULL DEFAULT 0"},
 				{"driver_lxd", "INTEGER NOT NULL DEFAULT 0"},
+			}); err != nil {
+				return err
+			}
+			continue
+		case name == "080_node_driver_host.sql":
+			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
+				{"driver_host", "INTEGER NOT NULL DEFAULT 0"},
 			}); err != nil {
 				return err
 			}

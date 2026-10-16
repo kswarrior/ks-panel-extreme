@@ -114,13 +114,15 @@ type Node struct {
 	// Status is "up" or "down" – derived from how recent the last heartbeat is.
 	Status    string  `json:"status"`
 	UptimePct float64 `json:"uptime_pct"`
-	// Driver availability reported by ksedge. The UI draws a four-segment ring
-	// (docker/kvm/multipass/lxd) on each node card; a missing driver renders
-	// its arc grey.
+	// Driver availability reported by ksedge. The UI draws a five-segment ring
+	// (docker/kvm/multipass/lxd/host) on each node card; a missing driver
+	// renders its arc grey. Host needs no CLI (/bin/sh only) so an
+	// up-to-date edge always reports it true.
 	DriverDocker    bool `json:"driver_docker"`
 	DriverKVM       bool `json:"driver_kvm"`
 	DriverMultipass bool `json:"driver_multipass"`
 	DriverLXD       bool `json:"driver_lxd"`
+	DriverHost      bool `json:"driver_host"`
 	// Telemetry quality flags — true when the edge actually collected the
 	// matching metric on its last heartbeat. Drives the per-card "partial"
 	// badge in the UI; an edge that swallowed a /proc read error no longer
