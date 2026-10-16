@@ -83,12 +83,13 @@ func edgeConfigWSURL(panel, configToken string) (string, error) {
 	if u.Scheme == "https" || u.Scheme == "wss" {
 		scheme = "wss"
 	}
-	return url.URL{
+	wsURL := url.URL{
 		Scheme:   scheme,
 		Host:     u.Host,
 		Path:     "/api/edge/config",
 		RawQuery: url.Values{"config_token": {configToken}}.Encode(),
-	}.String(), nil
+	}
+	return wsURL.String(), nil
 }
 
 // runEdgeConfig performs the fetch + atomic write. The config content is

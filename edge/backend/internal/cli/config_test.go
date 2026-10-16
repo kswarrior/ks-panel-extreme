@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -127,7 +126,3 @@ func TestRunEdgeConfigRejectsMissingToken(t *testing.T) {
 		t.Fatal("config without token/panel_url must be rejected")
 	}
 }
-
-// Keep json import honest: the wire frame is JSON (mirrors the panel's
-// edgeConfigResponse marshalling).
-var _ = json.Marshal
