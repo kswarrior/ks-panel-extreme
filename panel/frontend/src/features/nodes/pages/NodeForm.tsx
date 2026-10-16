@@ -575,6 +575,7 @@ const NodeForm: React.FC = () => {
             form.port,
             form
           ),
+          configToken: res.config_token,
           bootstrapCmd: isLocal
             ? buildBootstrapCmd(form, res.token, form.port)
             : undefined,
