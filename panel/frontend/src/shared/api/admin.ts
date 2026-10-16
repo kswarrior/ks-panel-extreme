@@ -297,6 +297,18 @@ export async function probeNode(id: number): Promise<ProbeResult> {
   return res.data;
 }
 
+// Lightweight live-latency ping — same GET /health dial as probe but with
+// NO DB write and NO audit row, so the nodes grid can poll it every second
+// for the ms badge on UP cards. Short timeout (edge probe itself caps at
+// ~4s) so a hung edge never piles up overlapping ticks.
+export async function pingNode(id: number): Promise<PingResult> {
+  const res = await client.get<PingResult>(
+    `/api/nodes/${id}/ping`,
+    { timeout: 8000 },
+  );
+  return res.data;
+}
+
 // Page-level "Recheck all" — probes every edge in parallel and returns the
 // bulk per-node results without needing a listNodes re-fetch.
 export async function probeAllNodes(): Promise<ProbeResult[]> {

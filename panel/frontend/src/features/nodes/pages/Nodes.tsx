@@ -12,6 +12,7 @@ import {
   nodeHeartbeats,
   probeNode,
   probeAllNodes,
+  pingNode,
   getNodeUpdateInfo,
 } from '@/shared/api/admin';
 import type { Node, CreateNodeResult, NodeHeartbeat } from '@/shared/types/node';
@@ -53,6 +54,9 @@ const AdminNodes: React.FC = () => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [hbMap, setHbMap] = useState<Record<number, NodeHeartbeat[]>>({});
   const [versionMap, setVersionMap] = useState<Record<number, string>>({});
+  // Live panel→edge RTT per node id (ms), refreshed every second for UP
+  // cards via the lightweight GET /ping endpoint (no DB write server-side).
+  const [pingMap, setPingMap] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -291,6 +295,60 @@ const AdminNodes: React.FC = () => {
   }, [nodes, search, stateFilter, tlsFilter]);
 
   const visible = useMemo(() => filteredNodes.slice(0, pageSize), [filteredNodes, pageSize]);
+
+  // Live ping badge: every second, dial GET /ping for each visible UP card.
+  // The endpoint does no DB write server-side so this is safe at 1Hz; the
+  // in-flight guard skips a tick when the previous fan-out is still running
+  // (slow edge with a 4s probe timeout), and hidden tabs pause entirely.
+  useEffect(() => {
+    if (visible.length === 0) return;
+    let stopped = false;
+    let inflight = false;
+    const tick = async () => {
+      if (stopped || inflight) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const targets = visible.filter((n) => resolveState(n) === 'up');
+      if (targets.length === 0) return;
+      inflight = true;
+      try {
+        const settled = await Promise.allSettled(targets.map((n) => pingNode(n.id)));
+        if (stopped) return;
+        setPingMap((prev) => {
+          const next = { ...prev };
+          settled.forEach((r, i) => {
+            const id = targets[i].id;
+            if (r.status === 'fulfilled' && r.value?.reachable === 'yes' && Number.isFinite(r.value.latency_ms)) {
+              const ms = Math.max(0, Math.round(r.value.latency_ms));
+              if (next[id] !== ms) next[id] = ms;
+            } else {
+              delete next[id];
+            }
+          });
+          return next;
+        });
+      } finally {
+        inflight = false;
+      }
+    };
+    void tick();
+    const t = setInterval(() => void tick(), 1000);
+    return () => { stopped = true; clearInterval(t); };
+  }, [visible]);
+
+  // Prune stale ping entries when a card leaves the UP set (went down,
+  // filtered out, or deleted) so the badge falls back to its state label.
+  useEffect(() => {
+    const upIds = new Set(nodes.filter((n) => resolveState(n) === 'up').map((n) => n.id));
+    setPingMap((prev) => {
+      const stale = Object.keys(prev).some((k) => !upIds.has(Number(k)));
+      if (!stale) return prev;
+      const next: Record<number, number> = {};
+      for (const [k, v] of Object.entries(prev)) {
+        if (upIds.has(Number(k))) next[Number(k)] = v;
+      }
+      return next;
+    });
+  }, [nodes]);
 
   const resetFilters = () => { setSearch(''); setStateFilter('all'); setTlsFilter('all'); };
 
