@@ -240,6 +240,13 @@ func NewRouter() http.Handler {
 		// Token-auth, not session-cookie.
 		r.Get("/api/edge/tunnel", tunnel.Handler)
 		r.HandleFunc("/api/edge/tunnel", tunnel.Handler)
+		// One-time config bootstrap: the edge's `ksedge config` command dials
+		// this WSS endpoint with the single-use config token minted at node
+		// creation and receives the generated config.toml. It must stay outside
+		// the session-cookie auth middleware like the tunnel above (the edge has
+		// no browser session). Token-auth per request via ConsumeConfigToken.
+		r.Get("/api/edge/config", handlers.EdgeConfigHandler)
+		r.HandleFunc("/api/edge/config", handlers.EdgeConfigHandler)
 	})
 
 	// Protected API group
