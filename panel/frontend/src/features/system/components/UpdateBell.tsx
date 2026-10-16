@@ -80,7 +80,7 @@ const UpdateBell: React.FC = () => {
   }, [check]);
 
   const goSystem = useCallback(() => {
-    navigate('/system');
+    navigate('/system?tab=panel');
   }, [navigate]);
 
   const onSelect = useCallback((key: string) => {
