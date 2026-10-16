@@ -776,6 +776,21 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "079_node_config_token.sql":
+			// One-time config-fetch token per node (config_token_hash +
+			// config_token_expires_at on nodes, migration 079). Both
+			// columns are nullable TEXT/DATETIME so no default rewrite is
+			// needed; the sqlite/mysql bodies carry bare ADD COLUMN (no IF
+			// NOT EXISTS — only the postgres file has it via regen.sh), so
+			// the runtime guard owns convergence — mirrors
+			// 050_node_connection_mode.sql.
+			if err := guardedAddColumns(d, db, name, "nodes", []columnSpec{
+				{"config_token_hash", "TEXT"},
+				{"config_token_expires_at", d.datetimeType()},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the
