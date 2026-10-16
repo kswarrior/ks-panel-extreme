@@ -1125,6 +1125,56 @@ func probeReachableString(reachable bool) string {
 
 // ============================== LOCAL EDGE SETUP ============================
 
+// panelURLFromRequest derives the panel's externally reachable base URL from
+// an inbound request: scheme from TLS / X-Forwarded-Proto (reverse proxies),
+// host from Host. Shared by the local setup handler and the WSS config
+// bootstrap endpoint so edge configs always carry the same panel_url.
+func panelURLFromRequest(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto == "https" {
+		scheme = "https"
+	} else if proto == "http" {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host
+}
+
+// buildNodeConfigTOML renders the panel-generated config.toml for a node.
+// token is the raw edge token stored on the row, identical to what the
+// manual snippet embeds. use_tls_upstream describes edge→panel TLS
+// (panel_url scheme), not the panel→edge node.UseTLS flag — deriving it from
+// the observed panel scheme keeps https panels consistent. The edge
+// currently derives TLS from panel_url itself (flag retained for backwards
+// compat with older configs).
+//
+// Single source of truth: SetupLocalNodeHandler writes these bytes to disk,
+// EdgeConfigHandler serves them over WSS to `ksedge config`.
+func buildNodeConfigTOML(node *models.Node, panelURL, token string) ([]byte, error) {
+	cfg := map[string]any{
+		"uuid":               fmt.Sprintf("panel-local-%d", node.ID),
+		"name":               node.Name,
+		"panel_url":          panelURL,
+		"token":              token,
+		"listen_port":        parseIntDefault(portFromAddress(node.Address, "4040"), 4040),
+		"heartbeat_interval": 60,
+		"use_tls_upstream":   strings.HasPrefix(strings.ToLower(panelURL), "https://"),
+		"skip_verify":        node.SkipTLSVerify,
+		"connection_mode":    node.ConnectionMode,
+	}
+	// Honour the operator's daemon instance-file directory override. The
+	// daemon defaults to /var/lib/kspanel/instances when the key is absent
+	// (with "./instances" resolved relative to the edge binary), so we only
+	// emit it when the node row carried a non-empty setting — keeps the
+	// generated config minimal for the common case.
+	if dir := strings.TrimSpace(node.InstancesDir); dir != "" {
+		cfg["instances_dir"] = dir
+	}
+	return edgeconfig.Encode(cfg)
+}
+
 // ksedgeEdgeURL is the sole source for the ksedge binary used by local node setup:
 // https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge
 const ksedgeEdgeURL = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/release/ksedge"
@@ -1277,34 +1327,9 @@ func SetupLocalNodeHandler(w http.ResponseWriter, r *http.Request) {
 		logLines = append(logLines, "ksedge already present, skipping download")
 	}
 
-	// 2) Write the panel-generated config.toml. The token is the raw edge
-	//    token stored on the node row, identical to what the manual snippet
-	//    embeds. use_tls_upstream describes edge→panel TLS (panel_url
-	//    scheme), not the panel→edge node.UseTLS flag — deriving it from the
-	//    observed panel scheme keeps https panels consistent. The edge
-	//    currently derives TLS from panel_url itself (flag retained for
-	//    backwards compat with older configs).
-	cfg := map[string]any{
-		"uuid":               fmt.Sprintf("panel-local-%d", id),
-		"name":               node.Name,
-		"panel_url":          panelURL,
-		"token":              token,
-		"listen_port":        parseIntDefault(port, 4040),
-		"heartbeat_interval": 60,
-		"use_tls_upstream":   scheme == "https",
-		"skip_verify":        node.SkipTLSVerify,
-		"connection_mode":    node.ConnectionMode,
-	}
-	// Honour the operator's daemon instance-file directory override. The
-	// daemon defaults to /var/lib/kspanel/instances when the key is absent
-	// (with "./instances" resolved relative to the edge binary), so we only
-	// emit it when the node row carried a non-empty setting — keeps the
-	// generated config minimal for the common case.
-	if dir := strings.TrimSpace(node.InstancesDir); dir != "" {
-		cfg["instances_dir"] = dir
-	}
-	var cfgBytes []byte
-	cfgBytes, err = edgeconfig.Encode(cfg)
+	// 2) Write the panel-generated config.toml (shared builder — the same
+	//    bytes are served by the WSS /api/edge/config bootstrap endpoint).
+	cfgBytes, err := buildNodeConfigTOML(node, panelURL, token)
 	if err != nil {
 		http.Error(w, "could not encode config: "+err.Error(), http.StatusInternalServerError)
 		return
