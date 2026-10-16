@@ -28,6 +28,43 @@
       "command": ["uvx", "mcp-server-fetch"],
       "enabled": true,
       "timeout": 30000
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "sequential_thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true,
+      "timeout": 30000
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true,
+      "timeout": 30000,
+      "environment": {
+        "MEMORY_FILE_PATH": "{env:HOME}/.local/share/opencode/ks-panel-memory.json"
+      }
+    },
+    "sqlite": {
+      "type": "local",
+      "command": ["uvx", "db-mcp-server"],
+      "enabled": true,
+      "timeout": 60000,
+      "environment": {
+        "DB_TYPE": "sqlite",
+        "DB_PATH": "./kspanel.db",
+        "DB_MODE": "read-only"
+      }
+    },
+    "docker": {
+      "type": "local",
+      "command": ["uvx", "mcp-server-docker"],
+      "enabled": true,
+      "timeout": 60000
     }
   }
 }
