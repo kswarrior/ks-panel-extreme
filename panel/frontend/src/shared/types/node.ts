@@ -122,6 +122,12 @@ export interface CreateNodeResult {
   status: string;
   /** Raw edge token — returned only once at registration. */
   token: string;
+  /**
+   * One-time config-fetch token (ksc_…) the edge redeems over WSS via
+   * `./ksedge config --panel … --config-token …` to fetch its own
+   * config.toml. Returned only once; single-use and short-lived.
+   */
+  config_token?: string;
 }
 
 /**

@@ -53,5 +53,26 @@ EOF
 ./ksedge launch &`;
 }
 
+// panelOrigin is the base URL embedded in the generated bootstrap commands.
+// Mirrors buildEdgeConfig: the operator's own origin is what the edge dials.
+function panelOrigin(): string {
+  return typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5050';
+}
+
+// buildConfigFetchCmd is the "edge already installed" one-liner: the edge
+// dials the panel over WSS with the one-time config token, receives its
+// generated config.toml and writes it next to the binary. No copy/paste of
+// the config file (and its edge token) needed.
+export function buildConfigFetchCmd(configToken: string): string {
+  return `./ksedge config --panel '${panelOrigin()}' --config-token '${configToken}'`;
+}
+
+// buildInstallConfigCmd downloads the ksedge release, then runs the same
+// one-time-token config fetch, then starts the edge in the background. One
+// paste on a fresh host fully provisions it.
+export function buildInstallConfigCmd(configToken: string): string {
+  return `curl -L -o ksedge '${KSEDGE_URL}' && chmod +x ksedge && ./ksedge config --panel '${panelOrigin()}' --config-token '${configToken}' && (./ksedge launch &)`;
+}
+
 // KSEDGE_URL re-exported from types for backwards compat (prefer import from types/nodeForm).
 export { KSEDGE_URL };
