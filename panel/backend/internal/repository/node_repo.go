@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 )
 
@@ -773,8 +774,11 @@ func (r *NodeRepository) RotateToken(id int64) (string, error) {
 	if len(prefix) > 8 {
 		prefix = prefix[:8]
 	}
+	// A rotate invalidates any outstanding one-time config token too: the
+	// old one could otherwise still hand the NEW edge token to the edge.
 	res, err := r.db.Exec(
-		`UPDATE nodes SET token_hash = ?, token_prefix = ?, token_plain = ? WHERE id = ?`,
+		`UPDATE nodes SET token_hash = ?, token_prefix = ?, token_plain = ?,
+			config_token_hash = NULL, config_token_expires_at = NULL WHERE id = ?`,
 		hash, prefix, token, id,
 	)
 	if err != nil {
