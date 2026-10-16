@@ -52,6 +52,11 @@ type Result struct {
 	// timeout", "not a ksedge", "edge returned 502", etc. Not stored on
 	// the row, only returned by the bulk probe handler for the toast.
 	Note string
+	// LatencyMs is the wall-clock panel→edge round-trip for this probe in
+	// milliseconds (dial + GET /health + decode). Set by the Probe wrapper
+	// on every return path so the lightweight GET /ping endpoint can badge
+	// it on the node card without a DB write.
+	LatencyMs int64
 }
 
 // healthResponse mirrors ksedge/internal/health.Response. Kept local to the
