@@ -124,7 +124,7 @@ export const NodeCard: React.FC<NodeCardProps> = ({ n, selected, incompatibleKin
   if (n.driver_lxd) kinds.push('lxd');
   if (n.driver_kvm) kinds.push('kvm');
   if (n.driver_multipass) kinds.push('multipass');
-  kinds.push('host');
+  if (n.driver_host) kinds.push('host');
   return (
     <button
       type="button"

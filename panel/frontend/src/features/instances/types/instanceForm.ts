@@ -369,13 +369,13 @@ export const COLOR_SWATCHES: ColorSwatch[] = [
   { value: '#94a3b8', label: 'Slate' },
 ];
 
-export function driverEnabled(n: { driver_docker?: boolean; driver_lxd?: boolean; driver_kvm?: boolean; driver_multipass?: boolean }, kind: KindKey): boolean {
+export function driverEnabled(n: { driver_docker?: boolean; driver_lxd?: boolean; driver_kvm?: boolean; driver_multipass?: boolean; driver_host?: boolean }, kind: KindKey): boolean {
   switch (kind) {
     case 'docker': return n.driver_docker ?? false;
     case 'lxd': return n.driver_lxd ?? false;
     case 'kvm': return n.driver_kvm ?? false;
     case 'multipass': return n.driver_multipass ?? false;
-    case 'host': return true;
+    case 'host': return n.driver_host ?? false;
     default: return true;
   }
 }
