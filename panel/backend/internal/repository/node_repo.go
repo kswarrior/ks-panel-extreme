@@ -360,7 +360,7 @@ func (r *NodeRepository) GetNode(id int64) (*models.Node, error) {
 	rows, err := r.db.Query(`SELECT id, name, address, use_tls, token_prefix,
 		ram_used, ram_total, cpu_percent, disk_used, disk_total, uptime_secs,
 		status, uptime_pct, last_seen_at, created_at,
-		driver_docker, driver_kvm, driver_multipass, driver_lxd,
+		driver_docker, driver_kvm, driver_multipass, driver_lxd, driver_host,
 		hw_ram_ok, hw_cpu_ok, hw_disk_ok, hw_uptime_ok, hw_drivers_ok,
 		probe_reachable, probe_seen_name, probe_checked_at,
 		health_enabled, health_interval, health_timeout, health_retries,
@@ -403,7 +403,7 @@ func (r *NodeRepository) FindNodeByNameAndAddress(name, address string) (*models
 	rows, err := r.db.Query(`SELECT id, name, address, use_tls, token_prefix,
 		ram_used, ram_total, cpu_percent, disk_used, disk_total, uptime_secs,
 		status, uptime_pct, last_seen_at, created_at,
-		driver_docker, driver_kvm, driver_multipass, driver_lxd,
+		driver_docker, driver_kvm, driver_multipass, driver_lxd, driver_host,
 		hw_ram_ok, hw_cpu_ok, hw_disk_ok, hw_uptime_ok, hw_drivers_ok,
 		probe_reachable, probe_seen_name, probe_checked_at,
 		health_enabled, health_interval, health_timeout, health_retries,
@@ -506,7 +506,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	var useTLS int
 	var lastSeen sql.NullString
 	var created string
-	var dDocker, dKVM, dMultipass, dLXD int
+	var dDocker, dKVM, dMultipass, dLXD, dHost int
 	var hwRam, hwCPU, hwDisk, hwUptime, hwDrivers int
 	var probeReachable sql.NullInt64
 	var probeSeenName sql.NullString
@@ -521,7 +521,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	if err := rows.Scan(&nd.ID, &nd.Name, &nd.Address, &useTLS, &nd.TokenPrefix,
 		&nd.RAMUsed, &nd.RAMTotal, &nd.CPUPercent, &nd.DiskUsed, &nd.DiskTotal,
 		&nd.UptimeSecs, &nd.Status, &nd.UptimePct, &lastSeen, &created,
-		&dDocker, &dKVM, &dMultipass, &dLXD,
+		&dDocker, &dKVM, &dMultipass, &dLXD, &dHost,
 		&hwRam, &hwCPU, &hwDisk, &hwUptime, &hwDrivers,
 		&probeReachable, &probeSeenName, &probeChecked,
 		&healthEnabled, &healthInterval, &healthTimeout, &healthRetries,
@@ -536,6 +536,7 @@ func scanFullNode(rows *sql.Rows, nd *models.Node) error {
 	nd.DriverKVM = dKVM == 1
 	nd.DriverMultipass = dMultipass == 1
 	nd.DriverLXD = dLXD == 1
+	nd.DriverHost = dHost == 1
 	nd.HwRAMOK = hwRam == 1
 	nd.HwCPUOK = hwCPU == 1
 	nd.HwDiskOK = hwDisk == 1
