@@ -1,6 +1,6 @@
 # Nodes skill
 
-Nodes are edge machines running the ksedge agent. The panel registers each node (address + token), receives heartbeats with telemetry, and proxies lifecycle RPCs (deploy/start/stop/destroy), terminal, files and install workflows through it. A node lists which drivers (docker/lxd/kvm) it has available; deploys are refused when the driver is missing. Connection modes are direct, reverse_tunnel, local_port and local_wss, with TLS options and probe/rotate/purge operations on the NodeDetail page.
+Nodes are edge machines running the ksedge agent. The panel registers each node (address + token), receives heartbeats with telemetry, and proxies lifecycle RPCs (deploy/start/stop/destroy), terminal, files and install workflows through it. A node lists which drivers (docker/lxd/kvm/multipass/host) it has available; deploys are refused when the driver is missing. Connection modes are direct, reverse_tunnel, local_port and local_wss, with TLS options and probe/rotate/purge operations on the NodeDetail page.
 
 ## Playbooks
 

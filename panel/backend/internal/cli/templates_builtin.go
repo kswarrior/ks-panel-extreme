@@ -27,6 +27,7 @@ type builtinTemplate struct {
 //	lxd     -> { profile, config, … }
 //	kvm     -> { image, disks, … }
 //	multipass -> { image, cpus, memory, disk, … }
+//	host    -> { advanced.startup_command, advanced.working_dir, env }
 var builtinTemplates = []builtinTemplate{
 	{
 		Key:         "minecraft",
@@ -340,6 +341,21 @@ disk: 20G
 		Spec: `category: container
 type: alpine
 profile: default
+`,
+	},
+	{
+		Key:         "host-service",
+		Name:        "Host Service",
+		Description: "A plain shell service running directly on the edge host with no container/VM isolation. Each instance gets its own host-<name> directory inside the edge instances dir; the startup command runs there as the ksedge user. File Manager, Terminal and Exec target that directory.",
+		Kind:        "host",
+		Image:       "",
+		Spec: `category: service
+type: host
+advanced:
+  startup_command: ./start.sh
+  stop_command: ''
+  working_dir: ''
+  user: ''
 `,
 	},
 }

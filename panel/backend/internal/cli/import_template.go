@@ -29,7 +29,7 @@ var importTemplateCmd = &cobra.Command{
 	Short: "Import a built-in template into the database",
 	Long: `Import a built-in template into the database.
 
-A template is a reusable deploy blueprint (docker/lxd/kvm/multipass). This
+A template is a reusable deploy blueprint (docker/lxd/kvm/multipass/host). This
 command seeds one of the canned templates shipped with the panel so it
 appears on the admin Templates page. Re-importing the same name updates the
 existing row in place.

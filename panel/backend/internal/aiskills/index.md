@@ -3,7 +3,7 @@
 Call `get_docs` with one topic to read its playbook. Fleet tools need the AI Chat Tools grant, writes need AI Chat Writes plus the area permission plus the global writes switch — every write returns a confirmation ticket the user approves before anything runs.
 
 - `instances` — inspect, start/stop/restart, rename, reinstall, suspend, delete, deploy workloads.
-- `templates` — blueprints (docker/lxd/kvm/multipass) plus their install-workflow steps: read numbered steps, add/remove/move one.
+- `templates` — blueprints (docker/lxd/kvm/multipass/host) plus their install-workflow steps: read numbered steps, add/remove/move one.
 - `nodes` — edge machines: list, inspect, register, rename, delete.
 - `instance_pages` — reusable docs/dashboard/config pages: list, inspect, create, edit, delete.
 - `users` — accounts: create users (username, email, password, role).
