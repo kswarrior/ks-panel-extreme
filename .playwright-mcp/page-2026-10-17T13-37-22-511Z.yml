@@ -1,0 +1,126 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e81]:
+    - button "Close sidebar"
+    - complementary "Main navigation" [ref=f7e82]:
+      - generic [ref=f7e83]: KS Panel
+      - navigation [ref=f7e88]:
+        - paragraph [ref=f7e89]: Overview
+        - button "System" [ref=f7e91] [cursor=pointer]
+        - link "Security" [ref=f7e100] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=f7e106] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=f7e111] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=f7e118]: Management
+        - link "Users" [ref=f7e119] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=f7e127] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=f7e132] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=f7e138] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=f7e143]: Infrastructure
+        - link "Nodes" [ref=f7e144] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=f7e158] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=f7e164] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=f7e170] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=f7e180]: Extensions
+        - link "Mods" [ref=f7e181] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=f7e186] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=f7e194] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=f7e201]: Appearance
+        - link "Themes" [ref=f7e202] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=f7e211]: Support
+        - link "Tickets" [ref=f7e212] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=f7e220] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=f7e228] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=f7e229]:
+      - banner [ref=f7e230]:
+        - generic [ref=f7e231]:
+          - generic [ref=f7e232]:
+            - button "Toggle sidebar" [ref=f7e233] [cursor=pointer]
+            - navigation "Breadcrumb" [ref=f7e236]:
+              - button "Instances" [ref=f7e246] [cursor=pointer]
+              - generic [ref=f7e247]: /
+              - generic [ref=f7e248]: New Instance
+          - generic [ref=f7e249]:
+            - button "Notifications, live" [ref=f7e250] [cursor=pointer]
+            - button "Profile menu" [ref=f7e257] [cursor=pointer]:
+              - img "smoke" [ref=f7e258]:
+                - generic [ref=f7e259]: SM
+      - main [ref=f7e261]:
+        - generic [ref=f7e263]:
+          - generic [ref=f7e264]:
+            - button "Undo last edit" [disabled]
+            - button "Redo" [disabled]
+            - button "Deploy" [ref=f7e265] [cursor=pointer]
+          - button "Hide form actions" [expanded] [ref=f7e266] [cursor=pointer]
+        - generic [ref=f7e271]:
+          - navigation "Template form sections" [ref=f7e272]:
+            - generic [ref=f7e273]:
+              - tablist "Template form sections" [ref=f7e363]:
+                - tab "General" [selected] [ref=f7e364] [cursor=pointer]
+                - tab "Environment" [ref=f7e369] [cursor=pointer]
+                - tab "Env Variables" [ref=f7e374] [cursor=pointer]
+                - tab "Actions" [ref=f7e379] [cursor=pointer]
+                - tab "Install" [ref=f7e384] [cursor=pointer]
+                - tab "Runtime" [ref=f7e390] [cursor=pointer]
+                - tab "Labels & Devices" [ref=f7e395] [cursor=pointer]
+                - tab "Healthcheck" [ref=f7e402] [cursor=pointer]
+                - tab "Auto Start" [ref=f7e407] [cursor=pointer]
+                - tab "Pages" [ref=f7e409] [cursor=pointer]
+                - tab "Instance Controls" [ref=f7e414] [cursor=pointer]
+                - tab "Spec Preview" [ref=f7e420] [cursor=pointer]
+              - button "Hide tabs — Instances / New Instance" [expanded] [active] [ref=f7e426] [cursor=pointer]
+          - generic [ref=f7e277]:
+            - generic [ref=f7e278]:
+              - generic [ref=f7e279]:
+                - heading "General" [level=3] [ref=f7e280]
+                - paragraph [ref=f7e281]: Icon, names, owner, node and template — everything the deployment runs on.
+              - generic [ref=f7e282]:
+                - generic [ref=f7e283]:
+                  - generic [ref=f7e284]: Icon
+                  - button "Edit icon & colour" [ref=f7e285] [cursor=pointer]
+                - generic [ref=f7e293]:
+                  - generic [ref=f7e294]: Display name (optional)
+                  - textbox "New instance" [ref=f7e295]
+              - generic [ref=f7e296]:
+                - generic [ref=f7e297]:
+                  - generic [ref=f7e298]: Instance name
+                  - textbox "e.g. game-01" [ref=f7e299]
+                - generic [ref=f7e300]:
+                  - generic [ref=f7e301]: Owner
+                  - generic [ref=f7e309]:
+                    - button "smoke𝑨𝒅𝒎𝒊𝒏𝒊𝒔𝒕𝒓𝒂𝒕𝒐𝒓" [ref=f7e319] [cursor=pointer]
+                    - button "Clear selection" [ref=f7e320] [cursor=pointer]
+                  - paragraph [ref=f7e324]: smoke@ksmail.com
+            - generic [ref=f7e326]:
+              - generic [ref=f7e327]:
+                - generic [ref=f7e328]:
+                  - generic [ref=f7e329]:
+                    - heading "Template" [level=4] [ref=f7e330]
+                    - paragraph [ref=f7e335]: Pick the blueprint that defines this instance.
+                  - generic [ref=f7e336]: 0 available
+                - generic [ref=f7e337]: No templates available.
+                - paragraph [ref=f7e338]: Choose a template first — its configuration appears on the other tabs.
+              - generic [ref=f7e339]:
+                - generic [ref=f7e340]:
+                  - generic [ref=f7e341]:
+                    - heading "Node" [level=4] [ref=f7e342]
+                    - paragraph [ref=f7e355]: Where the instance runs — the node must advertise this template's driver.
+                  - generic [ref=f7e356]: 0 available
+                - generic [ref=f7e357]: No nodes available.
+  - button "Open AI assistant" [ref=f7e359] [cursor=pointer]
