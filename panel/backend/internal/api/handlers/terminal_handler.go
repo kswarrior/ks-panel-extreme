@@ -480,6 +480,12 @@ func stdinCommandLine(payload []byte) (string, bool) {
 	return line, true
 }
 
+// maxModConsoleData caps the console text carried by a single
+// post:console.output payload: a mod subscribed to a firehose terminal
+// receives at most one toast-worthy prefix per frame instead of a copy of
+// every megabyte the workload printed.
+const maxModConsoleData = 8192
+
 // outputFrame classifies an edge→browser frame as console output.
 // Only stdout/stderr JSON frames are reported; ready/resize/exit/error
 // frames carry no console text. Data is capped so a mod subscribed to a
@@ -495,7 +501,6 @@ func outputFrame(payload []byte) (stream, data string, truncated, ok bool) {
 	if f.Type != "stdout" && f.Type != "stderr" {
 		return "", "", false, false
 	}
-	const maxModConsoleData = 8192
 	if len(f.Data) > maxModConsoleData {
 		return f.Type, f.Data[:maxModConsoleData], true, true
 	}
