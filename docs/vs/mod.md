@@ -38,8 +38,8 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Model | per-mod VM; JS has **no host OS surface** — only `ks.log`, `ks.storage.get/set/delete`, `ks.events.on`; 5s hook timeout; panics recovered, mod flagged broken, panel unaffected (Error Isolation) | none — patched core runs with full panel access | **none** — docs state extensions "run with the same access as the Panel and can read your database, settings, and users' data" | none — Laravel service provider, full app access + composer execution | — |
-| Honest minus | sandbox is opt-in via build tag; stock build ships without JS runtime; capability grants are approval metadata — enforcement is by *absence* of bindings, not per-call interception; custom perms declared-only, not persisted/enforced | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
+| Model | per-mod VM; host surface only through granted bindings (`ks.db`, `ks.files`, `ks.exec`, `ks.container`, `ks.vm`, `ks.console`, `ks.permissions`, `ks.capabilities`) — each checked per call against the mod's grants; 5s hook timeout; panics recovered, mod flagged broken, panel unaffected (Error Isolation) | none — patched core runs with full panel access | **none** — docs state extensions "run with the same access as the Panel and can read your database, settings, and users' data" | none — Laravel service provider, full app access + composer execution | — |
+| Honest minus | capability grants enforced per call (sandbox bindings + host-side SQL re-validation), custom perms persisted and grant-gated, **but** no signing, no marketplace/update path, no mod-to-mod dependency graph/version constraints | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
 
 ## 5. Capabilities / permissions vs
 
@@ -55,7 +55,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |---|---|---|---|---|---|
 | Pre-hooks | **cancellable, ordered** — a pre-hook can veto the action, HTTP request gets `409 "blocked by a mod"` (`EmitPre`, `instance_handler.go:2792`) | core-patch dependent, no contract | not documented (no veto) | not documented | — |
 | Post-hooks | concurrent, async, fire-and-forget (`EmitPost:2916`) | core-patch dependent | `listenToServerOperations` — provision/install/reinstall/backup, post-commit only | Laravel listeners | — |
-| Wired events | only `pre:/post:instance.{start,stop,kill,destroy,restart}` — honest minus: no file/backup/console/user events yet | — | server operations set above | Filament/Laravel hooks | — |
+| Wired events | instance lifecycle (`pre:/post:instance.{start,stop,kill,destroy,restart}`), deploy/reinstall (`pre:/post:instance.deploy|reinstall`), install completion (`post:instance.install`), files (`pre:/post:file.{write,delete,upload}`), backups (`pre:/post:backup.{create,restore,delete}`), console (`pre:/post:console.command`, `post:console.output`), login (`post:user.login`) | — | server operations set above | Filament/Laravel hooks | — |
 
 ## 7. Data / storage vs
 
@@ -85,7 +85,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |---|---|---|---|---|---|
 | Authoring | Mod Studio: 8 tabs (Meta, Permissions, Slots, Hooks, Backend script, Custom perms, Spec, Raw JSON) + presets (`modStudioPresets.ts`) | write patches | docs + SDK packages | `p:plugin:make` scaffold, structure mirrors Laravel/Filament | — |
 | Diagnostics | engine status (mode, enabled), per-slug bounded log ring, `GET /{id}/logs`, kill switch UI | none | admin extension list | plugin status/incompatibility flags, load order | — |
-| Honest minus | no scaffold command, thin docs (5-line AI skill page), no dev hot-reload, no unit-test harness for mods, JS API is 3 namespaces only | — | beta docs | — | — |
+| Honest minus | no scaffold command, thin docs (5-line AI skill page), no dev hot-reload, no unit-test harness for mods | — | beta docs | — | — |
 
 ## 11. Verdict vs (honest)
 
