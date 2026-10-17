@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useInstance } from '@/shared/hooks/useInstance';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import { KindIcon } from './InstanceFormComponents';
@@ -69,16 +70,9 @@ function formatSeconds(s: number): string {
 
 function useUptime(sinceISO: string | undefined | null, status: string, liveUptimeSec?: number | null, liveT?: number | null): string {
   const [, force] = useState(0);
-  useEffect(() => {
-    if (status !== 'running') return;
-    if (liveUptimeSec != null && liveUptimeSec >= 0) {
-      const t = setInterval(() => force((v) => v + 1), 1000);
-      return () => clearInterval(t);
-    }
-    if (!sinceISO) return;
-    const t = setInterval(() => force((v) => v + 1), 1000);
-    return () => clearInterval(t);
-  }, [sinceISO, status, liveUptimeSec]);
+  const shouldTick =
+    status === 'running' && ((liveUptimeSec != null && liveUptimeSec >= 0) || !!sinceISO);
+  useVisibleInterval(() => force((v) => v + 1), shouldTick ? 1000 : null);
   // Live container uptime takes precedence when we have a recent snapshot.
   // useLiveMetrics polls every 4s, so a snapshot older than 90s means the
   // edge is unreachable — fall back to DB which is more honest than a frozen

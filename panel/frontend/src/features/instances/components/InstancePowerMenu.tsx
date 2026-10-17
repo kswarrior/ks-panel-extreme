@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { startInstance, stopInstance, restartInstance, killInstance } from '@/shared/api/admin';
 import { invokeInstanceAction, stopInstanceAction } from '@/features/instances/api/instanceAdvanced';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -126,10 +127,8 @@ const InstancePowerMenu: React.FC = () => {
 
   // Keep action running-state fresh while the instance menu is open (silent
   // reloads so a finished action morphs back to Run without a flash).
-  useEffect(() => {
-    const t = window.setInterval(() => { void reload(true); }, 3000);
-    return () => window.clearInterval(t);
-  }, [reload]);
+  // Paused while the tab is hidden.
+  useVisibleInterval(() => { void reload(true); }, 3000);
 
   const canControl = hasPermissionAny(
     permissions,

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Instance, DriverKind } from '@/shared/types/instance';
 import { parseConfig } from '@/shared/hooks/useInstance';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
@@ -222,13 +223,11 @@ function formatSeconds(s: number): string {
 // a host reboot. Updated every second while mounted.
 function useUptime(sinceISO: string | undefined | null, status: string, liveUptimeSec?: number | null, liveUpdatedAt?: string | null): string {
   const [, force] = useState(0);
-  useEffect(() => {
-    if (status !== 'running') return;
-    if (liveUptimeSec != null && liveUptimeSec >= 0) return; // live mode still ticks via interval below, but start time is edge-owned
-    if (!sinceISO) return;
-    const t = setInterval(() => force((v) => v + 1), 1000);
-    return () => clearInterval(t);
-  }, [sinceISO, status, liveUptimeSec]);
+  // DB-fallback mode only: live mode's start time is edge-owned, so there
+  // is nothing to tick when liveUptimeSec is present. Paused when hidden.
+  const shouldTick =
+    status === 'running' && !(liveUptimeSec != null && liveUptimeSec >= 0) && !!sinceISO;
+  useVisibleInterval(() => force((v) => v + 1), shouldTick ? 1000 : null);
   // Live edge uptime takes precedence when we have a recent cache entry
   // (updated within 90s — the sweep interval is 10s, so stale >90s means
   // the edge is unreachable and DB fallback is more honest than a frozen
