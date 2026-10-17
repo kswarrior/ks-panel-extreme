@@ -129,6 +129,19 @@ func InitInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	// Mod engine pre hook: a mod may veto a backup upload before any file is
+	// created. The matching post:backup.create fires when the final chunk
+	// lands (UploadInstanceBackupChunkHandler) — not here, where the backup
+	// is still empty.
+	if cancelled, msg := modEmitPre(r.Context(), "pre:backup.create", map[string]any{
+		"id": id, "filename": dto.Filename,
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
 	// Make the on-disk name unique per init so resumed uploads never clash.
 	_ = time.Now().UTC()
 	dir, err := instanceBackupDir(id)
