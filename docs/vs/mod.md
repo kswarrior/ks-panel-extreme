@@ -45,7 +45,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Declaration | `permissionsRequested`: capability + access level (`db.read_only|read_write`, `filesystem`, `terminal`, `container.control`, `vm.control`, …); unknown codes rejected at upload (`mod_repo.go:163`); `customPermissions` persisted as `access_level='custom'` grant rows (`granted=0` until admin approves) with `slug:key` shape validation | none | `registerPermissions` at runtime | `Role::registerCustomPermissions` / `Subuser::registerCustomPermissions` | — |
+| Declaration | `permissionsRequested`: capability + access level (`db.read_only\|read_write`, `filesystem`, `terminal`, `container.control`, `vm.control`, …); unknown codes rejected at upload (`mod_repo.go:163`); `customPermissions` persisted as `access_level='custom'` grant rows (`granted=0` until admin approves) with `slug:key` shape validation | none | `registerPermissions` at runtime | `Role::registerCustomPermissions` / `Subuser::registerCustomPermissions` | — |
 | Approval | per-capability `granted` rows seeded on install; activation blocked until admin approves each (`PUT /{id}/grants`) | none | none — permissions appear in roles/subuser editors after install | none — permissions appear after install | — |
 | Panel-side RBAC | `MANAGE_MODS` umbrella + `MODS_VIEW/CREATE/EDIT/DELETE` + `MODS_OWN/ALL` ownership scoping | admin-only addons | admin extension management | admin plugin resource | — |
 
@@ -55,13 +55,13 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |---|---|---|---|---|---|
 | Pre-hooks | **cancellable, ordered** — a pre-hook can veto the action, HTTP request gets `409 "blocked by a mod"` (`EmitPre`, `instance_handler.go:2835`; file/backup/console/deploy hooks via `mod_events.go`) | core-patch dependent, no contract | not documented (no veto) | not documented | — |
 | Post-hooks | concurrent, async, fire-and-forget (`EmitPost:2956`) | core-patch dependent | `listenToServerOperations` — provision/install/reinstall/backup, post-commit only | Laravel listeners | — |
-| Wired events | instance lifecycle (`pre:/post:instance.{start,stop,kill,destroy,restart}`), deploy/reinstall (`pre:/post:instance.deploy|reinstall`), install completion (`post:instance.install`), files (`pre:/post:file.{write,delete,upload}`), backups (`pre:/post:backup.{create,restore,delete}`), console (`pre:/post:console.command`, `post:console.output`), login (`post:user.login`) | — | server operations set above | Filament/Laravel hooks | — |
+| Wired events | instance lifecycle (`pre:/post:instance.{start,stop,kill,destroy,restart}`), deploy/reinstall (`pre:/post:instance.deploy\|reinstall`), install completion (`post:instance.install`), files (`pre:/post:file.{write,delete,upload}`), backups (`pre:/post:backup.{create,restore,delete}`), console (`pre:/post:console.command`, `post:console.output`), login (`post:user.login`) | — | server operations set above | Filament/Laravel hooks | — |
 
 ## 7. Data / storage vs
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Data access | namespaced KV (`mod_storage(mod_slug,key,value JSON)`, FK cascade) via `ks.storage`; plus grant-gated panel-DB access via `ks.db` — read-only = SELECT/WITH, read-write adds INSERT/UPDATE/DELETE, statements re-validated host-side (multi-statement, comments, DDL/PRAGMA/ATTACH and reads-of-secrets patterns denied) | full DB once core patched | full DB/ORM; migrations on enable (`ext_` prefix) | full DB; auto-registered migrations | — |
+| Data access | namespaced KV (`mod_storage(mod_slug,key,value JSON)`, FK cascade) via `ks.storage`; plus grant-gated panel-DB access via `ks.db` — read-only = SELECT/WITH, read-write adds INSERT/UPDATE/DELETE, every statement re-validated host-side (multi-statements, comments, DDL/PRAGMA/ATTACH and file-read/timing functions denied) | full DB once core patched | full DB/ORM; migrations on enable (`ext_` prefix) | full DB; auto-registered migrations | — |
 | Settings | mod `spec` blob + KV; no secretbox tier for mods | none | typed settings (text/password/number/toggle/select), `forUser/forServer` scopes, secrets encrypted, never sent to frontend | plugin settings page (`HasPluginSettings`) | — |
 | DB engines | SQLite/Postgres/MySQL (mod tables triplicated across dialects) | MySQL | MySQL | MySQL/Postgres | — |
 
