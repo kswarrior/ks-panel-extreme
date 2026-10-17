@@ -1042,6 +1042,18 @@ func ReinstallInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// Mod engine pre-hook: cancellable BEFORE the destructive part (the
+	// destroy loop further down wipes the workload), so a vetoed reinstall
+	// leaves the running instance untouched.
+	if cancelled, msg := modEmitPre(r.Context(), "pre:instance.reinstall", map[string]any{
+		"id": id, "name": inst.Name, "kind": inst.Kind, "node": inst.NodeName,
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
 	// The stored config is already the merged deploy-time spec — redeploy
 	// it verbatim.
 	cfg := map[string]any{}
@@ -1145,6 +1157,10 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 	if err != nil {
 		log.Printf("reinstall async for instance %d failed: %v", instID, err)
 		_ = repo2.SetStatus(instID, "errored", "", "reinstall failed: "+err.Error())
+		modEmitPost("post:instance.reinstall", map[string]any{
+			"id": instID, "name": name, "kind": kind, "node": node2.Name,
+			"failed": true, "error": err.Error(),
+		})
 		return
 	}
 	status := resp.Status
@@ -1192,6 +1208,10 @@ func reinstallAsync(instID, nodeID int64, kind, name string, cfg map[string]any)
 		log.Printf("reinstall async: failed to update status for instance %d: %v", instID, err)
 		return
 	}
+	modEmitPost("post:instance.reinstall", map[string]any{
+		"id": instID, "name": name, "kind": kind, "node": node2.Name,
+		"status": status, "external_id": resp.ExternalID,
+	})
 	if len(steps) > 0 {
 		stepsJSON, _ := json.Marshal(steps)
 		_ = repo2.UpdateInstallStatus(instID, "running", kind+":"+name, 0, "", string(stepsJSON))
@@ -1899,6 +1919,13 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("deploy async: failed to update status for instance %d: %v", id, err)
 			return
 		}
+		// Deploy accepted by the edge and persisted: mods can now treat the
+		// workload as provisioned. "installing" means the install workflow
+		// is still running — its completion arrives as post:instance.install.
+		modEmitPost("post:instance.deploy", map[string]any{
+			"id": id, "name": req.Name, "kind": tmpl.Kind, "node": node2.Name,
+			"status": status, "external_id": resp.ExternalID,
+		})
 
 		// Store secret env vars in instance_secrets after successful deploy.
 		// This ensures sensitive values are encrypted at rest.
