@@ -387,7 +387,12 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     return false;
   };
 
-  const adminEntries = adminSubItems.filter((i) => hasSidebarAccess(i.permission));
+  // Permission filtering only changes when the permission set changes;
+  // recomputing it on every (re)render was pure waste on the phone.
+  const adminEntries = React.useMemo(
+    () => adminSubItems.filter((i) => hasSidebarAccess(i.permission)),
+    [permissions],
+  );
 
   // Sidebar categories: every admin entry belongs to exactly one section.
   // Section order below sets the display order; item order inside a section
@@ -434,7 +439,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
             aria-expanded={false}
             aria-controls="system-submenu"
             title={isCollapsed ? item.label : undefined}
-            className={`flex w-full items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+            className={`flex w-full items-center rounded-md text-sm transition-colors text-gray-400 ks-nav-item ${
               isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
             } ${onSystem ? 'ks-nav-active' : ''}`}
           >
@@ -464,7 +469,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
           aria-controls="system-submenu"
           aria-label="Collapse System"
           title="Back to System"
-          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition text-gray-400 ks-nav-item ${onSystem ? 'ks-nav-active' : ''}`}
+          className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors text-gray-400 ks-nav-item ${onSystem ? 'ks-nav-active' : ''}`}
         >
           <span className="shrink-0 flex items-center justify-center">
             {Icons[item.icon]}
@@ -481,7 +486,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
               to={s.to}
               onClick={onClose}
               aria-current={s.active ? 'page' : undefined}
-              className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm transition text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
+              className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors text-gray-400 ks-nav-item ${s.active ? 'ks-nav-active' : ''}`}
             >
               <span className="shrink-0 flex items-center justify-center">
                 {Icons[s.icon]}
@@ -500,7 +505,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       to={item.to}
       onClick={onClose}
       className={({ isActive }) =>
-        `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+        `flex items-center rounded-md text-sm transition-colors text-gray-400 ks-nav-item ${
           isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
         } ${isActive ? 'ks-nav-active' : ''}`
       }
@@ -526,7 +531,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       />
 
       <aside
-        className={` fixed inset-y-0 left-0 z-40 h-dvh flex flex-col overflow-hidden transition-all duration-200 glass-chrome ks-sidebar-bg text-gray-100 md:static md:relative md:inset-auto md:flex-shrink-0 md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'ks-sidebar-collapsed w-16' : 'w-64'}`}
+        className={` fixed inset-y-0 left-0 z-40 h-dvh flex flex-col overflow-hidden transition-transform duration-200 glass-chrome ks-sidebar-bg text-gray-100 md:static md:relative md:inset-auto md:flex-shrink-0 md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} ${isCollapsed ? 'ks-sidebar-collapsed w-16' : 'w-64'}`}
         aria-label="Main navigation"
       >
         {/* Fixed top brand area — never scrolls */}
@@ -577,7 +582,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
                       to={p.url}
                       onClick={onClose}
                       className={({ isActive }) =>
-                        `flex items-center rounded-md text-sm transition text-gray-400 ks-nav-item ${
+                        `flex items-center rounded-md text-sm transition-colors text-gray-400 ks-nav-item ${
                           isCollapsed ? 'justify-center px-2 py-2' : 'gap-3 px-3 py-2'
                         } ${isActive ? 'ks-nav-active' : ''}`
                       }
