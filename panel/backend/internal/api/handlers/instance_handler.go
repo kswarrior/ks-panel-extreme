@@ -4261,6 +4261,24 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Mod engine hooks (after the template's terminal policy passed — mods
+	// sit below the operator's rules, not above them). A cancelled line is
+	// dropped: the post event records the veto for observers and the caller
+	// gets a 409 instead of "accepted".
+	if cancelled, msg := modEmitPre(r.Context(), "pre:console.command", map[string]any{
+		"id": id, "action_id": actionID, "command": line, "source": "action",
+	}); cancelled {
+		modEmitPost("post:console.command", map[string]any{
+			"id": id, "action_id": actionID, "command": line, "source": "action",
+			"blocked": true, "message": msg,
+		})
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
+
 	token, err := nodeRepo.PlainToken(inst.NodeID)
 	if err != nil || token == "" {
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
@@ -4293,6 +4311,9 @@ func ActionStdinHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	modEmitPost("post:console.command", map[string]any{
+		"id": id, "action_id": actionID, "command": line, "source": "action",
+	})
 	writeJSON(w, map[string]any{
 		"id":        id,
 		"action_id": actionID,
