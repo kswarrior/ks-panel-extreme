@@ -90,7 +90,7 @@ export const PageFormActionsPill: React.FC<PageFormActionsPillProps> = ({
           style={{ '--ks-card-padding': '6px' } as React.CSSProperties}
         >
           <div
-            className="ks-pill-content flex items-center gap-1 transition-all duration-300 ease-in-out"
+            className="ks-pill-content flex items-center gap-1"
             style={
               isOff
                 ? {
