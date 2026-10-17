@@ -35,8 +35,9 @@
 //
 // Gated bindings NEVER panic or throw on denial: they return a structured
 // {ok:false, error} object and write the denial into the diagnostics ring. The
-// grant snapshot is rebuilt on every activation (engine-side) and consulted
-// per call — a revoked capability stops working immediately.
+// grant snapshot is built by the engine on every activation and refreshed
+// whenever an admin edits grants (ModEngine.RefreshHostEnv) — every gated call
+// checks it, so a revocation stops working at the next call.
 //
 // Security contract: the VM exposes NO raw host OS surface. No `require`, no
 // `os`, no direct file reads, no `process`, no network. Host effects only flow

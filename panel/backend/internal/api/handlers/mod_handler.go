@@ -883,6 +883,12 @@ func SetModGrantsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Push the new grant snapshot into the running runtime (when one exists)
+	// so a revoked capability is denied from the next binding call onward and
+	// a new approval is usable immediately — no re-activation round-trip.
+	if mod, gerr := repo.GetMod(id); gerr == nil && mod != nil {
+		modengine.Default().RefreshHostEnv(mod)
+	}
 	grantedCount := 0
 	for _, g := range dto.Grants {
 		if g.Granted {
