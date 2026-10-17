@@ -898,18 +898,12 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
 .ks-ai-fab-icon.is-open {
   transform: rotate(90deg) scale(1.05);
 }
-/* Idle attention ring for the closed FAB so it reads as interactive. */
-@keyframes ks-ai-fab-ring {
-  0% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,255,255,0); }
-  70% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 10px rgba(255,255,255,0); }
-  100% { box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(255,255,255,0); }
-}
+/* Idle depth for the closed FAB. This used to be an infinite box-shadow
+   keyframe whose "ring" frames were alpha-0 — invisible, yet it kept a
+   per-frame repaint alive on every screen the FAB is docked on. Same
+   pixels, zero animation: a static shadow and no running timeline. */
 .ks-ai-fab-anim.is-idle {
-  animation: ks-ai-fab-ring 2.6s ease-out infinite;
-}
-.ks-ai-fab-anim.is-open,
-.ks-ai-fab-anim:hover {
-  animation: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
 }
 /* Header menu-toggle glyph rotates when the thread menu is open. */
 .ks-ai-menu-toggle svg {
@@ -1101,20 +1095,11 @@ nav.overflow-x-auto::-webkit-scrollbar-thumb:hover {
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.65), 0 0 0 6px rgba(255, 255, 255, 0.07) !important;
   transition-duration: 120ms !important;
 }
-/* Idle breathing glow so the toggle reads as interactive, paused while
-   open / dragging / hovered. */
-@keyframes ks-fab-idle-glow {
-  0%, 100% { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 255, 255, 0); }
-  50% { box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 5px rgba(255, 255, 255, 0.05); }
-}
-.ks-card.ks-fab-toggle.is-idle {
-  animation: ks-fab-idle-glow 3.2s ease-in-out infinite;
-}
-.ks-card.ks-fab-toggle.is-idle:hover,
-.ks-card.ks-fab-toggle.is-open,
-.ks-card.ks-fab-toggle.is-dragging {
-  animation: none;
-}
+/* The idle "breathing glow" used to animate box-shadow here, but the
+   theme's `.ks-card { box-shadow: var(--ks-card-shadow) !important }` rule
+   always won the cascade over animation declarations — so the glow never
+   rendered a single pixel while an infinite timeline ticked on every
+   frame. Removed; the themed card shadow is the idle state. */
 
 /* Wheel glyph morphs into an "active" state when the menu is open. */
 .ks-fab-toggle .ks-fab-wheel {
