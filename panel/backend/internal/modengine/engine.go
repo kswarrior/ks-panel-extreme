@@ -128,6 +128,73 @@ func (e *ModEngine) Storage() *StorageRepository { return e.storage }
 // slot response so the frontend knows whether active backend scripts execute.
 func (e *ModEngine) RunningMode() string { return RunningMode }
 
+// SetHostOps wires the host operation provider the sandbox bindings call.
+// Called once at panel boot (handlers.BootModEngine) with the panel-side
+// implementation that owns edge + DB access. Passing nil installs a no-op
+// provider so bindings fail with an explicit message instead of a nil
+// dereference. Not goroutine-safe against concurrent activations, but the
+// documented call point is boot — before any mod activates.
+func (e *ModEngine) SetHostOps(ops HostOps) {
+	if ops == nil {
+		ops = noopHostOps{}
+	}
+	e.ops.Store(ops)
+}
+
+// hostOps returns the provider, or nil when never wired.
+func (e *ModEngine) hostOps() HostOps {
+	if v, ok := e.ops.Load().(HostOps); ok {
+		return v
+	}
+	return nil
+}
+
+// loadHostEnv builds the per-activation grant snapshot the sandbox consults on
+// every host-binding call. It reads the mod's granted permission rows fresh
+// from the DB so a revocation between activations (or mid-flight, on the next
+// call) is honoured. Fail-closed on any error: the env keeps empty sets, so
+// every gated binding denies while the mod itself still boots — a grants read
+// failure must never enable host access.
+func (e *ModEngine) loadHostEnv(mod *models.Mod) *hostEnv {
+	env := &hostEnv{
+		slug:  mod.Slug,
+		caps:  map[string]bool{},
+		perms: map[string]bool{},
+		ops:   e.hostOps(),
+	}
+	con, err := repository.OpenDB()
+	if err != nil {
+		log.Printf("[modengine] mod %q: load grants: %v (continuing with no host grants)", mod.Slug, err)
+		e.AppendLog(mod.Slug, "error", "load grants: "+err.Error())
+		return env
+	}
+	defer con.Close()
+	rows, err := repository.NewModRepository(con).ListModPermissions(mod.ID)
+	if err != nil {
+		log.Printf("[modengine] mod %q: list permissions: %v (continuing with no host grants)", mod.Slug, err)
+		e.AppendLog(mod.Slug, "error", "list grants: "+err.Error())
+		return env
+	}
+	allowed := map[string]bool{}
+	for _, c := range models.AllowedCapabilties() {
+		allowed[c] = true
+	}
+	for _, p := range rows {
+		if !p.Granted {
+			continue
+		}
+		if allowed[p.Capability] {
+			env.caps[p.Capability] = true
+		} else {
+			// Custom (manifest-declared) permissions land in the same grant
+			// table; anything outside the fixed capability list is a custom
+			// key and only reachable via ks.permissions.has.
+			env.perms[p.Capability] = true
+		}
+	}
+	return env
+}
+
 // Boot loads every active mod's VM at startup. It is idempotent and safe to
 // call from the panel's main goroutine after the DB is migrated. Mods whose VM
 // fails to start are logged and left inactive in the registry rather than
