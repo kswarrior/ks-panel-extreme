@@ -404,3 +404,10 @@
 [ 1382626ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/system:0
 [ 1382652ms] [ERROR] WebSocket connection to 'ws://localhost:8091/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/assets/index-DUTkDXwH.js:0
 [ 1382656ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/notifications/unread-count:0
+[ 1389067ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/notifications/unread-count:0
+[ 1392655ms] [ERROR] WebSocket connection to 'ws://localhost:8091/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/assets/index-DUTkDXwH.js:0
+[ 1392657ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/notifications/unread-count:0
+[ 1397626ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/system:0
+[ 1402660ms] [ERROR] WebSocket connection to 'ws://localhost:8091/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/assets/index-DUTkDXwH.js:0
+[ 1402662ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/notifications/unread-count:0
+[ 1409067ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8091/api/notifications/unread-count:0
