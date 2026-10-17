@@ -414,7 +414,19 @@ func RestoreInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "backup not found", http.StatusNotFound)
 		return
 	}
+	if cancelled, msg := modEmitPre(r.Context(), "pre:backup.restore", map[string]any{
+		"id": id, "backup_id": bid, "filename": meta.Filename,
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
 	auditInst(r, id, "backup.restore", fmt.Sprintf("restored file backup %q — download + replay via Files", meta.Filename))
+	modEmitPost("post:backup.restore", map[string]any{
+		"id": id, "backup_id": bid, "filename": meta.Filename,
+	})
 	writeJSON(w, map[string]any{"ok": true, "message": "backup marked restored — download it and replay via the Files manager"})
 }
 
@@ -444,6 +456,15 @@ func DeleteInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "backup not found", http.StatusNotFound)
 		return
 	}
+	if cancelled, msg := modEmitPre(r.Context(), "pre:backup.delete", map[string]any{
+		"id": id, "backup_id": bid, "filename": meta.Filename,
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
 	if err := repository.NewInstanceFileBackupRepository(con).Delete(bid, id); err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
@@ -452,5 +473,8 @@ func DeleteInstanceBackupHandler(w http.ResponseWriter, r *http.Request) {
 		_ = os.Remove(filepath.Join(dir, filepath.Base(meta.Filename)))
 	}
 	auditInst(r, id, "backup.delete", fmt.Sprintf("deleted file backup %q", meta.Filename))
+	modEmitPost("post:backup.delete", map[string]any{
+		"id": id, "backup_id": bid, "filename": meta.Filename,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
