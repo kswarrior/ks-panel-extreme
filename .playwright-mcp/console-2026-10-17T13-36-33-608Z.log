@@ -330,3 +330,10 @@
 [ 1855130ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
 [ 1859589ms] [ERROR] WebSocket connection to 'ws://localhost:8094/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/assets/index-B7ilN3iI.js:0
 [ 1859594ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
+[ 1869591ms] [ERROR] WebSocket connection to 'ws://localhost:8094/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/assets/index-B7ilN3iI.js:0
+[ 1869593ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
+[ 1875133ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
+[ 1879593ms] [ERROR] WebSocket connection to 'ws://localhost:8094/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/assets/index-B7ilN3iI.js:0
+[ 1879594ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
+[ 1889595ms] [ERROR] WebSocket connection to 'ws://localhost:8094/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/assets/index-B7ilN3iI.js:0
+[ 1889600ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8094/api/notifications/unread-count:0
