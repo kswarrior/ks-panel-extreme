@@ -149,12 +149,15 @@ export const PageTabsPill: React.FC<PageTabsPillProps> = ({
               // Picking a tab collapses back to `^`.
               if ((e.target as HTMLElement).closest('button')) close();
             }}
-            // Always mounted so open/close glides like the Actions pill
-            // (max-height + fade + rise) instead of snapping in/out.
+            // Always mounted so open/close fades + rises like the Actions
+            // pill instead of snapping in/out. The motion (opacity +
+            // transform) is owned by `.ks-tabs-pill .ks-pill-content` in
+            // index.css, which outranks any Tailwind transition utility —
+            // the old `transition-all` here was dead code and is gone.
             // Plain rows: the callers' ks-tab-active (white) highlight stays
             // on the selected row; the toggle below is a plain ks-tab so
             // it never takes the white selected look.
-            className={`ks-pill-content flex flex-col gap-1 w-full min-w-0 max-h-[50vh] overflow-y-auto transition-all duration-300 ease-in-out [&>button]:w-full [&>button]:flex-none [&>button]:justify-start [&>button]:text-left ${isOff ? '' : 'pb-1 mb-1 border-b border-white/10'}`}
+            className={`ks-pill-content flex flex-col gap-1 w-full min-w-0 max-h-[50vh] overflow-y-auto [&>button]:w-full [&>button]:flex-none [&>button]:justify-start [&>button]:text-left ${isOff ? '' : 'pb-1 mb-1 border-b border-white/10'}`}
             style={
               isOff
                 ? {

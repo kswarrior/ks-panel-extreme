@@ -1722,10 +1722,15 @@ input[type="search"] {
 }
 .ks-actions-pill .ks-pill-content,
 .ks-tabs-pill .ks-pill-content {
-  transition-property: max-width, opacity, transform, filter;
+  /* Compositor-friendly only: max-width is the width glide, opacity +
+     transform are free. `filter` was dropped — the old blur(4px) motion
+     re-rasterized all pill text every frame and was the #1 tap-jank
+     source on slow phones; will-change no longer promotes a filter
+     layer. */
+  transition-property: max-width, opacity, transform;
   transition-duration: var(--ks-pill-anim-duration, 300ms);
   transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
-  will-change: max-width, opacity, transform, filter;
+  will-change: opacity, transform;
 }
 .ks-pill-toggle-chev {
   transition: transform var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1);
