@@ -1216,6 +1216,11 @@ func BootModEngine(ctx context.Context) {
 		log.Printf("[modengine] boot: load active mods: %v", err)
 		return
 	}
+	// Wire the host operation provider BEFORE any activation so capability-
+	// gated bindings (ks.db, ks.files, ks.exec, ks.container/vm, ks.console)
+	// have a live implementation from the very first script eval. A later
+	// SetHostOps is not needed; the provider is stateless.
+	modengine.Default().SetHostOps(NewModHostOps())
 	modengine.Default().SetStartCtx(ctx)
 	modengine.Default().Boot(ctx, active)
 }
