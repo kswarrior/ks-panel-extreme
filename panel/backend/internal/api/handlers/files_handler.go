@@ -937,6 +937,19 @@ func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mod engine hooks: an upload-from-URL is a file mutation too. The pre
+	// hook runs after validation but BEFORE the remote fetch so a mod veto
+	// costs nothing (no SSRF-hardened fetch performed).
+	if cancelled, msg := modEmitPre(r.Context(), "pre:file.upload", map[string]any{
+		"id": id, "path": dto.Path, "url": dto.URL, "source": "url",
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
+
 	// Fetch from the public URL first — fail before we touch the edge so a
 	// bad URL surfaces as a 400/502 to the operator (not silently as an edge
 	// error body they can't read).
@@ -971,6 +984,9 @@ func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	proxyToEdgeWithBody(w, r, id, "upload", target, body, ct)
+	modEmitPost("post:file.upload", map[string]any{
+		"id": id, "path": target, "url": dto.URL, "source": "url", "bytes": len(body),
+	})
 }
 
 // proxyToEdgeWithBody is the variant of proxyToEdge used by the URL upload
@@ -978,7 +994,10 @@ func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
 // bytes (already fetched) rather than the inbound request body. We
 // duplicate just enough of proxyToEdge to keep the read-stream happy: the
 // lookup + the dial + copy, with a JSON shape the edge already accepts.
-func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, target string, body []byte, contentType string) {
+// Returns ok=true when the edge answered successfully, mirroring
+// proxyToEdge — the URL-upload caller uses it to decide whether a
+// post:file.upload hook fires.
+func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, target string, body []byte, contentType string) (ok bool) {
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
