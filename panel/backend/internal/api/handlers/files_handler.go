@@ -1119,6 +1119,7 @@ func proxyToEdgeWithBody(w http.ResponseWriter, r *http.Request, id int64, op, t
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+	return true
 }
 
 // bytesReader returns a fresh reader over the supplied bytes via io.Reader.
