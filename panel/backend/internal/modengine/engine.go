@@ -151,10 +151,11 @@ func (e *ModEngine) hostOps() HostOps {
 
 // loadHostEnv builds the per-activation grant snapshot the sandbox consults on
 // every host-binding call. It reads the mod's granted permission rows fresh
-// from the DB so a revocation between activations (or mid-flight, on the next
-// call) is honoured. Fail-closed on any error: the env keeps empty sets, so
-// every gated binding denies while the mod itself still boots — a grants read
-// failure must never enable host access.
+// from the DB; together with RefreshHostEnv (called when an admin edits
+// grants) a revocation or new approval is honoured on the next binding call.
+// Fail-closed on any error: the env keeps empty sets, so every gated binding
+// denies while the mod itself still boots — a grants read failure must never
+// enable host access.
 func (e *ModEngine) loadHostEnv(mod *models.Mod) *hostEnv {
 	env := &hostEnv{
 		slug:  mod.Slug,
@@ -512,6 +513,30 @@ func (e *ModEngine) EmitPost(ctx context.Context, event string, payload any) {
 // code can short-circuit the (no-op) bus dispatch when nothing is listening,
 // which is the common case on a panel with no active mods.
 func (e *ModEngine) HasHooks(event string) bool { return e.bus.HasListeners(event) }
+
+// RefreshHostEnv reloads a running mod's grant snapshot and swaps it into its
+// runtime. Handlers call it right after persisting grant edits so a revoked
+// capability is denied from the next binding call onward and a new approval is
+// usable immediately — no re-activation round-trip. A mod that is not running
+// is a no-op (its next activation loads the grants anyway).
+//
+// The entry is grabbed under e.mu, then released BEFORE SetHostEnv: the
+// runtime swap needs the VM mutex, and holding e.mu across a DB read would
+// block unrelated activations. A concurrent Deactivate racing this is safe —
+// SetHostEnv no-ops on a stopped runtime.
+func (e *ModEngine) RefreshHostEnv(mod *models.Mod) {
+	if mod == nil || mod.Slug == "" {
+		return
+	}
+	e.mu.RLock()
+	entry := e.entries[mod.Slug]
+	e.mu.RUnlock()
+	if entry == nil {
+		return
+	}
+	entry.rt.SetHostEnv(e.loadHostEnv(mod))
+	e.AppendLog(mod.Slug, "info", "host grants refreshed")
+}
 
 // ---------------------------------------------------------------------------
 // Per-activation HookInstaller (the adapter the runtime writes through).
