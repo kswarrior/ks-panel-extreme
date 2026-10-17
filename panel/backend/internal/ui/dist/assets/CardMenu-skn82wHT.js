@@ -1,0 +1,1 @@
+import{j as r}from"./react-0h_Dc6Wy.js";import{aC as n}from"./index-B7ilN3iI.js";const x=({items:s,onSelect:t,onToggle:e,closeOnToggle:i,ariaLabel:o="Open menu",placement:a="bottom-right",width:m})=>r.jsx("div",{className:"relative shrink-0",children:r.jsx(n,{items:s,onSelect:t,onToggle:e,closeOnToggle:i,ariaLabel:o,placement:a,width:m??176})});export{x as C};
