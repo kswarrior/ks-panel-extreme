@@ -1008,6 +1008,16 @@ func installSweepLoop(interval time.Duration) {
 			log.Printf("install poll: instance %d done (container stopped)", inst.id)
 		}
 		_ = instRepo2.SetStatus(inst.id, nextStatus, "", "")
+		// Mod engine: an install WORKFLOW (not an invoked action — those
+		// reuse the install engine but are not installs, see the status
+		// rationale above) just finished. Post-only: completion is a fact,
+		// not a request, so there is nothing to cancel.
+		if inst.installKind != "action" && modengine.Default().HasHooks("post:instance.install") {
+			modengine.Default().EmitPost(context.Background(), "post:instance.install", map[string]any{
+				"id": inst.id, "name": inst.name, "kind": inst.kind,
+				"state": "done", "status": nextStatus,
+			})
+		}
 		case "failed":
 			// Find the failing step's index for install_step.
 			stepIdx := -1
@@ -1037,6 +1047,12 @@ func installSweepLoop(interval time.Duration) {
 		}
 		_ = instRepo2.SetStatus(inst.id, nextStatus, "", resp.Error)
 		log.Printf("install poll: instance %d failed (kind=%s): %s", inst.id, inst.installKind, resp.Error)
+		if inst.installKind != "action" && modengine.Default().HasHooks("post:instance.install") {
+			modengine.Default().EmitPost(context.Background(), "post:instance.install", map[string]any{
+				"id": inst.id, "name": inst.name, "kind": inst.kind,
+				"state": "failed", "status": nextStatus, "error": resp.Error,
+			})
+		}
 		// Auto-stop covers failures too: an action that declared
 		// auto_stop_on_exit tears the container down when its process
 		// dies, not only on clean exit. The "errored" status above is
@@ -1071,6 +1087,12 @@ func installSweepLoop(interval time.Duration) {
 			}
 			_ = instRepo2.SetStatus(inst.id, unknownStatus, "", "edge lost install state")
 			log.Printf("install poll: instance %d unknown (edge restart?)", inst.id)
+			if inst.installKind != "action" && modengine.Default().HasHooks("post:instance.install") {
+				modengine.Default().EmitPost(context.Background(), "post:instance.install", map[string]any{
+					"id": inst.id, "name": inst.name, "kind": inst.kind,
+					"state": "failed", "status": unknownStatus, "error": "edge lost install state (edge restarted?)",
+				})
+			}
 		case "running":
 			// Update step progress so the UI can show a progress bar.
 			curStep := -1
