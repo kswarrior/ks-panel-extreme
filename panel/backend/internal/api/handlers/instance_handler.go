@@ -1739,6 +1739,20 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	cfgBytes, _ := json.Marshal(cfgForStore)
 
+	// Mod engine pre-hook: a mod may veto the deploy BEFORE the instance
+	// row exists, so a cancelled deploy never leaves a "creating" ghost
+	// behind. There is no id yet — the payload identifies the intent by
+	// name/kind/node/template.
+	if cancelled, msg := modEmitPre(r.Context(), "pre:instance.deploy", map[string]any{
+		"name": req.Name, "kind": tmpl.Kind, "node_id": req.NodeID, "template_id": req.TemplateID,
+	}); cancelled {
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
+
 	// Create the instance row immediately with status="creating" so the
 	// panel responds in <100ms (well under any upstream proxy timeout).
 	// The actual edge lifecycle deploy runs in a background goroutine.
@@ -1821,6 +1835,10 @@ func DeployInstanceHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("deploy async to node %s failed: %v", node2.Address, err)
 			_ = instRepo2.SetStatus(id, "errored", "", err.Error())
+			modEmitPost("post:instance.deploy", map[string]any{
+				"id": id, "name": req.Name, "kind": tmpl.Kind, "node": node2.Name,
+				"failed": true, "error": err.Error(),
+			})
 			return
 		}
 
