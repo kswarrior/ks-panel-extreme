@@ -983,10 +983,11 @@ func InstanceFileURLUploadHandler(w http.ResponseWriter, r *http.Request) {
 		target = path.Join(target, base)
 	}
 
-	proxyToEdgeWithBody(w, r, id, "upload", target, body, ct)
-	modEmitPost("post:file.upload", map[string]any{
-		"id": id, "path": target, "url": dto.URL, "source": "url", "bytes": len(body),
-	})
+	if ok := proxyToEdgeWithBody(w, r, id, "upload", target, body, ct); ok {
+		modEmitPost("post:file.upload", map[string]any{
+			"id": id, "path": target, "url": dto.URL, "source": "url", "bytes": len(body),
+		})
+	}
 }
 
 // proxyToEdgeWithBody is the variant of proxyToEdge used by the URL upload

@@ -264,6 +264,12 @@ func UploadInstanceBackupChunkHandler(w http.ResponseWriter, r *http.Request) {
 			_ = repository.NewInstanceFileBackupRepository(con).UpdateStat(bid, newSize, sha)
 		}
 		auditInst(r, id, "backup.upload", fmt.Sprintf("completed file backup %q (%d bytes)", meta.Filename, newSize))
+		// The backup only becomes a usable artifact at the final chunk —
+		// this is the real "created" moment for mods (pre:backup.create
+		// fired at init when the upload started).
+		modEmitPost("post:backup.create", map[string]any{
+			"id": id, "backup_id": bid, "filename": meta.Filename, "bytes": newSize,
+		})
 	}
 	writeJSON(w, map[string]any{"id": bid, "offset": newSize, "complete": total >= 0 && newSize >= total})
 }
