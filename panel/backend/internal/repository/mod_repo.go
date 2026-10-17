@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
@@ -170,6 +172,47 @@ func validatePermissionRequests(perms []PermissionReq) error {
 			return fmt.Errorf("duplicate permission request for capability %q", p.Capability)
 		}
 		seen[p.Capability] = struct{}{}
+	}
+	return nil
+}
+
+// modDeclaredPermRe is the contract for the key part of a mod-declared custom
+// permission (after the "<slug>:" namespace): lowercase letters/digits plus
+// "_", "." and "-", 1-64 chars. Kept intentionally narrow so the code reads
+// well in the grant checklist and can never collide with a capability code.
+var modDeclaredPermRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
+
+// modDeclaredPermCap bounds how many custom permissions one manifest may
+// declare. The grant checklist renders them inline; an unbounded list would
+// bloat the mod row and the approval modal.
+const modDeclaredPermCap = 16
+
+// validateDeclaredPermissions rejects malformed / excessive custom permission
+// declarations before any rows are seeded. Keys arrive already normalised to
+// "<slug>:<key>" by models.ParseV2Manifest; we re-check the shape so a
+// manifest that skipped normalisation (blank slug edge cases) can't slip a
+// bare or hostile code into the UNIQUE(mod_id, capability) index.
+func validateDeclaredPermissions(declared []models.CustomPermission) error {
+	if len(declared) > modDeclaredPermCap {
+		return fmt.Errorf("too many custom permissions declared (%d; max %d)", len(declared), modDeclaredPermCap)
+	}
+	seen := map[string]struct{}{}
+	for _, p := range declared {
+		code := strings.TrimSpace(p.Key)
+		if code == "" {
+			return fmt.Errorf("custom permission key must not be empty")
+		}
+		key := code
+		if i := strings.Index(code, ":"); i >= 0 {
+			key = code[i+1:]
+		}
+		if !modDeclaredPermRe.MatchString(key) {
+			return fmt.Errorf("invalid custom permission key %q: use lowercase letters, digits, \"_\", \".\" or \"-\" (max 64 chars)", key)
+		}
+		if _, ok := seen[code]; ok {
+			return fmt.Errorf("duplicate custom permission %q", code)
+		}
+		seen[code] = struct{}{}
 	}
 	return nil
 }
