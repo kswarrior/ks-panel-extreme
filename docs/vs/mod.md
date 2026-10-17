@@ -5,7 +5,7 @@ hooks, storage, UI injection, ecosystem, tooling. Game-mod managers (Modrinth/Cu
 server) are deliberately out of scope; this compares how each panel extends *itself*. No standalone
 feature tour.
 
-Panels + latest checked: `KS` (this repo, Mod Engine v2, commit `90099f9b0`) vs `Pterodactyl v1.15.1 (12 Aug 2026, stable, 9.2k★ — no native system, community Blueprint patches are the de-facto, Blueprint ceased operations with Pterodactyl Oct 2026, security-only updates, team moving to the Hydrodactyl fork)` vs `Pterodactyl v2.0.0-beta.2 (14 Oct 2026, open beta, SDK 2.0.0-beta.6)` vs `Pelican v1.0.0-beta37 (plugin system marked "still in development", live Hub marketplace)` vs `PufferPanel v3.0.9 (no plugin system — templates/themes only; v2-era "scales" plugins are gone)`.
+Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `Pterodactyl v1.15.1 (12 Aug 2026, stable, 9.2k★ — no native system, community Blueprint patches are the de-facto, Blueprint ceased operations with Pterodactyl Oct 2026, security-only updates, team moving to the Hydrodactyl fork)` vs `Pterodactyl v2.0.0-beta.2 (14 Oct 2026, open beta, SDK 2.0.0-beta.6)` vs `Pelican v1.0.0-beta37 (plugin system marked "still in development", live Hub marketplace)` vs `PufferPanel v3.0.9 (no plugin system — templates/themes only; v2-era "scales" plugins are gone)`.
 
 ## 1. Shape vs
 
