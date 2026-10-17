@@ -1,0 +1,125 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e68]:
+    - complementary "Main navigation" [ref=f1e69]:
+      - generic [ref=f1e70]: KS Panel
+      - navigation [ref=f1e75]:
+        - paragraph [ref=f1e76]: Overview
+        - generic [ref=f1e77]:
+          - button "Collapse System" [expanded] [ref=f1e78] [cursor=pointer]:
+            - generic [ref=f1e85]: System
+          - generic [ref=f1e87]:
+            - link "Host" [ref=f1e88] [cursor=pointer]:
+              - /url: /system?tab=host
+            - link "Panel" [ref=f1e94] [cursor=pointer]:
+              - /url: /system?tab=panel
+        - link "Security" [ref=f1e100] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=f1e106] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=f1e111] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=f1e118]: Management
+        - link "Users" [ref=f1e119] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=f1e127] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=f1e132] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=f1e138] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=f1e143]: Infrastructure
+        - link "Nodes" [ref=f1e144] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=f1e158] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=f1e164] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=f1e170] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=f1e180]: Extensions
+        - link "Mods" [ref=f1e181] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=f1e186] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=f1e194] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=f1e201]: Appearance
+        - link "Themes" [ref=f1e202] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=f1e211]: Support
+        - link "Tickets" [ref=f1e212] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=f1e220] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=f1e228] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=f1e229]:
+      - banner [ref=f1e230]:
+        - generic [ref=f1e231]:
+          - navigation "Breadcrumb" [ref=f1e233]:
+            - generic [ref=f1e234]: System
+          - generic [ref=f1e242]:
+            - button "Notifications, live" [ref=f1e243] [cursor=pointer]
+            - button "Profile menu" [ref=f1e250] [cursor=pointer]:
+              - img "smoke" [ref=f1e251]:
+                - generic [ref=f1e252]: SM
+      - main [ref=f1e254]:
+        - generic [ref=f1e255]:
+          - generic [ref=f1e256]:
+            - generic [ref=f1e260]: Host
+            - generic [ref=f1e261]: runnervm8k3b6 · CPU 2% · MEM 16%
+            - generic "10/17/2026, 12:12:55 PM" [ref=f1e336]: 12:12:55 PM
+            - button "Refresh snapshot now" [ref=f1e263] [cursor=pointer]
+          - tabpanel "Host" [ref=f1e268]:
+            - generic [ref=f1e270]:
+              - generic [ref=f1e271]:
+                - heading "Local host — runnervm8k3b6" [level=3] [ref=f1e272]
+                - generic [ref=f1e273]: Linux 6.17.0-1022-azure · amd64 · unknown
+              - generic [ref=f1e274]:
+                - generic [ref=f1e275]:
+                  - generic [ref=f1e276]: Uptime
+                  - generic [ref=f1e277]: 2h 33m
+                - generic [ref=f1e278]:
+                  - generic [ref=f1e279]: Swap
+                  - generic [ref=f1e280]: 0.0%
+                  - generic [ref=f1e281]: 0 MB / 3.00 GB
+                - generic [ref=f1e282]:
+                  - generic [ref=f1e283]: Load (1m)
+                  - generic [ref=f1e284]: "0.29"
+              - generic [ref=f1e285]:
+                - generic [ref=f1e286]:
+                  - generic [ref=f1e287]:
+                    - generic [ref=f1e288]:
+                      - heading "CPU" [level=3] [ref=f1e289]
+                      - paragraph [ref=f1e290]: Optimistic projection dashed · warning at 80%
+                    - generic [ref=f1e291]: 1.8%
+                  - generic [ref=f1e292]:
+                    - generic [ref=f1e293]:
+                      - generic [ref=f1e294]: CPU %
+                      - generic [ref=f1e295]: 1.5%
+                    - img "CPU % chart" [ref=f1e296]
+                    - generic [ref=f1e300]:
+                      - generic [ref=f1e301]: 12:12:05
+                      - generic [ref=f1e302]: 12:12:30
+                      - generic [ref=f1e303]: 12:12:54
+                - generic [ref=f1e304]:
+                  - generic [ref=f1e305]:
+                    - generic [ref=f1e306]:
+                      - heading "Memory" [level=3] [ref=f1e307]
+                      - paragraph [ref=f1e308]: Warning at 85% · danger at 95%
+                    - generic [ref=f1e309]: 2.45 GB
+                  - generic [ref=f1e310]:
+                    - generic [ref=f1e311]:
+                      - generic [ref=f1e312]: MEM %
+                      - generic [ref=f1e313]: 15.7%
+                    - img "MEM % chart" [ref=f1e314]
+                    - generic [ref=f1e318]:
+                      - generic [ref=f1e319]: 12:12:05
+                      - generic [ref=f1e320]: 12:12:30
+                      - generic [ref=f1e321]: 12:12:54
+                - generic [ref=f1e322]:
+                  - heading "Disk" [level=3] [ref=f1e323]
+                  - generic [ref=f1e329]:
+                    - generic [ref=f1e330]: 49.5%
+                    - generic [ref=f1e331]: 71.47 GB / 144.3 GB
+  - button "Open AI assistant" [ref=f1e332] [cursor=pointer]
