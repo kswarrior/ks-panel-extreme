@@ -10,6 +10,7 @@ import type { DatabaseEngineInfo, DatabaseEngineSwitchResponse } from '@/shared/
 import type { DatabaseInfo, DatabaseTable } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import { MetaRow, StatTile, DeltaPill, Meter, Sparkline, PragmaTile, ChangeDatabaseCard, VerifyStatusCard } from '../components/DatabaseComponents';
@@ -56,19 +57,17 @@ const DatabasePage: React.FC = () => {
     }
   }, []);
 
+  const autoRefresh = live && (tab === 'overview' || tab === 'tables');
   useEffect(() => {
-    if (!live || (tab !== 'overview' && tab !== 'tables')) return;
+    if (!autoRefresh) return;
     load();
-    const id = window.setInterval(load, REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [load, live, tab]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (lastUpdated) setSecondsSince(Math.max(0, Math.round((Date.now() - lastUpdated.getTime()) / 1000)));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [lastUpdated]);
+  }, [load, autoRefresh]);
+  // Interval refresh + the "seconds since last refresh" ticker both pause
+  // while the tab is hidden.
+  useVisibleInterval(() => { void load(); }, autoRefresh ? REFRESH_MS : null);
+  useVisibleInterval(() => {
+    if (lastUpdated) setSecondsSince(Math.max(0, Math.round((Date.now() - lastUpdated.getTime()) / 1000)));
+  }, 1000);
 
   const filteredTables: DatabaseTable[] =
     info?.tables?.filter((t) => t.name.toLowerCase().includes(query.toLowerCase())) || [];

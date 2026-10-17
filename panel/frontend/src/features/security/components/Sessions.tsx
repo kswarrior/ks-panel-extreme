@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import {
   securityGetConfig,
   securityGetStatus,
@@ -111,9 +112,8 @@ const Sessions: React.FC<SessionsProps> = ({ initialConfig, onConfigChange }) =>
 
   useEffect(() => {
     loadSessions();
-    const id = window.setInterval(loadSessions, 15_000);
-    return () => window.clearInterval(id);
   }, [loadSessions]);
+  useVisibleInterval(loadSessions, 15_000);
 
   const saveConfig = async (e: React.FormEvent) => {
     e.preventDefault();

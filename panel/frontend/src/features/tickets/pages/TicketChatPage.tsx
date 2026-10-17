@@ -6,6 +6,7 @@ import TicketChat from '../components/TicketChat';
 import TicketChatSkeleton from '../components/TicketChatSkeleton';
 import TicketAttachments from '../components/TicketAttachments';
 import { useAuthStore } from '@/shared/stores/authStore';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -70,12 +71,12 @@ const TicketChatPage: React.FC = () => {
     };
   }, []);
 
-  // Live polling every 2.5s when live and ticket not closed
-  useEffect(() => {
-    if (!live || !id || ticket?.status === 'closed') return;
-    const iv = setInterval(() => load(false), 2500);
-    return () => clearInterval(iv);
-  }, [live, id, ticket?.status, load]);
+  // Live polling every 2.5s when live and ticket not closed (paused while
+  // the tab is hidden).
+  useVisibleInterval(
+    () => load(false),
+    live && id && ticket?.status !== 'closed' ? 2500 : null,
+  );
 
   const handleSend = async (body: string, isInternal: boolean) => {
     if (!id) return;
