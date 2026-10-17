@@ -264,9 +264,6 @@ func ValidateModSQL(sql string, readOnly bool) error {
 		if readOnly && sqlDeniedRead[up] {
 			return fmt.Errorf("%w: keyword %s is not allowed in read-only queries", ErrModSQLRejected, up)
 		}
-		if !readOnly && sqlDeniedWrite[up] {
-			return fmt.Errorf("%w: keyword %s is not allowed in write statements", ErrModSQLRejected, up)
-		}
 	}
 	return nil
 }
