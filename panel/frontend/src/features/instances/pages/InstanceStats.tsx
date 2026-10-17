@@ -9,6 +9,7 @@ import {
   StatCard,
 } from '@/shared/components/ui/StatDashboard';
 import ErrorState from '@/shared/components/ui/ErrorState';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useAuthStore } from '@/shared/stores/authStore';
@@ -67,10 +68,7 @@ const InstanceStats: React.FC = () => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    const t = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(t);
-  }, []);
+  useVisibleInterval(() => setNow(new Date()), 60_000);
 
   const greetingName = user?.username || user?.display_name || user?.email || 'there';
   const isEmpty = !loading && instances.length === 0;

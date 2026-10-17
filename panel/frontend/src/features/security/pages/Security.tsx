@@ -3,6 +3,7 @@ import { securitySnapshot, securityToggleAttack, securityGetConfig } from '@/sha
 import type { SecuritySnapshot as SecuritySnapshotT, SecurityConfig } from '@/features/security/types/security';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import ErrorState from '@/shared/components/ui/ErrorState';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import SectionRailTabs from '@/shared/components/ui/SectionRailTabs';
 import Firewall from '@/features/security/components/Firewall';
 import DDoS from '@/features/security/components/DDoS';
@@ -107,15 +108,15 @@ const Security: React.FC = () => {
 
   useEffect(() => {
     load();
-    const id = window.setInterval(() => {
-      // While in error state (!snap) skip auto-refresh: re-running
-      // load() would re-flash the skeleton and hammer a failing
-      // endpoint. Manual Retry (and config changes) still reload.
-      if (!snapRef.current) return;
-      load();
-    }, REFRESH_MS);
-    return () => window.clearInterval(id);
   }, [load]);
+
+  useVisibleInterval(() => {
+    // While in error state (!snap) skip auto-refresh: re-running
+    // load() would re-flash the skeleton and hammer a failing
+    // endpoint. Manual Retry (and config changes) still reload.
+    if (!snapRef.current) return;
+    load();
+  }, REFRESH_MS);
 
   useEffect(() => {
     loadFirewallConfig();

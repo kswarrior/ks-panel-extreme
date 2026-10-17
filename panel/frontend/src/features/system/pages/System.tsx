@@ -13,6 +13,7 @@ import type {
   ReinstallBackgroundResponse,
 } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
@@ -66,9 +67,8 @@ const System: React.FC = () => {
 
   useEffect(() => {
     load();
-    const id = window.setInterval(load, REFRESH_MS);
-    return () => window.clearInterval(id);
   }, [load]);
+  useVisibleInterval(() => { void load(); }, REFRESH_MS);
 
   if (loading) {
     return (

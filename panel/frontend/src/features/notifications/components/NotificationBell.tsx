@@ -148,6 +148,16 @@ const NotificationBell: React.FC = () => {
     const stopPollFallback = () => {
       if (pollIv) { clearInterval(pollIv); pollIv = null; }
     };
+    // Pause the fallback poll while the tab is hidden; refresh on return.
+    const onVisibility = () => {
+      if (document.hidden) {
+        stopPollFallback();
+      } else if (!ws) {
+        fetchUnread();
+        startPollFallback();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     const connect = () => {
       if (closed) return;
@@ -195,6 +205,7 @@ const NotificationBell: React.FC = () => {
     return () => {
       closed = true;
       setLive(false);
+      document.removeEventListener('visibilitychange', onVisibility);
       try { ws?.close(); } catch {}
       if (pollIv) clearInterval(pollIv);
       if (retryT) clearTimeout(retryT);
