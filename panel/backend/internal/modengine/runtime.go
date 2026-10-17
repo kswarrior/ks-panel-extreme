@@ -51,9 +51,10 @@ type HookInstaller interface {
 
 // HostEnv is the per-activation grant snapshot the runtime consults on EVERY
 // host-binding call. The engine builds it from the mod's granted capability
-// and custom-permission rows; lookups are O(1) map hits, safe to call from
-// hot script paths, and fail closed for unknown keys. A revocation takes
-// effect on the next call — no re-activation needed.
+// and custom-permission rows and swaps it in whenever an admin edits grants
+// (SetModGrantsHandler → ModEngine.RefreshHostEnv), so revocations and new
+// approvals take effect on the very next binding call. Lookups are O(1) map
+// hits, safe to call from hot script paths, and fail closed for unknown keys.
 type HostEnv interface {
 	// HasCapability reports whether a core capability code (models.Cap*) is
 	// granted for this activation.
@@ -101,6 +102,13 @@ type JSRuntime interface {
 	// Stop tears the runtime down and frees its VM. After Stop, ResolveHook
 	// must return (nil, false).
 	Stop()
+
+	// SetHostEnv swaps the grant snapshot consulted by capability-gated
+	// bindings. The engine calls it when an admin edits grants on a running
+	// mod so approvals/revocations apply to the next binding call without a
+	// re-activation. Implementations must be safe to call on a stopped
+	// runtime (no-op) and must not disturb the loaded script/hooks.
+	SetHostEnv(env HostEnv)
 }
 
 // noopHookInstaller is the no-op implementation's installer. Hooks registered

@@ -286,6 +286,18 @@ func (r *gojaRuntime) Stop() {
 	r.started.Store(false)
 }
 
+// SetHostEnv swaps the grant snapshot bindings consult. Called by the engine
+// when an admin edits grants on a running mod. Serialises with the VM mutex so
+// it can never race an in-flight binding call; a stopped runtime ignores it.
+func (r *gojaRuntime) SetHostEnv(env HostEnv) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.vm == nil {
+		return
+	}
+	r.host = env
+}
+
 // buildKS constructs the `ks` global the VM sees. Each member is a closure
 // capturing `r` so the mod's slug is fixed at Start time and never readable
 // back from JS in a forgeable way. Methods recover their own panic so a

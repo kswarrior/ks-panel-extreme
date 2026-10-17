@@ -65,3 +65,9 @@ func (r *runtimeNoop) Stop() {
 	r.source = ""
 	r.env = nil
 }
+
+// SetHostEnv swaps the grant snapshot. The noop runtime performs no host
+// bindings, so this only keeps the field coherent for introspection.
+func (r *runtimeNoop) SetHostEnv(env HostEnv) {
+	r.env = env
+}
