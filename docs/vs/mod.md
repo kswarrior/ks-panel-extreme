@@ -102,10 +102,10 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | 1 | Manifest / schema | 88 | 30 | 85 | 80 | 10 |
 | 2 | Packaging / install | 85 | 35 | 80 | 85 | 10 |
 | 3 | Lifecycle / enable / disable | 88 | 40 | 85 | 80 | 5 |
-| 4 | Isolation / sandbox | 85 | 5 | 12 | 12 | 5 |
-| 5 | Capability / permission model | 92 | 15 | 78 | 75 | 10 |
-| 6 | Events / hooks | 80 | 30 | 82 | 72 | 5 |
-| 7 | Data / storage | 82 | 60 | 88 | 85 | 5 |
+| 4 | Isolation / sandbox | 90 | 5 | 12 | 12 | 5 |
+| 5 | Capability / permission model | 94 | 15 | 78 | 75 | 10 |
+| 6 | Events / hooks | 88 | 30 | 82 | 72 | 5 |
+| 7 | Data / storage | 85 | 60 | 88 | 85 | 5 |
 | 8 | UI injection | 75 | 55 | 88 | 90 | 30 |
 | 9 | Ecosystem / distribution | 25 | 20 | 82 | 88 | 5 |
 | 10 | Developer tooling | 82 | 25 | 80 | 85 | 5 |
@@ -117,7 +117,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,057 / 1,300** | **81** |
+| **1** | **KS** | **1,075 / 1,300** | **83** |
 | 2 | Pelican | 972 / 1,300 | 75 |
 | 3 | Pterodactyl v2 (beta) | 967 / 1,300 | 74 |
 | 4 | Pterodactyl v1 (+Blueprint) | 435 / 1,300 | 33 |
