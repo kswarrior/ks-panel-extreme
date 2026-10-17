@@ -238,7 +238,7 @@ const buildVarsCache = new Map<string, string>();
 // source order, and the triple class outranks the .glass-chrome:not():not()
 // rules above without touching them (0,3,1 > 0,3,0). ::before/::after are
 // covered because several decorative layers blur via pseudo-elements.
-export const LOW_FX_CSS = `
+const LOW_FX_CSS = `
 html.ks-low-fx.ks-low-fx.ks-low-fx *,
 html.ks-low-fx.ks-low-fx.ks-low-fx *::before,
 html.ks-low-fx.ks-low-fx.ks-low-fx *::after {
