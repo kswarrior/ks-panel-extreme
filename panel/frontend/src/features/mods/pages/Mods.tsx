@@ -53,6 +53,19 @@ const CapDot: React.FC<{ capability: string }> = ({ capability }) => {
   return <span className={`w-2 h-2 rounded-full ${meta?.dot || 'bg-gray-500'}`} aria-hidden="true" />;
 };
 
+// Custom (manifest-declared) permission rows carry capability
+// "<slug>:<key>"; resolve the manifest's declared description so the approval
+// modal explains what the key is for instead of the generic fallback.
+// Returns undefined for host capabilities and v1 manifests.
+const declaredPermissionDescription = (m: Mod | null, code: string): string | undefined => {
+  const list = m?.manifest?.permissionsDeclared;
+  if (!Array.isArray(list)) return undefined;
+  const key = code.includes(':') ? code.slice(code.indexOf(':') + 1) : code;
+  const hit = list.find((p: any) => p && (p.key === code || p.key === key));
+  const desc = typeof hit?.description === 'string' ? hit.description.trim() : '';
+  return desc || undefined;
+};
+
 const Mods: React.FC = () => {
   const navigate = useNavigate();
   const confirm = useConfirm();
@@ -1018,7 +1031,9 @@ return (
                         {meta ? meta.label : p.capability}
                         {p.access_level && <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/10 text-gray-300 border border-white/10">{p.access_level}</span>}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">{meta ? meta.description : 'This mod requested this capability.'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {meta ? meta.description : declaredPermissionDescription(grantMod, p.capability) ?? 'This mod requested this custom, mod-scoped permission — its script checks it via ks.permissions.has().'}
+                      </p>
                     </div>
                   </label>
                 );
