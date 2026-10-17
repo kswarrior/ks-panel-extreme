@@ -209,6 +209,16 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 		engineVersion = 1
 	}
 
+	// Custom (manifest-declared) permissions ride the same grant table as the
+	// fixed capabilities — namespaced under the mod slug by ParseV2Manifest —
+	// so the admin approves them in the same checklist and a running mod reads
+	// them via ks.permissions.has. Validated here so a hostile manifest can't
+	// seed unbounded / malformed rows.
+	declared := models.ParseV2Manifest(in.Manifest).PermissionsDeclared
+	if err := validateDeclaredPermissions(declared); err != nil {
+		return nil, err
+	}
+
 	// Validate requested capabilities so a malformed / hostile manifest
 	// can't insert an unknown capability string (which the admin modal would
 	// happily render as a checkbox the panel doesn't actually implement),
@@ -249,6 +259,18 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 		if _, err := tx.Exec(
 			`INSERT INTO mod_permissions (mod_id, capability, access_level, granted) VALUES (?, ?, ?, 0)`,
 			id, p.Capability, p.AccessLevel,
+		); err != nil {
+			return nil, err
+		}
+	}
+	// Custom permission rows: capability = "<slug>:<key>" (already normalised
+	// by ParseV2Manifest), access_level = "custom" so the grant UI can tell
+	// them apart from host capabilities without a schema change. Seeded
+	// granted = 0 like every other request — activation waits for approval.
+	for _, p := range declared {
+		if _, err := tx.Exec(
+			`INSERT INTO mod_permissions (mod_id, capability, access_level, granted) VALUES (?, ?, 'custom', 0)`,
+			id, p.Key,
 		); err != nil {
 			return nil, err
 		}
