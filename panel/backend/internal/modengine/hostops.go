@@ -189,21 +189,17 @@ var sqlDeniedAnywhere = map[string]bool{
 	"REINDEX": true, "ANALYZE": true, "GRANT": true, "REVOKE": true,
 	"CREATE": true, "ALTER": true, "DROP": true, "TRUNCATE": true,
 	"COPY": true, "LOAD_EXTENSION": true, "CALL": true, "DO": true,
-	"EXECUTE": true, "PREPARE": true, "DEALLOCATE": true, "SET": true,
+	"EXECUTE": true, "PREPARE": true, "DEALLOCATE": true,
 	"BEGIN": true, "COMMIT": true, "ROLLBACK": true, "SAVEPOINT": true,
 	"RELEASE": true, "OUTFILE": true, "DUMPFILE": true, "XPLOAD": true,
 }
 
-// sqlDeniedRead adds write verbs to the read direction.
+// sqlDeniedRead adds write verbs + session/schema probes to the read
+// direction. SET is only denied for reads: in writes it is the UPDATE
+// assignment keyword (UPDATE t SET …).
 var sqlDeniedRead = map[string]bool{
 	"INSERT": true, "UPDATE": true, "DELETE": true, "REPLACE": true,
-	"MERGE": true, "INTO": true, "UPSERT": true,
-}
-
-// sqlDeniedWrite adds read-side escalation keywords to the write direction.
-var sqlDeniedWrite = map[string]bool{
-	"SELECT": true, // INSERT..SELECT is rejected too: keeps writes provably row-local
-	"TABLE":  true, // "DELETE TABLE"? MySQL TRUNCATE alias — reject the word entirely
+	"MERGE": true, "INTO": true, "UPSERT": true, "SET": true,
 }
 
 // sqlDeniedSubstrings catches calls that are only dangerous with an opening
