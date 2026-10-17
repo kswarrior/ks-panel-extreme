@@ -59,11 +59,14 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/dop251/goja"
+	"github.com/example/kspanel/internal/models"
 )
 
 // RunningMode overrides the noop stub's default so the engine + admin UI can
@@ -453,4 +456,397 @@ func (r *gojaRuntime) eventsOn(call goja.FunctionCall) goja.Value {
 // subscriptions agree on phase without a second argument.
 func isPreEvent(name string) bool {
 	return len(name) > 4 && name[:4] == "pre:"
+}
+
+// ---------------------------------------------------------------------------
+// Capability-gated host bindings
+// ---------------------------------------------------------------------------
+//
+// Every gated binding follows the same shape: check the grant snapshot for
+// the required capability, get the ops provider, validate arguments, call the
+// provider, and map the outcome to a structured {ok:true, data} /
+// {ok:false, error} object. Denials are logged into the per-mod diagnostics
+// ring so an operator can see why a script call was refused. None of these
+// throw into JS: a misbehaving mod always gets a value back and the host path
+// stays panic-free.
+
+// denied is the uniform per-call capability denial. It is deliberately loud:
+// the log ring records it so "my mod can't read files" is answerable from the
+// Mods UI without a terminal.
+func (r *gojaRuntime) denied(capability string) goja.Value {
+	msg := fmt.Sprintf("capability %q is not granted for this call", capability)
+	log.Printf("[mod:%s] DENIED %s", r.slug, msg)
+	Default().AppendLog(r.slug, "warn", "denied: "+msg)
+	return r.fail(msg)
+}
+
+// fail builds the structured error result every binding returns on refusal or
+// provider failure.
+func (r *gojaRuntime) fail(msg string) goja.Value {
+	if r.vm == nil {
+		return goja.Undefined()
+	}
+	obj := r.vm.NewObject()
+	_ = obj.Set("ok", false)
+	_ = obj.Set("error", msg)
+	return obj
+}
+
+// succeed builds {ok:true, data:<value>} — data is JSON round-tripped so the
+// script sees plain JS structures. data==nil yields {ok:true} alone.
+func (r *gojaRuntime) succeed(data any) goja.Value {
+	if r.vm == nil {
+		return goja.Undefined()
+	}
+	obj := r.vm.NewObject()
+	_ = obj.Set("ok", true)
+	if data != nil {
+		if raw, err := json.Marshal(data); err == nil {
+			if v, err := r.vm.RunString("(" + string(raw) + ")"); err == nil {
+				_ = obj.Set("data", v)
+			}
+		}
+	}
+	return obj
+}
+
+// unavailable reports a missing ops provider (engine booted without
+// SetHostOps — e.g. tests). Distinct message so it is not mistaken for a
+// capability denial.
+func (r *gojaRuntime) unavailable() goja.Value {
+	return r.fail("host operations are not available (engine has no HostOps provider)")
+}
+
+func (r *gojaRuntime) hasCap(capability string) bool {
+	return r.host != nil && r.host.HasCapability(capability)
+}
+
+func (r *gojaRuntime) ops() HostOps {
+	if r.host == nil {
+		return nil
+	}
+	return r.host.Ops()
+}
+
+// argString extracts a string argument, tolerating absent/null/undefined.
+func argString(call goja.FunctionCall, i int) string {
+	if i >= len(call.Arguments) {
+		return ""
+	}
+	v := call.Arguments[i]
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return ""
+	}
+	s, _ := v.Export().(string)
+	return s
+}
+
+// argInt64 extracts a numeric argument as int64; ok=false for absent/null/
+// undefined/NaN/Inf.
+func argInt64(call goja.FunctionCall, i int) (int64, bool) {
+	if i >= len(call.Arguments) {
+		return 0, false
+	}
+	v := call.Arguments[i]
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return 0, false
+	}
+	f := v.ToFloat()
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, false
+	}
+	return int64(f), true
+}
+
+// argSlice extracts an array argument into []any for database/sql binding.
+// Nested objects/arrays are rejected: the drivers cannot bind them and a
+// silent stringification would hide script mistakes.
+func argSlice(call goja.FunctionCall, i int) ([]any, error) {
+	if i >= len(call.Arguments) {
+		return nil, nil
+	}
+	v := call.Arguments[i]
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return nil, nil
+	}
+	exported, ok := v.Export().([]any)
+	if !ok {
+		return nil, errors.New("arguments must be an array")
+	}
+	for _, a := range exported {
+		switch a.(type) {
+		case map[string]any, []any:
+			return nil, errors.New("arguments must be scalars (string, number, boolean, null)")
+		}
+	}
+	return exported, nil
+}
+
+// dbQuery implements ks.db.query(sql, args?). Read direction: db.read_only or
+// db.read_write. SQL is policy-validated before it reaches the provider.
+func (r *gojaRuntime) dbQuery(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapDatabaseRead) && !r.hasCap(models.CapDatabaseReadWrite) {
+		return r.denied(models.CapDatabaseRead + " or " + models.CapDatabaseReadWrite)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	sqlText := argString(call, 0)
+	if err := ValidateModSQL(sqlText, true); err != nil {
+		Default().AppendLog(r.slug, "warn", "db.query rejected: "+err.Error())
+		return r.fail(err.Error())
+	}
+	args, err := argSlice(call, 1)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	rows, err := ops.DBQuery(sqlText, args)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(rows)
+}
+
+// dbExec implements ks.db.exec(sql, args?). Write direction: db.read_write
+// only.
+func (r *gojaRuntime) dbExec(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapDatabaseReadWrite) {
+		return r.denied(models.CapDatabaseReadWrite)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	sqlText := argString(call, 0)
+	if err := ValidateModSQL(sqlText, false); err != nil {
+		Default().AppendLog(r.slug, "warn", "db.exec rejected: "+err.Error())
+		return r.fail(err.Error())
+	}
+	args, err := argSlice(call, 1)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	affected, err := ops.DBExec(sqlText, args)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(map[string]any{"affected": affected})
+}
+
+// fsList implements ks.files.list(instanceId, path). Requires filesystem.
+func (r *gojaRuntime) fsList(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapFilesystem) {
+		return r.denied(models.CapFilesystem)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("files.list(instanceId, path): instanceId is required")
+	}
+	path := argString(call, 1)
+	if path == "" {
+		path = "/"
+	}
+	files, err := ops.FSList(id, path)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(files)
+}
+
+// fsRead implements ks.files.read(instanceId, path). Requires filesystem.
+func (r *gojaRuntime) fsRead(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapFilesystem) {
+		return r.denied(models.CapFilesystem)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("files.read(instanceId, path): instanceId is required")
+	}
+	path := argString(call, 1)
+	if path == "" {
+		return r.fail("files.read(instanceId, path): path is required")
+	}
+	content, err := ops.FSRead(id, path)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(content)
+}
+
+// fsWrite implements ks.files.write(instanceId, path, content). Requires
+// filesystem.
+func (r *gojaRuntime) fsWrite(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapFilesystem) {
+		return r.denied(models.CapFilesystem)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("files.write(instanceId, path, content): instanceId is required")
+	}
+	path := argString(call, 1)
+	if path == "" {
+		return r.fail("files.write(instanceId, path, content): path is required")
+	}
+	content := argString(call, 2)
+	if err := ops.FSWrite(id, path, content); err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(true)
+}
+
+// clampExecTimeout bounds the script-supplied timeout; 0 keeps the provider
+// default.
+func clampExecTimeout(sec int64) int {
+	if sec < 0 {
+		return 0
+	}
+	if sec == 0 {
+		return 0
+	}
+	if sec > 120 {
+		return 120
+	}
+	return int(sec)
+}
+
+// execCmd implements ks.exec(instanceId, command, timeoutSec?). Requires
+// terminal.
+func (r *gojaRuntime) execCmd(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapTerminal) {
+		return r.denied(models.CapTerminal)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("exec(instanceId, command): instanceId is required")
+	}
+	command := argString(call, 1)
+	if strings.TrimSpace(command) == "" {
+		return r.fail("exec(instanceId, command): command is required")
+	}
+	sec, _ := argInt64(call, 2)
+	res, err := ops.Exec(id, command, clampExecTimeout(sec))
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(res)
+}
+
+// control runs a lifecycle action (start/stop/kill/restart) after the
+// binding-specific capability check. Shared by ks.container.action and
+// ks.vm.action — the capability decides which driver family may be touched.
+func (r *gojaRuntime) control(call goja.FunctionCall, capability string) goja.Value {
+	if !r.hasCap(capability) {
+		return r.denied(capability)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("instanceId is required")
+	}
+	action := strings.ToLower(argString(call, 1))
+	switch action {
+	case "start", "stop", "kill", "restart":
+	default:
+		return r.fail("action must be one of start, stop, kill, restart")
+	}
+	status, err := ops.Control(id, action)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(map[string]any{"status": status})
+}
+
+// containerAction implements ks.container.action(instanceId, action).
+func (r *gojaRuntime) containerAction(call goja.FunctionCall) goja.Value {
+	return r.control(call, models.CapContainerControl)
+}
+
+// vmAction implements ks.vm.action(instanceId, action).
+func (r *gojaRuntime) vmAction(call goja.FunctionCall) goja.Value {
+	return r.control(call, models.CapVMControl)
+}
+
+// consoleSend implements ks.console.send(instanceId, command). Requires
+// terminal; delivered as a shell command inside the instance through the
+// owning edge node.
+func (r *gojaRuntime) consoleSend(call goja.FunctionCall) goja.Value {
+	if !r.hasCap(models.CapTerminal) {
+		return r.denied(models.CapTerminal)
+	}
+	ops := r.ops()
+	if ops == nil {
+		return r.unavailable()
+	}
+	id, ok := argInt64(call, 0)
+	if !ok || id <= 0 {
+		return r.fail("console.send(instanceId, command): instanceId is required")
+	}
+	command := argString(call, 1)
+	if strings.TrimSpace(command) == "" {
+		return r.fail("console.send(instanceId, command): command is required")
+	}
+	res, err := ops.ConsoleSend(id, command)
+	if err != nil {
+		return r.fail(err.Error())
+	}
+	return r.succeed(res)
+}
+
+// permissionsHas implements ks.permissions.has(key). Never denies — an
+// ungranted permission is simply false.
+func (r *gojaRuntime) permissionsHas(call goja.FunctionCall) goja.Value {
+	if r.vm == nil {
+		return goja.Undefined()
+	}
+	key := argString(call, 0)
+	if key == "" || r.host == nil {
+		return r.vm.ToValue(false)
+	}
+	return r.vm.ToValue(r.host.HasPermission(key))
+}
+
+// permissionsList implements ks.permissions.list() — the granted custom
+// permission codes for this mod.
+func (r *gojaRuntime) permissionsList(call goja.FunctionCall) goja.Value {
+	var perms []string
+	if r.host != nil {
+		perms = r.host.Permissions()
+	}
+	if perms == nil {
+		perms = []string{}
+	}
+	return r.succeed(perms)
+}
+
+// capabilitiesList implements ks.capabilities.list() — the granted core
+// capability codes, so scripts can self-introspect what they may call.
+func (r *gojaRuntime) capabilitiesList(call goja.FunctionCall) goja.Value {
+	var caps []string
+	if r.host != nil {
+		caps = r.host.Capabilities()
+	}
+	if caps == nil {
+		caps = []string{}
+	}
+	return r.succeed(caps)
 }
