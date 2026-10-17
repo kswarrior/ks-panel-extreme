@@ -381,6 +381,10 @@ func SwitchLoginHandler(w http.ResponseWriter, r *http.Request) {
 	// up on the admin Sessions tab and is subject to revocation, the
 	// per-user cap and the idle timeout like any cookie session.
 	auth.SessionManagerInstance.CreateSession(user.ID, tokenVal, r.RemoteAddr, r.UserAgent())
+	modEmitPost("post:user.login", map[string]any{
+		"user_id": user.ID, "username": user.Username, "role": roleName,
+		"ip": r.RemoteAddr, "source": "switch",
+	})
 	writeLoginResponse(w, r, user, perms, tokenVal)
 }
 
