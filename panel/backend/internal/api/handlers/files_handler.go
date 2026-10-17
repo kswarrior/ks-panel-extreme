@@ -400,7 +400,7 @@ func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, con
 		}
 		w.WriteHeader(status)
 		_, _ = w.Write(respBody)
-		return
+		return true
 	}
 httpFallback:
 	if mode == "reverse_tunnel" && !connected {
@@ -456,7 +456,7 @@ httpFallback:
 					}
 					w.WriteHeader(status)
 					_, _ = w.Write(respBody)
-					return
+					return true
 				}
 			}
 		}
