@@ -139,8 +139,10 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
     setManualOff(isOff ? false : true);
   };
   // Collapse motion from the Pill tab: slide (translate + fade + slight
-  // scale/blur), fade only, scale + fade, or instant. Slide uses a short
-  // 12px travel so the motion reads as a glide, not a jump.
+  // scale), fade only, scale + fade, or instant. Slide uses a short
+  // 12px travel so the motion reads as a glide, not a jump. No blur filter
+  // anywhere: re-rasterizing blurred text every frame was the dominant
+  // collapse cost on slow phones, and it is invisible at a 12px travel.
   const hiddenTransform =
     animation === 'fade' ? 'none'
     : animation === 'scale' ? 'scale(0.9)'
@@ -167,7 +169,6 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
                   maxWidth: 0,
                   opacity: 0,
                   transform: hiddenTransform,
-                  filter: animation === 'fade' || animation === 'none' ? undefined : 'blur(4px)',
                   transformOrigin: animation === 'scale' ? 'right center' : undefined,
                   transition: animation === 'none' ? 'none' : undefined,
                   transitionDuration: animation === 'none' ? undefined : `${animDuration}ms`,
@@ -177,7 +178,7 @@ export const PageActionsPill: React.FC<PageActionsPillProps> = ({
                   padding: 0,
                   margin: 0,
                 }
-              : { maxWidth: 800, opacity: 1, transform: 'none', filter: 'blur(0px)', padding: 0, margin: 0, overflow: 'visible' as const, transitionDuration: `${animDuration}ms` }
+              : { maxWidth: 800, opacity: 1, transform: 'none', padding: 0, margin: 0, overflow: 'visible' as const, transitionDuration: `${animDuration}ms` }
           }
           aria-hidden={isOff}
         >
