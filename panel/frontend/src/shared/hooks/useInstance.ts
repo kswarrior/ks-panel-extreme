@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { parse as parseYaml } from 'yaml';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import { listInstances } from '@/shared/api/admin';
 import { listMyInstances } from '@/features/auth/api/me';
 import { useAuthStore } from '@/shared/stores/authStore';
