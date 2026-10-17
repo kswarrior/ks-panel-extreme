@@ -310,7 +310,8 @@ func (e *ModEngine) activate(ctx context.Context, mod *models.Mod, man models.Mo
 		}
 	}()
 
-	if err := rt.Start(mod.Slug, resolveScript(man, workDir), installer); err != nil {
+	env := e.loadHostEnv(mod)
+	if err := rt.Start(mod.Slug, resolveScript(man, workDir), installer, env); err != nil {
 		// Start failed: unwind any runtime hooks the script registered during
 		// its (partial) evaluation and stop the VM so neither leaks. The
 		// entry was never committed to e.entries, so a concurrent Deactivate
