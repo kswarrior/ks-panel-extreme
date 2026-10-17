@@ -50,6 +50,12 @@ type ModEngine struct {
 	// atomic so the Activate hot path never takes a lock; SetEnabled does the
 	// teardown under e.mu.
 	enabled atomic.Bool
+	// ops is the host operation provider the capability-gated sandbox
+	// bindings call. Wired once at panel boot via SetHostOps and stored in an
+	// atomic.Value so activations read it lock-free. The zero value yields
+	// nil, which makes every gated binding report "not available" — the
+	// safe default for tests and embedded uses.
+	ops atomic.Value // HostOps
 	// diag owns per-mod runtime statuses + log rings (own mutex, see
 	// status.go for the lock-order contract).
 	diag *diagnostics
