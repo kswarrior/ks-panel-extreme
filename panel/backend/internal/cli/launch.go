@@ -26,6 +26,7 @@ import (
 	"github.com/example/kspanel/internal/telemetry"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
+	"github.com/example/kspanel/internal/modengine"
 	"github.com/example/kspanel/internal/probe"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/scheduler"
