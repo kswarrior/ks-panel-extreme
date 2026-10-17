@@ -231,6 +231,27 @@ const LAYER_MOUNT_ID = 'ks-theme-layer';
 // when the active theme hasn't actually changed.
 const buildVarsCache = new Map<string, string>();
 
+// Low-power mode (html.ks-low-fx, set by src/shared/utils/lowPower.ts).
+// backdrop-filter forces every translucent surface to re-sample the layers
+// beneath on each paint — the single biggest GPU cost on weak devices (the
+// app renders 120+ blurred surfaces). Appended AFTER Custom CSS so it wins
+// source order, and the triple class outranks the .glass-chrome:not():not()
+// rules above without touching them (0,3,1 > 0,3,0). ::before/::after are
+// covered because several decorative layers blur via pseudo-elements.
+export const LOW_FX_CSS = `
+html.ks-low-fx.ks-low-fx.ks-low-fx *,
+html.ks-low-fx.ks-low-fx.ks-low-fx *::before,
+html.ks-low-fx.ks-low-fx.ks-low-fx *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Menus relied on a strong blur over a low-alpha scrim; without the blur
+   they need a readable solid-ish fill. */
+html.ks-low-fx.ks-low-fx.ks-low-fx .glass-dropdown {
+  background-color: rgba(12, 14, 18, 0.92) !important;
+}
+`;
+
 function buildBgLayer(theme: Theme): string {
   const bg = theme.background;
   // The layer always renders a full-bleed node. For color/gradient it's
@@ -1389,7 +1410,7 @@ body { color: var(--ks-text-body); }
 }
 ${buildSectionRules(theme)}
 ${buildUtilityMappings(theme)}
-  `.trim() + (customBlock ? '\n\n' + customBlock : '');
+  `.trim() + (customBlock ? '\n\n' + customBlock : '') + '\n\n' + LOW_FX_CSS;
 
   // Store only production builds; unbounded growth is capped by clearing
   // the map once it exceeds a small working set (one entry per route).
