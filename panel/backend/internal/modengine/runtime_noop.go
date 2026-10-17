@@ -22,6 +22,7 @@ type runtimeNoop struct {
 	slug    string
 	source  string
 	install HookInstaller
+	env     HostEnv
 }
 
 // newJSRuntime is the single factory the engine calls; the build-tag version
@@ -29,10 +30,11 @@ type runtimeNoop struct {
 // engine stay build-tag-agnostic.
 func newJSRuntime() JSRuntime { return &runtimeNoop{} }
 
-func (r *runtimeNoop) Start(slug, source string, install HookInstaller) error {
+func (r *runtimeNoop) Start(slug, source string, install HookInstaller, env HostEnv) error {
 	r.slug = slug
 	r.source = source
 	r.install = install
+	r.env = env
 	if source != "" {
 		log.Printf("[modengine] mod %q: backendScript present but JS runtime is noop (build with -tags modengine_goja to execute it)", slug)
 	}
@@ -61,4 +63,5 @@ func (r *runtimeNoop) ResolveHook(name string) (eventHandler, bool) {
 func (r *runtimeNoop) Stop() {
 	r.install = nil
 	r.source = ""
+	r.env = nil
 }

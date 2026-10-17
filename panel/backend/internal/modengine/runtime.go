@@ -49,6 +49,26 @@ type HookInstaller interface {
 	InstallPost(event string, h eventHandler) HandleToken
 }
 
+// HostEnv is the per-activation grant snapshot the runtime consults on EVERY
+// host-binding call. The engine builds it from the mod's granted capability
+// and custom-permission rows; lookups are O(1) map hits, safe to call from
+// hot script paths, and fail closed for unknown keys. A revocation takes
+// effect on the next call — no re-activation needed.
+type HostEnv interface {
+	// HasCapability reports whether a core capability code (models.Cap*) is
+	// granted for this activation.
+	HasCapability(cap string) bool
+	// Capabilities lists the granted core capability codes.
+	Capabilities() []string
+	// HasPermission reports whether a custom mod permission is granted.
+	// Accepts the bare key or the "<slug>:<key>" qualified code.
+	HasPermission(key string) bool
+	// Permissions lists the granted custom permission codes.
+	Permissions() []string
+	// Ops returns the host operation provider (may be nil when unwired).
+	Ops() HostOps
+}
+
 // JSRuntime is the contract every backend-script execution backend satisfies.
 // The engine calls these methods when a v2 mod is activated / deactivated and
 // when an event fires that the mod subscribed to.
@@ -63,7 +83,12 @@ type JSRuntime interface {
 	// chance to register more via `ks.events.on` at module-eval time), and
 	// return an error describing why the boot failed (e.g. parse error). The
 	// engine treats any non-nil error as a hard deactivation.
-	Start(slug, source string, install HookInstaller) error
+	//
+	// env is the per-activation grant snapshot + host operation provider.
+	// Runtimes MUST gate every host binding call through it and return a
+	// structured error to the script when a grant is missing — a nil env
+	// means "no host operations" (every gated binding denies).
+	Start(slug, source string, install HookInstaller, env HostEnv) error
 
 	// ResolveHook returns a bus-compatible thunk for the JS handler named
 	// `handlerName` that the manifest declared for a hook. When the runtime
