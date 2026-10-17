@@ -131,7 +131,30 @@ func InstanceFilesHandler(w http.ResponseWriter, r *http.Request) {
 	if op == "list" || op == "stat" || op == "search" {
 		ct = "application/json"
 	}
-	proxyToEdge(w, r, id, op, qs.Get("path"), ct)
+	// Mod engine hooks: file mutations fire pre/post:file.<op>. The pre hook
+	// is cancellable (409) and runs BEFORE the body is consumed, so a mod
+	// veto never streams a megabyte up to the edge; the post hook fires only
+	// after the edge answered successfully. Read-only ops stay silent — a
+	// mod that wants to observe content can read it via its own files
+	// capability.
+	mutating := op == "write" || op == "delete" || op == "upload"
+	if mutating {
+		if cancelled, msg := modEmitPre(r.Context(), "pre:file."+op, map[string]any{
+			"id": id, "op": op, "path": qs.Get("path"),
+		}); cancelled {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":   "blocked by a mod",
+				"message": msg,
+			})
+			return
+		}
+	}
+	ok := proxyToEdge(w, r, id, op, qs.Get("path"), ct)
+	if mutating && ok {
+		modEmitPost("post:file."+op, map[string]any{
+			"id": id, "op": op, "path": qs.Get("path"),
+		})
+	}
 }
 
 // InstanceFileReadHandler streams a single file's bytes back to the
@@ -541,6 +564,7 @@ httpFallback:
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+	return true
 }
 
 // The edge client package is referenced for parity with the lifecycle
