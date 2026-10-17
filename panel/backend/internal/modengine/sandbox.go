@@ -19,11 +19,31 @@
 //	ks.events.on(eventName, fn) — subscribe a JS fn to a host lifecycle event.
 //	                              Returns an opaque numeric handle.
 //
-// Security contract: the VM exposes NO host OS surface. No `require`, no `os`,
-// no file reads, no `process`, no network. A mod that needs terminal /
-// filesystem access must declare the matching capability AND reach it through
-// a future capability-guarded binding — the raw host is never reachable from
-// `ks`. Goja's Set / Define is the only escape hatch and we only set `ks`.
+// Capability-gated host bindings (every call re-checks the grant snapshot):
+//
+//	ks.db.query(sql, args?)         — cap: db.read_only | db.read_write
+//	ks.db.exec(sql, args?)          — cap: db.read_write
+//	ks.files.list(instanceId, path) — cap: filesystem
+//	ks.files.read(instanceId, path) — cap: filesystem
+//	ks.files.write(instanceId, path, content) — cap: filesystem
+//	ks.exec(instanceId, cmd, secs?) — cap: terminal
+//	ks.console.send(instanceId, cmd) — cap: terminal
+//	ks.container.action(instanceId, action) — cap: container.control
+//	ks.vm.action(instanceId, action)        — cap: vm.control
+//	ks.permissions.has(key) / .list()       — custom permissions (no cap)
+//	ks.capabilities.list()                  — granted capability codes
+//
+// Gated bindings NEVER panic or throw on denial: they return a structured
+// {ok:false, error} object and write the denial into the diagnostics ring. The
+// grant snapshot is rebuilt on every activation (engine-side) and consulted
+// per call — a revoked capability stops working immediately.
+//
+// Security contract: the VM exposes NO raw host OS surface. No `require`, no
+// `os`, no direct file reads, no `process`, no network. Host effects only flow
+// through the capability-gated bindings above, whose Go implementations live
+// in handlers (panel-side) and are bound to an edge node with the panel's own
+// token; the raw host is never reachable from `ks`. Goja's Set / Define is the
+// only escape hatch and we only set `ks`.
 //
 // Concurrency: a goja.Runtime is NOT safe to call from multiple goroutines, so
 // every JS invocation (Start eval, hook dispatch) holds the VM's mutex. The
@@ -71,6 +91,7 @@ type gojaRuntime struct {
 	vm      *goja.Runtime
 	binding *storageBinding // namespaced ks.storage backing (see storage.go)
 	install HookInstaller
+	host    HostEnv
 	started atomic.Bool
 }
 
@@ -78,9 +99,11 @@ type gojaRuntime struct {
 // script. `source` may be empty (a v2 mod that only declares slots/hooks
 // without code); we still boot so ResolveHook could wire declarative hooks to
 // script exports — when nothing exports, the engine logs a dangling notice.
-func (r *gojaRuntime) Start(slug, source string, install HookInstaller) error {
+// env carries the per-activation capability/permission snapshot and host ops.
+func (r *gojaRuntime) Start(slug, source string, install HookInstaller, env HostEnv) error {
 	r.slug = slug
 	r.install = install
+	r.host = env
 	r.binding = newStorageBinding(slug, Default().storage)
 
 	vm := goja.New()
@@ -256,6 +279,7 @@ func (r *gojaRuntime) Stop() {
 	r.vm = nil
 	r.install = nil
 	r.binding = nil
+	r.host = nil
 	r.started.Store(false)
 }
 
@@ -280,6 +304,32 @@ func (r *gojaRuntime) buildKS(vm *goja.Runtime) map[string]any {
 		},
 		"events": map[string]any{
 			"on": r.eventsOn,
+		},
+		"db": map[string]any{
+			"query": r.dbQuery,
+			"exec":  r.dbExec,
+		},
+		"files": map[string]any{
+			"list":  r.fsList,
+			"read":  r.fsRead,
+			"write": r.fsWrite,
+		},
+		"exec": r.execCmd,
+		"container": map[string]any{
+			"action": r.containerAction,
+		},
+		"vm": map[string]any{
+			"action": r.vmAction,
+		},
+		"console": map[string]any{
+			"send": r.consoleSend,
+		},
+		"permissions": map[string]any{
+			"has":  r.permissionsHas,
+			"list": r.permissionsList,
+		},
+		"capabilities": map[string]any{
+			"list": r.capabilitiesList,
 		},
 		"slug": r.slug, // read-only identity
 	}
