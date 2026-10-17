@@ -203,11 +203,7 @@ export function useInstance(id: number) {
   // flash; polling stops as soon as the row leaves those statuses.
   const workflowInFlight =
     !!instance && (instance.status === 'creating' || instance.status === 'installing');
-  useEffect(() => {
-    if (!workflowInFlight) return;
-    const t = window.setInterval(() => { void load(true); }, 3000);
-    return () => window.clearInterval(t);
-  }, [workflowInFlight, load]);
+  useVisibleInterval(() => { void load(true); }, workflowInFlight ? 3000 : null);
 
   return { instance, loading, error, reload: load };
 }

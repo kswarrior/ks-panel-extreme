@@ -95,13 +95,29 @@ export function useLiveMetrics(
         inFlight = false;
       }
     };
+    // Pause the poll while the tab is hidden (battery / CPU on phones);
+    // resume with one immediate tick so the graph has a fresh point.
+    let timer: number | null = null;
+    const start = () => {
+      if (timer === null) timer = window.setInterval(() => { void poll(); }, intervalMs);
+    };
+    const stop = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else { void poll(); start(); }
+    };
     void poll();
-    const t = window.setInterval(() => {
-      void poll();
-    }, intervalMs);
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       dead = true;
-      window.clearInterval(t);
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [instanceId, live, denied, intervalMs, keep]);
 

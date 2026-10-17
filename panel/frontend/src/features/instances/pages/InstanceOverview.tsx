@@ -15,6 +15,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useInstance, parseConfig } from '@/shared/hooks/useInstance';
+import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import { useLiveMetrics } from '../hooks/useLiveMetrics';
 import {
   destroyInstance,
@@ -223,13 +224,11 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const isRunning = status === 'running';
 
   // Keep the header live: the Controls card reloads its own row copy, so
-  // silently refresh ours every 5s while mounted.
-  useEffect(() => {
-    const t = window.setInterval(() => {
-      void reload(true);
-    }, 5000);
-    return () => window.clearInterval(t);
-  }, [reload]);
+  // silently refresh ours every 5s while mounted (paused when the tab is
+  // hidden — see useVisibleInterval).
+  useVisibleInterval(() => {
+    void reload(true);
+  }, 5000);
 
   // Seed the rename box from the row once it loads.
   useEffect(() => {
