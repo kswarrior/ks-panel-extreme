@@ -20,6 +20,7 @@ package handlers
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -448,6 +449,122 @@ func pumpBoth(src, dst *websocket.Conn, errCh chan<- error) {
 		if err := dst.WriteMessage(mt, payload); err != nil {
 			errCh <- err
 			return
+		}
+	}
+}
+
+// stdinCommandLine extracts the submitted command text from a browser→edge
+// frame. Stdin frames are JSON {"type":"stdin","data":"…"} carrying raw
+// keystrokes; a carriage return anywhere in data means the user pressed
+// Enter, i.e. one command line was submitted. Returns ok=false for binary
+// frames, non-stdin frames, and frames with no submitted non-empty line —
+// raw keystrokes stay invisible to mods (per-character events would be
+// pure noise and a credential-leak vector for half-typed secrets).
+// For pasted multi-line input only the first completed line is reported.
+func stdinCommandLine(payload []byte) (string, bool) {
+	var f struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(payload, &f); err != nil || f.Type != "stdin" {
+		return "", false
+	}
+	i := strings.IndexAny(f.Data, "\r\n")
+	if i < 0 {
+		return "", false
+	}
+	line := strings.TrimSpace(f.Data[:i])
+	if line == "" {
+		return "", false
+	}
+	return line, true
+}
+
+// outputFrame classifies an edge→browser frame as console output.
+// Only stdout/stderr JSON frames are reported; ready/resize/exit/error
+// frames carry no console text. Data is capped so a mod subscribed to a
+// firehose terminal receives at most one toast-worthy prefix per frame.
+func outputFrame(payload []byte) (stream, data string, truncated, ok bool) {
+	var f struct {
+		Type string `json:"type"`
+		Data string `json:"data"`
+	}
+	if err := json.Unmarshal(payload, &f); err != nil {
+		return "", "", false, false
+	}
+	if f.Type != "stdout" && f.Type != "stderr" {
+		return "", "", false, false
+	}
+	const maxModConsoleData = 8192
+	if len(f.Data) > maxModConsoleData {
+		return f.Type, f.Data[:maxModConsoleData], true, true
+	}
+	return f.Type, f.Data, false, true
+}
+
+// pumpObservedStdin is pumpBoth for the browser→edge direction with
+// console.command mod hooks. A cancelled command line is DROPPED entirely
+// (the pre hook asked for it not to run; forwarding it would execute the
+// vetoed command anyway) and a post event records the veto for observers.
+// Frames carrying no submitted line pass through untouched, preserving
+// resize and partial-keystroke traffic exactly.
+func pumpObservedStdin(instanceID int64, src, dst *websocket.Conn, errCh chan<- error) {
+	for {
+		mt, payload, err := src.ReadMessage()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		cmd := ""
+		if mt == websocket.TextMessage {
+			cmd, _ = stdinCommandLine(payload)
+		}
+		if cmd != "" {
+			if cancelled, msg := modEmitPre(context.Background(), "pre:console.command", map[string]any{
+				"id": instanceID, "command": cmd,
+			}); cancelled {
+				modEmitPost("post:console.command", map[string]any{
+					"id": instanceID, "command": cmd, "blocked": true, "message": msg,
+				})
+				continue
+			}
+		}
+		if err := dst.WriteMessage(mt, payload); err != nil {
+			errCh <- err
+			return
+		}
+		if cmd != "" {
+			modEmitPost("post:console.command", map[string]any{
+				"id": instanceID, "command": cmd,
+			})
+		}
+	}
+}
+
+// pumpObservedOutput is pumpBoth for the edge→browser direction with
+// post:console.output hooks. The frame is written to the browser FIRST so
+// terminal latency never depends on the mod bus; the hook is async and
+// subscriber-guarded (no listening mods → one map lookup per frame).
+// No callback ever writes to dst — the write happens inline in this
+// goroutine, which gorilla requires (concurrent WriteMessage is illegal).
+func pumpObservedOutput(instanceID int64, src, dst *websocket.Conn, errCh chan<- error) {
+	for {
+		mt, payload, err := src.ReadMessage()
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if err := dst.WriteMessage(mt, payload); err != nil {
+			errCh <- err
+			return
+		}
+		if mt != websocket.TextMessage {
+			continue
+		}
+		if stream, data, truncated, ok := outputFrame(payload); ok {
+			modEmitPost("post:console.output", map[string]any{
+				"id": instanceID, "stream": stream, "data": data, "truncated": truncated,
+			})
 		}
 	}
 }
