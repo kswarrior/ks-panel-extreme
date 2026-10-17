@@ -4429,6 +4429,20 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if cancelled, msg := modEmitPre(r.Context(), "pre:console.command", map[string]any{
+		"id": id, "command": line, "source": "install",
+	}); cancelled {
+		modEmitPost("post:console.command", map[string]any{
+			"id": id, "command": line, "source": "install",
+			"blocked": true, "message": msg,
+		})
+		writeJSONStatus(w, http.StatusConflict, map[string]any{
+			"error":   "blocked by a mod",
+			"message": msg,
+		})
+		return
+	}
+
 	token, err := nodeRepo.PlainToken(inst.NodeID)
 	if err != nil || token == "" {
 		writeJSONStatus(w, http.StatusBadGateway, map[string]any{
