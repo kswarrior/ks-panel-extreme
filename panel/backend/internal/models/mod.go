@@ -93,8 +93,12 @@ func ValidModSlug(slug string) bool {
 // (read_only / read_write) so the activation modal can render "Database
 // (read-only)" vs "Database (read+write)" distinctly.
 //
-// Capability is one of the fixed CapXxx codes below; the repo validates it at
-// insert time so a mod can't smuggle an arbitrary string.
+// Capability is either a fixed CapXxx code (requested host capabilities) or a
+// mod-namespaced custom permission ("<slug>:<key>") from the manifest's
+// `permissionsDeclared[]` — the repo validates both at insert time so a mod
+// can't smuggle an arbitrary string. Custom rows carry access_level "custom"
+// so the grant UI can tell them apart; at runtime a script reads them through
+// ks.permissions.has(key).
 type ModPermission struct {
 	ID          int64  `json:"id"`
 	ModID       int64  `json:"mod_id"`
@@ -169,11 +173,11 @@ type HookDefinition struct {
 }
 
 // CustomPermission is one mod-scoped RBAC key the mod declares. These are
-// surfaced to the admin through the existing grant checklist alongside the
-// host capabilities, but the code is namespaced under the mod (`<slug>:<key>`)
-// so two mods can't collide on "admin" or "configure". The panel does not
-// enforce custom permissions today beyond surfacing them; mods read them from
-// the grant table to gate their own actions.
+// persisted as mod_permissions rows alongside the host capabilities,
+// namespaced under the mod (`<slug>:<key>`) so two mods can't collide on
+// "admin" or "configure". The admin approves them in the same grant checklist
+// (activation waits until every row is granted) and the mod reads them at
+// runtime through ks.permissions.has(key).
 type CustomPermission struct {
 	Key         string `json:"key"`
 	Description string `json:"description,omitempty"`
