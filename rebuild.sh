@@ -351,7 +351,10 @@ configure_build_mode() {
     case "$BUILD_MODE" in
         production|prod|release)
             BUILD_MODE="production"
-            GO_BUILD_TAGS=""  # Default: noop runtime
+            # Mod Engine v2 ships the real embedded Goja JS sandbox by default.
+            # The noop runtime remains available for constrained builds by
+            # overriding: GO_BUILD_TAGS="" ./rebuild.sh
+            GO_BUILD_TAGS="${GO_BUILD_TAGS:-modengine_goja}"
             # -s: omit symbol table, -w: omit DWARF, -extldflags "-static" for static ELF
             GO_LDFLAGS_BASE="-s -w -extldflags=-static"
             # Trim all paths, disable dwarf everywhere, strip inlining traces
@@ -385,7 +388,7 @@ configure_build_mode() {
             ;;
         development|dev|debug)
             BUILD_MODE="development"
-            GO_BUILD_TAGS=""
+            GO_BUILD_TAGS="${GO_BUILD_TAGS:-modengine_goja}"
             GO_LDFLAGS_BASE=""
             GO_GCFLAGS="-N -l"
             STRIP_BINARY=false
