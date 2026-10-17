@@ -1,0 +1,23 @@
+- generic [ref=f5e4]:
+  - generic [ref=f5e9]:
+    - heading "KS Panel" [level=1] [ref=f5e10]
+    - paragraph [ref=f5e11]: Sign in to your account
+  - form [ref=f5e12]:
+    - heading "Login form" [level=2] [ref=f5e13]
+    - generic [ref=f5e14]:
+      - generic [ref=f5e16]:
+        - textbox "Username or Email" [active] [ref=f5e17]:
+          - /placeholder: " "
+        - generic: Username or Email
+      - generic [ref=f5e18]:
+        - generic [ref=f5e19]:
+          - textbox "Password" [ref=f5e20]:
+            - /placeholder: " "
+          - generic: Password
+          - button "Show password" [ref=f5e21] [cursor=pointer]
+        - paragraph
+      - generic [ref=f5e25]:
+        - generic [ref=f5e26]: Session • fetching...
+        - generic [aria-hidden] [ref=f5e31]: .
+      - button "Sign In" [ref=f5e32] [cursor=pointer]
+      - paragraph [ref=f5e39]: Powered by KS Warrior
