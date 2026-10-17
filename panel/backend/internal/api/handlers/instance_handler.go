@@ -4475,6 +4475,9 @@ func InstallStdinHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	modEmitPost("post:console.command", map[string]any{
+		"id": id, "command": line, "source": "install",
+	})
 	writeJSON(w, map[string]any{
 		"id":       id,
 		"accepted": true,
