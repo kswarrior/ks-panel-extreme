@@ -1721,12 +1721,14 @@ input[type="search"] {
   -webkit-backdrop-filter: blur(var(--ks-pill-blur, 6px)) saturate(1.35);
 }
 .ks-actions-pill .ks-pill-content,
+.ks-form-actions-pill .ks-pill-content,
 .ks-tabs-pill .ks-pill-content {
   /* Compositor-friendly only: max-width is the width glide, opacity +
      transform are free. `filter` was dropped — the old blur(4px) motion
      re-rasterized all pill text every frame and was the #1 tap-jank
      source on slow phones; will-change no longer promotes a filter
-     layer. */
+     layer. The authoritative copy lives in themeStore.ts (injected with
+     !important); keep the two in sync. */
   transition-property: max-width, opacity, transform;
   transition-duration: var(--ks-pill-anim-duration, 300ms);
   transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
