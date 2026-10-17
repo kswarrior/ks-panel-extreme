@@ -254,8 +254,14 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 
 	errCh := make(chan error, 2)
 
-	go pumpBoth(clientConn, edgeConn, errCh)
-	go pumpBoth(edgeConn, clientConn, errCh)
+	// Terminal bridge pumps with mod hooks: submitted command lines fire
+	// pre/post:console.command (pre cancellable — a vetoed line is dropped,
+	// not forwarded), stdout/stderr frames fire post:console.output. The
+	// workflow bridge below keeps the plain pumpBoth: its stream is
+	// output-only (stdin rides the HTTP mirror endpoints, which carry
+	// their own hooks).
+	go pumpObservedStdin(id, clientConn, edgeConn, errCh)
+	go pumpObservedOutput(id, edgeConn, clientConn, errCh)
 
 	// Wait for the first direction to fail, then unblock the peer by
 	// closing both ends so the second pump's ReadMessage errors out
