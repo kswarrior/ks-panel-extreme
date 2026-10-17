@@ -199,7 +199,7 @@ const StackDetail: React.FC = () => {
         : op === 'install'
           ? `Installed — package rebuilt from manifest.`
           : `Reinstalled — approve the pending grants, then launch.`;
-    const t = window.setInterval(async () => {
+    const poll = async () => {
       try {
         const fresh = await getStackOp(opJob.stack_id, opJobId);
         if (cancelled) return;
@@ -218,8 +218,29 @@ const StackDetail: React.FC = () => {
         // Job vanished (e.g. panel restarted and dropped the registry).
         setOpJob((prev) => (prev && prev.status === 'running' ? { ...prev, status: 'error' as const, error: 'Lost track of the job.' } : prev));
       }
-    }, 600);
-    return () => { cancelled = true; window.clearInterval(t); };
+    };
+    // Pause the 600ms poll while the tab is hidden; refresh on return.
+    let timer: number | null = null;
+    const start = () => {
+      if (timer === null) timer = window.setInterval(() => { void poll(); }, 600);
+    };
+    const stop = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else { void poll(); start(); }
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelled = true;
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opJobId, opRunning, load]);
 

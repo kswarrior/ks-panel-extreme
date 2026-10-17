@@ -756,7 +756,7 @@ img{max-width:100%}table{border-collapse:collapse;width:100%}
 a{color:var(--ks-link,#7dd3fc)}
 ${activePageThemeCss()}
 </style></head><body>${html}<script>
-(function(){var last=0;function r(){var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h!==last){last=h;try{window.parent.postMessage({type:'ks-block-resize',height:h},'*')}catch(e){}}}setInterval(r,400);window.addEventListener('load',r)})();
+(function(){var last=0,raf=false;function r(){raf=false;var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h!==last){last=h;try{window.parent.postMessage({type:'ks-block-resize',height:h},'*')}catch(e){}}}function s(){if(raf)return;raf=true;requestAnimationFrame(r)}if(window.ResizeObserver){var ro=new ResizeObserver(s);ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}if(window.MutationObserver){new MutationObserver(s).observe(document.documentElement,{subtree:true,childList:true,attributes:true});}window.addEventListener('load',r);window.addEventListener('resize',s)})();
 </script></body></html>`;
   return (
     <iframe
@@ -1085,7 +1085,24 @@ function buildIframeDocument(htmlContent: string, instanceContextJson: string, s
       try { window.parent.postMessage({ type: 'ks-iframe-resize', height: h }, '*'); } catch (e) {}
     }
   }
-  setInterval(reportHeight, 400);
+  // Height changes are observed (ResizeObserver + DOM mutations, coalesced
+  // to one measure per frame) instead of a 400ms interval: no constant
+  // layout reads, no periodic postMessage churn on phones.
+  var rafPending = false;
+  function scheduleHeight() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(function () { rafPending = false; reportHeight(); });
+  }
+  if (window.ResizeObserver) {
+    var ro = new ResizeObserver(scheduleHeight);
+    ro.observe(document.documentElement);
+    if (document.body) ro.observe(document.body);
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(scheduleHeight).observe(document.documentElement, { subtree: true, childList: true, attributes: true });
+  }
+  window.addEventListener('resize', scheduleHeight);
   window.addEventListener('load', reportHeight);
 
   window.KSPageSDK = sdk;
