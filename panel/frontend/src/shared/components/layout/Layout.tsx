@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import ThemedBackground from './ThemedBackground';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
+import Loading from '@/shared/components/ui/Loading';
 import InstanceMenuFab from '@/features/instances/components/InstanceMenuFab';
 
 const Layout: React.FC = () => {
@@ -73,7 +74,14 @@ const Layout: React.FC = () => {
             style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', overscrollBehavior: 'auto' } as React.CSSProperties}
           >
             <ErrorBoundary resetKey={location.pathname} label="page">
-              <Outlet />
+              {/* Route pages are lazy chunks (see app/router.tsx). The
+                  boundary lives INSIDE the ErrorBoundary so a failed chunk
+                  download surfaces the retry UI instead of a stuck
+                  fallback; the sidebar/header stay mounted while a chunk
+                  loads. */}
+              <Suspense fallback={<Loading background="transparent" className="py-16" />}>
+                <Outlet />
+              </Suspense>
             </ErrorBoundary>
           </main>
         </div>

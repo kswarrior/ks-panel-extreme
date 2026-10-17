@@ -142,8 +142,16 @@ const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   inInstancePanel,
 }) => {
-  const { user, clearAuth, accounts, activeAccountId, switchAccount, removeAccount, setAuth } =
-    useAuthStore();
+  // Individual selectors: the header previously subscribed to the WHOLE
+  // auth store, so any store write (token refresh, permission sync,
+  // account list bookkeeping) re-rendered this 900-line component.
+  const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.clearAuth);
+  const accounts = useAuthStore((s) => s.accounts);
+  const activeAccountId = useAuthStore((s) => s.activeAccountId);
+  const switchAccount = useAuthStore((s) => s.switchAccount);
+  const removeAccount = useAuthStore((s) => s.removeAccount);
+  const setAuth = useAuthStore((s) => s.setAuth);
   const navigate = useNavigate();
   const location = useLocation();
   const [loggingOut, setLoggingOut] = React.useState<boolean>(false);

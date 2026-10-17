@@ -295,7 +295,7 @@ const adminSubItems: SubItem[] = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapsed }) => {
-  const { permissions } = useAuthStore();
+  const permissions = useAuthStore((s) => s.permissions);
   const initialized = useAuthStore((s) => s.initialized);
   const panelName = useSettingsStore((s) => s.panelName);
   const panelLogo = useSettingsStore((s) => s.panelLogo);
