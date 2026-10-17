@@ -1,0 +1,64 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - button "Close sidebar"
+    - complementary "Main navigation" [ref=f3e4]:
+      - generic [ref=f3e5]: KS Panel
+      - navigation [ref=f3e10]:
+        - paragraph [ref=f3e11]: Overview
+        - button "System" [ref=f3e13] [cursor=pointer]
+        - link "Security" [ref=f3e22] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=f3e28] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=f3e33] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=f3e40]: Management
+        - link "Users" [ref=f3e41] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=f3e49] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=f3e54] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=f3e60] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=f3e65]: Infrastructure
+        - link "Nodes" [ref=f3e66] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=f3e80] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=f3e86] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=f3e92] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=f3e102]: Extensions
+        - link "Mods" [ref=f3e103] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=f3e108] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=f3e116] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=f3e123]: Appearance
+        - link "Themes" [ref=f3e124] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=f3e133]: Support
+        - link "Tickets" [ref=f3e134] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=f3e142] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=f3e150] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=f3e151]:
+      - banner [ref=f3e152]:
+        - generic [ref=f3e153]:
+          - generic [ref=f3e154]:
+            - button "Toggle sidebar" [ref=f3e155] [cursor=pointer]
+            - navigation "Breadcrumb" [ref=f3e158]:
+              - generic [ref=f3e159]: Instances
+          - generic [ref=f3e169]:
+            - button "Notifications" [ref=f3e170] [cursor=pointer]
+            - button "Profile menu" [ref=f3e177] [cursor=pointer]:
+              - img "smoke" [ref=f3e178]:
+                - generic [ref=f3e179]: SM
+      - main [ref=f3e181]:
+        - status "Loading" [ref=f3e185]
+  - button "Open AI assistant" [ref=f3e190] [cursor=pointer]
