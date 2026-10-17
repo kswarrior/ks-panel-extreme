@@ -261,7 +261,7 @@ func TerminalHandler(w http.ResponseWriter, r *http.Request) {
 	// workflow bridge below keeps the plain pumpBoth: its stream is
 	// output-only (stdin rides the HTTP mirror endpoints, which carry
 	// their own hooks).
-	go pumpObservedStdin(id, clientConn, edgeConn, errCh)
+	go pumpObservedStdin(ctx, id, clientConn, edgeConn, errCh)
 	go pumpObservedOutput(id, edgeConn, clientConn, errCh)
 
 	// Wait for the first direction to fail, then unblock the peer by
@@ -507,8 +507,10 @@ func outputFrame(payload []byte) (stream, data string, truncated, ok bool) {
 // (the pre hook asked for it not to run; forwarding it would execute the
 // vetoed command anyway) and a post event records the veto for observers.
 // Frames carrying no submitted line pass through untouched, preserving
-// resize and partial-keystroke traffic exactly.
-func pumpObservedStdin(instanceID int64, src, dst *websocket.Conn, errCh chan<- error) {
+// resize and partial-keystroke traffic exactly. The ctx is the terminal
+// session's context: when the operator closes the tab, in-flight hook
+// dispatches are cancelled with it.
+func pumpObservedStdin(ctx context.Context, instanceID int64, src, dst *websocket.Conn, errCh chan<- error) {
 	for {
 		mt, payload, err := src.ReadMessage()
 		if err != nil {
@@ -520,7 +522,7 @@ func pumpObservedStdin(instanceID int64, src, dst *websocket.Conn, errCh chan<- 
 			cmd, _ = stdinCommandLine(payload)
 		}
 		if cmd != "" {
-			if cancelled, msg := modEmitPre(context.Background(), "pre:console.command", map[string]any{
+			if cancelled, msg := modEmitPre(ctx, "pre:console.command", map[string]any{
 				"id": instanceID, "command": cmd,
 			}); cancelled {
 				modEmitPost("post:console.command", map[string]any{
