@@ -159,7 +159,13 @@ func InstanceFileReadHandler(w http.ResponseWriter, r *http.Request) {
 // reach the edge unchanged — that's what lets the SPA's mkdir / upload /
 // rename / delete actions actually mutate state instead of silently
 // succeeding with no effect.
-func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, contentType string) {
+//
+// Returns ok=true when the edge answered successfully (the response may
+// still be a 4xx proxied verbatim — that is the edge's verdict, not a
+// bridge failure); false when the panel never got a successful upstream
+// answer (tunnel/dial/route errors). Mod post-hooks use it to avoid firing
+// "file.write succeeded" for a request that never reached the edge.
+func proxyToEdge(w http.ResponseWriter, r *http.Request, id int64, op, path, contentType string) (ok bool) {
 	con, err := repository.OpenDB()
 	if err != nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
