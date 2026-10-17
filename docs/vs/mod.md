@@ -53,15 +53,15 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Pre-hooks | **cancellable, ordered** — a pre-hook can veto the action, HTTP request gets `409 "blocked by a mod"` (`EmitPre`, `instance_handler.go:2792`) | core-patch dependent, no contract | not documented (no veto) | not documented | — |
-| Post-hooks | concurrent, async, fire-and-forget (`EmitPost:2916`) | core-patch dependent | `listenToServerOperations` — provision/install/reinstall/backup, post-commit only | Laravel listeners | — |
+| Pre-hooks | **cancellable, ordered** — a pre-hook can veto the action, HTTP request gets `409 "blocked by a mod"` (`EmitPre`, `instance_handler.go:2835`; file/backup/console/deploy hooks via `mod_events.go`) | core-patch dependent, no contract | not documented (no veto) | not documented | — |
+| Post-hooks | concurrent, async, fire-and-forget (`EmitPost:2956`) | core-patch dependent | `listenToServerOperations` — provision/install/reinstall/backup, post-commit only | Laravel listeners | — |
 | Wired events | instance lifecycle (`pre:/post:instance.{start,stop,kill,destroy,restart}`), deploy/reinstall (`pre:/post:instance.deploy|reinstall`), install completion (`post:instance.install`), files (`pre:/post:file.{write,delete,upload}`), backups (`pre:/post:backup.{create,restore,delete}`), console (`pre:/post:console.command`, `post:console.output`), login (`post:user.login`) | — | server operations set above | Filament/Laravel hooks | — |
 
 ## 7. Data / storage vs
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Data access | namespaced KV only (`mod_storage(mod_slug,key,value JSON)`, FK cascade) via `ks.storage` | full DB once core patched | full DB/ORM; migrations on enable (`ext_` prefix) | full DB; auto-registered migrations | — |
+| Data access | namespaced KV (`mod_storage(mod_slug,key,value JSON)`, FK cascade) via `ks.storage`; plus grant-gated panel-DB access via `ks.db` — read-only = SELECT/WITH, read-write adds INSERT/UPDATE/DELETE, statements re-validated host-side (multi-statement, comments, DDL/PRAGMA/ATTACH and reads-of-secrets patterns denied) | full DB once core patched | full DB/ORM; migrations on enable (`ext_` prefix) | full DB; auto-registered migrations | — |
 | Settings | mod `spec` blob + KV; no secretbox tier for mods | none | typed settings (text/password/number/toggle/select), `forUser/forServer` scopes, secrets encrypted, never sent to frontend | plugin settings page (`HasPluginSettings`) | — |
 | DB engines | SQLite/Postgres/MySQL (mod tables triplicated across dialects) | MySQL | MySQL | MySQL/Postgres | — |
 
@@ -125,10 +125,10 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 Case 4 alone decides the shape: every PHP panel scores full-trust by design (documented, not an
 accident), so KS's only structural loss is *ecosystem* (case 9) and the not-yet-mounted slots
-(case 8). Closing KS's gap is cheap and non-structural: wire host `<Slot />` mounts + bundle
-loader, emit a wider event set, persist/enforce custom perms, add a mod scaffold command and a
-signed/marketplace path. The PHP panels cannot match the sandbox + approval gate + veto hooks
-without a format break.
+(case 8). Closing KS's gap is cheap and non-structural: wire host `<Slot />` mounts + a bundle
+loader (case 8), add typed settings + encrypted secrets, a mod-to-mod dependency graph, a mod
+scaffold command and a signed/marketplace path (cases 9-10). The PHP panels cannot match the
+sandbox + approval gate + veto hooks without a format break.
 
 ## 13. Sources
 
