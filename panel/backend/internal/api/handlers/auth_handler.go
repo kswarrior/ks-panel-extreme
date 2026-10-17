@@ -206,6 +206,14 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Message:     "logged in",
 	})
 
+	// Mod engine: a successful login is observable but never cancellable
+	// (the session is already minted above — a pre hook that raced the
+	// cookie would be unenforceable, so no pre event exists for logins).
+	modEmitPost("post:user.login", map[string]any{
+		"user_id": user.ID, "username": user.Username, "role": roleName,
+		"ip": r.RemoteAddr, "source": "login",
+	})
+
 	writeLoginResponse(w, r, user, perms, cookieVal)
 }
 
