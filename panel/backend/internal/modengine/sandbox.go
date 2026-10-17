@@ -765,9 +765,9 @@ func (r *gojaRuntime) control(call goja.FunctionCall, capability string) goja.Va
 	}
 	action := strings.ToLower(argString(call, 1))
 	switch action {
-	case "start", "stop", "kill", "restart":
+	case "start", "stop", "kill", "status":
 	default:
-		return r.fail("action must be one of start, stop, kill, restart")
+		return r.fail("action must be one of start, stop, kill, status")
 	}
 	status, err := ops.Control(id, action)
 	if err != nil {

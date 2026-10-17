@@ -68,7 +68,7 @@ type HostOps interface {
 	// timeoutSec is clamped by the caller to [1, 120]; 0 means provider
 	// default.
 	Exec(instanceID int64, command string, timeoutSec int) (ExecResult, error)
-	// Control performs a lifecycle action (start/stop/kill/restart) on an
+	// Control performs a lifecycle action (start/stop/kill/status) on an
 	// instance through the owning edge.
 	Control(instanceID int64, action string) (string, error)
 	// ConsoleSend runs a console-style command inside an instance and returns
