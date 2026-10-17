@@ -128,7 +128,8 @@ accident), so KS's only structural loss is *ecosystem* (case 9) and the not-yet-
 (case 8). Closing KS's gap is cheap and non-structural: wire host `<Slot />` mounts + a bundle
 loader (case 8), add typed settings + encrypted secrets, a mod-to-mod dependency graph, a mod
 scaffold command and a signed/marketplace path (cases 9-10). The PHP panels cannot match the
-sandbox + approval gate + veto hooks without a format break.
+sandbox + approval gate + veto hooks without a format break. The concrete execution list for
+cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
 
 ## 13. Sources
 
