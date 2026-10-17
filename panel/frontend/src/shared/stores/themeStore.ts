@@ -2551,14 +2551,20 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
 }
 /* Collapsing content: gap + duration follow the Pill tab. The motion
    itself (slide/fade/scale) is applied inline by PageActionsPill /
-   PageTabsPill. */
+   PageTabsPill. Compositor-friendly properties only — `filter` was
+   dropped (the old blur(4px) motion re-rasterized all pill text every
+   frame and was the #1 tap-jank source on slow phones) and will-change
+   no longer promotes a filter layer. The form-actions pill is listed
+   here too: it used to borrow its 300ms motion from a Tailwind
+   `transition-all` utility, which lost to this sheet anyway. */
 .ks-actions-pill .ks-pill-content,
+.ks-form-actions-pill .ks-pill-content,
 .ks-tabs-pill .ks-pill-content {
   gap: var(--ks-pill-gap) !important;
-  transition-property: max-width, opacity, transform, filter !important;
+  transition-property: max-width, opacity, transform !important;
   transition-duration: var(--ks-pill-anim-duration) !important;
   transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
-  will-change: max-width, opacity, transform, filter !important;
+  will-change: opacity, transform !important;
 }
 .ks-pill-toggle-chev {
   transition: transform var(--ks-pill-anim-duration, 300ms) cubic-bezier(0.32, 0.72, 0, 1) !important;
