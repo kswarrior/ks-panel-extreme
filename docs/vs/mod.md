@@ -13,7 +13,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |---|---|---|---|---|---|
 | Unit | `Mod` row + `.kspm` package, or manifest-only JSON | addon that patches panel core files at install | `Extension` (`.pteroext` zip + `extension.json`) | `Plugin` folder/zip (`.json` manifest + PHP class) | none (templates + themes only) |
 | Manifest | v2 rich manifest: `engineVersion`, `permissionsRequested[{capability, access_level}]`, `hooks{pre,post}`, `slots`, `customPermissions`, `spec.pages`; v1 static manifest kept for legacy rows (`models/mod.go:39`) | patch definitions, no typed schema in core | `id/name/version/requires{panel,sdk,php}/provider/autoload/ui{entry,mode,prefix,screens}` | `plugin.json` (`id`, `namespace`, `class`, `panels`, `panel_version`, `composer_packages`, `update_url`) | — |
-| Runtime | per-mod sandboxed Goja JS VM — **only when built with `-tags modengine_goja`**; stock `rebuild.sh` links the noop runtime (`runtime_noop.go`, `rebuild.sh:354`), so a stock build is JSON/manifest-only | PHP executed in the panel process after patching core | PHP/Laravel service provider in-process | PHP/Laravel service provider + Filament plugin; composer deps auto-installed | — |
+| Runtime | per-mod sandboxed Goja JS VM — `rebuild.sh` now builds with `-tags modengine_goja` by default, so stock builds ship the real sandbox; a manifest-only build remains available via `GO_BUILD_TAGS=""` (noop runtime, `runtime_noop.go`, `rebuild.sh:356-357|391`) | PHP executed in the panel process after patching core | PHP/Laravel service provider in-process | PHP/Laravel service provider + Filament plugin; composer deps auto-installed | — |
 | Version axis | per-row `engine_version` 1|2; panel-wide engine toggle | panel-version coupled; updates break addons | `requires{}` + dependency graph + topological load; one-owner-per-component conflict rule | `panel_version` (`^` = minimum) + load order; incompatible plugins marked and skipped | — |
 
 ## 2. Install / package vs
@@ -45,7 +45,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Declaration | `permissionsRequested`: capability + access level (`db.read_only|read_write`, `filesystem`, `terminal`, `container.control`, `vm.control`, …); unknown codes rejected at upload (`mod_repo.go:159`) | none | `registerPermissions` at runtime | `Role::registerCustomPermissions` / `Subuser::registerCustomPermissions` | — |
+| Declaration | `permissionsRequested`: capability + access level (`db.read_only|read_write`, `filesystem`, `terminal`, `container.control`, `vm.control`, …); unknown codes rejected at upload (`mod_repo.go:163`); `customPermissions` persisted as `access_level='custom'` grant rows (`granted=0` until admin approves) with `slug:key` shape validation | none | `registerPermissions` at runtime | `Role::registerCustomPermissions` / `Subuser::registerCustomPermissions` | — |
 | Approval | per-capability `granted` rows seeded on install; activation blocked until admin approves each (`PUT /{id}/grants`) | none | none — permissions appear in roles/subuser editors after install | none — permissions appear after install | — |
 | Panel-side RBAC | `MANAGE_MODS` umbrella + `MODS_VIEW/CREATE/EDIT/DELETE` + `MODS_OWN/ALL` ownership scoping | admin-only addons | admin extension management | admin plugin resource | — |
 
