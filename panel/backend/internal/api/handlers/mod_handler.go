@@ -1318,9 +1318,12 @@ func DownloadModHandler(w http.ResponseWriter, r *http.Request) {
 // slots + spec.pages reference. Mounting happens under
 // /api/mods/v1/assets/{slug}/{path...} so the slot loader can resolve a mod's
 // JS bundle as <script src="/api/mods/v1/assets/<slug>/frontend/bundle.js">.
-// Gated by ACCESS_ADMIN_PANEL because mod slots render inside the admin shell;
-// an anonymous caller has nothing to load them into anyway. Path-traversal is
-// guarded inside ReadAsset (the resolved path can't escape the mod workdir).
+// When no file matches (Studio / sample / JSON installs keep the bundle inline
+// in the manifest instead of shipping a zip), the manifest's `uiBundleSource`
+// is served at the mod's effective bundle path. Gated by ACCESS_ADMIN_PANEL
+// because mod slots render inside the admin shell; an anonymous caller has
+// nothing to load them into anyway. Path-traversal is guarded inside ReadAsset
+// (the resolved path can't escape the mod workdir).
 func ModAssetHandler(w http.ResponseWriter, r *http.Request) {
 	slug := chi.URLParam(r, "slug")
 	if slug == "" {
@@ -1339,6 +1342,15 @@ func ModAssetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := modengine.ReadAsset(slug, rel)
 	if err != nil {
+		// Inline-bundle fallback: the manifest carries the JS (Studio/sample/
+		// URL/JSON installs). Only active mods serve it, matching the slot
+		// loader's contract (bundles are only fetched for active mods).
+		if inline, ok := modengine.InlineBundle(slug, rel); ok {
+			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache")
+			_, _ = w.Write(inline)
+			return
+		}
 		http.NotFound(w, r)
 		return
 	}
