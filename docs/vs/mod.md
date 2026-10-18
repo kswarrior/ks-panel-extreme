@@ -117,23 +117,24 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,075 / 1,300** | **83** |
+| **1** | **KS** | **1,085 / 1,300** | **83** |
 | 2 | Pelican | 972 / 1,300 | 75 |
 | 3 | Pterodactyl v2 (beta) | 967 / 1,300 | 74 |
 | 4 | Pterodactyl v1 (+Blueprint) | 435 / 1,300 | 33 |
 | 5 | PufferPanel | 120 / 1,300 | 9 |
 
 Case 4 alone decides the shape: every PHP panel scores full-trust by design (documented, not an
-accident), so KS's only structural loss is *ecosystem* (case 9) and the not-yet-mounted slots
-(case 8). Closing KS's gap is cheap and non-structural: wire host `<Slot />` mounts + a bundle
-loader (case 8), add typed settings + encrypted secrets, a mod-to-mod dependency graph, a mod
-scaffold command and a signed/marketplace path (cases 9-10). The PHP panels cannot match the
-sandbox + approval gate + veto hooks without a format break. The concrete execution list for
-cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
+accident), so KS's only structural loss is *ecosystem* (case 9) — the slot mounts + bundle loader
+landed with M6 (case 8), the remaining 15% being the additive-only catalog (no component
+replacement / table columns / screens). Closing the rest is cheap and non-structural: add typed
+settings + encrypted secrets, a mod-to-mod dependency graph, a mod scaffold command and a
+signed/marketplace path (cases 9-10). The PHP panels cannot match the sandbox + approval gate +
+veto hooks without a format break. The concrete execution list for cases 8, 10 and 7 lives in
+`plan/mod.md` (items M6-M14).
 
 ## 13. Sources
 
-- KS: `panel/backend/internal/modengine/` (`engine.go`, `eventbus.go`, `sandbox.go` — `-tags modengine_goja`, now the `rebuild.sh` default — `hostops.go` (HostOps contract, per-mod grant env, SQL guard), `pkgstore.go`, `storage.go`, `status.go`, `runtime_noop.go`), `models/mod.go:39`, `repository/mod_repo.go:163|482` (+ custom-perm seeding in `CreateMod`), `api/handlers/mod_handler.go` (slots `:1081`, assets `:1324`, activate `:911`, teardown `:1004`), `api/handlers/mod_hostops.go` (host-side ops bridge), `api/handlers/mod_events.go` (event emitters), `api/server.go:578-609|794-800`, `handlers/instance_handler.go:2835|2956|3043`, event sites in `handlers/files_handler.go`, `handlers/instance_backup_handler.go`, `handlers/terminal_handler.go`, `handlers/auth_handler.go`, `cli/launch.go`, migrations `017_mods|020_mod_v2|027_mod_source|036_mod_package` (×3 dialects), `features/mods/pages/ModStudio.tsx` (8 tabs), `modStudioPresets.ts`, `shared/components/ui/Slot.tsx`, `rebuild.sh:356-357|391` (build tags), `docs/THREAT_MODEL.md:121`
+- KS: `panel/backend/internal/modengine/` (`engine.go`, `eventbus.go`, `sandbox.go` — `-tags modengine_goja`, now the `rebuild.sh` default — `hostops.go` (HostOps contract, per-mod grant env, SQL guard), `pkgstore.go` (`BuildPackageZip`, `PackageExtra`, inline `uiBundleSource` fallback), `storage.go`, `status.go`, `runtime_noop.go`), `models/mod.go:39` (`uiBundle`/`uiBundleSource`, slot catalog), `repository/mod_repo.go:163|482` (+ custom-perm seeding in `CreateMod`, `ValidateUIBundle` choke point), `api/handlers/mod_handler.go` (slots `:1081`, assets `:1324` + inline fallback, activate `:911`, teardown `:1004`), `api/handlers/mod_hostops.go` (host-side ops bridge), `api/handlers/mod_events.go` (event emitters), `api/server.go:578-609|794-800`, `handlers/instance_handler.go:2835|2956|3043`, event sites in `handlers/files_handler.go`, `handlers/instance_backup_handler.go`, `handlers/terminal_handler.go`, `handlers/auth_handler.go`, `cli/launch.go`, migrations `017_mods|020_mod_v2|027_mod_source|036_mod_package` (×3 dialects), `features/mods/pages/ModStudio.tsx` (9 tabs), `modStudioPresets.ts`, `shared/components/ui/Slot.tsx` (loader + registry), `panel/backend/mod_samples/hello-slot/` (file-based bundle example), `rebuild.sh:356-357|391` (build tags), `docs/THREAT_MODEL.md:121`
 - Ptero v2: `docs.pterodactyl.io/v2/extensions` (+ `/building`, `/backend`), release `v2.0.0-beta.2` (14 Oct 2026), SDK `2.0.0-beta.6` (announced 5 Oct 2026)
 - Ptero v1/Blueprint: panel `v1.15.1` (12 Aug 2026), `blueprint.zip`, `pineriver.net/blog/what-is-happening-to-pterodactyl` (Oct 2026 — Blueprint ceased operations, security-only v1 updates, Hydrodactyl fork)
 - Pelican: `v1.0.0-beta37`, `pelican-dev/docs plugins.mdx` (`plugin.json`, `p:plugin:install|make`, "still in development", no sell during beta), `hub.pelican.dev/plugins` (live marketplace), DeepWiki `pelican-dev/panel` PluginService
