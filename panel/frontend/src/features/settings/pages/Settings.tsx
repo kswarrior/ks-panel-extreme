@@ -22,6 +22,7 @@ import SkeletonCard from '@/shared/components/ui/SkeletonCard';
 import GlassModal from '@/shared/components/ui/Modal';
 import PageFormActionsPill from '@/shared/components/ui/PageFormActionsPill';
 import PillHistoryControls from '@/shared/components/ui/PillHistoryControls';
+import Slot from '@/shared/components/ui/Slot';
 import { PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import { useConfirm } from '@/shared/stores/confirmStore';
@@ -1022,6 +1023,10 @@ const Settings: React.FC = () => {
       </GlassModal>
       </>
       )}
+
+      {/* Mod Engine v2 injection point: active mods that declared
+          "settings.general.below" render below the General settings. */}
+      <Slot name="settings.general.below" />
     </div>
   );
 };

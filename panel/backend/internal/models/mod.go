@@ -157,15 +157,14 @@ func AllowedCapabilties() []string {
 // registry will mount when the slot is reached; `props` are passed through
 // verbatim to the rendered component.
 //
-// Canonical slot catalog (v1):
+// Canonical slot catalog (v1) — these are the slot names the panel actually
+// mounts (host components call <Slot name="…" />):
 //
-//	instance.detail.tabs          — instance page tab strip        context {instanceId}
-//	instance.detail.sidebar       — instance page sidebar           context {instanceId}
-//	instance.card.actions         — instance card action row        context {instanceId}
-//	dashboard.cards               — dashboard card grid             context {}
-//	dashboard.sidebar             — dashboard sidebar               context {}
-//	settings.general.below        — below General settings          context {}
-//	admin.mods.detail.after       — mod detail page, bottom         context {modSlug}
+//	instance.detail.tabs          — top of an instance detail panel   context {instanceId}
+//	instance.card.actions         — instance card action row          context {instanceId}
+//	dashboard.cards               — instances home page, above grid   context {}
+//	settings.general.below        — bottom of the Settings page       context {}
+//	admin.mods.detail.after       — bottom of a mod's detail page     context {modSlug}
 //
 // Mods may declare any of these; the host renders whatever is registered for
 // the slot name, each in its own ErrorBoundary. Keep this list in sync with

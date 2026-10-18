@@ -148,23 +148,39 @@ ks.log('info', 'Destroy Guard loaded');`,
 	{
 		Key:           "hello-slot",
 		Name:          "Hello Slot",
-		Description:   "v1 demo: declares a UI injection point (instance.detail.header) with static props. Useful for verifying the slot registry endpoint renders your slot declarations.",
+		Description:   "v2 demo: registers a UI slot (instance.detail.tabs) and ships an inline frontend bundle that renders a banner — verifies the slot loader end to end.",
 		Icon:          "🎨",
-		EngineVersion: 1,
+		EngineVersion: 2,
 		Permissions:   []repository.PermissionReq{},
 		HasScript:     false,
 		manifest: map[string]any{
-			"name":        "Hello Slot",
-			"slug":        "hello-slot",
-			"version":     "1.0.0",
-			"description": "Built-in sample: declares a header slot with static props (no script, zero capabilities).",
+			"name":          "Hello Slot",
+			"slug":          "hello-slot",
+			"version":       "1.0.0",
+			"description":   "Built-in sample: declares a slot plus an inline frontend bundle (no backend script, zero capabilities).",
+			"engineVersion": 2,
 			"slots": []map[string]any{
 				{
-					"name":      "instance.detail.header",
+					"name":      "instance.detail.tabs",
 					"component": "Banner",
 					"props":     map[string]any{"text": "Hello from the Hello Slot sample", "tone": "info"},
 				},
 			},
+			"uiBundleSource": `// Hello Slot — inline frontend bundle for the built-in sample.
+// The panel injects this ES module when the mod activates; components publish
+// into window.KS and render wherever the host mounts the declared slot.
+(function () {
+  var h = window.React.createElement;
+  function Banner(props) {
+    var text = (props && props.text) || 'Hello from the Hello Slot sample';
+    var tone = (props && props.tone) || 'info';
+    var cls = tone === 'warn'
+      ? 'border-amber-700/50 bg-amber-900/20 text-amber-200'
+      : 'border-sky-700/50 bg-sky-900/20 text-sky-200';
+    return h('div', { className: 'rounded-lg border px-3 py-2 text-sm ' + cls }, text);
+  }
+  window.KS.registerComponent('instance.detail.tabs', 'Banner', Banner);
+})();`,
 		},
 	},
 }
