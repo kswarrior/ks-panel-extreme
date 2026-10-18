@@ -1345,7 +1345,7 @@ func ModAssetHandler(w http.ResponseWriter, r *http.Request) {
 		// Inline-bundle fallback: the manifest carries the JS (Studio/sample/
 		// URL/JSON installs). Only active mods serve it, matching the slot
 		// loader's contract (bundles are only fetched for active mods).
-		if inline, ok := modengine.InlineBundle(slug, rel); ok {
+		if inline, ok := modengine.Default().InlineBundle(slug, rel); ok {
 			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 			w.Header().Set("Cache-Control", "no-cache")
 			_, _ = w.Write(inline)

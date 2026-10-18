@@ -19,10 +19,13 @@ import type {
 //      symbol at render time.
 //   2. A remote plugin loader — on first <Slot /> mount (or panel boot), we
 //      fetch /api/mods/v1/slots to learn which active mods declared slots.
-//      When a mod ships a bundle URL (via a future /api/mods/:id/bundle
-//      endpoint), the loader dynamically imports it; today it relies on the
-//      bundle being pre-loaded so the registry is already populated, which
-//      keeps the slot rendering synchronous and SSR-safe.
+//      Every registered slot carries a bundle_url (the mod's frontend ES
+//      module on the asset route, with a version cache-buster); the loader
+//      injects each missing bundle as a <script type="module"> and waits for
+//      it to evaluate before the next one, tagging whatever it registers via
+//      window.KS with the owning mod. Deactivated mods get their scripts
+//      removed + registry entries pruned on the next refresh, so slot output
+//      appears and disappears with the mod's active flag without a reload.
 //   3. The memoized <Slot name="…" context={...} /> component. For each
 //      registration matching the slot name it wraps the resolved component in
 //      an ErrorBoundary so one crashing mod component never takes the whole
