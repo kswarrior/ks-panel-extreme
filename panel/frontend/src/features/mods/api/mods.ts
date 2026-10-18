@@ -8,6 +8,7 @@ import type {
   ModEngineToggleResponse,
   ModSample,
   ModLogEntry,
+  ModSettingsResponse,
 } from '@/shared/types/mod';
 
 // Admin Mods API — operates on the /api/mods collection, gated by
@@ -177,6 +178,29 @@ export async function activateMod(
 
 export async function deactivateMod(id: number): Promise<void> {
   await client.post(`/api/mods/${id}/deactivate`);
+}
+
+// ---------------------------------------------------------------------------
+// Typed settings (GET/PUT /api/mods/{id}/settings) — plan item M8.
+// ---------------------------------------------------------------------------
+
+// Fetch the manifest-declared settings schema plus current values. Password
+// settings never carry a value — only is_set — so this response is safe to
+// hold in component state.
+export async function getModSettings(id: number): Promise<ModSettingsResponse> {
+  const res = await client.get<ModSettingsResponse>(`/api/mods/${id}/settings`);
+  return res.data;
+}
+
+// Write settings values (string form for every type). Server-side rules:
+// unknown keys and type violations are 400 with no partial writes; an empty
+// value clears a non-secret setting and is a no-op for a password.
+export async function updateModSettings(
+  id: number,
+  values: Record<string, string>,
+): Promise<ModSettingsResponse> {
+  const res = await client.put<ModSettingsResponse>(`/api/mods/${id}/settings`, { values });
+  return res.data;
 }
 
 // ---------------------------------------------------------------------------
