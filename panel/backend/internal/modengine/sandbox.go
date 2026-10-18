@@ -90,13 +90,14 @@ type hookReturn struct {
 // newJSRuntime and fully initialised by Start. A panic recovered in any entry
 // point tears the VM down so the engine stops dispatching into a broken VM.
 type gojaRuntime struct {
-	slug    string
-	mu      sync.Mutex
-	vm      *goja.Runtime
-	binding *storageBinding // namespaced ks.storage backing (see storage.go)
-	install HookInstaller
-	host    HostEnv
-	started atomic.Bool
+	slug     string
+	mu       sync.Mutex
+	vm       *goja.Runtime
+	binding  *storageBinding  // namespaced ks.storage backing (see storage.go)
+	settings *settingsBinding // typed ks.settings backing (see settings.go)
+	install  HookInstaller
+	host     HostEnv
+	started  atomic.Bool
 }
 
 // Start boots the VM, injects the `ks` Host API, then evaluates the entry
@@ -109,6 +110,7 @@ func (r *gojaRuntime) Start(slug, source string, install HookInstaller, env Host
 	r.install = install
 	r.host = env
 	r.binding = newStorageBinding(slug, Default().storage)
+	r.settings = newSettingsBinding(slug, settingsFromHostEnv(env))
 
 	vm := goja.New()
 	r.vm = vm
@@ -308,6 +310,7 @@ func (r *gojaRuntime) SetHostEnv(env HostEnv) {
 //
 //	ks.log(level, msg)
 //	ks.storage.get(key) / .set(key,val) / .delete(key)
+//	ks.settings.get(key) / .set(key,val)
 //	ks.events.on(name, fn)
 //	ks.slug // read-only identity
 func (r *gojaRuntime) buildKS(vm *goja.Runtime) map[string]any {
@@ -317,6 +320,10 @@ func (r *gojaRuntime) buildKS(vm *goja.Runtime) map[string]any {
 			"get":    r.storageGet,
 			"set":    r.storageSet,
 			"delete": r.storageDelete,
+		},
+		"settings": map[string]any{
+			"get": r.settingsGet,
+			"set": r.settingsSet,
 		},
 		"events": map[string]any{
 			"on": r.eventsOn,
