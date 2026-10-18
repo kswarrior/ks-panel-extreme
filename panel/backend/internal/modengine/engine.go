@@ -82,13 +82,16 @@ type hookRef struct {
 // RegisteredSlot is one frontend injection point currently served by the
 // engine. `Mod` is the owning mod slug; the rest mirrors SlotDefinition plus
 // the mod's display name so the React side can label the slot without
-// re-fetching the mod list.
+// re-fetching the mod list. BundleURL is the ES-module URL of the owning
+// mod's frontend bundle (asset route + version query); empty when the mod
+// ships neither a bundle file nor inline source.
 type RegisteredSlot struct {
-	Mod       string          `json:"mod"`       // owning mod slug
-	ModID     int64           `json:"mod_id"`    // owning mod id (for the loader)
-	Name      string          `json:"name"`      // slot name e.g. "instance.detail.tabs"
-	Component string          `json:"component"` // export name in the mod bundle
+	Mod       string          `json:"mod"`              // owning mod slug
+	ModID     int64           `json:"mod_id"`           // owning mod id (for the loader)
+	Name      string          `json:"name"`             // slot name e.g. "instance.detail.tabs"
+	Component string          `json:"component"`        // export name in the mod bundle
 	Props     json.RawMessage `json:"props,omitempty"`
+	BundleURL string          `json:"bundle_url,omitempty"` // module URL of the mod's frontend bundle
 }
 
 // defaultExecTimeout caps how long a synchronous pre-hook may run before the
@@ -356,7 +359,11 @@ func (e *ModEngine) activate(ctx context.Context, mod *models.Mod, man models.Mo
 	}
 
 	// Record declared slots so ActiveSlots() can serve them without parsing
-	// manifests again on the request path.
+	// manifests again on the request path. Each slot carries the owning mod's
+	// bundle URL so the frontend loader can inject the ES module without a
+	// second lookup. The URL is computed once per activation (file existence +
+	// inline source are both known here).
+	bundleURL := bundleURLFor(man, workDir, mod.Slug, mod.Version)
 	for _, s := range man.Slots {
 		entry.slots = append(entry.slots, RegisteredSlot{
 			Mod:       mod.Slug,
@@ -364,6 +371,7 @@ func (e *ModEngine) activate(ctx context.Context, mod *models.Mod, man models.Mo
 			Name:      s.Name,
 			Component: s.Component,
 			Props:     s.Props,
+			BundleURL: bundleURL,
 		})
 	}
 
@@ -660,6 +668,72 @@ func resolveScript(man models.ModManifestV2, workDir string) string {
 		return ""
 	}
 	return string(src)
+}
+
+// bundleURLFor derives the frontend bundle URL a mod's slots advertise, or ""
+// when the mod ships no bundle at all. A bundle counts as present when the
+// manifest carries inline `uiBundleSource` OR the extracted workdir holds the
+// declared file. The URL points at the existing asset route with the manifest
+// version as the cache-buster. `workDir` may be empty (no package extracted).
+//
+// The path was validated zip-relative at upload (repository.CreateMod →
+// models.ValidateUIBundle); we re-check here because the manifest is re-parsed
+// from the DB and defense-in-depth is cheap.
+func bundleURLFor(man models.ModManifestV2, workDir, slug, version string) string {
+	relPath := man.EffectiveUIBundlePath()
+	rel := filepath.Clean(filepath.FromSlash(relPath))
+	if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return ""
+	}
+	available := strings.TrimSpace(man.UIBundleSource) != ""
+	if !available && workDir != "" {
+		full := filepath.Join(workDir, rel)
+		if strings.HasPrefix(full, workDir+string(filepath.Separator)) {
+			if st, err := os.Stat(full); err == nil && !st.IsDir() {
+				available = true
+			}
+		}
+	}
+	if !available || slug == "" {
+		return ""
+	}
+	v := strings.TrimSpace(version)
+	if v == "" {
+		v = "0"
+	}
+	return "/api/mods/v1/assets/" + url.PathEscape(slug) + "/" +
+		escapeBundlePath(relPath) + "?v=" + url.QueryEscape(v)
+}
+
+// escapeBundlePath percent-escapes each forward-slash segment of a bundle
+// path while keeping the separators intact (url.PathEscape would escape "/").
+func escapeBundlePath(p string) string {
+	parts := strings.Split(p, "/")
+	for i, s := range parts {
+		parts[i] = url.PathEscape(s)
+	}
+	return strings.Join(parts, "/")
+}
+
+// InlineBundle returns the inline `uiBundleSource` of an ACTIVE mod when the
+// requested asset path matches its effective bundle path. The asset handler
+// falls back to this when no file exists on disk — the Studio / sample / JSON
+// install paths carry the bundle inside the manifest instead of a zip. Returns
+// (nil, false) for unknown slugs, non-matching paths, stopped mods, and mods
+// without inline source (callers then answer 404).
+func (e *ModEngine) InlineBundle(slug, rel string) ([]byte, bool) {
+	e.mu.RLock()
+	entry := e.entries[slug]
+	e.mu.RUnlock()
+	if entry == nil || strings.TrimSpace(entry.manifest.UIBundleSource) == "" {
+		return nil, false
+	}
+	want := path.Clean(entry.manifest.EffectiveUIBundlePath())
+	got := path.Clean(strings.TrimPrefix(filepath.ToSlash(rel), "/"))
+	if got != want {
+		return nil, false
+	}
+	return []byte(entry.manifest.UIBundleSource), true
 }
 
 // defaultEngine is the package-level engine handlers resolve when none is

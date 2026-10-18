@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -210,11 +212,69 @@ type ModManifestV2 struct {
 	EngineVersion        int                `json:"engineVersion"`
 	BackendScript        string             `json:"backendScript"`
 	BackendScriptSource  string             `json:"backendScriptSource"`
+	// UIBundle is the zip-relative path of the mod's frontend bundle inside its
+	// .kspm package (default "frontend/bundle.js" when empty). The panel serves
+	// it at /api/mods/v1/assets/<slug>/<uiBundle> and the loader injects it as
+	// an ES module when the mod declares slots. Must stay zip-relative: absolute
+	// paths and ".." escapes are rejected at upload.
+	UIBundle string `json:"uiBundle"`
+	// UIBundleSource is the inline JS variant (mirrors BackendScriptSource):
+	// Studio / sample / JSON installs have no package zip, so the bundle source
+	// travels inside the manifest and the asset handler serves it at the
+	// UIBundle path; it wins over a file with the same name. Capped at
+	// MaxUIBundleSourceBytes (1 MiB) at upload.
+	UIBundleSource       string             `json:"uiBundleSource"`
 	Slots                []SlotDefinition   `json:"slots"`
 	Hooks                []HookDefinition   `json:"hooks"`
 	PermissionsDeclared  []CustomPermission `json:"permissionsDeclared"`
 	Spec                 json.RawMessage    `json:"spec"`
 	PermissionsRequested []PermissionReqV2  `json:"permissionsRequested"`
+}
+
+// DefaultUIBundlePath is the bundle path a mod's manifest refers to when it
+// omits `uiBundle`. Also the path the inline `uiBundleSource` is served at.
+const DefaultUIBundlePath = "frontend/bundle.js"
+
+// MaxUIBundleSourceBytes caps the inline `uiBundleSource` (1 MiB). Frontend
+// bundles are usually built/minified to well under this; the cap protects the
+// manifest row + asset route from a hostile payload.
+const MaxUIBundleSourceBytes = 1 << 20
+
+// EffectiveUIBundlePath returns the mod's frontend bundle path, applying the
+// default when the manifest omits one.
+func (m ModManifestV2) EffectiveUIBundlePath() string {
+	if p := strings.TrimSpace(m.UIBundle); p != "" {
+		return p
+	}
+	return DefaultUIBundlePath
+}
+
+// ValidateUIBundle checks the v2 frontend-bundle declarations on an upload:
+// the path must stay zip-relative (no absolute paths, drive letters or ".."
+// escapes, max 256 chars, forward slashes) and the inline source must respect
+// the size cap. Called by the repository on every install path (file, URL,
+// Studio, JSON, sample) so a hostile manifest can never make the asset route
+// serve a file outside the mod's workdir or bloat the row.
+func ValidateUIBundle(m ModManifestV2) error {
+	if p := strings.TrimSpace(m.UIBundle); p != "" {
+		if len(p) > 256 {
+			return fmt.Errorf("uiBundle path too long (max 256 chars)")
+		}
+		if strings.ContainsRune(p, 0) || strings.Contains(p, "\\") {
+			return fmt.Errorf("uiBundle path must use forward slashes")
+		}
+		clean := path.Clean(p)
+		if clean != p {
+			return fmt.Errorf("uiBundle path must be clean (got %q, want %q)", p, clean)
+		}
+		if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("uiBundle path must be zip-relative (no absolute paths or ..)")
+		}
+	}
+	if len(m.UIBundleSource) > MaxUIBundleSourceBytes {
+		return fmt.Errorf("uiBundleSource too large (%d bytes; max %d)", len(m.UIBundleSource), MaxUIBundleSourceBytes)
+	}
+	return nil
 }
 
 // PermissionReqV2 mirrors repository.PermissionReq but lives here so the

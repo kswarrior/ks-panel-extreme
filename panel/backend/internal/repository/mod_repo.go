@@ -270,6 +270,13 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 		return nil, err
 	}
 
+	// Validate the v2 frontend-bundle declarations (uiBundle path shape +
+	// uiBundleSource size cap). Every install path funnels through CreateMod,
+	// so this is the single choke point before the manifest is stored.
+	if err := models.ValidateUIBundle(models.ParseV2Manifest(in.Manifest)); err != nil {
+		return nil, err
+	}
+
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, err
