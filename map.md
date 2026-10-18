@@ -13,7 +13,7 @@ repo/
 ├── edge/backend/         # Edge agent (Go, runs on nodes) — Part 3
 ├── instance_pages/       # Instance-page library, authored as YAML — Part 4
 ├── themes_market/        # Theme marketplace library (JSON)
-├── docs/                 # Deep docs (threat model, build security, futures)
+├── docs/                 # Deep docs (threat model, build security, futures, application)
 ├── tools/                # Build helpers (e.g. version manifest stamper)
 ├── deploy/               # Deploy artifacts
 ├── release/              # Build output (kspanel, ksedge, version.json) — never edit by hand
@@ -151,7 +151,7 @@ Content types: `html` (sandboxed iframe, full control, needs theme `<style>` hea
 
 * `rebuild.sh` — MUST pass after any edit. Builds frontend (Vite) → embeds into `panel/backend/internal/ui/` → syncs `instance_pages/` → `pagelib/library/` and `themes_market/` → `themelib/library/` → builds `release/kspanel` + `release/ksedge` → checksums + `release/version.json`.
 * `loop.md` — Agent workflow (plan → edit minimal → CHECKLIST V → rebuild). Map-first, scoped navigation, zero assumptions, twice-check.
-* `docs/` — `THREAT_MODEL.md`, `BUILD_SECURITY.md`, `futures.md`, `vs/` comparisons.
+* `docs/` — `THREAT_MODEL.md`, `BUILD_SECURITY.md`, `futures.md`, `application.md` (Applications system deep-dive), `vs/` comparisons.
 * `dash/` — Sample external stack app for testing stack pairing.
 * `tools/` — Release helpers.
 
