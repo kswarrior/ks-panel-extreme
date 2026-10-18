@@ -549,9 +549,9 @@ const ModStudio: React.FC = () => {
                 placeholder="What this mod does and why an admin should approve it."
               />
               <p className="text-[11px] text-gray-500">
-                The Studio auto-promotes to v2 as soon as you add a slot, hook, backend script, or
-                custom permission — so you can't accidentally ship a v2 manifest that silently drops
-                everything interesting.
+                The Studio auto-promotes to v2 as soon as you add a slot, hook, backend script,
+                frontend bundle, or custom permission — so you can't accidentally ship a v2 manifest
+                that silently drops everything interesting.
               </p>
             </>
           )}
