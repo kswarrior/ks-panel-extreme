@@ -1,6 +1,6 @@
 # Mods skill
 
-Mods are admin-uploaded add-on packages that extend the panel (extra pages, tools, integrations). They install inactive and only activate after the admin approves every capability the mod requested. The sandboxed mod engine v2 runs them in a Goja VM with pre/post event hooks and a slot registry. Applications are the user-facing sibling: admin-curated bot/service templates that users install under their own account with the same capability-approval gate.
+Mods are admin-uploaded add-ons that extend the panel (extra pages, tools, integrations). They install inactive and only activate after the admin approves every capability requested. Mod engine v2 runs them in a Goja VM with pre/post event hooks, a slot registry and typed settings. Applications are the user-facing sibling: admin-curated templates users install under their own account with the same approval gate.
 
 ## Slot catalog (where mod UI can render)
 
@@ -17,7 +17,7 @@ A manifest slot is `{ "name": "<catalog name>", "component": "<registered name>"
 
 ## Shipping a frontend bundle
 
-Two ways: inline `uiBundleSource` (a JS string in the manifest — the Studio, built-in samples and JSON installs use this; capped at 1 MiB) or a file inside the `.kspm` zip at `uiBundle` (zip-relative path, default `frontend/bundle.js`). Inline source wins when both exist. The panel serves the bundle at `/api/mods/v1/assets/<slug>/<uiBundle>?v=<version>`, injects it as an ES module when the mod activates, and removes it on deactivation.
+Two ways: inline `uiBundleSource` (a JS string in the manifest — Studio/samples/JSON installs; capped at 1 MiB) or a file in the `.kspm` zip at `uiBundle` (default `frontend/bundle.js`); inline wins. The panel serves it at `/api/mods/v1/assets/<slug>/<uiBundle>?v=<version>` and injects it as an ES module while the mod is active.
 
 Bundles are plain scripts — no bundler required. The host exposes React on `window.React`, `window.ReactDOM`, `window.ReactDOMClient` and `window.ReactJSXRuntime` (alias `window.jsxRuntime`). Register each component by name:
 
@@ -29,8 +29,10 @@ Bundles are plain scripts — no bundler required. The host exposes React on `wi
 })();
 ```
 
-With a bundler, keep react/react-dom external and map them to those globals (esbuild: `--format=esm --external:react --external:react-dom`). Re-registering the same name replaces the previous component, and a crashing component is isolated per slot so it never takes the page down.
+With a bundler, keep react/react-dom external and map them to those globals (esbuild: `--format=esm --external:react --external:react-dom`). Re-registering a name replaces the component; a crashing component is isolated per slot. A file-based dev example lives at `panel/backend/mod_samples/hello-slot/` — zip it and upload as a `.kspm`.
 
-A file-based dev example (manifest + `frontend/bundle.js`) lives at `panel/backend/mod_samples/hello-slot/` — zip that folder and upload it as a `.kspm`.
+## Typed settings (ks.settings)
+
+A mod declares `settings: [{key, type, label, options, default, description}]` in its manifest (`key` is `[a-z0-9_]{1,64}`; types `text|password|number|toggle|select`). The admin edits values on the mod's detail page; the script reads/writes them at runtime via `ks.settings.get(key)` and `ks.settings.set(key, value)` (string form, `""` clears, returns `true/false`). Password values are write-only: sealed AES-256-GCM at rest, never returned by the API (only `is_set`), revealed to the mod only.
 
 Assistant coverage is read-only here: there are no mod tools, so answer from this guide and walk the admin through the Mods page (upload → review capabilities → approve → activate). Never claim to install or activate a mod.
