@@ -224,6 +224,10 @@ export interface ModManifestV2 {
   hooks?: HookDefinition[];
   // Custom mod-scoped RBAC keys surfaced next to the host capabilities.
   permissionsDeclared?: CustomPermission[];
+  // Typed settings the admin configures on the mod's detail page; the mod
+  // reads them at runtime via ks.settings.get(key). Keep the schema rules in
+  // sync with models.ValidateSettings in internal/models/mod.go.
+  settings?: ModSettingDefinition[];
   // Opaque editable spec blob (pages/tools definitions).
   spec?: Record<string, any>;
   permissionsRequested?: PermissionRequest[];
@@ -268,6 +272,40 @@ export interface HookDefinition {
 export interface CustomPermission {
   key: string;
   description?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Typed mod settings (GET/PUT /api/mods/{id}/settings) — plan item M8.
+// The manifest declares the schema; values are stored server-side. Password
+// values are write-only: the API never returns them, only `is_set`.
+// ---------------------------------------------------------------------------
+
+export type ModSettingType = 'text' | 'password' | 'number' | 'toggle' | 'select';
+
+// One declared setting. Mirrors models.ModSettingDefinition.
+export interface ModSettingDefinition {
+  // Stable identifier scripts pass to ks.settings.get/set: [a-z0-9_]{1,64}.
+  key: string;
+  label?: string;
+  type: ModSettingType;
+  // Allowed values for type "select" (1..64 entries).
+  options?: string[];
+  // UI hint shown when no value is stored. Never present for "password".
+  default?: string;
+  description?: string;
+}
+
+// One declared setting + its stored state in the GET/PUT response. `value`
+// is the stored cleartext for non-secret settings ("" when unset) and always
+// "" for password settings — use `is_set` there.
+export interface ModSettingView extends ModSettingDefinition {
+  value?: string;
+  is_set: boolean;
+}
+
+export interface ModSettingsResponse {
+  slug: string;
+  settings: ModSettingView[];
 }
 
 // One slot served by /api/mods/v1/slots. `mod` is the owning slug; the loader
