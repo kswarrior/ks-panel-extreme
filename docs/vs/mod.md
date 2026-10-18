@@ -69,8 +69,8 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Injection | slot registry `GET /api/mods/v1/slots` + `window.KS.registerComponent` + React `<Slot>` with per-component ErrorBoundary + asset route `/api/mods/v1/assets/{slug}/*`; Studio declares slots + `spec.pages` | themes + patched templates | `slots.register` (`server.console.before`, screens, tabs, table columns, component replacement w/ one-owner rule), Tailwind prefix requirement, per-slot error boundaries | native Filament resources/pages/widgets per panel (admin/app/server), views, translations | themes only |
-| Honest minus | registry + `<Slot>` component exist but **no host mounts are wired yet** and there is no auto bundle loader (`bundle` endpoint absent) — slots cannot render in the shipped UI today | core-file patching | beta, SDK churn | beta | — |
+| Injection | slot registry `GET /api/mods/v1/slots` (per-slot `bundle_url`) + `window.KS.registerComponent` + React `<Slot>` with per-component ErrorBoundary; bundle loader injects ES modules served by `/api/mods/v1/assets/{slug}/*` (inline `uiBundleSource` fallback, 1 MiB cap) and unloads/prunes on deactivate; 5 live mounts (`instance.detail.tabs`, `instance.card.actions`, `dashboard.cards`, `settings.general.below`, `admin.mods.detail.after`); Studio authors slots + frontend bundle | themes + patched templates | `slots.register` (`server.console.before`, screens, tabs, table columns, component replacement w/ one-owner rule), Tailwind prefix requirement, per-slot error boundaries | native Filament resources/pages/widgets per panel (admin/app/server), views, translations | themes only |
+| Honest minus | additive 5-slot catalog only — no component replacement, table-column or screen-level injection; bundles must treat react/react-dom as host globals (no version pinning) | core-file patching | beta, SDK churn | beta | — |
 
 ## 9. Ecosystem / distribution vs
 
@@ -83,13 +83,13 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Authoring | Mod Studio: 8 tabs (Meta, Permissions, Slots, Hooks, Backend script, Custom perms, Spec, Raw JSON) + presets (`modStudioPresets.ts`) | write patches | docs + SDK packages | `p:plugin:make` scaffold, structure mirrors Laravel/Filament | — |
+| Authoring | Mod Studio: 9 tabs (Meta, Permissions, Slots, Hooks, Backend script, Frontend bundle, Custom perms, Spec, Raw JSON) + presets (`modStudioPresets.ts`); file-based example at `panel/backend/mod_samples/hello-slot/` | write patches | docs + SDK packages | `p:plugin:make` scaffold, structure mirrors Laravel/Filament | — |
 | Diagnostics | engine status (mode, enabled), per-slug bounded log ring, `GET /{id}/logs`, kill switch UI | none | admin extension list | plugin status/incompatibility flags, load order | — |
-| Honest minus | no scaffold command, thin docs (5-line AI skill page), no dev hot-reload, no unit-test harness for mods | — | beta docs | — | — |
+| Honest minus | no scaffold command, no dev hot-reload, no unit-test harness for mods, docs limited to the AI skill page + mod_samples example | — | beta docs | — | — |
 
 ## 11. Verdict vs (honest)
 
-- **KS vs all on safety-shaped power**: only system with any isolation at all (per-mod JS VM, host access only through granted + per-call-enforced bindings), only one with an *approval gate before activation*, only one with cancellable pre-hooks (409 veto), typed capability+access-level declarations, custom perms persisted and grant-gated, per-slug KV isolated per mod, error isolation (a crashing mod cannot take the panel down), multi-DB, ownership scoping, kill switch, SSRF-guarded URL install, Mod Studio authoring. Paid for with the smallest ecosystem, slots not yet mounted, no marketplace/update path, no mod-to-mod dependency graph/version constraints, no signing.
+- **KS vs all on safety-shaped power**: only system with any isolation at all (per-mod JS VM, host access only through granted + per-call-enforced bindings), only one with an *approval gate before activation*, only one with cancellable pre-hooks (409 veto), typed capability+access-level declarations, custom perms persisted and grant-gated, per-slug KV isolated per mod, error isolation (a crashing mod cannot take the panel down), multi-DB, ownership scoping, kill switch, SSRF-guarded URL install, Mod Studio authoring, and (since M6) live slot mounts + an automatic bundle loader with inline fallback. Paid for with the smallest ecosystem, no marketplace/update path, no mod-to-mod dependency graph/version constraints, no signing.
 - **Ptero v2 vs KS on raw power**: in-process PHP can do anything — DB reads/writes, migrations, composer deps, deep UI replacement (screens/tabs/columns), dependency graph, official repo, paid marketplace reach. That is also the weakness: no sandbox, no grant gate, post-commit-only events, beta. On any given *capability* ask, v2 can usually out-do KS; on *governed capability* KS out-does v2.
 - **Ptero v1/Blueprint**: the only reason 1.x had extensions; community framework now ceased operations with Pterodactyl (Oct 2026), security-only updates, migration path is the Hydrodactyl fork — anything built there is a dead end. v1's extension story scores accordingly.
 - **Pelican vs KS**: the strongest live ecosystem today (Hub marketplace, scaffold command, Filament-native UI, official+community plugins) and same trust model as Ptero v2 (no sandbox, no veto). Beats KS on ecosystem and event/UI breadth; loses on isolation, approval gate, veto hooks and diagnostics.
@@ -106,7 +106,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | 5 | Capability / permission model | 94 | 15 | 78 | 75 | 10 |
 | 6 | Events / hooks | 88 | 30 | 82 | 72 | 5 |
 | 7 | Data / storage | 85 | 60 | 88 | 85 | 5 |
-| 8 | UI injection | 75 | 55 | 88 | 90 | 30 |
+| 8 | UI injection | 85 | 55 | 88 | 90 | 30 |
 | 9 | Ecosystem / distribution | 25 | 20 | 82 | 88 | 5 |
 | 10 | Developer tooling | 82 | 25 | 80 | 85 | 5 |
 | 11 | Diagnostics / kill switch | 90 | 30 | 75 | 70 | 5 |
