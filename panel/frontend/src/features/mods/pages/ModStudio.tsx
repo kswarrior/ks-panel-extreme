@@ -33,8 +33,8 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 // Layout:
 //   [tab rail] | [active editor] | [live manifest preview]
 //
-// Tabs: Meta · Permissions · Slots · Hooks · Backend · Custom Perms · Spec ·
-//       Raw JSON
+// Tabs: Meta · Permissions · Slots · Hooks · Backend script · Frontend bundle ·
+//       Custom Perms · Spec · Raw JSON
 //
 // The "Spec" tab is a freeform JSON blob editable as a textarea (so a
 // no-code admin can still attach page/tool definitions the engine consumes

@@ -10,24 +10,42 @@
 
 import { ModStudioDraft, blankModStudioDraft } from '@/shared/types/mod';
 
-// minimal UI showcase — registers a slot, no backendScript, declares a
-// single read-only capability. The admin sees the Studio's slot editor
-// and permissions editor pre-populated without authoring from scratch.
+// minimal UI showcase — registers a slot, ships a tiny inline frontend bundle,
+// declares a single read-only capability. The admin sees the Studio's slot +
+// frontend editors and permissions editor pre-populated without authoring from
+// scratch.
 const uiShowcase = (): ModStudioDraft => ({
   ...blankModStudioDraft(),
   name: 'UI Showcase',
   slug: 'ui-showcase',
   version: '1.0.0',
   description:
-    'Registers a single UI slot in the instance detail header. Reads instance data through the read-only capability and renders a friendly banner — a safe starter template.',
+    'Registers a single UI slot in the instance detail panel and ships an inline frontend bundle that renders a friendly banner — a safe starter template.',
+  engineVersion: 2,
   permissionsRequested: [{ capability: 'db.read_only', access_level: 'read_only' }],
   slots: [
     {
-      name: 'instance.detail.header',
+      name: 'instance.detail.tabs',
       component: 'Banner',
       props: { text: 'Hello from UI Showcase', tone: 'info' },
     },
   ],
+  uiBundleSource: `// UI Showcase — inline frontend bundle (ES module).
+// React is exposed on window by the panel's slot loader; components register
+// into window.KS and render wherever the host mounts the declared slot.
+(function () {
+  var h = window.React.createElement;
+  function Banner(props) {
+    var text = (props && props.text) || 'Hello from UI Showcase';
+    var tone = (props && props.tone) || 'info';
+    var cls = tone === 'warn'
+      ? 'border-amber-700/50 bg-amber-900/20 text-amber-200'
+      : 'border-sky-700/50 bg-sky-900/20 text-sky-200';
+    return h('div', { className: 'rounded-lg border px-3 py-2 text-sm ' + cls }, text);
+  }
+  window.KS.registerComponent('instance.detail.tabs', 'Banner', Banner);
+})();
+`,
 });
 
 // Terminal demo — declares terminal access, registers a hook that logs on
