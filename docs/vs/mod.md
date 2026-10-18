@@ -105,7 +105,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | 4 | Isolation / sandbox | 90 | 5 | 12 | 12 | 5 |
 | 5 | Capability / permission model | 94 | 15 | 78 | 75 | 10 |
 | 6 | Events / hooks | 88 | 30 | 82 | 72 | 5 |
-| 7 | Data / storage | 85 | 60 | 88 | 85 | 5 |
+| 7 | Data / storage | 88 | 60 | 88 | 85 | 5 |
 | 8 | UI injection | 87 | 55 | 88 | 90 | 30 |
 | 9 | Ecosystem / distribution | 25 | 20 | 82 | 88 | 5 |
 | 10 | Developer tooling | 82 | 25 | 80 | 85 | 5 |
@@ -117,7 +117,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,087 / 1,300** | **84** |
+| **1** | **KS** | **1,090 / 1,300** | **84** |
 | 2 | Pelican | 972 / 1,300 | 75 |
 | 3 | Pterodactyl v2 (beta) | 967 / 1,300 | 74 |
 | 4 | Pterodactyl v1 (+Blueprint) | 435 / 1,300 | 33 |
@@ -126,15 +126,16 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 Case 4 alone decides the shape: every PHP panel scores full-trust by design (documented, not an
 accident), so KS's only structural loss is *ecosystem* (case 9) — the slot mounts + bundle loader
 (M6) and the `mod.screen` route + Sidebar nav (M15) land case 8 at 87, the remainder being the
-additive-only catalog (no replacing host pages, table columns or built-in screens). Closing the
-rest is cheap and non-structural: add typed settings + encrypted secrets, a mod-to-mod dependency
-graph, a mod scaffold command and a signed/marketplace path (cases 9-10). The PHP panels cannot
-match the sandbox + approval gate + veto hooks without a format break. The concrete execution list
-for cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
+additive-only catalog (no replacing host pages, table columns or built-in screens); typed settings
++ encrypted secrets (M8) lift case 7 to 88, still short of 100 because mods own no schema and
+settings have no per-user/per-server scopes. Closing the rest is cheap and non-structural: a
+mod-to-mod dependency graph, a mod scaffold command and a signed/marketplace path (cases 9-10).
+The PHP panels cannot match the sandbox + approval gate + veto hooks without a format break. The
+concrete execution list for cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
 
 ## 13. Sources
 
-- KS: `panel/backend/internal/modengine/` (`engine.go`, `eventbus.go`, `sandbox.go` — `-tags modengine_goja`, now the `rebuild.sh` default — `hostops.go` (HostOps contract, per-mod grant env, SQL guard), `pkgstore.go` (`BuildPackageZip`, `PackageExtra`, inline `uiBundleSource` fallback), `storage.go`, `status.go`, `runtime_noop.go`), `models/mod.go:39` (`uiBundle`/`uiBundleSource`, slot catalog), `repository/mod_repo.go:163|482` (+ custom-perm seeding in `CreateMod`, `ValidateUIBundle` choke point), `api/handlers/mod_handler.go` (slots `:1081`, assets `:1324` + inline fallback, activate `:911`, teardown `:1004`), `api/handlers/mod_hostops.go` (host-side ops bridge), `api/handlers/mod_events.go` (event emitters), `api/server.go:578-609|794-800`, `handlers/instance_handler.go:2835|2956|3043`, event sites in `handlers/files_handler.go`, `handlers/instance_backup_handler.go`, `handlers/terminal_handler.go`, `handlers/auth_handler.go`, `cli/launch.go`, migrations `017_mods|020_mod_v2|027_mod_source|036_mod_package` (×3 dialects), `features/mods/pages/ModStudio.tsx` (9 tabs), `features/mods/pages/ModScreen.tsx` (mod.screen route), `shared/components/layout/Sidebar.tsx` (Mods nav section), `modStudioPresets.ts`, `shared/components/ui/Slot.tsx` (loader + registry + mod filter), `panel/backend/mod_samples/hello-slot/` (file-based bundle example), `rebuild.sh:356-357|391` (build tags), `docs/THREAT_MODEL.md:121`
+- KS: `panel/backend/internal/modengine/` (`engine.go`, `eventbus.go`, `sandbox.go` — `-tags modengine_goja`, now the `rebuild.sh` default — `hostops.go` (HostOps contract, per-mod grant env, SQL guard), `pkgstore.go` (`BuildPackageZip`, `PackageExtra`, inline `uiBundleSource` fallback), `storage.go`, `settings.go` (typed `ks.settings` binding), `status.go`, `runtime_noop.go`), `models/mod.go:39` (`uiBundle`/`uiBundleSource`, slot catalog, `ModSettingDefinition`), `repository/mod_repo.go:163|482` (+ custom-perm seeding in `CreateMod`, `ValidateUIBundle`/`ValidateSettings` choke points), `repository/mod_settings_repo.go` (sealed secret settings, engine-only `Reveal`), `api/handlers/mod_handler.go` (slots `:1081`, assets `:1324` + inline fallback, activate `:911`, teardown `:1004`), `api/handlers/mod_settings_handler.go` (masked GET, validated PUT), `api/handlers/mod_hostops.go` (host-side ops bridge), `api/handlers/mod_events.go` (event emitters), `api/server.go:578-609|794-800`, `handlers/instance_handler.go:2835|2956|3043`, event sites in `handlers/files_handler.go`, `handlers/instance_backup_handler.go`, `handlers/terminal_handler.go`, `handlers/auth_handler.go`, `cli/launch.go`, migrations `017_mods|020_mod_v2|027_mod_source|036_mod_package|081_mod_settings` (×3 dialects), `features/mods/pages/ModStudio.tsx` (9 tabs), `features/mods/pages/ModScreen.tsx` (mod.screen route), `features/mods/components/ModSettingsCard.tsx` (typed settings form), `shared/components/layout/Sidebar.tsx` (Mods nav section), `modStudioPresets.ts`, `shared/components/ui/Slot.tsx` (loader + registry + mod filter), `panel/backend/mod_samples/hello-slot/` (file-based bundle example), `rebuild.sh:356-357|391` (build tags), `docs/THREAT_MODEL.md:121`
 - Ptero v2: `docs.pterodactyl.io/v2/extensions` (+ `/building`, `/backend`), release `v2.0.0-beta.2` (14 Oct 2026), SDK `2.0.0-beta.6` (announced 5 Oct 2026)
 - Ptero v1/Blueprint: panel `v1.15.1` (12 Aug 2026), `blueprint.zip`, `pineriver.net/blog/what-is-happening-to-pterodactyl` (Oct 2026 — Blueprint ceased operations, security-only v1 updates, Hydrodactyl fork)
 - Pelican: `v1.0.0-beta37`, `pelican-dev/docs plugins.mdx` (`plugin.json`, `p:plugin:install|make`, "still in development", no sell during beta), `hub.pelican.dev/plugins` (live marketplace), DeepWiki `pelican-dev/panel` PluginService
