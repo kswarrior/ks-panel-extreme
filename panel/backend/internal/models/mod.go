@@ -154,6 +154,20 @@ func AllowedCapabilties() []string {
 // `component` is the export name inside the mod's JS bundle that the browser
 // registry will mount when the slot is reached; `props` are passed through
 // verbatim to the rendered component.
+//
+// Canonical slot catalog (v1):
+//
+//	instance.detail.tabs          — instance page tab strip        context {instanceId}
+//	instance.detail.sidebar       — instance page sidebar           context {instanceId}
+//	instance.card.actions         — instance card action row        context {instanceId}
+//	dashboard.cards               — dashboard card grid             context {}
+//	dashboard.sidebar             — dashboard sidebar               context {}
+//	settings.general.below        — below General settings          context {}
+//	admin.mods.detail.after       — mod detail page, bottom         context {modSlug}
+//
+// Mods may declare any of these; the host renders whatever is registered for
+// the slot name, each in its own ErrorBoundary. Keep this list in sync with
+// frontend `shared/types/mod.ts` and `aiskills/mods.md`.
 type SlotDefinition struct {
 	Name      string          `json:"name"`
 	Component string          `json:"component"`
