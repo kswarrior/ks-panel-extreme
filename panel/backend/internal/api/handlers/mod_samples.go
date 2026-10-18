@@ -148,7 +148,7 @@ ks.log('info', 'Destroy Guard loaded');`,
 	{
 		Key:           "hello-slot",
 		Name:          "Hello Slot",
-		Description:   "v2 demo: registers a UI slot (instance.detail.tabs) and ships an inline frontend bundle that renders a banner — verifies the slot loader end to end.",
+		Description:   "v2 demo: registers UI slots (instance.detail.tabs + a mod.screen admin page with a sidebar entry) and ships an inline frontend bundle — verifies the slot loader, the /mods/view screen route and the sidebar nav end to end.",
 		Icon:          "🎨",
 		EngineVersion: 2,
 		Permissions:   []repository.PermissionReq{},
@@ -157,13 +157,23 @@ ks.log('info', 'Destroy Guard loaded');`,
 			"name":          "Hello Slot",
 			"slug":          "hello-slot",
 			"version":       "1.0.0",
-			"description":   "Built-in sample: declares a slot plus an inline frontend bundle (no backend script, zero capabilities).",
+			"description":   "Built-in sample: declares two slots (a banner + a full-screen page with nav) plus an inline frontend bundle (no backend script, zero capabilities).",
 			"engineVersion": 2,
 			"slots": []map[string]any{
 				{
 					"name":      "instance.detail.tabs",
 					"component": "Banner",
 					"props":     map[string]any{"text": "Hello from the Hello Slot sample", "tone": "info"},
+				},
+				{
+					"name":      "mod.screen",
+					"component": "Screen",
+					"props": map[string]any{
+						"title": "Hello Screen",
+						"icon":  "Mods",
+						"nav":   true,
+						"order": 50,
+					},
 				},
 			},
 			"uiBundleSource": `// Hello Slot — inline frontend bundle for the built-in sample.
@@ -179,7 +189,17 @@ ks.log('info', 'Destroy Guard loaded');`,
       : 'border-sky-700/50 bg-sky-900/20 text-sky-200';
     return h('div', { className: 'rounded-lg border px-3 py-2 text-sm ' + cls }, text);
   }
+  function Screen(props) {
+    var title = (props && props.title) || 'Hello Screen';
+    var path = (props && props.path) || '';
+    return h('div', { className: 'ks-card rounded-xl p-6 space-y-2' },
+      h('h1', { className: 'text-lg font-semibold text-gray-100' }, title),
+      h('p', { className: 'text-sm text-gray-400' }, 'Full-screen mod page served at /mods/view/hello-slot' + (path ? '/' + path : '') + ' — no host component mounted it; the slot loader did.'),
+      h('p', { className: 'text-xs text-gray-500' }, 'Deep links work too: the sidebar entry and this route render the same component.')
+    );
+  }
   window.KS.registerComponent('instance.detail.tabs', 'Banner', Banner);
+  window.KS.registerComponent('mod.screen', 'Screen', Screen);
 })();`,
 		},
 	},

@@ -3,6 +3,8 @@ package modengine
 import (
 	"archive/zip"
 	"bytes"
+	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -232,5 +234,56 @@ func TestInlineBundle(t *testing.T) {
 
 	if !strings.Contains(bundleURLFor(models.ModManifestV2{Slug: "demo", UIBundleSource: "x"}, "", "demo", "1"), "frontend/bundle.js") {
 		t.Fatal("sanity: bundleURLFor default path changed")
+	}
+}
+
+// TestActivateRecordsScreenSlotProps locks the M15 seam: a manifest-declared
+// `mod.screen` slot (with its nav props) must survive the activation snapshot
+// verbatim, and the recorded bundle URL must point at the mod's asset route so
+// the /mods/view/<slug> route + Sidebar nav can load it. Uses the noop runtime
+// (no build tag) — activation must never require the Goja backend.
+func TestActivateRecordsScreenSlotProps(t *testing.T) {
+	t.Setenv("KSPANEL_DB", filepath.Join(t.TempDir(), "kspanel.db"))
+	man := []byte(`{
+		"name": "Screen Test",
+		"slug": "screen-test",
+		"version": "1.2.0",
+		"engineVersion": 2,
+		"slots": [{
+			"name": "mod.screen",
+			"component": "Screen",
+			"props": {"title": "Hello Screen", "icon": "Mods", "nav": true, "order": 50}
+		}],
+		"uiBundleSource": "window.KS.registerComponent('mod.screen','Screen',function(){return null;});"
+	}`)
+
+	eng := New()
+	if err := eng.Activate(context.Background(), &models.Mod{
+		Slug:     "screen-test",
+		Version:  "1.2.0",
+		Manifest: man,
+	}); err != nil {
+		t.Fatalf("Activate: %v", err)
+	}
+	defer eng.Deactivate("screen-test")
+
+	slots := eng.ActiveSlots()
+	if len(slots) != 1 {
+		t.Fatalf("got %d slots, want 1: %#v", len(slots), slots)
+	}
+	s := slots[0]
+	if s.Name != "mod.screen" || s.Component != "Screen" || s.Mod != "screen-test" {
+		t.Fatalf("slot identity mismatch: %#v", s)
+	}
+	if want := "/api/mods/v1/assets/screen-test/frontend/bundle.js?v=1.2.0"; s.BundleURL != want {
+		t.Fatalf("bundle URL = %q, want %q", s.BundleURL, want)
+	}
+
+	var props map[string]any
+	if err := json.Unmarshal(s.Props, &props); err != nil {
+		t.Fatalf("props not valid JSON: %v (%s)", err, string(s.Props))
+	}
+	if props["title"] != "Hello Screen" || props["icon"] != "Mods" || props["nav"] != true || props["order"] != float64(50) {
+		t.Fatalf("mod.screen props did not survive activation: %#v", props)
 	}
 }

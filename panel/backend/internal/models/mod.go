@@ -165,6 +165,9 @@ func AllowedCapabilties() []string {
 //	dashboard.cards               — instances home page, above grid   context {}
 //	settings.general.below        — bottom of the Settings page       context {}
 //	admin.mods.detail.after       — bottom of a mod's detail page     context {modSlug}
+//	mod.screen                    — full-screen admin page at /mods/view/<slug>/*
+//	                                context {slug, path}; props title/icon/nav/order
+//	                                drive the Sidebar "Mods" entry
 //
 // Mods may declare any of these; the host renders whatever is registered for
 // the slot name, each in its own ErrorBoundary. Keep this list in sync with
