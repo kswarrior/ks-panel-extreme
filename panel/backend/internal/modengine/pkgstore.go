@@ -356,6 +356,26 @@ func BuildPackageZip(manifest, spec []byte, extra map[string][]byte) ([]byte, er
 	return buf.Bytes(), nil
 }
 
+// PackageExtra returns the additional zip entries BuildPackageZip should embed
+// for a v2 manifest whose bundle travels inline. The `uiBundleSource` ships as
+// the mod's effective bundle path (default "frontend/bundle.js") so that a
+// download → re-upload round-trip keeps the bundle, and the asset route can
+// serve it from the extracted workdir like any file-based bundle. Returns nil
+// when the manifest has no inline source (nothing to embed). A path that isn't
+// zip-relative is refused (nil entries) — models.ValidateUIBundle already
+// rejects those at upload; this is defense in depth.
+func PackageExtra(man models.ModManifestV2) map[string][]byte {
+	src := man.UIBundleSource
+	if strings.TrimSpace(src) == "" {
+		return nil
+	}
+	clean := path.Clean(man.EffectiveUIBundlePath())
+	if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return nil
+	}
+	return map[string][]byte{clean: []byte(src)}
+}
+
 func addZipEntry(zw *zip.Writer, name string, data []byte) error {
 	w, err := zw.Create(name)
 	if err != nil {

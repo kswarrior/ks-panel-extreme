@@ -255,7 +255,7 @@ func InstallSampleModHandler(w http.ResponseWriter, r *http.Request) {
 	if len(in.Spec) > 0 {
 		specBytes = in.Spec
 	}
-	packageBytes, berr := modengine.BuildPackageZip(rawManifest, specBytes, nil)
+	packageBytes, berr := modengine.BuildPackageZip(rawManifest, specBytes, modengine.PackageExtra(models.ParseV2Manifest(rawManifest)))
 	if berr != nil {
 		http.Error(w, "build package: "+berr.Error(), http.StatusInternalServerError)
 		return

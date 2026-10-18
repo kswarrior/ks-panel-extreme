@@ -325,7 +325,7 @@ func CreateModHandler(w http.ResponseWriter, r *http.Request) {
 	// is downloadable and the v2 engine's file-based backendScript resolution
 	// has a consistent workdir story. The uploaded-zip path already has bytes.
 	if len(packageBytes) == 0 {
-		b, berr := modengine.BuildPackageZip(rawManifest, in.Spec, nil)
+		b, berr := modengine.BuildPackageZip(rawManifest, in.Spec, modengine.PackageExtra(models.ParseV2Manifest(rawManifest)))
 		if berr != nil {
 			http.Error(w, "build package: "+berr.Error(), http.StatusInternalServerError)
 			return
@@ -635,7 +635,7 @@ func InstallModFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		in.Spec = specOverride
 	}
 	if len(packageBytes) == 0 {
-		b, berr := modengine.BuildPackageZip(rawManifest, in.Spec, nil)
+		b, berr := modengine.BuildPackageZip(rawManifest, in.Spec, modengine.PackageExtra(models.ParseV2Manifest(rawManifest)))
 		if berr != nil {
 			http.Error(w, "build package: "+berr.Error(), http.StatusInternalServerError)
 			return
@@ -1288,7 +1288,7 @@ func DownloadModHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if len(body) == 0 {
-		body, err = modengine.BuildPackageZip(mod.Manifest, mod.Spec, nil)
+		body, err = modengine.BuildPackageZip(mod.Manifest, mod.Spec, modengine.PackageExtra(models.ParseV2Manifest(mod.Manifest)))
 		if err != nil {
 			http.Error(w, "build package: "+err.Error(), http.StatusInternalServerError)
 			return
