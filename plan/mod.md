@@ -38,7 +38,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 
 | # | Item | Status |
 |---|------|--------|
-| M6 | Mount UI slots + bundle loader + slot catalog | ☐ pending |
+| M6 | Mount UI slots + bundle loader + slot catalog + Studio frontend tab | ☐ pending |
 | M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ☐ pending |
 | M8 | Typed settings + encrypted secrets (migration 081) | ☐ pending |
 | M9 | Scoped mod DB tables/migrations (governed) | ☐ pending (assess) |
@@ -57,7 +57,9 @@ Excluded by design: full-trust powers (core patching, PHP, unrestricted DB, free
 ## M6 — Mount UI slots + bundle loader + slot catalog
 
 Gap: registry + `<Slot>` exist but no host page mounts one, and there is no bundle loader — mods
-cannot render any UI in the shipped panel (`docs/vs/mod.md` §8 honest minus).
+cannot render any UI in the shipped panel (`docs/vs/mod.md` §8 honest minus). The Studio has no way
+to author or ship a frontend bundle either: Studio/sample/JSON mods carry manifest+spec only (no
+package zip), so a zip-relative `uiBundle` has nowhere to live.
 
 Current facts (verified):
 
