@@ -204,13 +204,13 @@ type CustomPermission struct {
 // populated. ParseV2Manifest fills the v2 fields when the manifest opted into
 // engine version 2.
 type ModManifestV2 struct {
-	Name                 string             `json:"name"`
-	Slug                 string             `json:"slug"`
-	Version              string             `json:"version"`
-	Description          string             `json:"description"`
-	EngineVersion        int                `json:"engineVersion"`
-	BackendScript        string             `json:"backendScript"`
-	BackendScriptSource  string             `json:"backendScriptSource"`
+	Name                string `json:"name"`
+	Slug                string `json:"slug"`
+	Version             string `json:"version"`
+	Description         string `json:"description"`
+	EngineVersion       int    `json:"engineVersion"`
+	BackendScript       string `json:"backendScript"`
+	BackendScriptSource string `json:"backendScriptSource"`
 	// UIBundle is the zip-relative path of the mod's frontend bundle inside its
 	// .kspm package (default "frontend/bundle.js" when empty). The panel serves
 	// it at /api/mods/v1/assets/<slug>/<uiBundle> and the loader injects it as

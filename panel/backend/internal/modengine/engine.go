@@ -88,10 +88,10 @@ type hookRef struct {
 // mod's frontend bundle (asset route + version query); empty when the mod
 // ships neither a bundle file nor inline source.
 type RegisteredSlot struct {
-	Mod       string          `json:"mod"`              // owning mod slug
-	ModID     int64           `json:"mod_id"`           // owning mod id (for the loader)
-	Name      string          `json:"name"`             // slot name e.g. "instance.detail.tabs"
-	Component string          `json:"component"`        // export name in the mod bundle
+	Mod       string          `json:"mod"`       // owning mod slug
+	ModID     int64           `json:"mod_id"`    // owning mod id (for the loader)
+	Name      string          `json:"name"`      // slot name e.g. "instance.detail.tabs"
+	Component string          `json:"component"` // export name in the mod bundle
 	Props     json.RawMessage `json:"props,omitempty"`
 	BundleURL string          `json:"bundle_url,omitempty"` // module URL of the mod's frontend bundle
 }

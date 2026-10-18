@@ -158,11 +158,11 @@ func TestBuildPackageZipEmbedsUIBundle(t *testing.T) {
 func TestInlineBundle(t *testing.T) {
 	eng := &ModEngine{entries: map[string]*modEntry{
 		"demo": {slug: "demo", manifest: models.ModManifestV2{
-			Slug:         "demo",
+			Slug:           "demo",
 			UIBundleSource: "var x = 1;",
 		}},
 		"fileonly": {slug: "fileonly", manifest: models.ModManifestV2{
-			Slug:    "fileonly",
+			Slug:     "fileonly",
 			UIBundle: "ui/main.js",
 		}},
 	}}
