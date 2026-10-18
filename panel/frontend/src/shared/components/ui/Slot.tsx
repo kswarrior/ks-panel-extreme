@@ -154,29 +154,109 @@ const registry: RegistryState = {
   error: null,
 };
 
+// currentBundleMod labels whatever window.KS.registerComponent calls happen
+// while a mod's module script evaluates. injectBundle runs scripts strictly
+// one at a time (and load events fire after evaluation), so no two bundles
+// can race this tag.
+let currentBundleMod: string | null = null;
+
+// bundleScripts tracks injected <script> elements by bundle URL so a refresh
+// can remove the ones whose mod deactivated (and re-inject on re-activation).
+const bundleScripts = new Map<string, HTMLScriptElement>();
+
+// injectBundle appends a module script for `url` and resolves once it has
+// evaluated (or failed — a broken bundle must never block the loader chain).
+// The serving route needs no CORS/gate beyond the admin-panel session cookie
+// the browser already sends for same-origin <script src>.
+function injectBundle(url: string, mod: string): Promise<void> {
+  return new Promise((resolve) => {
+    const el = document.createElement('script');
+    el.type = 'module';
+    el.src = url;
+    el.dataset.ksMod = mod;
+    const done = () => {
+      currentBundleMod = null;
+      resolve();
+    };
+    el.onload = done;
+    el.onerror = () => {
+      // eslint-disable-next-line no-console
+      console.error(`[KS Slot] failed to load bundle for mod "${mod}": ${url}`);
+      done();
+    };
+    bundleScripts.set(url, el);
+    currentBundleMod = mod;
+    document.head.appendChild(el);
+  });
+}
+
+// syncBundles reconciles the browser with the slots response:
+//   • removes scripts + prunes registry entries for mods that are no longer
+//     active (deactivation), so their slot output vanishes;
+//   • injects every bundle the active mods advertise that isn't loaded yet,
+//     sequentially, so registration tagging stays deterministic.
+async function syncBundles(slots: RegisteredSlot[]): Promise<void> {
+  const ks = ensureKSRegistry();
+  const wanted = new Map<string, string>(); // bundle url -> owning mod slug
+  for (const s of slots) {
+    if (s.bundle_url) wanted.set(s.bundle_url, s.mod);
+  }
+
+  let changed = false;
+  for (const [url, el] of Array.from(bundleScripts.entries())) {
+    if (!wanted.has(url)) {
+      el.remove();
+      bundleScripts.delete(url);
+      changed = true;
+    }
+  }
+
+  const activeMods = new Set(slots.map((s) => s.mod));
+  for (const [slotName, list] of Array.from(ks.__ksComponents.entries())) {
+    const kept = list.filter((c) => c.mod === '__pending__' || activeMods.has(c.mod));
+    if (kept.length !== list.length) {
+      changed = true;
+      if (kept.length === 0) ks.__ksComponents.delete(slotName);
+      else ks.__ksComponents.set(slotName, kept);
+    }
+  }
+
+  for (const [url, mod] of wanted) {
+    if (bundleScripts.has(url)) continue;
+    await injectBundle(url, mod);
+    changed = true;
+  }
+
+  if (changed) notifyRegistryChange();
+}
+
 // refreshSlots forces a re-fetch. Call it from a failed-silently background
 // poll or after an activate/deactivate so newly-active mods show up without a
-// full page reload.
+// full page reload. Resolves after every newly-declared bundle has evaluated,
+// so callers can await "slots + bundles ready".
 export async function refreshSlots(): Promise<void> {
   try {
     const data = await fetchSlots();
     registry.response = data;
     registry.error = null;
     registry.loaded = true;
-    // Augment the registry's mod labels from the slot list so <Slot /> can
-    // group instances by owning mod even when the bundle registered under an
-    // empty mod string.
+    // Patch '__pending__' labels from the slot declarations (a bundle that
+    // registered before the fetch resolved). Bundles injected below tag
+    // themselves directly and don't need this.
     const ks = ensureKSRegistry();
     for (const s of data.slots) {
       const list = ks.__ksComponents.get(s.name) ?? [];
       for (const entry of list) {
-        if (!entry.mod) entry.mod = s.mod;
+        if (entry.mod === '__pending__' && entry.name === s.component) entry.mod = s.mod;
       }
       ks.__ksComponents.set(s.name, list);
     }
+    await syncBundles(data.slots);
   } catch (e) {
     registry.error = e instanceof Error ? e : new Error(String(e));
     registry.loaded = true;
+  } finally {
+    notifyRegistryChange();
   }
 }
 
@@ -193,14 +273,21 @@ function loadSlotsOnce(): Promise<void> {
 }
 
 // Slot hook: subscribes a component to the registry state and forces a
-// re-render once the load resolves. Returns the current response (possibly null
-// during the first paint) + the error if any.
+// re-render once the load resolves, on late bundle registrations, and on
+// deactivation prunes. Returns the current response (possibly null during the
+// first paint), the error if any, and a version counter that busts memos
+// derived from the live component list.
 function useSlotsRegistry(): {
   response: SlotRegistryResponse | null;
   error: Error | null;
   loaded: boolean;
+  version: number;
 } {
-  const [, force] = useState(0);
+  const [version, bump] = useState(0);
+
+  useEffect(() => {
+    return subscribeRegistry(() => bump((n) => n + 1));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,7 +303,7 @@ function useSlotsRegistry(): {
       registry.loading = p;
     }
     void p.then(() => {
-      if (!cancelled) force((n) => n + 1);
+      if (!cancelled) bump((n) => n + 1);
     });
     return () => {
       cancelled = true;
@@ -227,6 +314,7 @@ function useSlotsRegistry(): {
     response: registry.response,
     error: registry.error,
     loaded: registry.loaded,
+    version,
   };
 }
 
