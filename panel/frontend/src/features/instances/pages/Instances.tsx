@@ -16,6 +16,7 @@ import ErrorState from '@/shared/components/ui/ErrorState';
 import InstanceCard, { CardAction } from '@/features/instances/components/InstanceCard';
 import ListCount from '@/shared/components/ui/ListCount';
 import SearchDropdown from '@/shared/components/ui/SearchDropdown';
+import Slot from '@/shared/components/ui/Slot';
 import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActionsPill';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { PermissionKey, PERMISSION_AREAS, hasAreaAccess } from '@/shared/types/permissions';
@@ -464,6 +465,12 @@ const Instances: React.FC = () => {
       </div>
 
       {error && instances.length > 0 && <p className="text-red-400 mb-3 text-sm">{typeof error === 'string' ? error : JSON.stringify(error)}</p>}
+
+      {/* Mod Engine v2 injection point: active mods that declared
+          "dashboard.cards" render their components here, above the grid —
+          this page is the panel's home/dashboard. */}
+      <Slot name="dashboard.cards" />
+
       {!loading && error && instances.length === 0 && (
         <ErrorState
           variant="error"
