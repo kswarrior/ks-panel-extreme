@@ -61,6 +61,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -446,6 +447,60 @@ func (r *gojaRuntime) storageDelete(call goja.FunctionCall) goja.Value {
 		log.Printf("[mod:%s] storage.delete(%q) error: %v", r.slug, key, err)
 	}
 	return goja.Undefined()
+}
+
+// settingsGet reads the effective value of a declared setting. Returns goja
+// null when the manifest does not declare the key or nothing is stored and no
+// default is declared. Secrets are revealed here (the one engine-side decrypt
+// path) — the HTTP surface never does.
+func (r *gojaRuntime) settingsGet(call goja.FunctionCall) goja.Value {
+	if r == nil || r.settings == nil {
+		return goja.Null()
+	}
+	key, _ := call.Argument(0).Export().(string)
+	val, found, err := r.settings.get(key)
+	if err != nil {
+		log.Printf("[mod:%s] settings.get(%q) error: %v", r.slug, key, err)
+		return goja.Null()
+	}
+	if !found {
+		return goja.Null()
+	}
+	return r.vm.ToValue(val)
+}
+
+// settingsSet validates + persists a declared setting. Booleans and numbers
+// are coerced to their canonical string form (matching the toggle/number
+// validation on the Go side); objects/arrays are JSON-encoded. Returns true on
+// success, false on any refusal (with the reason logged). An empty value
+// clears the setting.
+func (r *gojaRuntime) settingsSet(call goja.FunctionCall) goja.Value {
+	if r == nil || r.settings == nil {
+		return goja.Bool(false)
+	}
+	key, _ := call.Argument(0).Export().(string)
+	var val string
+	switch v := call.Argument(1).Export().(type) {
+	case string:
+		val = v
+	case bool:
+		val = strconv.FormatBool(v)
+	case int64:
+		val = strconv.FormatInt(v, 10)
+	case float64:
+		val = strconv.FormatFloat(v, 'f', -1, 64)
+	case nil:
+		val = ""
+	default:
+		if b, err := json.Marshal(v); err == nil {
+			val = string(b)
+		}
+	}
+	if err := r.settings.set(key, val); err != nil {
+		log.Printf("[mod:%s] settings.set(%q): %v", r.slug, key, err)
+		return r.vm.ToValue(false)
+	}
+	return r.vm.ToValue(true)
 }
 
 // eventsOn subscribes a JS function to a host event. We wrap it into a bus
