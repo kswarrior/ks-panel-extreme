@@ -9,6 +9,7 @@ import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { listCachedResources, type CachedResource } from '@/features/instances/api/instanceAdvanced';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import CardMenu, { type RichMenuItem } from '@/shared/components/ui/CardMenu/CardMenu';
+import Slot from '@/shared/components/ui/Slot';
 
 // ---- helpers --------------------------------------------------------------
 
@@ -508,6 +509,9 @@ const InstanceCard: React.FC<InstanceCardProps> = ({ instance, actions, showOwne
             })()}
           </span>
           <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {/* Mod Engine v2 injection point: active mods that declared
+                "instance.card.actions" add their own action controls here. */}
+            <Slot name="instance.card.actions" context={{ instanceId: instance.id }} />
             {actions && actions.length > 0 ? (
               actions.map((a) => (
                 <button

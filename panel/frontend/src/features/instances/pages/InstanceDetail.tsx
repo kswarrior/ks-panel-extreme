@@ -27,6 +27,7 @@ import { pageNavigateTarget } from '@/shared/lib/customPageSdk';
 import CustomPageView from '@/shared/components/ui/CustomPageView';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
+import Slot from '@/shared/components/ui/Slot';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 
@@ -69,6 +70,10 @@ export const InstancePanel: React.FC = () => {
   // we know what to show — better than flashing the wrong tabs.
   useInstanceNavSync(instanceId, spec, loading);
 
+  // Stable context for the mod slot — a new object every render would bust
+  // the memoised <Slot /> and re-render every mounted mod component.
+  const slotContext = useMemo(() => ({ instanceId }), [instanceId]);
+
   return (
     <div className="space-y-3">
       {loading && (
@@ -77,6 +82,11 @@ export const InstancePanel: React.FC = () => {
           <div className="h-5 w-1/3 bg-neutral-800 rounded" />
         </div>
       )}
+
+      {/* Mod Engine v2 injection point: active mods that declared
+          "instance.detail.tabs" render their components here, above the
+          instance page content. */}
+      <Slot name="instance.detail.tabs" context={slotContext} />
 
       <ErrorBoundary resetKey={instanceId} label="instance-panel">
         <Outlet />
