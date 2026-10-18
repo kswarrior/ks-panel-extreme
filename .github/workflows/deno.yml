@@ -57,7 +57,7 @@ jobs:
       - name: Install OpenCode & start panel (test)
         run: |
           set -e
-          npm install -g @opencode/cli
+          curl -fsSL https://opencode.ai/install | bash
           bash retest.sh > retest.log 2>&1 &
           echo "OpenCode:"
           opencode --version
