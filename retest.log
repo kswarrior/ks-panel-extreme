@@ -1,7 +1,7 @@
 [1;33m[WARN][0m release/kspanel not found — auto-running ./s-rebuild.sh first...
-[s-rebuild] version auto-bumped 1.0.268 -> 1.0.269
-[s-rebuild] commit=737eeaf28 date=2026-10-18T09:09:12Z
-[s-rebuild] start (UNSAFE, no hardening) version=1.0.269
+[s-rebuild] version auto-bumped 1.0.269 -> 1.0.270
+[s-rebuild] commit=fe4ad5658 date=2026-10-18T09:22:02Z
+[s-rebuild] start (UNSAFE, no hardening) version=1.0.270
 [s-rebuild] sync pagelib /home/runner/work/ks-panel-extreme/ks-panel-extreme/instance_pages -> /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend/internal/pagelib/library
 [s-rebuild] pagelib synced (7 pages + marketplace, total 8)
 [s-rebuild] sync themelib /home/runner/work/ks-panel-extreme/ks-panel-extreme/themes_market -> /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend/internal/themelib/library
@@ -10,8 +10,8 @@
 [33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
 [36mvite v5.4.21 [32mbuilding for production...[36m[39m
 transforming...
-[32m✓[39m 124 modules transformed.
-[31mx[39m Build failed in 2.59s
+[32m✓[39m 129 modules transformed.
+[31mx[39m Build failed in 2.62s
 [31merror during build:
 [31m[vite]: Rollup failed to resolve import "yaml" from "/home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/frontend/src/features/templates/pages/TemplateDetail.tsx".
 This is most likely unintended because it can break your application at runtime.
