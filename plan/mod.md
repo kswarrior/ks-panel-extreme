@@ -84,11 +84,15 @@ Design:
    `instance.detail.tabs`, `instance.detail.sidebar`, `instance.card.actions`, `dashboard.cards`,
    `dashboard.sidebar`, `settings.general.below`, `admin.mods.detail.after`. Document in
    `models/mod.go` (`SlotDefinition` comment), `shared/types/mod.ts`, and `aiskills/mods.md`.
-2. **Manifest**: add top-level `uiBundle string` (zip-relative, default `frontend/bundle.js`) to
-   `ModManifestV2` (`models/mod.go:191`); validate it stays zip-relative at upload.
+2. **Manifest**: add top-level `uiBundle string` (zip-relative, default `frontend/bundle.js`) and
+   `uiBundleSource string` (inline JS, wins over the file — mirrors `backendScriptSource` so
+   Studio/sample/JSON installs stay self-contained) to `ModManifestV2` (`models/mod.go:191`);
+   validate `uiBundle` stays zip-relative at upload, cap the inline source (1 MiB).
 3. **Backend bundle URL**: extend `RegisteredSlot` with `BundleURL` (derived:
    `/api/mods/v1/assets/<slug>/<uiBundle>?v=<mod version|mtime>`) — no new route needed; the
-   existing asset handler streams it. Keep it empty when the workdir has no such file.
+   existing asset handler streams it. Register it when the workdir file exists OR `uiBundleSource`
+   is present; the asset handler serves the inline source at the `uiBundle` path as a fallback, and
+   `BuildPackageZip` embeds it as `frontend/bundle.js` so download/reinstall round-trips.
 4. **Frontend loader** (`Slot.tsx`): after `fetchSlots()`, inject one `<script type="module">`
    per distinct `BundleURL` (idempotent by URL; remove on deactivate + `refreshSlots()`), then
    re-render. Failures log to console only (Error Isolation client-side).
@@ -101,16 +105,23 @@ Design:
    (`InstanceDetail.tsx`), instance card action row (`Instances.tsx` / card component),
    dashboard cards + sidebar (`App.tsx`/shell layout). 4-5 mounts is enough for v1; leave the rest
    of the catalog declared-but-empty.
-7. Optional: extend the Hello Slot sample with an inline bundle asset only if the sample install
-   path supports assets — otherwise ship a `mod_samples/hello-slot/` dev example + docs.
+7. **Studio frontend tab** (`ModStudio.tsx`, mirror the Backend tab): new "Frontend bundle" tab with
+   a JS editor writing `uiBundleSource` (react-globals contract note + `window.KS.registerComponent`
+   starter template), wired into the manifest draft + Raw JSON round-trip like every other tab;
+   `.kspm` uploads keep using the file-based `uiBundle`.
+8. **Samples**: extend the Hello Slot sample with an inline `uiBundleSource` (now possible without a
+   package file); keep a `mod_samples/hello-slot/` dev example + docs for the file-based path.
 
 Tests / verify:
 
-- Go: unit test for bundle URL derivation (registered when file exists, empty otherwise; version
-  busting stable); existing slots handler test updated for the new field.
+- Go: unit tests for bundle URL derivation (registered for file AND inline source; version busting
+  stable), asset fallback (inline source served at the `uiBundle` path when no file is on disk),
+  and `BuildPackageZip` embedding the inline bundle; existing slots handler test updated for the
+  new field.
 - Frontend: typecheck/lint/build; jsdom-free — assert loader idempotency via a small vitest if the
   repo has one (check `panel/frontend` for vitest config first; if none, skip and verify by
-  typecheck + manual Playwright smoke: activate Hello Slot, expect mount, deactivate, expect gone).
+  typecheck + manual Playwright smoke: activate Hello Slot, expect mount, deactivate, expect gone;
+  author a Studio mod with frontend source, expect the same).
 - Update `docs/vs/mod.md` §8 (wired mounts + loader = no longer "cannot render") and §12 case 8
   score.
 - `bash rebuild.sh`.
