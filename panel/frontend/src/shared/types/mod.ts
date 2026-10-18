@@ -208,6 +208,16 @@ export interface ModManifestV2 {
   // Inline script source (self-contained dev manifest). Preferred over the
   // file path when both are set.
   backendScriptSource?: string;
+  // Zip-relative path of the mod's frontend bundle inside its .kspm package
+  // (default "frontend/bundle.js"). Served at
+  // /api/mods/v1/assets/<slug>/<uiBundle>; the slot loader injects it as an
+  // ES module when the mod declares slots.
+  uiBundle?: string;
+  // Inline JS variant of the frontend bundle (mirrors backendScriptSource).
+  // Studio / sample / JSON installs have no package zip, so the bundle
+  // travels inside the manifest; the asset handler serves it at the uiBundle
+  // path and it wins over a file with the same name. Capped at 1 MiB.
+  uiBundleSource?: string;
   // Frontend injection points the mod registers into the panel layout.
   slots?: SlotDefinition[];
   // Event listeners (pre/post) the backendScript subscribes to.
@@ -222,6 +232,15 @@ export interface ModManifestV2 {
 // One frontend injection point a v2 mod declares. The panel renders a <Slot
 // name="…" /> at each well-known location; the registry looks up every active
 // mod that declared a slot of that name and mounts its `component`.
+//
+// Canonical slot catalog (keep in sync with models.SlotDefinition in
+// internal/models/mod.go and aiskills/mods.md):
+//
+//   instance.detail.tabs     — top of an instance's detail panel   context {instanceId}
+//   instance.card.actions    — instance card action row            context {instanceId}
+//   dashboard.cards          — instances home page, above the grid context {}
+//   settings.general.below   — bottom of the Settings page         context {}
+//   admin.mods.detail.after  — bottom of a mod's detail page       context {modSlug}
 export interface SlotDefinition {
   // Well-known layout slot name, e.g. "instance.detail.tabs".
   name: string;
