@@ -6,6 +6,7 @@ import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
 import Slot, { refreshSlots } from '@/shared/components/ui/Slot';
+import ModSettingsCard from '@/features/mods/components/ModSettingsCard';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { cardTimeMs } from '@/shared/utils/cardDate';
@@ -236,6 +237,8 @@ const ModDetail: React.FC = () => {
           </div>
         </GlassCard>
       </div>
+
+      <ModSettingsCard modId={mod.id} />
 
       <GlassCard className="p-4">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Recent logs · {logs.length}</h4>
