@@ -469,6 +469,8 @@ export function emitStudioManifest(draft: ModStudioDraft): Record<string, any> {
   if (draft.engineVersion === 2) {
     out.engineVersion = 2;
     if (draft.backendScript.trim()) out.backendScriptSource = draft.backendScript;
+    if (draft.uiBundleSource.trim()) out.uiBundleSource = draft.uiBundleSource;
+    if (draft.uiBundle.trim()) out.uiBundle = draft.uiBundle.trim();
     if (draft.slots.length) out.slots = draft.slots;
     if (draft.hooks.length) out.hooks = draft.hooks;
     if (draft.permissionsDeclared.length) out.permissionsDeclared = draft.permissionsDeclared;
