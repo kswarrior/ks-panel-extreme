@@ -607,6 +607,11 @@ func NewRouter() http.Handler {
 			// Per-mod runtime log ring (ks.log output + engine lifecycle
 			// events). View-gated like the mod itself.
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}/logs", handlers.ModLogsHandler)
+			// Typed settings (plan item M8): the manifest-declared schema +
+			// current values. Secrets are write-only (GET masks them to
+			// is_set); values validate against the declared type on PUT.
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}/settings", handlers.ModSettingsHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/{id}/settings", handlers.UpdateModSettingsHandler)
 		})
 
 		// Admin: Applications management. MANAGE_APPLICATIONS (umbrella) implies every action;
