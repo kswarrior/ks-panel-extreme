@@ -375,6 +375,11 @@ export interface SlotProps {
   // active mod that declared this slot name in its manifest contributes a
   // component here, in registry / activation order.
   name: string;
+  // Optional owner filter: when set, only registrations tagged with this mod
+  // slug mount. The mod screen route (/mods/view/:slug/*) passes the URL slug
+  // so two screen mods sharing the "mod.screen" name can never render into
+  // each other's page. Undefined keeps the name-only behaviour host mounts use.
+  mod?: string;
   // Arbitrary context forwarded as a prop to every mounted component for the
   // slot (e.g. { instanceId }) so a mod can scope its render to the page
   // it landed in without re-fetching from the URL. Memoised by the caller.
@@ -388,7 +393,7 @@ export interface SlotProps {
 // own ErrorBoundary and merged with the mod-declared props + the live `context`
 // prop. The component is memoised so layout re-renders that pass a stable
 // `context` reference don't blow away mounted mod React state.
-const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
+const SlotInner: React.FC<SlotProps> = ({ name, mod, context, fallback }) => {
   const { response, error, version } = useSlotsRegistry();
 
   // Resolve the live registrations. The slots fetch tells the loader which
@@ -398,7 +403,9 @@ const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
   // emitter re-renders us). The remote fetch alone is not enough — a bundle
   // may finish evaluating after the slots response was applied.
   const ks = ensureKSRegistry();
-  const mounts: KSPluginComponent[] = ks.getComponentsForSlot(name);
+  const mounts: KSPluginComponent[] = ks
+    .getComponentsForSlot(name)
+    .filter((m) => !mod || m.mod === mod);
 
   if (error) {
     // Surface the load error to the developer console but never to the user —
@@ -413,13 +420,13 @@ const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
   const declaredProps = useMemo<Record<string, Record<string, any>>>(() => {
     const out: Record<string, Record<string, any>> = {};
     for (const s of response?.slots ?? []) {
-      if (s.name === name) {
+      if (s.name === name && (!mod || s.mod === mod)) {
         out[s.component] = { ...(s.props ?? {}) };
       }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, response, version]);
+  }, [name, mod, response, version]);
 
   if (mounts.length === 0) {
     // If the API reported declarations but no bundle has loaded, that's the
@@ -443,8 +450,8 @@ const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
   );
 };
 
-// Memoise: re-render only when `name`, `context`, or `fallback` change by
-// reference. The internal useSlotsRegistry hook still subscribes to load
+// Memoise: re-render only when `name`, `mod`, `context`, or `fallback` change
+// by reference. The internal useSlotsRegistry hook still subscribes to load
 // completion, so the memoised boundary re-renders when slots arrive.
 const Slot = React.memo(SlotInner);
 export default Slot;

@@ -58,6 +58,7 @@ const StackForm = React.lazy(() => import('@/features/stacks/pages/StackForm'));
 const StackStats = React.lazy(() => import('@/features/stacks/pages/StackStats'));
 const StackSchedules = React.lazy(() => import('@/features/stacks/pages/StackSchedules'));
 const ModStudio = React.lazy(() => import('@/features/mods/pages/ModStudio'));
+const ModScreen = React.lazy(() => import('@/features/mods/pages/ModScreen'));
 const ModStats = React.lazy(() => import('@/features/mods/pages/ModStats'));
 const ModDetail = React.lazy(() => import('@/features/mods/pages/ModDetail'));
 const ModSchedules = React.lazy(() => import('@/features/mods/pages/ModSchedules'));
@@ -631,6 +632,20 @@ const Router: React.FC = () => (
           <RequireAuth>
             <RequirePermission permission={PermissionKey.MANAGE_MODS}>
               <ModStudio />
+            </RequirePermission>
+          </RequireAuth>
+        }
+      />
+      {/* Mod-provided full-screen pages (M15). An active mod that declares a
+          `mod.screen` slot renders at /mods/view/<slug>/<path>; the Sidebar
+          "Mods" section links here. Gated by ACCESS_ADMIN_PANEL — the same
+          gate the slots API enforces. */}
+      <Route
+        path="/mods/view/:slug/*"
+        element={
+          <RequireAuth>
+            <RequirePermission permission={PermissionKey.ACCESS_ADMIN_PANEL}>
+              <ModScreen />
             </RequirePermission>
           </RequireAuth>
         }
