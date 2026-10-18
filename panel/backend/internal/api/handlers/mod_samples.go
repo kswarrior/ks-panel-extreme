@@ -157,8 +157,12 @@ ks.log('info', 'Destroy Guard loaded');`,
 			"name":          "Hello Slot",
 			"slug":          "hello-slot",
 			"version":       "1.0.0",
-			"description":   "Built-in sample: declares two slots (a banner + a full-screen page with nav) plus an inline frontend bundle (no backend script, zero capabilities).",
+			"description":   "Built-in sample: declares two slots (a banner + a full-screen page with nav), a typed setting pair (text + secret) and an inline frontend bundle (no backend script, zero capabilities).",
 			"engineVersion": 2,
+			"settings": []map[string]any{
+				{"key": "greeting", "type": "text", "label": "Greeting", "default": "Hello from the Hello Slot sample"},
+				{"key": "api_key", "type": "password", "label": "API key", "description": "Stored encrypted; the panel only shows whether it is set."},
+			},
 			"slots": []map[string]any{
 				{
 					"name":      "instance.detail.tabs",
