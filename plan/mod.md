@@ -38,7 +38,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 
 | # | Item | Status |
 |---|------|--------|
-| M6 | Mount UI slots + bundle loader + slot catalog + Studio frontend tab | ☑ done |
+| M6 | Mount UI slots + bundle loader + slot catalog + Studio frontend tab | ☑ done (v1.0.266) |
 | M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ☐ pending |
 | M8 | Typed settings + encrypted secrets (migration 081) | ☐ pending |
 | M9 | Scoped mod DB tables/migrations (governed) | ☐ pending (assess) |
@@ -47,7 +47,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 | M12 | Background/scheduled work (timers) | ☐ pending |
 | M13 | Panel endpoint registration (mod HTTP routes) | ☐ pending |
 | M14 | Custom/inter-mod events (+ optional shared KV) | ☐ pending (stretch) |
-| M15 | Admin screens + sidebar nav (slot-based) | ☐ pending |
+| M15 | Admin screens + sidebar nav (slot-based) | ☑ done (v1.0.267) |
 
 Excluded by decision (recorded in `docs/vs/mod.md`): marketplace/repo, signing/review, update path.
 Excluded by design: full-trust powers (core patching, PHP, unrestricted DB, free UI replacement).
