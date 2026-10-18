@@ -62,7 +62,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
 | Data access | namespaced KV (`mod_storage(mod_slug,key,value JSON)`, FK cascade) via `ks.storage`; plus grant-gated panel-DB access via `ks.db` — read-only = SELECT/WITH, read-write adds INSERT/UPDATE/DELETE, every statement re-validated host-side (multi-statements, comments, DDL/PRAGMA/ATTACH and file-read/timing functions denied) | full DB once core patched | full DB/ORM; migrations on enable (`ext_` prefix) | full DB; auto-registered migrations | — |
-| Settings | mod `spec` blob + KV; no secretbox tier for mods | none | typed settings (text/password/number/toggle/select), `forUser/forServer` scopes, secrets encrypted, never sent to frontend | plugin settings page (`HasPluginSettings`) | — |
+| Settings | typed settings declared in the manifest (`settings: [{key, type: text/password/number/toggle/select, options, default, description}]`), admin form on the mod detail page + `GET/PUT /api/mods/{id}/settings`, runtime access via `ks.settings`; password values sealed AES-256-GCM (`internal/secretbox`) at rest and write-only — the API returns only `is_set`, the sandbox reveals them to the owning mod | none | typed settings (text/password/number/toggle/select), `forUser/forServer` scopes, secrets encrypted, never sent to frontend | plugin settings page (`HasPluginSettings`) | — |
 | DB engines | SQLite/Postgres/MySQL (mod tables triplicated across dialects) | MySQL | MySQL | MySQL/Postgres | — |
 
 ## 8. UI composition vs

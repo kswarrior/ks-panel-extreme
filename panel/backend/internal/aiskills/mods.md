@@ -1,6 +1,6 @@
 # Mods skill
 
-Mods are admin-uploaded add-ons that extend the panel (extra pages, tools, integrations). They install inactive and only activate after the admin approves every capability requested.
+Mods are admin-uploaded add-ons that extend the panel (extra pages, tools, integrations). They install inactive and only activate after the admin approves every capability requested. Mod engine v2 runs them in a Goja VM (event hooks, slots, typed settings); Applications are the same idea, user-scoped.
 
 ## Slot catalog (where mod UI can render)
 
