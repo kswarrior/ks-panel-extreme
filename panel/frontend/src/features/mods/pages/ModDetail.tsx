@@ -5,6 +5,7 @@ import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry } from '@/
 import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
+import Slot from '@/shared/components/ui/Slot';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { cardTimeMs } from '@/shared/utils/cardDate';
@@ -251,6 +252,10 @@ const ModDetail: React.FC = () => {
         <button onClick={handleDelete} disabled={deleting} className="px-4 py-2 text-sm rounded-lg border border-red-900/40 bg-red-900/20 hover:bg-red-900/30 text-red-200 disabled:opacity-50">{deleting ? 'Deleting…' : 'Delete'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to mods</button>
       </div>
+
+      {/* Mod Engine v2 injection point: active mods that declared
+          "admin.mods.detail.after" render below the detail page content. */}
+      <Slot name="admin.mods.detail.after" context={{ modSlug: mod.slug }} />
     </div>
   );
 };
