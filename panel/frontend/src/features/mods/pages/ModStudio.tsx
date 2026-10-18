@@ -595,6 +595,36 @@ const ModStudio: React.FC = () => {
             </>
           )}
 
+          {tab === 'frontend' && (
+            <>
+              <p className="text-xs text-gray-400">
+                Inline frontend bundle the browser loads as an ES module when this mod is active.
+                Stored as <code className="text-gray-300">uiBundleSource</code> in the manifest and
+                served at <code className="text-gray-300">/api/mods/v1/assets/&lt;slug&gt;/&lt;uiBundle&gt;</code>{' '}
+                (default <code className="text-gray-300">frontend/bundle.js</code>, 1&nbsp;MiB cap). React is
+                exposed on <code className="text-gray-300">window.React</code> /{' '}
+                <code className="text-gray-300">window.ReactDOM</code>; register components with{' '}
+                <code className="text-gray-300">window.KS.registerComponent(slot, name, Component)</code>.
+              </p>
+              <TextField
+                label="Bundle path (optional)"
+                value={draft.uiBundle}
+                onChange={(v) => touch({ uiBundle: v })}
+                placeholder="frontend/bundle.js"
+                mono
+                hint="Zip-relative path the bundle is served at. Leave empty for the default."
+              />
+              <TextArea
+                label="Frontend bundle (JavaScript)"
+                value={draft.uiBundleSource}
+                onChange={(v) => touch({ uiBundleSource: v })}
+                rows={18}
+                mono
+                placeholder={`(function () {\n  var h = window.React.createElement;\n  function Banner(props) {\n    return h('div', { className: 'text-sm text-sky-200' }, props && props.text);\n  }\n  window.KS.registerComponent('instance.detail.tabs', 'Banner', Banner);\n})();`}
+              />
+            </>
+          )}
+
           {tab === 'customPerms' && (
             <CustomPermsEditor
               draft={draft}
