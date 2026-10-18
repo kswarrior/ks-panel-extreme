@@ -1,0 +1,16 @@
+{
+  "name": "Hello Slot (file bundle)",
+  "slug": "hello-slot-file",
+  "version": "1.0.0",
+  "description": "Dev example: the built-in Hello Slot sample with the frontend bundle shipped as a real file, demonstrating the zip-relative uiBundle path.",
+  "engineVersion": 2,
+  "uiBundle": "frontend/bundle.js",
+  "slots": [
+    {
+      "name": "instance.detail.tabs",
+      "component": "Banner",
+      "props": { "text": "Hello from a file-based bundle", "tone": "info" }
+    }
+  ],
+  "permissionsRequested": []
+}

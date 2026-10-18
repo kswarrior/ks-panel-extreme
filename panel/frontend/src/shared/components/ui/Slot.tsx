@@ -109,12 +109,15 @@ function ensureKSRegistry(): KSWindow {
 
 // exposeReactGlobals publishes React + react-dom on window for mod bundles.
 // Idempotent; a bundle that ships its own copy is allowed to overwrite.
+// `ReactJSXRuntime` is the documented alias for the automatic JSX runtime
+// (jsx-runtime); `jsxRuntime` is kept as the short spelling.
 function exposeReactGlobals(): void {
   const w = window as unknown as Record<string, unknown>;
   if (!w.React) w.React = React;
   if (!w.ReactDOM) w.ReactDOM = ReactDOM;
   if (!w.ReactDOMClient) w.ReactDOMClient = ReactDOMClient;
   if (!w.jsxRuntime) w.jsxRuntime = jsxRuntime;
+  if (!w.ReactJSXRuntime) w.ReactJSXRuntime = jsxRuntime;
 }
 
 // ---------------------------------------------------------------------------
