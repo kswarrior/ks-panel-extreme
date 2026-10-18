@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -201,6 +202,155 @@ type CustomPermission struct {
 	Description string `json:"description,omitempty"`
 }
 
+// ModSettingDefinition is one typed setting a v2 mod declares in its manifest
+// (`settings: [...]`). The admin edits the values in the panel (typed form on
+// the mod's detail page); the mod reads them at runtime through
+// `ks.settings.get(key)`. Values are stored as TEXT in mod_settings — secrets
+// AES-256-GCM-encrypted via internal/secretbox when Type == "password" — and
+// the declared schema is what the PUT endpoint + the sandbox binding validate
+// writes against.
+//
+// Scope is global per mod for v1 (per-instance / per-user / per-server scopes
+// are noted as a stretch in plan/mod.md, not built).
+type ModSettingDefinition struct {
+	// Key is the stable identifier scripts pass to ks.settings.get/set.
+	// `[a-z0-9_]{1,64}`, unique within the manifest.
+	Key string `json:"key"`
+	// Label is the human-readable field label (falls back to Key in the UI).
+	Label string `json:"label,omitempty"`
+	// Type is one of "text", "password", "number", "toggle", "select".
+	Type string `json:"type"`
+	// Options lists the allowed values for Type "select" (1..64 entries).
+	Options []string `json:"options,omitempty"`
+	// Default is shown by the UI (and documented) when no value is stored.
+	// Never allowed for Type "password" — a plaintext secret in the manifest
+	// would be a lie.
+	Default string `json:"default,omitempty"`
+	// Description is optional help text rendered under the field.
+	Description string `json:"description,omitempty"`
+}
+
+// Mod settings limits (validated at upload + on every write).
+const (
+	// MaxSettingsPerMod caps the number of declared settings.
+	MaxSettingsPerMod = 32
+	// MaxModSettingValueBytes caps one stored value (all types).
+	MaxModSettingValueBytes = 4096
+	// MaxSettingOptions caps the option list of a select setting.
+	MaxSettingOptions = 64
+)
+
+// settingKeyRE is the setting-key contract: lowercase alphanumerics +
+// underscore, 1..64 chars. Kept identical to the documented contract so a
+// manifest that validates at upload can never address a key the API or the
+// sandbox binding would refuse.
+var settingKeyRE = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
+
+// settingTypes is the fixed type vocabulary for declared settings.
+var settingTypes = map[string]bool{
+	"text": true, "password": true, "number": true, "toggle": true, "select": true,
+}
+
+// ValidateSettings checks the v2 `settings` block on an upload: count cap,
+// key shape + uniqueness, type vocabulary, select option list, and the
+// declared default against its own type. Called by the repository on every
+// install path so a malformed schema can never reach the settings API or the
+// sandbox binding.
+func ValidateSettings(m ModManifestV2) error {
+	if len(m.Settings) > MaxSettingsPerMod {
+		return fmt.Errorf("too many settings (%d; max %d)", len(m.Settings), MaxSettingsPerMod)
+	}
+	seen := make(map[string]bool, len(m.Settings))
+	for i, s := range m.Settings {
+		if !settingKeyRE.MatchString(s.Key) {
+			return fmt.Errorf("setting #%d: key %q must match [a-z0-9_]{1,64}", i+1, s.Key)
+		}
+		if seen[s.Key] {
+			return fmt.Errorf("setting %q declared more than once", s.Key)
+		}
+		seen[s.Key] = true
+		if !settingTypes[s.Type] {
+			return fmt.Errorf("setting %q: unknown type %q (text|password|number|toggle|select)", s.Key, s.Type)
+		}
+		if len(s.Label) > 128 {
+			return fmt.Errorf("setting %q: label too long (max 128 chars)", s.Key)
+		}
+		if len(s.Description) > 512 {
+			return fmt.Errorf("setting %q: description too long (max 512 chars)", s.Key)
+		}
+		if s.Type == "select" {
+			if len(s.Options) == 0 || len(s.Options) > MaxSettingOptions {
+				return fmt.Errorf("setting %q: select needs 1..%d options", s.Key, MaxSettingOptions)
+			}
+			opts := make(map[string]bool, len(s.Options))
+			for _, o := range s.Options {
+				if o == "" || len(o) > 128 {
+					return fmt.Errorf("setting %q: select options must be 1..128 chars", s.Key)
+				}
+				if opts[o] {
+					return fmt.Errorf("setting %q: duplicate select option %q", s.Key, o)
+				}
+				opts[o] = true
+			}
+		} else if len(s.Options) > 0 {
+			return fmt.Errorf("setting %q: options are only valid for type \"select\"", s.Key)
+		}
+		if s.Default != "" {
+			if s.Type == "password" {
+				return fmt.Errorf("setting %q: password settings must not declare a default", s.Key)
+			}
+			if err := ValidateSettingValue(s, s.Default); err != nil {
+				return fmt.Errorf("setting %q: bad default: %w", s.Key, err)
+			}
+		}
+	}
+	return nil
+}
+
+// ValidateSettingValue checks one non-empty value against a declared setting.
+// An empty value is the caller's "clear this setting" signal and is handled
+// before validation (the API + sandbox binding delete the row instead).
+func ValidateSettingValue(def ModSettingDefinition, value string) error {
+	if len(value) > MaxModSettingValueBytes {
+		return fmt.Errorf("value too large (%d bytes; max %d)", len(value), MaxModSettingValueBytes)
+	}
+	switch def.Type {
+	case "text", "password":
+		return nil
+	case "number":
+		if _, err := strconv.ParseFloat(strings.TrimSpace(value), 64); err != nil {
+			return fmt.Errorf("number setting must be a number (got %q)", value)
+		}
+		return nil
+	case "toggle":
+		if value != "true" && value != "false" {
+			return fmt.Errorf("toggle setting must be \"true\" or \"false\" (got %q)", value)
+		}
+		return nil
+	case "select":
+		for _, o := range def.Options {
+			if o == value {
+				return nil
+			}
+		}
+		return fmt.Errorf("select setting must be one of the declared options")
+	default:
+		return fmt.Errorf("unknown setting type %q", def.Type)
+	}
+}
+
+// SettingByKey returns the declared definition for a key (nil when the
+// manifest does not declare it). Used by the API PUT path and the sandbox
+// binding to enforce the schema on every write.
+func (m ModManifestV2) SettingByKey(key string) *ModSettingDefinition {
+	for i := range m.Settings {
+		if m.Settings[i].Key == key {
+			return &m.Settings[i]
+		}
+	}
+	return nil
+}
+
 // ModManifestV2 is the superset manifest the parser decodes into. Every v2
 // field is optional; for a v1 manifest only the v1 fields (Name/Slug/Version/
 // Description/Spec/PermissionsRequested — parsed in the repository) are
@@ -225,12 +375,13 @@ type ModManifestV2 struct {
 	// travels inside the manifest and the asset handler serves it at the
 	// UIBundle path; it wins over a file with the same name. Capped at
 	// MaxUIBundleSourceBytes (1 MiB) at upload.
-	UIBundleSource       string             `json:"uiBundleSource"`
-	Slots                []SlotDefinition   `json:"slots"`
-	Hooks                []HookDefinition   `json:"hooks"`
-	PermissionsDeclared  []CustomPermission `json:"permissionsDeclared"`
-	Spec                 json.RawMessage    `json:"spec"`
-	PermissionsRequested []PermissionReqV2  `json:"permissionsRequested"`
+	UIBundleSource       string                 `json:"uiBundleSource"`
+	Slots                []SlotDefinition       `json:"slots"`
+	Hooks                []HookDefinition       `json:"hooks"`
+	PermissionsDeclared  []CustomPermission     `json:"permissionsDeclared"`
+	Settings             []ModSettingDefinition `json:"settings"`
+	Spec                 json.RawMessage        `json:"spec"`
+	PermissionsRequested []PermissionReqV2      `json:"permissionsRequested"`
 }
 
 // DefaultUIBundlePath is the bundle path a mod's manifest refers to when it
