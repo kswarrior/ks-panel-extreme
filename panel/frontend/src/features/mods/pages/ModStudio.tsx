@@ -48,6 +48,7 @@ type Tab =
   | 'slots'
   | 'hooks'
   | 'backend'
+  | 'frontend'
   | 'customPerms'
   | 'spec'
   | 'raw';
@@ -70,6 +71,8 @@ const TABS: TabDef[] = [
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/> </svg> },
   { key: 'backend', label: 'Backend script', hint: 'Entry JS the engine evaluates',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/> </svg> },
+  { key: 'frontend', label: 'Frontend bundle', hint: 'Browser ES module for slots',
+    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20"/><circle cx="5.5" cy="6.5" r=".5"/><circle cx="8.5" cy="6.5" r=".5"/> </svg> },
   { key: 'customPerms', label: 'Custom perms', hint: 'Mod-scoped RBAC keys',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="7.5" cy="15.5" r="3.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/> </svg> },
   { key: 'spec', label: 'Spec', hint: 'Freeform config blob',
@@ -196,6 +199,7 @@ const ModStudio: React.FC = () => {
         next.slots.length > 0 ||
         next.hooks.length > 0 ||
         next.backendScript.trim().length > 0 ||
+        next.uiBundleSource.trim().length > 0 ||
         next.permissionsDeclared.length > 0;
       if (usesV2 && next.engineVersion !== 2) next.engineVersion = 2;
       return next;
@@ -225,6 +229,8 @@ const ModStudio: React.FC = () => {
         ? parsed.permissionsDeclared
         : [],
       backendScript: parsed.backendScriptSource ?? '',
+      uiBundleSource: parsed.uiBundleSource ?? '',
+      uiBundle: parsed.uiBundle ?? '',
       spec: (parsed.spec as Record<string, any>) ?? {},
     };
   };
