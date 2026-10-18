@@ -117,6 +117,7 @@ This document describes the threat model for KS Panel and KSEdge binaries, the p
 | Capability-based permissions | Admin grants explicit caps | Plugins can't exceed granted caps |
 | Error Isolation | Crashed plugin deactivated | One plugin can't crash panel |
 | No internal package access | Go module boundaries | Plugins import only public SDK |
+| Mod settings secrets (migration 081) | Settings writes audited | Password values sealed AES-256-GCM (`internal/secretbox`) at rest, write-only over the API (`is_set` only), decrypted solely inside the owning mod's sandbox |
 
 **Residual Risk**: Low for Goja sandbox. **Medium** if `-tags modengine_goja` enables full JS execution — sandbox escape bugs in Goja are possible (monitor Goja CVEs).
 
