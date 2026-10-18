@@ -1,5 +1,7 @@
 package modengine
 
+import "github.com/example/kspanel/internal/models"
+
 // hostops.go — the capability-gated Host Operations layer for Mod Engine v2.
 //
 // Before this file the sandbox's only host surface was logging + namespaced

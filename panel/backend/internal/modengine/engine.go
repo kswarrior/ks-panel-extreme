@@ -168,6 +168,10 @@ func (e *ModEngine) loadHostEnv(mod *models.Mod) *hostEnv {
 		perms: map[string]bool{},
 		ops:   e.hostOps(),
 	}
+	// The typed settings schema comes from the manifest (lenient parse; a v1
+	// or malformed manifest simply yields an empty slice so ks.settings
+	// refuses every key rather than misreading one).
+	env.settings = models.ParseV2Manifest(mod.Manifest).Settings
 	con, err := repository.OpenDB()
 	if err != nil {
 		log.Printf("[modengine] mod %q: load grants: %v (continuing with no host grants)", mod.Slug, err)
