@@ -386,24 +386,16 @@ export interface SlotProps {
 // prop. The component is memoised so layout re-renders that pass a stable
 // `context` reference don't blow away mounted mod React state.
 const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
-  const { response, error } = useSlotsRegistry();
+  const { response, error, version } = useSlotsRegistry();
 
-  // Resolve the live registrations. The remote fetch gives us the mod-declared
-  // slots (name + component + props); the window.KS registry gives us the
-  // React component each bundle registered. We join on (slot name) and keep
-  // only entries whose bundle is actually loaded.
-  const mounts = useMemo<KSPluginComponent[]>(() => {
-    const ks = ensureKSRegistry();
-    const registered = ks.getComponentsForSlot(name);
-    if (registered.length > 0) {
-      return registered;
-    }
-    // No bundle has registered a component for this slot yet — but the slots
-    // API may still list declarations. We render nothing (the mod bundle hasn't
-    // loaded or the panel runs in noop mode). The fallback path handles the
-    // host page's own empty state.
-    return [];
-  }, [name, response]);
+  // Resolve the live registrations. The slots fetch tells the loader which
+  // bundles to inject; the window.KS registry gives us the React component
+  // each bundle registered. Computing this on every render is what makes
+  // late-arriving components appear (the version bump from the registry
+  // emitter re-renders us). The remote fetch alone is not enough — a bundle
+  // may finish evaluating after the slots response was applied.
+  const ks = ensureKSRegistry();
+  const mounts: KSPluginComponent[] = ks.getComponentsForSlot(name);
 
   if (error) {
     // Surface the load error to the developer console but never to the user —
@@ -423,7 +415,8 @@ const SlotInner: React.FC<SlotProps> = ({ name, context, fallback }) => {
       }
     }
     return out;
-  }, [name, response]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, response, version]);
 
   if (mounts.length === 0) {
     // If the API reported declarations but no bundle has loaded, that's the
