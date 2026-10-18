@@ -110,10 +110,11 @@ func (noopHostOps) ConsoleSend(int64, string) (ExecResult, error) {
 // sandbox consults on every binding call. Built by the engine from the mod's
 // granted rows (fail-closed on load errors: empty sets).
 type hostEnv struct {
-	slug  string
-	caps  map[string]bool
-	perms map[string]bool
-	ops   HostOps
+	slug     string
+	caps     map[string]bool
+	perms    map[string]bool
+	settings []models.ModSettingDefinition
+	ops      HostOps
 }
 
 func (h *hostEnv) HasCapability(cap string) bool {
@@ -160,6 +161,15 @@ func (h *hostEnv) Permissions() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// Settings returns the manifest-declared typed settings schema. Copied by the
+// sandbox into its ks.settings binding at Start time.
+func (h *hostEnv) Settings() []models.ModSettingDefinition {
+	if h == nil {
+		return nil
+	}
+	return h.settings
 }
 
 func (h *hostEnv) Ops() HostOps {

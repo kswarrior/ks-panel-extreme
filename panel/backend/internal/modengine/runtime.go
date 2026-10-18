@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log"
+
+	"github.com/example/kspanel/internal/models"
 )
 
 // This file defines the JSRuntime contract the ModEngine uses to execute a
@@ -66,6 +68,9 @@ type HostEnv interface {
 	HasPermission(key string) bool
 	// Permissions lists the granted custom permission codes.
 	Permissions() []string
+	// Settings returns the typed settings the mod's manifest declares. The
+	// ks.settings binding validates every get/set against this schema.
+	Settings() []models.ModSettingDefinition
 	// Ops returns the host operation provider (may be nil when unwired).
 	Ops() HostOps
 }
