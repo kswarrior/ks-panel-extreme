@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import * as ReactDOM from 'react-dom';
+import * as ReactDOMClient from 'react-dom/client';
+import * as jsxRuntime from 'react/jsx-runtime';
 import { fetchSlots } from '@/features/mods/api/mods';
 import type {
   KSPluginComponent,
@@ -59,6 +62,11 @@ declare global {
 // pre-loaded mod bundle hasn't already. Idempotent. We use a Map<string, []>
 // (slot name -> registered components) because one slot can host several mods
 // at the same location.
+//
+// Registrations are tagged with the mod whose bundle is currently evaluating
+// (currentBundleMod, set while injectBundle runs a module script); a
+// registration that arrives outside a bundle eval (eager inline script) keeps
+// the '__pending__' label and is patched from the slots response later.
 function ensureKSRegistry(): KSWindow {
   if (window.KS && window.KS.__ksReady) {
     return window.KS;
@@ -69,22 +77,63 @@ function ensureKSRegistry(): KSWindow {
     __ksReady: true,
     registerComponent(slotName, name, Component) {
       if (!slotName || !name || !Component) return;
+      // Register-then-notify: <Slot /> subscribers re-render so a component
+      // that arrives after the host page painted shows up immediately.
       const list = components.get(slotName) ?? [];
-      // Replace an existing (mod,name) registration so a hot-reload doesn't
-      // double-mount the same component. If the mod label is still empty
-      // (set after refreshSlots runs) we preserve the previously-known mod
-      // so we don't drop the React key.
+      const mod = currentBundleMod ?? '__pending__';
       const idx = list.findIndex((c) => c.name === name);
-      if (idx >= 0) list[idx] = { ...list[idx], Component };
-      else list.push({ mod: '__pending__', name, Component });
+      if (idx >= 0) {
+        // Replace an existing registration so a hot-reload doesn't
+        // double-mount the same component. Keep the previously-known mod
+        // label when the new registration can't provide one.
+        const prev = list[idx];
+        list[idx] = { ...prev, Component, mod: mod === '__pending__' ? prev.mod : mod };
+      } else {
+        list.push({ mod, name, Component });
+      }
       components.set(slotName, list);
+      notifyRegistryChange();
     },
     getComponentsForSlot(slotName) {
       return components.get(slotName) ?? [];
     },
   };
   window.KS = ks;
+  // Mod bundles are hand-authored files (no bundler), so the loader exposes
+  // the same React surface the panel itself uses on window. Bundles are told
+  // in the authoring docs (aiskills/mods.md) to read window.React /
+  // window.ReactDOM / window.jsxRuntime instead of importing.
+  exposeReactGlobals();
   return ks;
+}
+
+// exposeReactGlobals publishes React + react-dom on window for mod bundles.
+// Idempotent; a bundle that ships its own copy is allowed to overwrite.
+function exposeReactGlobals(): void {
+  const w = window as unknown as Record<string, unknown>;
+  if (!w.React) w.React = React;
+  if (!w.ReactDOM) w.ReactDOM = ReactDOM;
+  if (!w.ReactDOMClient) w.ReactDOMClient = ReactDOMClient;
+  if (!w.jsxRuntime) w.jsxRuntime = jsxRuntime;
+}
+
+// ---------------------------------------------------------------------------
+// Registry change emitter — one module-level Set keeps every mounted <Slot />
+// in sync with late-arriving bundle registrations and deactivation prunes.
+// ---------------------------------------------------------------------------
+
+type RegistryListener = () => void;
+const registryListeners = new Set<RegistryListener>();
+
+function notifyRegistryChange(): void {
+  for (const l of Array.from(registryListeners)) l();
+}
+
+function subscribeRegistry(l: RegistryListener): () => void {
+  registryListeners.add(l);
+  return () => {
+    registryListeners.delete(l);
+  };
 }
 
 // ---------------------------------------------------------------------------
