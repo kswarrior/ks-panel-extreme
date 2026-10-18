@@ -33,6 +33,7 @@ import (
 	"sync"
 
 	"github.com/example/kspanel/internal/config"
+	"github.com/example/kspanel/internal/models"
 )
 
 // kspmExt is the conventional package file extension ("KS Panel Mod"). Both
