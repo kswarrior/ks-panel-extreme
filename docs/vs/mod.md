@@ -69,8 +69,8 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Injection | slot registry `GET /api/mods/v1/slots` (per-slot `bundle_url`) + `window.KS.registerComponent` + React `<Slot>` with per-component ErrorBoundary; bundle loader injects ES modules served by `/api/mods/v1/assets/{slug}/*` (inline `uiBundleSource` fallback, 1 MiB cap) and unloads/prunes on deactivate; 5 live mounts (`instance.detail.tabs`, `instance.card.actions`, `dashboard.cards`, `settings.general.below`, `admin.mods.detail.after`); Studio authors slots + frontend bundle | themes + patched templates | `slots.register` (`server.console.before`, screens, tabs, table columns, component replacement w/ one-owner rule), Tailwind prefix requirement, per-slot error boundaries | native Filament resources/pages/widgets per panel (admin/app/server), views, translations | themes only |
-| Honest minus | additive 5-slot catalog only — no component replacement, table-column or screen-level injection; bundles must treat react/react-dom as host globals (no version pinning) | core-file patching | beta, SDK churn | beta | — |
+| Injection | slot registry `GET /api/mods/v1/slots` (per-slot `bundle_url`) + `window.KS.registerComponent` + React `<Slot>` with per-component ErrorBoundary; bundle loader injects ES modules served by `/api/mods/v1/assets/{slug}/*` (inline `uiBundleSource` fallback, 1 MiB cap) and unloads/prunes on deactivate; 5 layout mounts (`instance.detail.tabs`, `instance.card.actions`, `dashboard.cards`, `settings.general.below`, `admin.mods.detail.after`) plus `mod.screen` full-screen pages at `/mods/view/{slug}/*` with Sidebar "Mods" entries (props title/icon/nav/order) and deep links; Studio authors slots + frontend bundle | themes + patched templates | `slots.register` (`server.console.before`, screens, tabs, table columns, component replacement w/ one-owner rule), Tailwind prefix requirement, per-slot error boundaries | native Filament resources/pages/widgets per panel (admin/app/server), views, translations | themes only |
+| Honest minus | additive 6-slot catalog only — mod screens live at their own `/mods/view/{slug}` route (no replacing host pages, table columns or built-in screens); bundles must treat react/react-dom as host globals (no version pinning) | core-file patching | beta, SDK churn | beta | — |
 
 ## 9. Ecosystem / distribution vs
 
@@ -106,7 +106,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | 5 | Capability / permission model | 94 | 15 | 78 | 75 | 10 |
 | 6 | Events / hooks | 88 | 30 | 82 | 72 | 5 |
 | 7 | Data / storage | 85 | 60 | 88 | 85 | 5 |
-| 8 | UI injection | 85 | 55 | 88 | 90 | 30 |
+| 8 | UI injection | 87 | 55 | 88 | 90 | 30 |
 | 9 | Ecosystem / distribution | 25 | 20 | 82 | 88 | 5 |
 | 10 | Developer tooling | 82 | 25 | 80 | 85 | 5 |
 | 11 | Diagnostics / kill switch | 90 | 30 | 75 | 70 | 5 |
@@ -117,7 +117,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 | Rank | Panel | Sum | Final `/100` |
 |------|-------|-----|--------------|
-| **1** | **KS** | **1,085 / 1,300** | **83** |
+| **1** | **KS** | **1,087 / 1,300** | **84** |
 | 2 | Pelican | 972 / 1,300 | 75 |
 | 3 | Pterodactyl v2 (beta) | 967 / 1,300 | 74 |
 | 4 | Pterodactyl v1 (+Blueprint) | 435 / 1,300 | 33 |
@@ -125,12 +125,12 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 Case 4 alone decides the shape: every PHP panel scores full-trust by design (documented, not an
 accident), so KS's only structural loss is *ecosystem* (case 9) — the slot mounts + bundle loader
-landed with M6 (case 8), the remaining 15% being the additive-only catalog (no component
-replacement / table columns / screens). Closing the rest is cheap and non-structural: add typed
-settings + encrypted secrets, a mod-to-mod dependency graph, a mod scaffold command and a
-signed/marketplace path (cases 9-10). The PHP panels cannot match the sandbox + approval gate +
-veto hooks without a format break. The concrete execution list for cases 8, 10 and 7 lives in
-`plan/mod.md` (items M6-M14).
+(M6) and the `mod.screen` route + Sidebar nav (M15) land case 8 at 87, the remainder being the
+additive-only catalog (no replacing host pages, table columns or built-in screens). Closing the
+rest is cheap and non-structural: add typed settings + encrypted secrets, a mod-to-mod dependency
+graph, a mod scaffold command and a signed/marketplace path (cases 9-10). The PHP panels cannot
+match the sandbox + approval gate + veto hooks without a format break. The concrete execution list
+for cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
 
 ## 13. Sources
 
