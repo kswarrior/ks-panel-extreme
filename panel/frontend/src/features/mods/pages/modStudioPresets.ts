@@ -126,6 +126,42 @@ const customPermsDemo = (): ModStudioDraft => ({
   ],
 });
 
+// Screen showcase — a full-screen admin page: declares a `mod.screen` slot
+// with nav props (Sidebar entry under "Mods") and registers the component
+// from an inline bundle. Shows off the /mods/view/<slug> route + deep links.
+const screenShowcase = (): ModStudioDraft => ({
+  ...blankModStudioDraft(),
+  name: 'Screen Showcase',
+  slug: 'screen-showcase',
+  version: '1.0.0',
+  description:
+    'Adds a full-screen admin page at /mods/view/screen-showcase with its own Sidebar entry under "Mods" — the mod.screen slot + nav props demo.',
+  engineVersion: 2,
+  slots: [
+    {
+      name: 'mod.screen',
+      component: 'Screen',
+      props: { title: 'Screen Showcase', icon: 'Mods', nav: true, order: 50 },
+    },
+  ],
+  uiBundleSource: `// Screen Showcase — full-screen page registered for the mod.screen slot.
+// The URL slug arrives as the "slug" prop; the sub-path (if any) as "path".
+(function () {
+  var h = window.React.createElement;
+  function Screen(props) {
+    var path = (props && props.path) || '';
+    return h('div', { className: 'ks-card rounded-xl p-6 space-y-2' },
+      h('h1', { className: 'text-lg font-semibold text-gray-100' }, 'Screen Showcase'),
+      h('p', { className: 'text-sm text-gray-400' },
+        'Rendered at /mods/view/screen-showcase' + (path ? '/' + path : '') +
+        ' — deep links and the Sidebar entry land on this same component.')
+    );
+  }
+  window.KS.registerComponent('mod.screen', 'Screen', Screen);
+})();
+`,
+});
+
 export interface ModStudioPreset {
   id: string;
   label: string;

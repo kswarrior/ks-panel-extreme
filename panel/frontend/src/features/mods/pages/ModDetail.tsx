@@ -5,7 +5,7 @@ import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry } from '@/
 import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
-import Slot from '@/shared/components/ui/Slot';
+import Slot, { refreshSlots } from '@/shared/components/ui/Slot';
 import { PageActionsPill } from '@/shared/components/ui/PageActionsPill';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import { cardTimeMs } from '@/shared/utils/cardDate';
@@ -91,10 +91,12 @@ const ModDetail: React.FC = () => {
       if (mod.active) {
         await deactivateMod(mod.id);
         setMod((p) => (p ? { ...p, active: false } : p));
+        void refreshSlots();
       } else {
         const res = await activateMod(mod.id) as any;
         if (res?.pending) { alert(res.message || `${res.pending} grants still pending`); return; }
         setMod((p) => (p ? { ...p, active: true } : p));
+        void refreshSlots();
       }
     } catch (e: any) {
       alert(getErrorMessage(e, 'Failed to toggle mod'));
@@ -109,6 +111,7 @@ const ModDetail: React.FC = () => {
     setDeleting(true);
     try {
       await deleteMod(mod.id);
+      void refreshSlots();
       navigate('/mods');
     } catch (e: any) {
       alert(getErrorMessage(e, 'Delete failed'));

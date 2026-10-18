@@ -422,6 +422,9 @@ const Mods: React.FC = () => {
         else if (result && (result as ModActivateConflict).error) {
           const refusal = result as ModActivateConflict;
           alert(refusal.message || refusal.error || 'Activation refused by the server.');
+        } else {
+          // Activated: refresh the slot registry so screen slots + bundles load.
+          void refreshSlots();
         }
       } catch {
         openGrant(m);

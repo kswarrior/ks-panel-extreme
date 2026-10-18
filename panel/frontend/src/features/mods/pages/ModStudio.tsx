@@ -604,7 +604,9 @@ const ModStudio: React.FC = () => {
                 (default <code className="text-gray-300">frontend/bundle.js</code>, 1&nbsp;MiB cap). React is
                 exposed on <code className="text-gray-300">window.React</code> /{' '}
                 <code className="text-gray-300">window.ReactDOM</code>; register components with{' '}
-                <code className="text-gray-300">window.KS.registerComponent(slot, name, Component)</code>.
+                <code className="text-gray-300">window.KS.registerComponent(slot, name, Component)</code>
+                {' '}— the same component can power a layout slot and a <code className="text-gray-300">mod.screen</code>{' '}
+                full-screen page.
               </p>
               <TextField
                 label="Bundle path (optional)"
@@ -825,6 +827,12 @@ const SlotsEditor: React.FC<{
         <code className="text-gray-300">instance.detail.tabs</code>);{' '}
         <code className="text-gray-300">component</code> is the export name in the mod's bundle;
         <code className="text-gray-300">props</code> is forwarded to the rendered component verbatim.
+        Use <code className="text-gray-300">mod.screen</code> for a full-screen admin page served at{' '}
+        <code className="text-gray-300">/mods/view/&lt;slug&gt;</code> — add{' '}
+        <code className="text-gray-300">props.title</code> for its Sidebar entry under "Mods"
+        (plus optional <code className="text-gray-300">icon</code>,{' '}
+        <code className="text-gray-300">nav: false</code> to hide it,{' '}
+        <code className="text-gray-300">order</code> to sort).
       </p>
       {(draft.slots.length === 0 ? [EMPTY_SLOT] : draft.slots).map((s, idx) => {
         // When the admin types into the empty-state placeholder row, we
