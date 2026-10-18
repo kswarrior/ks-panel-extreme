@@ -12,7 +12,7 @@ import type {
 // Slot.tsx — Mod Engine v2 React UI slot system.
 //
 // The panel declares a set of well-known layout injection points scattered
-// across the admin shell (e.g. "instance.detail.tabs", "dashboard.sidebar").
+// across the admin shell (e.g. "instance.detail.tabs", "dashboard.cards").
 // Active mods publish React components for those names through a browser-side
 // registry mounted on `window.KS`. This file owns three things:
 //

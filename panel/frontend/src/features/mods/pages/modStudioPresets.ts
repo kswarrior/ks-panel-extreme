@@ -119,7 +119,7 @@ const customPermsDemo = (): ModStudioDraft => ({
   ],
   slots: [
     {
-      name: 'instance.detail.header',
+      name: 'instance.detail.tabs',
       component: 'CustomPermsBadge',
       props: { perms: ['audit', 'configure'] },
     },
