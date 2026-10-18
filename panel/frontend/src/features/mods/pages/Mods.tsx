@@ -36,6 +36,7 @@ import {
   modSourceMeta,
 } from '@/shared/types/mod';
 import { useConfirm } from '@/shared/stores/confirmStore';
+import { refreshSlots } from '@/shared/components/ui/Slot';
 import { formatCardDate } from '@/shared/utils/cardDate';
 import CardMediaLayer from '@/shared/components/ui/CardMediaLayer';
 import ListCount from '@/shared/components/ui/ListCount';
@@ -392,6 +393,9 @@ const Mods: React.FC = () => {
       } else {
         setGrantMod(null);
         await load();
+        // Re-fetch the slot registry so the mod's screen slots (M15) appear in
+        // the Sidebar and the bundle loader injects its frontend module.
+        void refreshSlots();
       }
     } catch (e: any) {
       setGrantError(extractApiErrorMessage(e, 'Failed to activate'));
@@ -402,7 +406,7 @@ const Mods: React.FC = () => {
 
   const stop = async (m: Mod) => {
     if (!(await confirm({ title: 'Deactivate mod', message: `Deactivate mod "${m.name}"? It stops running but stays installed.`, tone: 'warning', confirmLabel: 'Deactivate' }))) return;
-    try { await deactivateMod(m.id); await load(); }
+    try { await deactivateMod(m.id); await load(); void refreshSlots(); }
     catch (e: any) { alert(extractApiErrorMessage(e, 'Failed to deactivate')); }
   };
 

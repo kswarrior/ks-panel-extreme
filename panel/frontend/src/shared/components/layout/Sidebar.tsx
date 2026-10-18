@@ -6,6 +6,7 @@ import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/type
 import { PanelBrandLogo, PanelBrandName } from '@/shared/components/brand/PanelBrand';
 import { sanitizeInlineSvg } from '@/features/settings/api/panelPages';
 import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
+import { useSlotRegistry } from '@/shared/components/ui/Slot';
 import SidebarSkeleton from './SidebarSkeleton';
 
 interface SidebarProps {
@@ -394,6 +395,33 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     [permissions],
   );
 
+  // Mod-provided screens (M15). Active mods that declare a `mod.screen` slot
+  // with nav !== false get one Sidebar entry each, derived from the cached
+  // slots registry — no extra endpoint. refreshSlots() after activate /
+  // deactivate updates this live; the registry subscription re-renders us.
+  // Deduped per mod slug (a mod with several screens keeps its best-ranked
+  // one); props.title is the label, props.icon must match a built-in glyph.
+  const { response: slotRegistry } = useSlotRegistry();
+  const modScreens = React.useMemo(() => {
+    const out = new Map<string, { to: string; label: string; icon: string; order: number }>();
+    for (const s of slotRegistry?.slots ?? []) {
+      if (s.name !== 'mod.screen') continue;
+      const props = s.props ?? {};
+      if (props.nav === false) continue;
+      const order =
+        typeof props.order === 'number' && Number.isFinite(props.order) ? props.order : 1000;
+      const prev = out.get(s.mod);
+      if (prev && prev.order <= order) continue;
+      out.set(s.mod, {
+        to: `/mods/view/${s.mod}`,
+        label: typeof props.title === 'string' && props.title.trim() ? props.title : s.mod,
+        icon: typeof props.icon === 'string' && Icons[props.icon] ? props.icon : 'Mods',
+        order,
+      });
+    }
+    return Array.from(out.values()).sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
+  }, [slotRegistry]);
+
   // Sidebar categories: every admin entry belongs to exactly one section.
   // Section order below sets the display order; item order inside a section
   // follows adminSubItems. Empty sections (no permission) render nothing.
@@ -499,7 +527,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
     );
   };
 
-  const renderNavItem = (item: SubItem) => (
+  const renderNavItem = (item: { to: string; label: string; icon: string }) => (
     <NavLink
       key={item.to}
       to={item.to}
@@ -565,6 +593,19 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
                 </React.Fragment>
               );
             })}
+            {/* Mod screens (M15): one entry per active mod.screen registration,
+                ordered by props.order. Hidden entirely when no mod ships a
+                screen or the slots API is unreachable (non-admin sessions). */}
+            {modScreens.length > 0 && (
+              <>
+                {!isCollapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                    Mods
+                  </p>
+                )}
+                {modScreens.map((m) => renderNavItem(m))}
+              </>
+            )}
             {/* Custom pages (Settings > Pages: About, Docs, …). Enabled +
                 role-filtered server-side; each carries its own SVG glyph. */}
             {panelPagesNav.length > 0 && (
