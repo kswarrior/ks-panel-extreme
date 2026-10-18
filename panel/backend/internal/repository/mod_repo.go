@@ -273,8 +273,16 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	// Validate the v2 frontend-bundle declarations (uiBundle path shape +
 	// uiBundleSource size cap). Every install path funnels through CreateMod,
 	// so this is the single choke point before the manifest is stored.
-	if err := models.ValidateUIBundle(models.ParseV2Manifest(in.Manifest)); err != nil {
+	v2man := models.ParseV2Manifest(in.Manifest)
+	if err := models.ValidateUIBundle(v2man); err != nil {
 		return nil, err
+	}
+	// Same choke point for the typed settings schema: the ks.settings
+	// binding + the settings API both trust that every stored manifest
+	// passed ValidateSettings, so an install with a malformed settings block
+	// must be refused here.
+	if err := models.ValidateSettings(v2man); err != nil {
+		return nil, fmt.Errorf("invalid settings: %w", err)
 	}
 
 	tx, err := r.db.Begin()

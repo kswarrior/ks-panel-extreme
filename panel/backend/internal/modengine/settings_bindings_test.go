@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dop251/goja"
 	kdb "github.com/example/kspanel/internal/db"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
