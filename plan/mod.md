@@ -47,6 +47,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 | M12 | Background/scheduled work (timers) | ☐ pending |
 | M13 | Panel endpoint registration (mod HTTP routes) | ☐ pending |
 | M14 | Custom/inter-mod events (+ optional shared KV) | ☐ pending (stretch) |
+| M15 | Admin screens + sidebar nav (slot-based) | ☐ pending |
 
 Excluded by decision (recorded in `docs/vs/mod.md`): marketplace/repo, signing/review, update path.
 Excluded by design: full-trust powers (core patching, PHP, unrestricted DB, free UI replacement).
@@ -150,8 +151,8 @@ Design:
 
 1. **Manifest**: `settings: [{key, label, type: text|password|number|toggle|select, options[]?,
    default?, description?}]`. Keys `[a-z0-9_]{1,64}`, max 32 settings. `password` = secret
-   (secretbox-encrypted at rest, never returned by the API). Scope v1: global per mod; per-instance
-   scope is a stretch (note it, don't build).
+   (secretbox-encrypted at rest, never returned by the API). Scope v1: global per mod; per-instance,
+   per-user and per-server scopes are a stretch (note them, don't build).
 2. **Migration 081** (`081_mod_settings.sql` ×3 dialects): `mod_settings(mod_slug TEXT, key TEXT,
    value TEXT, is_secret INTEGER NOT NULL DEFAULT 0, updated_at ...)` + unique `(mod_slug, key)`.
    Follow the existing `instance_secrets` pattern (`internal/secretbox` `Seal`/`Open`/`MaskValue`,
@@ -315,11 +316,52 @@ Design:
 Tests: emit → other mod receives (harness), cap enforcement, loop protection, self-emit allowed but
 bounded.
 
+## M15 — Admin screens + sidebar nav (slot-based)
+
+Gap: mods can only inject components into fixed additive host slots (M6); they cannot ship a
+full-screen admin page with its own route + nav entry the way Ptero v2 `ui.screens` and Pelican
+Filament pages can (`docs/vs/mod.md` §8). Depends on M6 (bundle loader + `<Slot>` mounts).
+
+Design:
+
+1. **Slot catalog** (extends the M6 catalog): `mod.screen` — full-screen content area, context
+   `{slug, path}`, declared props `{title, icon?, nav?: bool, order?}`. The mod's `uiBundle` (M6)
+   registers the component as usual.
+2. **Frontend route**: add `/mods/view/:slug/*` in `src/app/router.tsx` (SPA-side only; no new
+   backend route). It renders `<Slot name="mod.screen" mod={slug} context={{slug, path}} …/>`, so a
+   deep link and a sidebar entry land on the same screen.
+3. **Slot mod filter**: extend `<Slot>` (`shared/components/ui/Slot.tsx`) with an optional
+   `mod?: string` prop that mounts only registrations owned by that slug; `undefined` keeps today's
+   name-only behaviour. Needed so two screen mods don't render into each other's route.
+4. **Sidebar nav**: `shared/components/layout/Sidebar.tsx` builds a "Mods" section from the cached
+   slots registry (the M6 fetch): every active `mod.screen` slot with `nav !== false` becomes one
+   entry (label = props.title, icon = props.icon fallback, order = props.order). No new endpoint —
+   `refreshSlots()` after activate/deactivate adds/removes entries.
+5. **Gate**: the route renders (and the nav shows) only for admin-panel sessions, matching the
+   `ACCESS_ADMIN_PANEL` gate the slots API already enforces. No per-mod MODS_* scoping in v1 — the
+   admin's activation decision is the gate.
+6. **Studio + docs**: `mod.screen` preset in the Slots editor + props hint; aiskills/mods.md recipe
+   (declare slot + nav props → bundle registers the component).
+7. **Sample**: optional `hello-screen` builtin sample (or extend Hello Slot) exercising route + nav.
+
+Tests / verify:
+
+- Frontend: typecheck/lint/build; `<Slot mod>` filter test (vitest if present, else typecheck);
+  Playwright smoke: activate a screen sample → sidebar entry appears → `/mods/view/<slug>` renders →
+  deactivate → entry gone.
+- Backend: none required (slots handler already passes props through); extend the existing slots
+  handler test to assert `mod.screen` props survive the snapshot.
+- Docs: `docs/vs/mod.md` §8 row when M6+M15 land; aiskills/mods.md.
+- `bash rebuild.sh`.
+
+Out of scope for this item (excluded by design, see exclusions above): host component replacement
+and table-column injection — KS keeps additive-only injection.
+
 ---
 
 ## Suggested order
 
-M6 (visible gap, unblocks samples) → M8 (migration path warm-up) → M7 (manifest/graph) → M10
-(tooling + docs; harness reused by the rest) → M11 → M9 (assess) → M12 → M13 → M14. Re-score
-`docs/vs/mod.md` §12 + verdict after each item, and keep the "honest minus" rows truthful — a row
-only moves when the code actually ships.
+M6 (visible gap, unblocks samples) → M15 (same UI seam: screen route + nav) → M8 (migration path
+warm-up) → M7 (manifest/graph) → M10 (tooling + docs; harness reused by the rest) → M11 → M9
+(assess) → M12 → M13 → M14. Re-score `docs/vs/mod.md` §12 + verdict after each item, and keep the
+"honest minus" rows truthful — a row only moves when the code actually ships.
