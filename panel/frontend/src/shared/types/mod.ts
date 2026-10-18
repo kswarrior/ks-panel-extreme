@@ -269,13 +269,15 @@ export interface CustomPermission {
 
 // One slot served by /api/mods/v1/slots. `mod` is the owning slug; the loader
 // maps (slot name) -> registration and resolves the React component from the
-// mod's bundle registry.
+// mod's bundle registry. `bundle_url` (absent for mods that ship no bundle)
+// is the ES-module URL the loader injects, with a version cache-buster.
 export interface RegisteredSlot {
   mod: string;
   mod_id: number;
   name: string;
   component: string;
   props?: Record<string, any>;
+  bundle_url?: string;
 }
 
 // Runtime state of the embedded JS engine, surfaced by the slots endpoint so
@@ -381,6 +383,7 @@ export type ModStudioBlockKind =
   | 'slots'      // frontend injection points (name + component + props)
   | 'hooks'      // event listeners (event + phase + handler)
   | 'backend'    // inline backendScript source (the Goja entry)
+  | 'frontend'   // inline uiBundleSource (the browser ES module)
   | 'customPerms'; // mod-scoped RBAC keys
 
 // The full editable draft. It intentionally mirrors ModManifestV2 + the v1
@@ -405,6 +408,14 @@ export interface ModStudioDraft {
   // emitted manifest (the engine prefers inline source over a file path,
   // see models.resolveScript) so a Studio-built mod is self-contained.
   backendScript: string;
+  // Inline frontend bundle source. Stored as `uiBundleSource` in the emitted
+  // manifest and served at uiBundle (default "frontend/bundle.js"); the slot
+  // loader injects it as an ES module. Components register via
+  // window.KS.registerComponent; React is exposed on window.
+  uiBundleSource: string;
+  // Optional bundle path override (zip-relative). Empty = the default
+  // "frontend/bundle.js" the asset handler serves the inline source at.
+  uiBundle: string;
   // Opaque editable spec blob. Surfaced verbatim on the mod card's Edit
   // modal after install, so the admin can keep tuning layout / config
   // without re-importing.
@@ -424,6 +435,8 @@ export const blankModStudioDraft = (): ModStudioDraft => ({
   hooks: [],
   permissionsDeclared: [],
   backendScript: '',
+  uiBundleSource: '',
+  uiBundle: '',
   spec: {},
 });
 
