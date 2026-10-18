@@ -11,6 +11,7 @@ Active mods that declare `slots[]` in their manifest render React components ins
 - `dashboard.cards` — instances home page, above the grid
 - `settings.general.below` — bottom of the Settings page
 - `admin.mods.detail.after` — bottom of a mod's detail page (context `{modSlug}`)
+- `mod.screen` — full-screen admin page at `/mods/view/<slug>/<path>`, context `{slug, path}`; declare `props.title` for a Sidebar entry under "Mods" (optional `icon`, `nav: false` to hide, `order` to sort)
 
 A manifest slot is `{ "name": "<catalog name>", "component": "<registered name>", "props": { … } }`.
 

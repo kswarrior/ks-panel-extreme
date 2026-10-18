@@ -241,6 +241,9 @@ export interface ModManifestV2 {
 //   dashboard.cards          — instances home page, above the grid context {}
 //   settings.general.below   — bottom of the Settings page         context {}
 //   admin.mods.detail.after  — bottom of a mod's detail page       context {modSlug}
+//   mod.screen               — full-screen admin page at /mods/view/<slug>/*
+//                              context {slug, path}; props title/icon/nav/order
+//                              drive the Sidebar "Mods" entry
 export interface SlotDefinition {
   // Well-known layout slot name, e.g. "instance.detail.tabs".
   name: string;

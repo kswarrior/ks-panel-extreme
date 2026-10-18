@@ -186,6 +186,13 @@ export const MOD_STUDIO_PRESETS: ModStudioPreset[] = [
     build: uiShowcase,
   },
   {
+    id: 'screen-showcase',
+    label: 'Screen Showcase',
+    description: 'Full-screen admin page (mod.screen) with its own Sidebar entry + deep link.',
+    icon: '🖥️',
+    build: screenShowcase,
+  },
+  {
     id: 'terminal-monitor',
     label: 'Terminal Monitor',
     description: 'v2 mod with a backendScript + lifecycle hooks. Logs every instance start/stop.',
