@@ -476,7 +476,7 @@ func (r *gojaRuntime) settingsGet(call goja.FunctionCall) goja.Value {
 // clears the setting.
 func (r *gojaRuntime) settingsSet(call goja.FunctionCall) goja.Value {
 	if r == nil || r.settings == nil {
-		return goja.Bool(false)
+		return r.vm.ToValue(false)
 	}
 	key, _ := call.Argument(0).Export().(string)
 	var val string
