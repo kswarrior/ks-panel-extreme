@@ -58,6 +58,7 @@ jobs:
         run: |
           set -e
           curl -fsSL https://opencode.ai/install | bash
+          export PATH="$HOME/.opencode/bin:$PATH"
           bash retest.sh > retest.log 2>&1 &
           echo "OpenCode:"
           opencode --version
