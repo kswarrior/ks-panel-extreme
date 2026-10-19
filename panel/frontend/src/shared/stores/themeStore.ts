@@ -2602,7 +2602,7 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
   /* Open-only: these !important rules would otherwise beat the inline
      max-width:0 of the collapsed state, leaving the shell at full width
      with its hidden content still occupying space. Off must shrink the
-     shell to just the `<` toggle, exactly like the form-actions pill. */
+     shell to just the "<" toggle, exactly like the form-actions pill. */
   .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content {
     min-width: 0 !important;
     max-width: 100% !important;
