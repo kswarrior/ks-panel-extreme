@@ -1766,7 +1766,9 @@ input[type="search"] {
   }
 }
 @media (max-width: 639px) {
-  .ks-actions-pill .ks-pill-content {
+  /* Open-only (see themeStore.ts): while collapsed the inline max-width:0
+     must win so the shell shrinks to the `<` toggle. */
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content {
     min-width: 0;
     max-width: 100%;
     flex-wrap: nowrap;
@@ -1777,10 +1779,10 @@ input[type="search"] {
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x pan-y;
   }
-  .ks-actions-pill .ks-pill-content::-webkit-scrollbar {
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content::-webkit-scrollbar {
     display: none;
   }
-  .ks-actions-pill .ks-pill-content > * {
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content > * {
     flex-shrink: 0;
   }
 }
