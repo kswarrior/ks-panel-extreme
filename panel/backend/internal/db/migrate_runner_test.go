@@ -80,6 +80,81 @@ func TestRewriteBlobForPostgres(t *testing.T) {
 	}
 }
 
+// TestNoSeededApplications proves the panel ships an empty Applications
+// catalog: EnsureSchemaAndSeed inserts no catalog rows, migration 082
+// deletes a row a legacy build seeded, and a user-created app that reuses a
+// seeded slug (uploader/owner set) survives the migration replay.
+func TestNoSeededApplications(t *testing.T) {
+	dir := t.TempDir()
+	d, err := NewDialect("sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	con, err := d.Open(filepath.Join(dir, "apps.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer con.Close()
+	if err := EnsureSchemaAndSeed(d, con); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	count := func(slug string) int {
+		t.Helper()
+		var n int
+		if err := con.QueryRow(`SELECT COUNT(*) FROM applications WHERE slug = ?`, slug).Scan(&n); err != nil {
+			t.Fatalf("count %s: %v", slug, err)
+		}
+		return n
+	}
+
+	if n := count("discord-bot"); n != 0 {
+		t.Fatalf("fresh install must ship no applications, found %d seeded discord-bot row(s)", n)
+	}
+
+	// A legacy build's seeded row (no uploader/owner) is removed by 082.
+	if _, err := con.Exec(`INSERT INTO applications
+		(name, slug, category, version, description, icon, runtime, entrypoint,
+		 config_schema, files, permissions, created_at, updated_at)
+		VALUES ('Discord Bot', 'discord-bot', 'discord', '1.0.0', '', '', 'nodejs',
+		 'src/bot.js', '[]', '[]', '[]', '2024-01-01 00:00:00', '2024-01-01 00:00:00')`); err != nil {
+		t.Fatalf("insert legacy seeded row: %v", err)
+	}
+
+	// A user-created app reusing a seeded slug must never be touched.
+	var roleID int64
+	if err := con.QueryRow(`SELECT id FROM roles ORDER BY id LIMIT 1`).Scan(&roleID); err != nil {
+		t.Fatalf("pick role: %v", err)
+	}
+	res, err := con.Exec(`INSERT INTO users (username, email, password_hash, role_id)
+		VALUES ('seedtest', 'seedtest@example.com', 'x', ?)`, roleID)
+	if err != nil {
+		t.Fatalf("insert user: %v", err)
+	}
+	uid, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := con.Exec(`INSERT INTO applications
+		(name, slug, category, version, description, icon, runtime, entrypoint,
+		 config_schema, files, permissions, uploaded_by, owner_id, created_at, updated_at)
+		VALUES ('Custom Bot', 'custom-bot', 'custom', '1.0.0', '', '', 'nodejs',
+		 'src/bot.js', '[]', '[]', '[]', ?, ?, '2024-01-01 00:00:00', '2024-01-01 00:00:00')`, uid, uid); err != nil {
+		t.Fatalf("insert user app: %v", err)
+	}
+
+	// Migrations replay on every launch — the second run applies 082 again.
+	if err := RunMigrations(d, con); err != nil {
+		t.Fatalf("replay migrations: %v", err)
+	}
+	if n := count("discord-bot"); n != 0 {
+		t.Fatalf("legacy seeded discord-bot row must be removed by 082, got %d", n)
+	}
+	if n := count("custom-bot"); n != 1 {
+		t.Fatalf("user-created custom-bot row must survive 082, got %d", n)
+	}
+}
+
 // TestSQLiteMigrationsTwice runs the full shipped set against a scratch
 // SQLite file two times in a row: migrations re-run on every launch, so a
 // second run must converge with no error.

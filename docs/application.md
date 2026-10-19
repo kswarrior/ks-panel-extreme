@@ -66,7 +66,7 @@ The current wired behavior is exactly: admin catalog + one-shot run.
 | Permission keys | `panel/backend/internal/permissions/keys.go` (`ManageApplicationsKey` L74, `ApplicationsOwnKey`/`ApplicationsAllKey` L287-288, group entry L404) |
 | Ownership helper | `panel/backend/internal/permissions/engine.go` `HasScope` (L132) |
 | Route gate helper | `panel/backend/internal/api/middleware.go` `requireUmbrellaOrAction` (L261) |
-| Migrations (all three dialects) | `internal/db/migrations/{mysql,postgres,sqlite}/029_applications.sql`, `045_application_files_runs.sql`, `054_scope_ownership.sql`, `061_application_icon_color.sql` |
+| Migrations (all three dialects) | `internal/db/migrations/{mysql,postgres,sqlite}/029_applications.sql`, `045_application_files_runs.sql`, `054_scope_ownership.sql`, `061_application_icon_color.sql`, `082_remove_seeded_applications.sql` (deletes legacy pre-installed catalog rows; no default applications are seeded anymore) |
 | Seed/backfill of keys and role grants | `panel/backend/internal/db/db.go` (~L2036, L2209, L2221) |
 | Frontend feature | `panel/frontend/src/features/applications/` (`pages/`, `components/`, `api/`, `types/`) |
 | Frontend routes | `panel/frontend/src/app/router.tsx` (lazy imports L64-70, routes L708-789) |
