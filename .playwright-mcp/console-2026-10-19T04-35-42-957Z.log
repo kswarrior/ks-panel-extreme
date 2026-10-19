@@ -2134,3 +2134,36 @@
 [ 1695423ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
 [ 1695570ms] [ERROR] WebSocket connection to 'ws://localhost:3000/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/src/features/notifications/components/NotificationBell.tsx:305
 [ 1695571ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/notifications/unread-count:0
+[ 1696424ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1697426ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1698427ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1699429ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1700281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/notifications/unread-count:0
+[ 1700430ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1701432ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1702433ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1703435ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1704437ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1705438ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1705571ms] [ERROR] WebSocket connection to 'ws://localhost:3000/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/src/features/notifications/components/NotificationBell.tsx:305
+[ 1705572ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/notifications/unread-count:0
+[ 1706440ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1707442ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1708443ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1709445ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1710446ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1711448ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1712449ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1713451ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1714453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1715454ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1715573ms] [ERROR] WebSocket connection to 'ws://localhost:3000/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/src/features/notifications/components/NotificationBell.tsx:305
+[ 1715574ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/notifications/unread-count:0
+[ 1716456ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1717457ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1718459ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1719460ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1720281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/notifications/unread-count:0
+[ 1720462ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1721464ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
+[ 1722465ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/:0
