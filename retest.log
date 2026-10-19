@@ -1,7 +1,7 @@
 [1;33m[WARN][0m release/kspanel not found — auto-running ./s-rebuild.sh first...
-[s-rebuild] version auto-bumped 1.0.270 -> 1.0.271
-[s-rebuild] commit=7f0637334 date=2026-10-18T09:33:21Z
-[s-rebuild] start (UNSAFE, no hardening) version=1.0.271
+[s-rebuild] version auto-bumped 1.0.271 -> 1.0.272
+[s-rebuild] commit=96d3332f3 date=2026-10-19T03:07:29Z
+[s-rebuild] start (UNSAFE, no hardening) version=1.0.272
 [s-rebuild] sync pagelib /home/runner/work/ks-panel-extreme/ks-panel-extreme/instance_pages -> /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend/internal/pagelib/library
 [s-rebuild] pagelib synced (7 pages + marketplace, total 8)
 [s-rebuild] sync themelib /home/runner/work/ks-panel-extreme/ks-panel-extreme/themes_market -> /home/runner/work/ks-panel-extreme/ks-panel-extreme/panel/backend/internal/themelib/library
