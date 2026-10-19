@@ -2599,7 +2599,11 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
   max-width: calc(100vw - 2rem) !important;
 }
 @media (max-width: 639px) {
-  .ks-actions-pill .ks-pill-content {
+  /* Open-only: these !important rules would otherwise beat the inline
+     max-width:0 of the collapsed state, leaving the shell at full width
+     with its hidden content still occupying space. Off must shrink the
+     shell to just the `<` toggle, exactly like the form-actions pill. */
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content {
     min-width: 0 !important;
     max-width: 100% !important;
     flex-wrap: nowrap !important;
@@ -2610,10 +2614,10 @@ body[data-ks-form-actions='1'] .ks-tabs-pill-spacer {
     -webkit-overflow-scrolling: touch !important;
     touch-action: pan-x pan-y !important;
   }
-  .ks-actions-pill .ks-pill-content::-webkit-scrollbar {
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content::-webkit-scrollbar {
     display: none !important;
   }
-  .ks-actions-pill .ks-pill-content > * {
+  .ks-actions-pill:not(.ks-pill-collapsed) .ks-pill-content > * {
     flex-shrink: 0 !important;
   }
 }
