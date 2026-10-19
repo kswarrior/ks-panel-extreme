@@ -2245,4 +2245,3 @@ func translateSeedInsert(prefix, pgConflict, body, table string) string {
 	}
 	return q
 }
-
