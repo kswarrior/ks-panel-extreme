@@ -15,3 +15,31 @@
 [     660ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
 [     809ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
 [    4029ms] [WARNING] The resource http://localhost:3000/src/main.tsx was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/instances:0
+[   31443ms] [ERROR] Warning: %s a style property during rerender (%s) when a conflicting property is set (%s) can lead to styling bugs. To avoid this, don't mix shorthand and non-shorthand properties for the same value; instead, replace the shorthand with separate values.%s Removing transition transitionDuration 
+    at div
+    at div
+    at div
+    at PageActionsPill (http://localhost:3000/src/shared/components/ui/PageActionsPill.tsx:81:3)
+    at div
+    at Instances (http://localhost:3000/src/features/instances/pages/Instances.tsx:118:20)
+    at RequirePermission (http://localhost:3000/src/shared/components/ui/RequirePermission.tsx:20:30)
+    at RequireAuth (http://localhost:3000/src/shared/components/ui/RequireAuth.tsx:22:24)
+    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:4112:5)
+    at Outlet (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:4518:26)
+    at Suspense
+    at ErrorBoundary (http://localhost:3000/src/shared/components/ui/ErrorBoundary.tsx:5:1)
+    at main
+    at div
+    at div
+    at PanelContent2 (http://localhost:3000/src/shared/components/layout/Layout.tsx:27:3)
+    at div
+    at Layout (http://localhost:3000/src/shared/components/layout/Layout.tsx:97:20)
+    at RenderedRoute (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:4112:5)
+    at Routes (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:4582:5)
+    at Router
+    at ErrorBoundary (http://localhost:3000/src/shared/components/ui/ErrorBoundary.tsx:5:1)
+    at AppResetBoundary (http://localhost:3000/src/app/App.tsx:116:31)
+    at InstanceNavProvider (http://localhost:3000/src/shared/components/layout/InstanceNavContext.tsx:28:39)
+    at Router (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:4525:15)
+    at BrowserRouter (http://localhost:3000/node_modules/.vite/deps/react-router-dom.js?v=abd74c7e:5263:5)
+    at App (http://localhost:3000/src/app/App.tsx:37:19) @ http://localhost:3000/node_modules/.vite/deps/chunk-342R7NCG.js?v=0cbc8d8d:520
