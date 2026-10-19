@@ -1958,9 +1958,6 @@ func EnsureSchemaAndSeed(d Dialect, db *sql.DB) error {
 	if err := SeedCore(d, db); err != nil {
 		return fmt.Errorf("seed core: %w", err)
 	}
-	if err := SeedDefaultApplications(d, db); err != nil {
-		return fmt.Errorf("seed default applications: %w", err)
-	}
 	// Canonicalize legacy JSON template specs to YAML (best-effort: old
 	// rows parse identically either way, so a failed rewrite logs and
 	// keeps booting instead of wedging startup).
