@@ -1,0 +1,11 @@
+[     192ms] [ERROR] Loading the script 'data:application/octet-stream;base64,aW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JzsKaW1wb3J0IFJlYWN0RE9NIGZyb20gJ3JlYWN0LWRvbS9jbGllbnQnOwppbXBvcnQgQXBwIGZyb20gJ0AvYXBwL0FwcCc7CmltcG9ydCB7IGluaXRMb3dQb3dlck1vZGUgfSBmcm9tICdAL3NoYXJlZC91dGlscy9sb3dQb3dlcic7CmltcG9ydCAnLi9pbmRleC5jc3MnOwoKLy8gUnVucyBiZWZvcmUgZmlyc3QgcGFpbnQgc28gbG93LXBvd2VyIGRldmljZXMgbmV2ZXIgY29tcG9zaXRlIGEgc2luZ2xlCi8vIGJsdXJyZWQgZnJhbWUuCmluaXRMb3dQb3dlck1vZGUoKTsKClJlYWN0RE9NLmNyZWF0ZVJvb3QoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3Jvb3QnKSBhcyBIVE1MRWxlbWVudCkucmVuZGVyKAogIDxSZWFjdC5TdHJpY3RNb2RlPgogICAgPEFwcCAvPgogIDwvUmVhY3QuU3RyaWN0TW9kZT4KKTsK' violates the following Content Security Policy directive: "script-src 'self' 'unsafe-inline'". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked. @ http://localhost:8080/:6
+[     567ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8080/api/mods/v1/slots:0
+[     641ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8080/api/me:0
+[     911ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
+[    9327ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
+[    9330ms] [ERROR] [KS Slot] failed to load slots registry: AxiosError: Request failed with status code 401
+    at ci (http://localhost:8080/assets/vendor-RGRPoOcy.js:29:42249)
+    at XMLHttpRequest.S (http://localhost:8080/assets/vendor-RGRPoOcy.js:29:54214)
+    at ye.request (http://localhost:8080/assets/vendor-RGRPoOcy.js:29:137627)
+    at async Uo (http://localhost:8080/assets/index-Bssh6eZn.js:1:348512)
+    at async xa (http://localhost:8080/assets/index-Bssh6eZn.js:1:1025862) @ http://localhost:8080/assets/index-Bssh6eZn.js:0
