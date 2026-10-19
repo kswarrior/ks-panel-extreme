@@ -1,0 +1,18 @@
+- generic [ref=f5e3]:
+  - complementary "Main navigation" [ref=f5e4]:
+    - generic [ref=f5e5]: KS Panel
+    - navigation [ref=f5e10]:
+      - status "Loading navigation" [ref=f5e11]:
+        - generic [ref=f5e42]: Loading navigation…
+    - button "Collapse sidebar" [expanded] [ref=f5e43] [cursor=pointer]:
+      - generic: KS Warrior
+  - generic [ref=f5e44]:
+    - banner [ref=f5e45]:
+      - generic [ref=f5e46]:
+        - navigation "Breadcrumb" [ref=f5e48]:
+          - generic [ref=f5e49]: Instances
+        - button "Profile menu" [ref=f5e60] [cursor=pointer]:
+          - img "Guest" [ref=f5e61]:
+            - generic [ref=f5e62]: GU
+    - main [ref=f5e64]:
+      - status "Loading" [ref=f5e71]
