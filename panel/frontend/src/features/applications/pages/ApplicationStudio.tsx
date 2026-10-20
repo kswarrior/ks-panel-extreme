@@ -143,8 +143,13 @@ const Select: React.FC<{
 
 const ApplicationStudio: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const confirm = useConfirm();
-  const [draft, setDraft] = useState<ApplicationStudioDraft>(blankApplicationStudioDraft);
+  const [draft, setDraft] = useState<ApplicationStudioDraft>(() => {
+    const presetId = (location.state as { presetId?: string } | null)?.presetId;
+    const preset = presetId ? APPLICATION_STUDIO_PRESETS.find((p) => p.id === presetId) : undefined;
+    return preset ? preset.build() : blankApplicationStudioDraft();
+  });
   const [tab, setTab] = useState<Tab>('general');
   const [raw, setRaw] = useState<string>('');
   const [rawError, setRawError] = useState<string>('');
@@ -155,7 +160,6 @@ const ApplicationStudio: React.FC = () => {
   const [installError, setInstallError] = useState('');
   const [installOk, setInstallOk] = useState('');
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
-  const [showPresets, setShowPresets] = useState(true);
 
   // Re-seed the raw buffer every time the structured draft changes so the
   // Raw JSON tab always reflects the structured editor's truth (until the
@@ -319,22 +323,11 @@ const ApplicationStudio: React.FC = () => {
     }
   }, [urlInput, navigate]);
 
-  // ---- preset apply -------------------------------------------------------
-  const applyPreset = useCallback((id: string) => {
-    const p = APPLICATION_STUDIO_PRESETS.find((x) => x.id === id);
-    if (!p) return;
-    const d = p.build();
-    setDraft(d);
-    setShowPresets(false);
-    setTab('general');
-  }, []);
-
   // ---- reset --------------------------------------------------------------
   const reset = useCallback(async () => {
     if (!(await confirm({ title: 'Reset draft', message: 'Discard the current draft and start over?', tone: 'warning', confirmLabel: 'Discard' }))) return;
     setDraft(blankApplicationStudioDraft());
     setTab('general');
-    setShowPresets(true);
     setInstallError('');
     setInstallOk('');
     setRawError('');
@@ -355,41 +348,8 @@ const ApplicationStudio: React.FC = () => {
           >
             ← Back to Applications
           </button>
-          <button
-            type="button"
-            onClick={() => setShowPresets((v) => !v)}
-            className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10"
-          >
-            {showPresets ? 'Hide presets' : 'Show presets'}
-          </button>
         </div>
       </div>
-
-      {/* Preset grid */}
-      {showPresets && (
-        <GlassCard className="">
-          <h3 className="text-sm font-semibold text-white mb-1">Start from a preset</h3>
-          <p className="text-xs text-gray-400 mb-3">
-            Each preset fills the draft with a working starter you can edit. Pick one to open the builder.
-          </p>
-          <div className="ks-card-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {APPLICATION_STUDIO_PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPreset(p.id)}
-                className="ks-card text-left p-3 rounded-lg transition-colors"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl" aria-hidden="true">{p.icon}</span>
-                  <span className="text-sm font-semibold text-white">{p.label}</span>
-                </div>
-                <p className="text-xs text-gray-400 leading-snug">{p.description}</p>
-              </button>
-            ))}
-          </div>
-        </GlassCard>
-      )}
 
       {/* Install-from-URL quick bar (mirrors the Applications page button) */}
       <GlassCard variant="form" className="flex items-center gap-2 flex-wrap">
