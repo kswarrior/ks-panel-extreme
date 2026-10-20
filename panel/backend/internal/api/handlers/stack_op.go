@@ -43,16 +43,16 @@ type stackOpStep struct {
 
 type stackOpJob struct {
 	mu        sync.Mutex
-	cond      chan struct{} // closed on terminal state (lets waiters wake)
-	JobID     string        `json:"job_id"`
-	StackID   int64         `json:"stack_id"`
-	Op        string        `json:"op"` // install|launch|reinstall
-	Status    string        `json:"status"`
-	Steps     []stackOpStep `json:"steps"`
-	Logs      []string      `json:"logs"`
-	Error     string        `json:"error,omitempty"`
-	CreatedAt string        `json:"created_at"`
-	UpdatedAt string        `json:"updated_at"`
+	cond      chan struct{}      // closed on terminal state (lets waiters wake)
+	JobID     string             `json:"job_id"`
+	StackID   int64              `json:"stack_id"`
+	Op        string             `json:"op"` // install|launch|reinstall
+	Status    string             `json:"status"`
+	Steps     []stackOpStep      `json:"steps"`
+	Logs      []string           `json:"logs"`
+	Error     string             `json:"error,omitempty"`
+	CreatedAt string             `json:"created_at"`
+	UpdatedAt string             `json:"updated_at"`
 	cancel    context.CancelFunc `json:"-"`
 	// logLines/logTruncated bound memory on chatty commands.
 	logLines     int  `json:"-"`

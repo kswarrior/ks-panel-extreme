@@ -201,18 +201,18 @@ type StackPermissionReq struct {
 // the stack's JSON manifest. Only the enumerated fields are structurally
 // known; everything else rides the raw manifest/spec pass-through.
 type StackManifestInput struct {
-	Name                 string              `json:"name"`
-	Slug                 string              `json:"slug"`
-	Category             string              `json:"category"`
-	Version              string              `json:"version"`
-	Description          string              `json:"description"`
-	Icon                 string              `json:"icon"`
-	Color                string              `json:"color"`
-	Runtime              string              `json:"runtime"`
-	Entrypoint           string              `json:"entrypoint"`
-	ThemeMode            string              `json:"themeMode"`
-	PageStyle            string              `json:"pageStyle"`
-	Spec                 json.RawMessage     `json:"spec"`
+	Name                 string               `json:"name"`
+	Slug                 string               `json:"slug"`
+	Category             string               `json:"category"`
+	Version              string               `json:"version"`
+	Description          string               `json:"description"`
+	Icon                 string               `json:"icon"`
+	Color                string               `json:"color"`
+	Runtime              string               `json:"runtime"`
+	Entrypoint           string               `json:"entrypoint"`
+	ThemeMode            string               `json:"themeMode"`
+	PageStyle            string               `json:"pageStyle"`
+	Spec                 json.RawMessage      `json:"spec"`
 	PermissionsRequested []StackPermissionReq `json:"permissionsRequested"`
 }
 
@@ -859,7 +859,7 @@ func (r *StackRepository) ServePortTaken(port int, excludeID int64) (bool, error
 // port configured. The serve-port reconciler syncs panel listeners from
 // this single query (inactive or unconfigured rows never listen).
 func (r *StackRepository) ListActiveServeStacks() ([]models.Stack, error) {
-	rows, err := r.db.Query(`SELECT `+stackColumns+` FROM stacks WHERE active = 1 AND serve_port > 0`)
+	rows, err := r.db.Query(`SELECT ` + stackColumns + ` FROM stacks WHERE active = 1 AND serve_port > 0`)
 	if err != nil {
 		return nil, err
 	}
@@ -877,6 +877,7 @@ func (r *StackRepository) ListActiveServeStacks() ([]models.Stack, error) {
 	}
 	return out, rows.Err()
 }
+
 // GetActiveStackByProxyRoot returns the active, proxy-configured stack
 // mounted at root ("" never matches), or ErrStackNotFound. The panel's
 // reverse proxy resolves mounts through this single query.

@@ -52,20 +52,20 @@ type stackResponse struct {
 	// opened for this stack (0 = off). ServeListening reports whether the
 	// listener actually bound (bind failures stay audible here instead of
 	// trusting the saved value).
-	ServePort      int  `json:"serve_port"`
-	ServeAuth      bool `json:"serve_auth"`
-	ServeListening bool `json:"serve_listening"`
-	TokenPrefix      string `json:"token_prefix,omitempty"`
-	Status           string `json:"status"`
-	LastSeenAt       string `json:"last_seen_at,omitempty"`
-	OwnerName   string          `json:"owner_name,omitempty"`
-	Source      string          `json:"source"`
-	SourceURL   string          `json:"source_url,omitempty"`
-	PackageSize int64                  `json:"package_size"`
-	Permissions []stackPermissionView  `json:"permissions"`
-	Pending     int                    `json:"pending"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
+	ServePort      int                   `json:"serve_port"`
+	ServeAuth      bool                  `json:"serve_auth"`
+	ServeListening bool                  `json:"serve_listening"`
+	TokenPrefix    string                `json:"token_prefix,omitempty"`
+	Status         string                `json:"status"`
+	LastSeenAt     string                `json:"last_seen_at,omitempty"`
+	OwnerName      string                `json:"owner_name,omitempty"`
+	Source         string                `json:"source"`
+	SourceURL      string                `json:"source_url,omitempty"`
+	PackageSize    int64                 `json:"package_size"`
+	Permissions    []stackPermissionView `json:"permissions"`
+	Pending        int                   `json:"pending"`
+	CreatedAt      string                `json:"created_at"`
+	UpdatedAt      string                `json:"updated_at"`
 }
 
 type stackPermissionView struct {
@@ -89,37 +89,37 @@ func toStackResponse(repo *repository.StackRepository, s *models.Stack) stackRes
 		source = models.StackSourceFile
 	}
 	resp := stackResponse{
-		ID:          s.ID,
-		Name:        s.Name,
-		Slug:        s.Slug,
-		Category:    s.Category,
-		Version:     s.Version,
-		Description: s.Description,
-		Icon:        s.Icon,
-		Color:       s.Color,
-		Runtime:     s.Runtime,
-		Entrypoint:  s.Entrypoint,
-		Manifest:    s.Manifest,
-		Spec:        s.Spec,
-		ThemeMode:   s.ThemeMode,
-		PageStyle:   s.PageStyle,
-		Active:      s.Active,
-		ProxyPort:   s.ProxyPort,
-		ProxyRootURL: s.ProxyRootURL,
+		ID:               s.ID,
+		Name:             s.Name,
+		Slug:             s.Slug,
+		Category:         s.Category,
+		Version:          s.Version,
+		Description:      s.Description,
+		Icon:             s.Icon,
+		Color:            s.Color,
+		Runtime:          s.Runtime,
+		Entrypoint:       s.Entrypoint,
+		Manifest:         s.Manifest,
+		Spec:             s.Spec,
+		ThemeMode:        s.ThemeMode,
+		PageStyle:        s.PageStyle,
+		Active:           s.Active,
+		ProxyPort:        s.ProxyPort,
+		ProxyRootURL:     s.ProxyRootURL,
 		RemoteAddress:    s.RemoteAddress,
 		RemoteUseTLS:     s.RemoteUseTLS,
 		RemoteSkipVerify: s.RemoteSkipVerify,
-		ServePort:      s.ServePort,
-		ServeAuth:      s.ServeAuth,
-		ServeListening: StackServeListening(s.ID),
+		ServePort:        s.ServePort,
+		ServeAuth:        s.ServeAuth,
+		ServeListening:   StackServeListening(s.ID),
 		TokenPrefix:      s.TokenPrefix,
 		Status:           s.Status,
-		OwnerName:   s.OwnerName,
-		Source:      source,
-		SourceURL:   s.SourceURL,
-		PackageSize: s.PackageSize,
-		CreatedAt:   isoString(s.CreatedAt),
-		UpdatedAt:   isoString(s.UpdatedAt),
+		OwnerName:        s.OwnerName,
+		Source:           source,
+		SourceURL:        s.SourceURL,
+		PackageSize:      s.PackageSize,
+		CreatedAt:        isoString(s.CreatedAt),
+		UpdatedAt:        isoString(s.UpdatedAt),
 	}
 	if s.LastSeenAt != nil {
 		resp.LastSeenAt = isoString(*s.LastSeenAt)
@@ -235,26 +235,26 @@ func GetStackHandler(w http.ResponseWriter, r *http.Request) {
 
 // stackUpsertDTO mirrors the manifest shape for form-based create/update.
 type stackUpsertDTO struct {
-	Name                 string                          `json:"name"`
-	Slug                 string                          `json:"slug"`
-	Category             string                          `json:"category"`
-	Version              string                          `json:"version"`
-	Description          string                          `json:"description"`
-	Icon                 string                          `json:"icon"`
-	Color                string                          `json:"color"`
-	Runtime              string                          `json:"runtime"`
-	Entrypoint           string                          `json:"entrypoint"`
-	ThemeMode            string                          `json:"themeMode"`
-	PageStyle            string                          `json:"pageStyle"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Category    string `json:"category"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	Runtime     string `json:"runtime"`
+	Entrypoint  string `json:"entrypoint"`
+	ThemeMode   string `json:"themeMode"`
+	PageStyle   string `json:"pageStyle"`
 	// ProxyPort/ProxyRootURL configure the /<root> reverse proxy to the
 	// externally-run stack app (0/"" = off).
-	ProxyPort            int                             `json:"proxyPort"`
-	ProxyRootURL         string                          `json:"proxyRootUrl"`
+	ProxyPort    int    `json:"proxyPort"`
+	ProxyRootURL string `json:"proxyRootUrl"`
 	// RemoteAddress/RemoteUseTLS/RemoteSkipVerify pair the stack app
 	// node-style on another host ("" = same-host loopback via ProxyPort).
-	RemoteAddress        string                          `json:"remoteAddress"`
-	RemoteUseTLS         bool                            `json:"remoteUseTls"`
-	RemoteSkipVerify     bool                            `json:"remoteSkipVerify"`
+	RemoteAddress    string `json:"remoteAddress"`
+	RemoteUseTLS     bool   `json:"remoteUseTls"`
+	RemoteSkipVerify bool   `json:"remoteSkipVerify"`
 	// ServePort/ServeAuth configure the dedicated panel-opened port that
 	// renders the app at / (0 = off, migration 077). ServeAuth is a
 	// pointer so an omitted key preserves the row's gate (fail closed:
