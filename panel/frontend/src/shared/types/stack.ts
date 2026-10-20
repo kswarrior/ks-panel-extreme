@@ -411,6 +411,8 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
 // POST /api/stacks/ (ParseStackManifest) expects. Flat keys stay canonical;
 // the nested frontend/backend blocks ride along for readability.
 export function emitStackStudioManifest(draft: StackStudioDraft): Record<string, any> {
+  const isNode = (draft.locationType || 'host') === 'node';
+  const installType: StackInstallType = isNode ? (draft.installType || 'host') : 'host';
   const out: Record<string, any> = {
     name: draft.name,
     slug: draft.slug,
@@ -425,7 +427,7 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     pageStyle: draft.pageStyle,
     permissionsRequested: draft.permissionsRequested,
     panelPermissions: draft.panelPermissions || [],
-    installType: draft.installType || 'docker',
+    installType,
     install: draft.installSteps || [],
     installSteps: draft.installSteps || [],
     install_timeout_sec: (draft.installTimeoutS || '').replace(/[^0-9]/g, '') || undefined,
@@ -453,9 +455,9 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
         ? `wss://${(draft.remoteHost || '').trim()}:${(draft.remotePort || '').replace(/[^0-9]/g, '') || '443'}`
         : (draft.remoteUrl || '').trim(),
     ...(draft.remoteSecret.trim() ? { remoteSecret: draft.remoteSecret.trim() } : {}),
-    // Image for image-backed runtimes (Docker/KVM/LXD/Multipass); harmless
-    // pass-through for the host-process target.
-    ...(stackNeedsImage(draft.installType) && draft.installImage.trim()
+    // Image for Node image-backed runtimes (Docker/KVM/LXD/Multipass).
+    // Host stacks always run as a Host process and never carry an image.
+    ...(isNode && stackNeedsImage(installType) && draft.installImage.trim()
       ? { image: draft.installImage.trim() }
       : {}),
     frontend: {

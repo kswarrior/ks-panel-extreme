@@ -14,7 +14,6 @@ import { Icons as SidebarIcons } from '@/shared/components/layout/Sidebar';
 import { KIND_META, driverEnabled, kindKey, type KindKey } from '@/features/instances/types/instanceForm';
 import type { Node } from '@/shared/types/node';
 import {
-  STACK_INSTALL_TYPES,
   STACK_LOCATION_TYPES,
   STACK_NODE_INSTALL_TYPES,
   STACK_REMOTE_PROTOCOLS,
@@ -348,11 +347,9 @@ const StackForm: React.FC = () => {
                           aria-checked={active}
                           onClick={() => patch({
                             locationType: t.value,
-                            // KVM/LXD/Multipass are Node-only — fall back to
-                            // Docker when returning to the Host target.
-                            ...(t.value === 'host' && !STACK_INSTALL_TYPES.some((x) => x.value === draft.installType)
-                              ? { installType: 'docker' as const }
-                              : {}),
+                            // Host stacks always run as a Host process;
+                            // Docker/VM drivers exist only on Node targets.
+                            ...(t.value === 'host' ? { installType: 'host' as const } : {}),
                           })}
                           className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
                             active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
