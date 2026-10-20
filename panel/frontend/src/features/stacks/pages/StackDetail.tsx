@@ -1000,6 +1000,78 @@ const StackDetail: React.FC = () => {
       </div>
 
       <GlassCard>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-medium text-gray-200 mb-1">Capability grants</h2>
+            <p className="text-xs text-gray-500">
+              The stack app asked for these capabilities. Every one must be granted before Launch; reinstall resets them to pending.
+            </p>
+          </div>
+          <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${stack.pending > 0 ? 'border-amber-700/40 bg-amber-950/40 text-amber-200' : 'border-emerald-700/40 bg-emerald-950/40 text-emerald-200'}`}>
+            {stack.pending > 0 ? `${stack.pending} pending` : 'all granted'}
+          </span>
+        </div>
+        {stack.permissions.length === 0 ? (
+          <p className="text-xs text-gray-500 mt-3">This stack requested no capabilities — Launch needs no approval.</p>
+        ) : (
+          <>
+            <ul className="mt-3 space-y-1.5">
+              {stack.permissions.map((p) => {
+                const meta = stackCapabilityMeta(p.capability);
+                const granted = !!grantDraft[p.capability];
+                return (
+                  <li key={p.id}>
+                    <label className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 cursor-pointer hover:bg-white/[0.04]">
+                      <input
+                        type="checkbox"
+                        checked={granted}
+                        onChange={(e) => setGrantDraft((g) => ({ ...g, [p.capability]: e.target.checked }))}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-gray-100">{meta?.label || p.capability}</span>
+                        <span className="block text-[11px] text-gray-500">{meta?.description || 'Requested by the stack.'}</span>
+                        <span className="block text-[10px] font-mono text-gray-500 mt-0.5">{p.capability} · {p.access_level}</span>
+                      </span>
+                      <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border shrink-0 ${granted ? 'border-emerald-700/40 bg-emerald-950/40 text-emerald-200' : 'border-amber-700/40 bg-amber-950/40 text-amber-200'}`}>
+                        {granted ? 'granted' : 'pending'}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => void saveGrants()}
+                disabled={grantSaving}
+                className="px-3 py-1.5 text-xs rounded-lg bg-white text-black hover:bg-gray-200 disabled:opacity-50"
+              >
+                {grantSaving ? 'Saving…' : 'Save grants'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrantDraft(Object.fromEntries(stack.permissions.map((p) => [p.capability, true])))}
+                disabled={grantSaving}
+                className="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 disabled:opacity-50"
+              >
+                Grant all
+              </button>
+              <button
+                type="button"
+                onClick={() => setGrantDraft(Object.fromEntries(stack.permissions.map((p) => [p.capability, false])))}
+                disabled={grantSaving}
+                className="px-3 py-1.5 text-xs rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-200 disabled:opacity-50"
+              >
+                Revoke all
+              </button>
+            </div>
+          </>
+        )}
+      </GlassCard>
+
+      <GlassCard>
         <h2 className="text-sm font-medium text-gray-200 mb-1">App proxy</h2>
         <p className="text-xs text-gray-500 mb-3">
           Serve the externally-run Go app (a complete program you run yourself, e.g. a dashboard on{' '}
@@ -1231,6 +1303,45 @@ const StackDetail: React.FC = () => {
         <button onClick={() => void doReinstall()} disabled={opBusy} className="px-4 py-2 text-sm rounded-lg border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-200 disabled:opacity-50">{opBusy && opJob?.op === 'reinstall' ? 'Reinstalling…' : 'Reinstall'}</button>
         <button onClick={back} className="ml-auto px-4 py-2 text-sm rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-gray-300">Back to stacks</button>
       </div>
+
+      <GlassModal
+        open={launchOpen}
+        onClose={() => setLaunchOpen(false)}
+        title={`Launch — ${stack.name}`}
+        maxWidth="max-w-lg"
+        footer={
+          <>
+            <button onClick={() => setLaunchOpen(false)} className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10">Cancel</button>
+            <button onClick={submitLaunchTokens} className="ks-primary-btn px-3 py-1.5 rounded text-sm bg-white text-black hover:bg-gray-200">Launch</button>
+          </>
+        }
+      >
+        <p className="text-xs text-gray-500 mb-3">
+          These values are exported to the launch workflow as environment variables. Blank optional tokens use their manifest default.
+        </p>
+        <div className="space-y-3">
+          {launchTokens.map((t) => (
+            <label key={t.name} className="block">
+              <span className="flex items-center gap-1.5 text-xs text-gray-300">
+                {t.label || t.name}
+                {t.required && <span className="text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-red-900/40 border border-red-700/30 text-red-200">required</span>}
+                {t.secret && <span className="text-[10px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-900/40 border border-amber-700/30 text-amber-200">secret</span>}
+              </span>
+              <input
+                type={t.secret ? 'password' : 'text'}
+                value={launchValues[t.name] ?? ''}
+                onChange={(e) => setLaunchValues((v) => ({ ...v, [t.name]: e.target.value }))}
+                placeholder={t.default ? 'Default used if left blank' : ''}
+                autoComplete="off"
+                className="block w-full mt-1 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 focus:outline-none focus:border-white/40"
+              />
+              <span className="block text-[10px] text-gray-500 mt-0.5 font-mono">${t.name}</span>
+              {t.description && <span className="block text-[11px] text-gray-500 mt-0.5">{t.description}</span>}
+            </label>
+          ))}
+        </div>
+        {launchError && <p className="text-xs text-red-400 mt-3">{launchError}</p>}
+      </GlassModal>
 
       {opOpen && opJob && (
         <StackOpModal
