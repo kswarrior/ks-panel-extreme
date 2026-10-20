@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -54,6 +55,9 @@ type stackOpJob struct {
 	CreatedAt string             `json:"created_at"`
 	UpdatedAt string             `json:"updated_at"`
 	cancel    context.CancelFunc `json:"-"`
+	// tokenEnv carries ask-at-launch NAME=value pairs from the start request
+	// into the launch workflow environment (never serialized back to clients).
+	tokenEnv []string `json:"-"`
 	// logLines/logTruncated bound memory on chatty commands.
 	logLines     int  `json:"-"`
 	logTruncated bool `json:"-"`
@@ -568,6 +572,17 @@ func StartStackOpHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown operation (want install|launch|reinstall)", http.StatusBadRequest)
 		return
 	}
+	// Launch may carry ask-at-launch token values as {"tokens":{NAME:value}}.
+	// Empty bodies and body-less requests are valid (tokens use defaults).
+	var launchReq struct {
+		Tokens map[string]string `json:"tokens"`
+	}
+	if op == "launch" && r.Body != nil {
+		if err := json.NewDecoder(io.LimitReader(r.Body, 64<<10)).Decode(&launchReq); err != nil && !errors.Is(err, io.EOF) {
+			http.Error(w, "invalid launch token payload", http.StatusBadRequest)
+			return
+		}
+	}
 	repo, closeFn := openStackRepo()
 	if repo == nil {
 		http.Error(w, "server error", http.StatusInternalServerError)
@@ -589,6 +604,12 @@ func StartStackOpHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden: own-scope may only run stacks you uploaded", http.StatusForbidden)
 		return
 	}
+	tokenEnv, err := stackLaunchTokenEnv(s.Manifest, launchReq.Tokens)
+	if err != nil {
+		closeFn()
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	defs := stackOpBuildDefs(op, s)
 	steps := make([]stackOpStep, 0, len(defs))
 	for _, d := range defs {
@@ -602,6 +623,7 @@ func StartStackOpHandler(w http.ResponseWriter, r *http.Request) {
 		Op:        op,
 		Status:    stackOpRunning,
 		Steps:     steps,
+		tokenEnv:  tokenEnv,
 		Logs:      []string{stackOpLogLine("started %s of stack %q (#%d)", op, s.Name, s.ID)},
 		CreatedAt: stackOpNow(),
 		UpdatedAt: stackOpNow(),
