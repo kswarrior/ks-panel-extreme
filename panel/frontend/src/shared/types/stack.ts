@@ -265,10 +265,14 @@ export interface StackStudioDraft {
   // becomes $API_TOKEN). Mirrors the template env-var "ask" behaviour.
   launchTokens: StackLaunchToken[];
   // Location type (General tab): 'host' = stack on this same host,
-  // 'outside' = stack elsewhere. Outside/WSS uses node-form style
-  // remoteHost + remotePort (bare host, no scheme); Outside/POST uses a
-  // full remoteUrl. remoteSecret is an optional shared secret for either.
+  // 'node' = stack on a managed edge node, 'outside' = stack elsewhere.
+  // Node selection mirrors the instance deploy form (nodeId/nodeName).
+  // Outside/WSS uses node-form style remoteHost + remotePort (bare host,
+  // no scheme); Outside/POST uses a full remoteUrl. remoteSecret is an
+  // optional shared secret for either.
   locationType: StackLocationType;
+  nodeId: number;
+  nodeName: string;
   remoteHost: string;
   remotePort: string;
   remoteUrl: string;
@@ -394,6 +398,8 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   launchTimeoutS: '',
   launchTokens: [],
   locationType: 'host',
+  nodeId: 0,
+  nodeName: '',
   remoteHost: '',
   remotePort: '',
   remoteUrl: '',
@@ -436,8 +442,12 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
     // Ask-at-launch tokens (prompted at launch, exported as ENV).
     launchTokens: draft.launchTokens || [],
     // Location type (raw-manifest pass-through until the backend models it).
-    // Outside/WSS composes remoteUrl from the node-style host + port pair.
+    // Node carries the selected edge id/name; Outside/WSS composes
+    // remoteUrl from the node-style host + port pair.
     locationType: draft.locationType || 'host',
+    ...(draft.locationType === 'node'
+      ? { nodeId: draft.nodeId || 0, ...(draft.nodeName.trim() ? { nodeName: draft.nodeName.trim() } : {}) }
+      : {}),
     remoteProtocol: draft.remoteProtocol || 'wss',
     remoteHost: (draft.remoteHost || '').trim(),
     remotePort: (draft.remotePort || '').replace(/[^0-9]/g, ''),
@@ -448,9 +458,9 @@ export function emitStackStudioManifest(draft: StackStudioDraft): Record<string,
         ? `wss://${(draft.remoteHost || '').trim()}:${(draft.remotePort || '').replace(/[^0-9]/g, '') || '443'}`
         : (draft.remoteUrl || '').trim(),
     ...(draft.remoteSecret.trim() ? { remoteSecret: draft.remoteSecret.trim() } : {}),
-    // Docker target image (only meaningful when installType is docker;
-    // harmless pass-through otherwise).
-    ...(draft.installType === 'docker' && draft.installImage.trim()
+    // Image for image-backed runtimes (Docker/KVM/LXD/Multipass); harmless
+    // pass-through for the host-process target.
+    ...(stackNeedsImage(draft.installType) && draft.installImage.trim()
       ? { image: draft.installImage.trim() }
       : {}),
     frontend: {

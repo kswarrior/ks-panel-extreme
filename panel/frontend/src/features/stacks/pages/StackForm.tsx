@@ -8,15 +8,22 @@ import { useFormHistory } from '@/shared/hooks/useFormHistory';
 import GlassField, { glassFieldClass } from '@/shared/components/ui/Field';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import { TemplateInstallSection } from '@/features/templates/components/TemplateForm/TemplateInstallSection';
+import { listNodes } from '@/shared/api/admin';
+import { SearchableSelect, type SearchableOption } from '@/shared/components/ui/SearchableSelect';
+import { Icons as SidebarIcons } from '@/shared/components/layout/Sidebar';
+import { KIND_META, driverEnabled, kindKey, type KindKey } from '@/features/instances/types/instanceForm';
+import type { Node } from '@/shared/types/node';
 import {
   STACK_INSTALL_TYPES,
   STACK_LOCATION_TYPES,
+  STACK_NODE_INSTALL_TYPES,
   STACK_REMOTE_PROTOCOLS,
   blankStackInstallStep,
   blankStackLaunchToken,
   blankStackStudioDraft,
   emitStackStudioManifest,
   slugify,
+  stackNeedsImage,
 } from '@/shared/types/stack';
 import {
   createStackFromManifest,
@@ -49,6 +56,78 @@ const StackForm: React.FC = () => {
   const [tab, setTab] = useState<Tab>('meta');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // Edge nodes for the Node location type — loaded like the instance deploy
+  // form so the picker shows name, address, state and driver badges.
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [nodesLoading, setNodesLoading] = useState(true);
+  const [nodesError, setNodesError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setNodesLoading(true);
+    listNodes()
+      .then((list) => {
+        if (!cancelled) setNodes(list);
+      })
+      .catch((e: any) => {
+        if (!cancelled) setNodesError(e?.response?.data || 'Failed to load nodes.');
+      })
+      .finally(() => {
+        if (!cancelled) setNodesLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const selectedNode = nodes.find((n) => n.id === draft.nodeId);
+  const nodeState = (n: { state?: string; status?: string }) =>
+    n.state || (n.status === 'up' ? 'up' : 'down');
+  const nodeOptions: SearchableOption<number>[] = useMemo(() => nodes.map((n) => {
+    const state = nodeState(n);
+    return {
+      value: n.id,
+      label: n.name,
+      description: n.address || '',
+      keywords: `${n.name} ${n.address || ''} ${state}`,
+      badge: state,
+    };
+  }), [nodes]);
+
+  const renderNodeRow = (opt: SearchableOption<number>, active: boolean) => {
+    const n = nodes.find((x) => x.id === opt.value);
+    if (!n) return <span className="truncate">{opt.label}</span>;
+    const state = nodeState(n);
+    const dot = state === 'up' ? 'bg-emerald-400' : state === 'partial' ? 'bg-amber-400' : state === 'pending' ? 'bg-gray-400' : 'bg-red-400';
+    const kinds: KindKey[] = [
+      n.driver_docker && 'docker',
+      n.driver_host && 'host',
+      n.driver_kvm && 'kvm',
+      n.driver_lxd && 'lxd',
+      n.driver_multipass && 'multipass',
+    ].filter(Boolean) as KindKey[];
+    const missing = draft.installType !== 'host' && !driverEnabled(n, kindKey(draft.installType));
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className={`shrink-0 w-2 h-2 rounded-full ${dot}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`text-sm truncate ${active ? 'text-white' : 'text-gray-200'}`}>{n.name}</span>
+            {missing && (
+              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-amber-700/60 bg-amber-950/40 text-amber-200">
+                missing {KIND_META[kindKey(draft.installType)].label} driver
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 truncate font-mono">{n.address}</p>
+          <div className="flex flex-wrap gap-1 mt-1">
+            {kinds.length === 0 && <span className="text-[10px] text-amber-400">no drivers</span>}
+            {kinds.map((k) => (
+              <span key={k} className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded border ${KIND_META[k].badge}`}>{KIND_META[k].label}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Session edit history over the studio draft (tab + token-row UI stay out).
   // Create-only: no server state to reload, so Refresh reverts to blank.
@@ -120,7 +199,15 @@ const StackForm: React.FC = () => {
     if (!draft.slug.trim()) { setError('Slug is required'); setTab('meta'); return; }
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
-    if (draft.locationType === 'host' && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
+    if ((draft.locationType === 'host' || draft.locationType === 'node') && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
+    if (draft.locationType === 'node') {
+      if (!draft.nodeId) { setError('Select a node for Type Node'); setTab('meta'); return; }
+      if (selectedNode && !driverEnabled(selectedNode, kindKey(draft.installType))) {
+        setError(`Node "${selectedNode.name}" doesn't advertise the ${KIND_META[kindKey(draft.installType)].label} driver. Install it on that edge or pick another node.`);
+        setTab('meta');
+        return;
+      }
+    }
     if (draft.locationType === 'outside') {
       if (draft.remoteProtocol === 'wss') {
         if (!draft.remoteHost.trim()) { setError('Remote host is required for Type Outside'); setTab('meta'); return; }
