@@ -57,7 +57,7 @@ const StackStats: React.FC = () => {
     if (statusFilter === 'inactive') out = out.filter((s) => !s.active);
     if (statusFilter === 'pending') out = out.filter((s) => s.pending > 0);
     const active = out.filter((s) => s.active).length;
-    const pending = out.filter((s) => s.pending > 0).length;
+    const pending = out.reduce((sum, s) => sum + (s.pending || 0), 0);
     const totalPerms = out.reduce((sum, s) => sum + s.permissions.length, 0);
     const customTheme = out.filter((s) => s.theme_mode === 'custom').length;
     return { total: out.length, active, pending, totalPerms, customTheme };

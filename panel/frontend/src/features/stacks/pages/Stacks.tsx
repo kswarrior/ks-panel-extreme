@@ -146,7 +146,7 @@ const Stacks: React.FC = () => {
 
   const stats = useMemo(() => {
     const active = stacks.filter((s) => s.active).length;
-    const pending = stacks.filter((s) => s.pending > 0).length;
+    const pending = stacks.reduce((n, s) => n + (s.pending || 0), 0);
     return { total: stacks.length, active, inactive: stacks.length - active, pending };
   }, [stacks]);
 
