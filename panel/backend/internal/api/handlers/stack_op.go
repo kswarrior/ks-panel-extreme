@@ -315,7 +315,7 @@ func stackOpBuildPackage(ctx context.Context, repo *repository.StackRepository, 
 	if err != nil {
 		return "", fmt.Errorf("build package: %w", err)
 	}
-	job.appendLog(stackOpLogLine("built .ksps package (%d bytes) from manifest", len(pkg)))
+	job.appendLog(stackOpLogLine("built stack package (%d bytes) from manifest", len(pkg)))
 	// stash bytes for the save step within this job run (deleted when the
 	// job terminates) so a reinstall doesn't build the zip twice.
 	jobStackPkgCache.store(job.JobID, pkg)

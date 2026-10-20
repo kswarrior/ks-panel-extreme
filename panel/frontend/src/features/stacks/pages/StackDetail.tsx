@@ -786,7 +786,7 @@ const StackDetail: React.FC = () => {
               {src && src.key !== 'file' ? <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded-md border ${src.badge}`}>{src.label}</span> : null}
             </h2>
             <p className="text-[11px] text-gray-500 font-mono mt-1 truncate">
-              {stack.slug} · {stack.category} · {locationType === 'outside' ? `outside · ${remoteProtocol}` : installType === 'docker' ? 'host · docker' : `host · ${stack.runtime || 'process'}`}
+              {stack.slug} · {stack.category} · {locationType === 'outside' ? `outside · ${remoteProtocol}` : `${locationType} · ${installType}`}
             </p>
             {stack.description && <p className="text-sm text-gray-300 mt-1 leading-relaxed whitespace-pre-wrap break-words">{stack.description}</p>}
             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -866,7 +866,9 @@ const StackDetail: React.FC = () => {
               <span className="text-white font-mono text-xs">
                 {locationType === 'outside'
                   ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-violet-900/40 border border-violet-700/40 text-violet-200">outside</span>
-                  : <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/40 text-sky-200">host</span>}
+                  : locationType === 'node'
+                    ? <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-900/40 border border-emerald-700/40 text-emerald-200">node</span>
+                    : <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-sky-900/40 border border-sky-700/40 text-sky-200">host</span>}
               </span>
             </div>
             {locationType === 'outside' ? (
@@ -879,10 +881,13 @@ const StackDetail: React.FC = () => {
               </>
             ) : (
               <>
-                <div className="flex justify-between gap-2"><span className="text-gray-400">Runs as</span><span className="text-white font-mono text-xs">{installType === 'docker' ? 'docker' : `host · ${stack.runtime || '—'}`}</span></div>
+                {locationType === 'node' && (
+                  <div className="flex justify-between gap-2"><span className="text-gray-400">Node</span><span className="text-white font-mono text-xs truncate" title={nodeSummary}>{nodeSummary}</span></div>
+                )}
+                <div className="flex justify-between gap-2"><span className="text-gray-400">Runs as</span><span className="text-white font-mono text-xs">{runtimeSummary}</span></div>
                 <div>
-                  <p className="text-[11px] uppercase tracking-wide text-gray-500">{installType === 'docker' ? 'Image' : 'Entrypoint'}</p>
-                  <p className="text-xs text-gray-200 font-mono break-all rounded-lg border border-white/5 bg-black/20 px-3 py-2 mt-1">{locationSummary}</p>
+                  <p className="text-[11px] uppercase tracking-wide text-gray-500">{installType === 'host' ? 'Entrypoint' : 'Image'}</p>
+                  <p className="text-xs text-gray-200 font-mono break-all rounded-lg border border-white/5 bg-black/20 px-3 py-2 mt-1">{artifactSummary}</p>
                 </div>
               </>
             )}

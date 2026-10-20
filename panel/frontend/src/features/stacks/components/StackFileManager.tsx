@@ -443,7 +443,7 @@ const StackFileManager: React.FC<{ stackId: number; slug: string; initialDir?: s
       </div>
 
       <p className="text-[11px] text-gray-600">
-        {filtered.length} item{filtered.length === 1 ? '' : 's'} · workdir of <code className="ks-mono">{slug}</code> · edits repackage the .ksps
+        {filtered.length} item{filtered.length === 1 ? '' : 's'} · workdir of <code className="ks-mono">{slug}</code> · edits repackage the stack
       </p>
 
       <input
