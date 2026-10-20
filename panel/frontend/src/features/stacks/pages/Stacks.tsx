@@ -10,7 +10,7 @@ import { PageActionsPill, PILL_TAB_STYLE } from '@/shared/components/ui/PageActi
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import {
   listStacks,
-  uploadStackPackage,
+  uploadStackManifest,
   installStackFromUrl,
   extractStackApiError,
   getStackEngine,

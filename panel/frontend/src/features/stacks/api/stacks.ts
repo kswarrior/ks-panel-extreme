@@ -58,12 +58,13 @@ export async function createStackFromManifest(
   return res.data;
 }
 
-export async function uploadStackPackage(packageFile: File): Promise<Stack> {
-  const form = new FormData();
-  form.append('package', packageFile);
-  const res = await client.post<Stack>('/api/stacks/', form, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    responseType: 'json',
+// uploadStackManifest installs a stack from a YAML manifest (legacy JSON
+// parses identically). The raw text is posted so the panel's canonical
+// parser validates it like a template manifest.
+export async function uploadStackManifest(manifestFile: File): Promise<Stack> {
+  const text = await manifestFile.text();
+  const res = await client.post<Stack>('/api/stacks/', text, {
+    headers: { 'Content-Type': 'application/yaml', 'X-KS-Source': 'file' },
   });
   return res.data;
 }

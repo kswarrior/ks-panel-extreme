@@ -332,8 +332,9 @@ const StackForm: React.FC = () => {
                   </GlassField>
                 </div>
 
-                {/* Location type — Host (stack on this same host) vs Outside
-                    (stack elsewhere, reached via WSS or POST). */}
+                {/* Location type — Host (this host), Node (a managed edge,
+                    with the instance-form node picker) vs Outside (elsewhere,
+                    reached via WSS or POST). */}
                 <div className="space-y-3">
                   <span className="block text-sm font-medium text-gray-300 ks-label">Type · Location</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Location type">
@@ -345,7 +346,14 @@ const StackForm: React.FC = () => {
                           type="button"
                           role="radio"
                           aria-checked={active}
-                          onClick={() => patch({ locationType: t.value })}
+                          onClick={() => patch({
+                            locationType: t.value,
+                            // KVM/LXD/Multipass are Node-only — fall back to
+                            // Docker when returning to the Host target.
+                            ...(t.value === 'host' && !STACK_INSTALL_TYPES.some((x) => x.value === draft.installType)
+                              ? { installType: 'docker' as const }
+                              : {}),
+                          })}
                           className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
                             active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
                           }`}
@@ -366,11 +374,47 @@ const StackForm: React.FC = () => {
                       );
                     })}
                   </div>
-                  {draft.locationType === 'host' ? (
+                  {draft.locationType !== 'outside' ? (
                     <div className="space-y-3">
-                      <span className="block text-xs font-medium text-gray-400">Runs as — Docker container or Host process</span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Host runtime type">
-                        {STACK_INSTALL_TYPES.map((t) => {
+                      {draft.locationType === 'node' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="block text-xs font-medium text-gray-400">Node — where this stack runs</span>
+                            <span className="text-xs text-gray-500 shrink-0">{nodes.length} available</span>
+                          </div>
+                          {nodesLoading ? (
+                            <p className="text-xs text-gray-500">Loading nodes…</p>
+                          ) : nodes.length === 0 ? (
+                            <p className="text-xs text-amber-200/90 bg-amber-950/30 border border-amber-700/30 rounded-md px-3 py-2">
+                              {nodesError || 'No nodes available. Add an edge node first.'}
+                            </p>
+                          ) : (
+                            <SearchableSelect<number>
+                              options={nodeOptions}
+                              value={draft.nodeId}
+                              onChange={(id) => {
+                                const n = nodes.find((x) => x.id === id);
+                                patch({ nodeId: id, nodeName: n?.name || '' });
+                              }}
+                              placeholder="Search nodes by name or address…"
+                              emptyMessage="No nodes match"
+                              renderRow={renderNodeRow}
+                              groupLabel="Nodes"
+                              leadingIcon={SidebarIcons.Nodes}
+                            />
+                          )}
+                          {selectedNode && (
+                            <p className="text-xs text-gray-500 font-mono truncate">{selectedNode.address}</p>
+                          )}
+                        </div>
+                      )}
+                      <span className="block text-xs font-medium text-gray-400">
+                        {draft.locationType === 'node'
+                          ? 'Runs as — Docker container, Host process, KVM, LXD or Multipass'
+                          : 'Runs as — Docker container or Host process'}
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Stack runtime type">
+                        {(draft.locationType === 'node' ? STACK_NODE_INSTALL_TYPES : STACK_INSTALL_TYPES).map((t) => {
                           const active = draft.installType === t.value;
                           return (
                             <button
@@ -399,19 +443,25 @@ const StackForm: React.FC = () => {
                           );
                         })}
                       </div>
-                      {draft.installType === 'docker' ? (
-                        <GlassField label="Docker image" htmlFor="stack-image" hint="Container image for the stack (e.g. nginx:latest). Required for Docker.">
+                      {stackNeedsImage(draft.installType) ? (
+                        <GlassField
+                          label={draft.installType === 'docker' ? 'Docker image' : 'Image'}
+                          htmlFor="stack-image"
+                          hint={draft.installType === 'docker'
+                            ? 'Container image for the stack (e.g. nginx:latest). Required for Docker.'
+                            : `Base image for ${draft.installType} (e.g. ubuntu:24.04).`}
+                        >
                           <input
                             id="stack-image"
                             value={draft.installImage}
                             onChange={(e) => patch({ installImage: e.target.value })}
-                            placeholder="e.g. nginx:latest"
-                            required
+                            placeholder={draft.installType === 'docker' ? 'e.g. nginx:latest' : 'e.g. ubuntu:24.04'}
+                            required={draft.installType === 'docker'}
                           />
                         </GlassField>
                       ) : (
                         <p className="text-xs text-gray-500">
-                          Host process — runs on this host via the default runtime.
+                          Host process — runs on {draft.locationType === 'node' ? 'the selected node' : 'this host'} via the default runtime.
                         </p>
                       )}
                     </div>
