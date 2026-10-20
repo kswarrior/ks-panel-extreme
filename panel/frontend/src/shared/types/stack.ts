@@ -178,12 +178,13 @@ export const STACK_CATEGORIES = ['dashboard', 'tool', 'tracker', 'status', 'crud
 
 export const STACK_RUNTIMES = ['static', 'nodejs', 'python'] as const;
 
-// Location type — where the stack lives: on this same Host, or Outside
-// (elsewhere, reached over the network via WSS or POST).
-export type StackLocationType = 'host' | 'outside';
+// Location type — where the stack lives: on this same Host, on a managed
+// Node (edge), or Outside (elsewhere, reached over the network via WSS/POST).
+export type StackLocationType = 'host' | 'node' | 'outside';
 
 export const STACK_LOCATION_TYPES: Array<{ value: StackLocationType; label: string; hint: string }> = [
   { value: 'host', label: 'Host', hint: 'Stack runs on this same host (local sidecar / embedded UI)' },
+  { value: 'node', label: 'Node', hint: 'Stack runs on a managed edge node — pick the node and runtime' },
   { value: 'outside', label: 'Outside', hint: 'Stack runs elsewhere — panel reaches it via WSS or POST' },
 ];
 
@@ -280,15 +281,26 @@ export interface StackStudioDraft {
   spec: Record<string, any>;
 }
 
-// Install target — mirrors the template driver choice reduced to the two
-// stack targets: a Docker container, or a Host process (static/nodejs/python
-// sidecar via runtime+entrypoint).
-export type StackInstallType = 'docker' | 'host';
+// Install target — the runtime a stack uses. Host stacks offer Docker or a
+// Host process; stacks on a managed Node additionally offer the VM/container
+// drivers an edge advertises (KVM, LXD, Multipass).
+export type StackInstallType = 'docker' | 'host' | 'kvm' | 'lxd' | 'multipass';
 
 export const STACK_INSTALL_TYPES: Array<{ value: StackInstallType; label: string; hint: string }> = [
   { value: 'docker', label: 'Docker', hint: 'Run in a container from an image' },
   { value: 'host', label: 'Host', hint: 'Run on the host via runtime + entrypoint' },
 ];
+
+export const STACK_NODE_INSTALL_TYPES: Array<{ value: StackInstallType; label: string; hint: string }> = [
+  { value: 'docker', label: 'Docker', hint: 'Docker container on the selected node' },
+  { value: 'host', label: 'Host', hint: 'Run on the node via runtime + entrypoint' },
+  { value: 'kvm', label: 'KVM', hint: 'Run in a KVM virtual machine on the node' },
+  { value: 'lxd', label: 'LXD', hint: 'Run in an LXD container on the node' },
+  { value: 'multipass', label: 'Multipass', hint: 'Run in a Multipass VM on the node' },
+];
+
+// True for runtimes that boot from an image (docker + VM/container drivers).
+export const stackNeedsImage = (t: StackInstallType): boolean => t !== 'host';
 
 // One installation workflow step. Field-for-field compatible with the
 // template InstallStep so StackForm can reuse TemplateInstallSection

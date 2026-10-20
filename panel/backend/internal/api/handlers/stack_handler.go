@@ -15,6 +15,7 @@ import (
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/stackstore"
 	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 )
 
 // stackResponse is the JSON shape the frontend consumes for one stack. It
@@ -294,10 +295,18 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ct := r.Header.Get("Content-Type")
-	if strings.HasPrefix(ct, "application/json") {
-		rawManifest, err = io.ReadAll(io.LimitReader(r.Body, 8<<20))
+	if strings.HasPrefix(ct, "application/json") ||
+		strings.HasPrefix(ct, "application/yaml") ||
+		strings.HasPrefix(ct, "application/x-yaml") ||
+		strings.HasPrefix(ct, "text/yaml") {
+		rawManifest, err = io.ReadAll(io.LimitReader(r.Body, stackManifestMaxBytes+1))
 		if err != nil {
 			http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if int64(len(rawManifest)) > stackManifestMaxBytes {
+			http.Error(w, fmt.Sprintf("manifest too large (max %d MiB)", stackManifestMaxBytes>>20),
+				http.StatusRequestEntityTooLarge)
 			return
 		}
 	} else if strings.HasPrefix(ct, "multipart/") {
@@ -307,38 +316,57 @@ func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
 			return
 		}
-		file, _, ferr := r.FormFile("package")
-		if ferr != nil {
-			http.Error(w, `missing 'package' file part — stacks install from a .ksps zip. Upload a package.`,
+		// YAML/JSON manifest part (canonical); legacy package part kept so
+		// older clients can still install a .ksps zip.
+		if file, _, ferr := r.FormFile("manifest"); ferr == nil {
+			defer file.Close()
+			rawManifest, err = io.ReadAll(io.LimitReader(file, stackManifestMaxBytes+1))
+			if err != nil {
+				http.Error(w, "read manifest: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			if int64(len(rawManifest)) > stackManifestMaxBytes {
+				http.Error(w, fmt.Sprintf("manifest too large (max %d MiB)", stackManifestMaxBytes>>20),
+					http.StatusRequestEntityTooLarge)
+				return
+			}
+		} else if file, _, ferr := r.FormFile("package"); ferr == nil {
+			defer file.Close()
+			zipBytes, rerr := io.ReadAll(io.LimitReader(file, stackPackageMaxBytes+1))
+			if rerr != nil {
+				http.Error(w, "read package: "+rerr.Error(), http.StatusBadRequest)
+				return
+			}
+			if int64(len(zipBytes)) > stackPackageMaxBytes {
+				http.Error(w, fmt.Sprintf("package too large (max %d MiB)", stackPackageMaxBytes>>20),
+					http.StatusRequestEntityTooLarge)
+				return
+			}
+			if !stackstore.IsZipBytes(zipBytes) {
+				http.Error(w, "package is not a valid .ksps zip (missing zip header)", http.StatusBadRequest)
+				return
+			}
+			rawManifest, specOverride, err = stackstore.ReadManifestFromZip(zipBytes)
+			if err != nil {
+				http.Error(w, "read package: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			packageBytes = zipBytes
+		} else {
+			http.Error(w, `missing 'manifest' file part — upload a YAML stack manifest (.yaml/.yml).`,
 				http.StatusBadRequest)
 			return
 		}
-		defer file.Close()
-		zipBytes, rerr := io.ReadAll(io.LimitReader(file, stackPackageMaxBytes+1))
-		if rerr != nil {
-			http.Error(w, "read package: "+rerr.Error(), http.StatusBadRequest)
-			return
-		}
-		if int64(len(zipBytes)) > stackPackageMaxBytes {
-			http.Error(w, fmt.Sprintf("package too large (max %d MiB)", stackPackageMaxBytes>>20),
-				http.StatusRequestEntityTooLarge)
-			return
-		}
-		if !stackstore.IsZipBytes(zipBytes) {
-			http.Error(w, "package is not a valid .ksps zip (missing zip header)", http.StatusBadRequest)
-			return
-		}
-		rawManifest, specOverride, err = stackstore.ReadManifestFromZip(zipBytes)
-		if err != nil {
-			http.Error(w, "read package: "+err.Error(), http.StatusBadRequest)
-			return
-		}
-		packageBytes = zipBytes
 	} else {
-		http.Error(w, "unsupported content type; use application/json or multipart/form-data", http.StatusUnsupportedMediaType)
+		http.Error(w, "unsupported content type; use application/yaml, application/json or multipart/form-data", http.StatusUnsupportedMediaType)
 		return
 	}
 
+	rawManifest, err = repository.NormalizeStackManifest(rawManifest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	in, err := repository.ParseStackManifest(rawManifest)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -453,6 +481,11 @@ func InstallStackFromURLHandler(w http.ResponseWriter, r *http.Request) {
 		packageBytes = fetched
 	} else {
 		rawManifest = fetched
+	}
+	rawManifest, err = repository.NormalizeStackManifest(rawManifest)
+	if err != nil {
+		http.Error(w, "manifest from URL is invalid: "+err.Error(), http.StatusBadRequest)
+		return
 	}
 	in, err := repository.ParseStackManifest(rawManifest)
 	if err != nil {
@@ -1086,8 +1119,10 @@ func SetStackEngineEnabledHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"enabled": *dto.Enabled})
 }
 
-// DownloadStackHandler streams the .ksps zip (stored bytes, else synth from
-// manifest+spec). STACKS_VIEW may download (mirrors mods).
+// DownloadStackHandler exports a stack as a YAML manifest (the canonical
+// install format, same as templates). The stored JSON manifest is converted
+// back to YAML; an archive-only spec override is folded in so the download
+// round-trips through CreateStackHandler. STACKS_VIEW may download.
 func DownloadStackHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil {
@@ -1113,32 +1148,31 @@ func DownloadStackHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	var body []byte
-	if stackstore.PackageExists(s.Slug) {
-		body, err = stackstore.LoadPackage(s.Slug)
-		if err != nil {
-			log.Printf("DownloadStack: load .ksps for %q: %v", s.Slug, err)
-			body = nil
+	var doc map[string]any
+	if err := json.Unmarshal(s.Manifest, &doc); err != nil || doc == nil {
+		http.Error(w, "stored manifest is corrupt", http.StatusInternalServerError)
+		return
+	}
+	if _, ok := doc["spec"]; !ok && len(s.Spec) > 0 {
+		var spec any
+		if err := json.Unmarshal(s.Spec, &spec); err == nil {
+			doc["spec"] = spec
 		}
 	}
-	if len(body) == 0 {
-		body, err = stackstore.BuildPackageZip(s.Manifest, s.Spec, nil)
-		if err != nil {
-			http.Error(w, "build package: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
+	body, err := yaml.Marshal(doc)
+	if err != nil {
+		http.Error(w, "failed to serialize stack manifest", http.StatusInternalServerError)
+		return
 	}
-	safe := strings.Map(func(rn rune) rune {
-		if rn == '/' || rn == '\\' || rn == ':' {
-			return '-'
-		}
-		return rn
-	}, s.Slug)
+	safe := sanitizeDownloadFilename(s.Name)
+	if safe == "" {
+		safe = sanitizeDownloadFilename(s.Slug)
+	}
 	if safe == "" {
 		safe = fmt.Sprintf("stack-%d", s.ID)
 	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.ksps"`, safe))
+	w.Header().Set("Content-Type", "application/yaml")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.yaml"`, safe))
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	_, _ = w.Write(body)
 }
