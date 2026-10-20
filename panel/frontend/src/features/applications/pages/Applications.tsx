@@ -32,6 +32,7 @@ import { useThemeStore } from '@/shared/stores/themeStore';
 import ApplicationRunModal from '@/features/applications/components/ApplicationRunModal';
 import { CardIconTile } from '@/shared/components/ui/IconColorPicker';
 import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
+import { APPLICATION_STUDIO_PRESETS } from './applicationStudioPresets';
 
 // Resolve the human-facing label for a capability code on a card chip / the
 // approval checklist. Falls back to the raw code when unknown.
@@ -121,6 +122,7 @@ const Applications: React.FC = () => {
   const [urlInput, setUrlInput] = useState('');
   const [urlBusy, setUrlBusy] = useState(false);
   const [urlError, setUrlError] = useState('');
+  const [studioPresetId, setStudioPresetId] = useState('blank');
 
   // activate / grant modal
   const [grantApp, setGrantApp] = useState<Application | null>(null);
@@ -220,6 +222,7 @@ const Applications: React.FC = () => {
     setUploadError('');
     setUrlInput('');
     setUrlError('');
+    setStudioPresetId('blank');
   };
 
   // ---- edit flow -----------------------------------------------------------
@@ -598,7 +601,7 @@ return (
           ) : (
             <>
               <button onClick={() => setUploadOpen(false)} className="ks-btn-cancel ks-btn-ghost">Cancel</button>
-              <button onClick={() => { setUploadOpen(false); navigate('/applications/studio'); }} className="ks-btn-form ks-btn-primary">
+              <button onClick={() => { setUploadOpen(false); navigate('/applications/studio', { state: { presetId: studioPresetId } }); }} className="ks-btn-form ks-btn-primary">
                 Open Application Studio
               </button>
             </>
@@ -721,6 +724,30 @@ return (
                 <span className="px-2 py-0.5 text-[10px] bg-white/5 border border-white/10 rounded">Raw JSON</span>
               </div>
             </GlassCard>
+            <div className="mt-3">
+              <h5 className="text-sm font-semibold text-white mb-2">All presets</h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {APPLICATION_STUDIO_PRESETS.map((p) => {
+                  const selected = studioPresetId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setStudioPresetId(p.id)}
+                      aria-pressed={selected}
+                      className={`ks-card text-left p-3 rounded-lg transition-colors border ${selected ? 'border-emerald-500/60 bg-emerald-900/20' : 'border-white/10 hover:bg-white/5'}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl" aria-hidden="true">{p.icon}</span>
+                        <span className="text-sm font-semibold text-white">{p.label}</span>
+                        {selected && <span className="ml-auto text-[10px] uppercase tracking-wide text-emerald-300">Selected</span>}
+                      </div>
+                      <p className="text-xs text-gray-400 leading-snug">{p.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </>
         )}
       </GlassModal>

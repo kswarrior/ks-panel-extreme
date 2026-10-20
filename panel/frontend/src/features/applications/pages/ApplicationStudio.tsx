@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import GlassCard from '@/shared/components/ui/Card';
 import IconColorPicker from '@/shared/components/ui/IconColorPicker';
 import {
