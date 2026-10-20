@@ -311,7 +311,7 @@ const StackDetail: React.FC = () => {
   const m = manifestObj(stack);
   const src = stackSourceMeta(stack.source);
   const locationType: string = m.locationType || 'host';
-  const installType: string = m.installType || 'docker';
+  const installType: string = locationType === 'host' ? 'host' : (m.installType || 'docker');
   const installImage: string = String(m.installImage || m.image || '');
   const nodeId = Number(m.nodeId || 0);
   const nodeName = String(m.nodeName || '');

@@ -198,7 +198,7 @@ const StackForm: React.FC = () => {
     if (!draft.slug.trim()) { setError('Slug is required'); setTab('meta'); return; }
     if (validation.length > 0) { setError(validation[0]); setTab('meta'); return; }
     if (draft.color && !/^#[0-9a-fA-F]{6}$/.test(draft.color.trim())) { setError('Colour must be a #rrggbb hex value (or empty for default)'); setTab('meta'); return; }
-    if ((draft.locationType === 'host' || draft.locationType === 'node') && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
+    if (draft.locationType === 'node' && draft.installType === 'docker' && !draft.installImage.trim()) { setError('Docker image is required for Docker'); setTab('meta'); return; }
     if (draft.locationType === 'node') {
       if (!draft.nodeId) { setError('Select a node for Type Node'); setTab('meta'); return; }
       if (selectedNode && !driverEnabled(selectedNode, kindKey(draft.installType))) {
@@ -405,60 +405,66 @@ const StackForm: React.FC = () => {
                           )}
                         </div>
                       )}
-                      <span className="block text-xs font-medium text-gray-400">
-                        {draft.locationType === 'node'
-                          ? 'Runs as — Docker container, Host process, KVM, LXD or Multipass'
-                          : 'Runs as — Docker container or Host process'}
-                      </span>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Stack runtime type">
-                        {(draft.locationType === 'node' ? STACK_NODE_INSTALL_TYPES : STACK_INSTALL_TYPES).map((t) => {
-                          const active = draft.installType === t.value;
-                          return (
-                            <button
-                              key={t.value}
-                              type="button"
-                              role="radio"
-                              aria-checked={active}
-                              onClick={() => patch({ installType: t.value })}
-                              className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
-                                active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
-                              }`}
+                      {draft.locationType === 'node' ? (
+                        <>
+                          <span className="block text-xs font-medium text-gray-400">
+                            Runs as — Docker container, Host process, KVM, LXD or Multipass
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Stack runtime type">
+                            {STACK_NODE_INSTALL_TYPES.map((t) => {
+                              const active = draft.installType === t.value;
+                              return (
+                                <button
+                                  key={t.value}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={active}
+                                  onClick={() => patch({ installType: t.value })}
+                                  className={`ks-card flex items-start gap-3 p-3 rounded-lg text-left transition cursor-pointer ${
+                                    active ? 'border-sky-600/60 bg-sky-950/20' : 'hover:border-white/20'
+                                  }`}
+                                >
+                                  <span
+                                    className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                                      active ? 'border-sky-400' : 'border-white/20'
+                                    }`}
+                                    aria-hidden="true"
+                                  >
+                                    {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="block text-sm font-semibold text-white">{t.label}</span>
+                                    <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {stackNeedsImage(draft.installType) ? (
+                            <GlassField
+                              label={draft.installType === 'docker' ? 'Docker image' : 'Image'}
+                              htmlFor="stack-image"
+                              hint={draft.installType === 'docker'
+                                ? 'Container image for the stack (e.g. nginx:latest). Required for Docker.'
+                                : `Base image for ${draft.installType} (e.g. ubuntu:24.04).`}
                             >
-                              <span
-                                className={`mt-1 w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                                  active ? 'border-sky-400' : 'border-white/20'
-                                }`}
-                                aria-hidden="true"
-                              >
-                                {active && <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
-                              </span>
-                              <span className="min-w-0">
-                                <span className="block text-sm font-semibold text-white">{t.label}</span>
-                                <span className="block text-xs text-gray-400 mt-0.5">{t.hint}</span>
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {stackNeedsImage(draft.installType) ? (
-                        <GlassField
-                          label={draft.installType === 'docker' ? 'Docker image' : 'Image'}
-                          htmlFor="stack-image"
-                          hint={draft.installType === 'docker'
-                            ? 'Container image for the stack (e.g. nginx:latest). Required for Docker.'
-                            : `Base image for ${draft.installType} (e.g. ubuntu:24.04).`}
-                        >
-                          <input
-                            id="stack-image"
-                            value={draft.installImage}
-                            onChange={(e) => patch({ installImage: e.target.value })}
-                            placeholder={draft.installType === 'docker' ? 'e.g. nginx:latest' : 'e.g. ubuntu:24.04'}
-                            required={draft.installType === 'docker'}
-                          />
-                        </GlassField>
+                              <input
+                                id="stack-image"
+                                value={draft.installImage}
+                                onChange={(e) => patch({ installImage: e.target.value })}
+                                placeholder={draft.installType === 'docker' ? 'e.g. nginx:latest' : 'e.g. ubuntu:24.04'}
+                                required={draft.installType === 'docker'}
+                              />
+                            </GlassField>
+                          ) : (
+                            <p className="text-xs text-gray-500">
+                              Host process — runs on the selected node via the default runtime.
+                            </p>
+                          )}
+                        </>
                       ) : (
                         <p className="text-xs text-gray-500">
-                          Host process — runs on {draft.locationType === 'node' ? 'the selected node' : 'this host'} via the default runtime.
+                          Runs as — <span className="text-gray-300">Host process</span> on this host via runtime + entrypoint.
                         </p>
                       )}
                     </div>
