@@ -285,15 +285,10 @@ export interface StackStudioDraft {
   spec: Record<string, any>;
 }
 
-// Install target — the runtime a stack uses. Host stacks offer Docker or a
+// Install target — the runtime a stack uses. Host stacks always run as a
 // Host process; stacks on a managed Node additionally offer the VM/container
-// drivers an edge advertises (KVM, LXD, Multipass).
+// drivers an edge advertises (Docker, KVM, LXD, Multipass).
 export type StackInstallType = 'docker' | 'host' | 'kvm' | 'lxd' | 'multipass';
-
-export const STACK_INSTALL_TYPES: Array<{ value: StackInstallType; label: string; hint: string }> = [
-  { value: 'docker', label: 'Docker', hint: 'Run in a container from an image' },
-  { value: 'host', label: 'Host', hint: 'Run on the host via runtime + entrypoint' },
-];
 
 export const STACK_NODE_INSTALL_TYPES: Array<{ value: StackInstallType; label: string; hint: string }> = [
   { value: 'docker', label: 'Docker', hint: 'Docker container on the selected node' },
@@ -390,7 +385,7 @@ export const blankStackStudioDraft = (): StackStudioDraft => ({
   pageStyle: 'spa',
   permissionsRequested: [],
   panelPermissions: [],
-  installType: 'docker',
+  installType: 'host',
   installImage: '',
   installSteps: [],
   installTimeoutS: '',
