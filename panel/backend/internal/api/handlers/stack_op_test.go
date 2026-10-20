@@ -221,6 +221,17 @@ func TestStackOpBuildDefsLaunch(t *testing.T) {
 	}
 }
 
+func TestStackWorkflowStepLaunchTokenEnv(t *testing.T) {
+	job := newStackOpTestJob("launch", 1)
+	job.tokenEnv = []string{"API_TOKEN=sekret"}
+	if err := runStackWorkflowStep(context.Background(), t.TempDir(), `printf '%s' "$API_TOKEN"`, job); err != nil {
+		t.Fatalf("run step: %v", err)
+	}
+	if logs := strings.Join(job.snapshot().Logs, "\n"); !strings.Contains(logs, "sekret") {
+		t.Fatalf("launch token was not exported to the step env: %q", logs)
+	}
+}
+
 func TestStackLaunchTokenEnv(t *testing.T) {
 	manifest := json.RawMessage(`{"launchTokens":[{"name":"API_TOKEN","label":"API token","default":"fallback","required":true},{"name":"REGION","required":true}]}`)
 	env, err := stackLaunchTokenEnv(manifest, map[string]string{"REGION": "eu"})
