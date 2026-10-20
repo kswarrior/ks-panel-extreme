@@ -169,8 +169,8 @@ const Stacks: React.FC = () => {
     setInstallError('');
     try {
       if (installTab === 'file') {
-        if (!uploadFile) throw new Error('Pick a .ksps file first.');
-        await uploadStackPackage(uploadFile);
+        if (!uploadFile) throw new Error('Pick a stack manifest (.yaml/.yml) first.');
+        await uploadStackManifest(uploadFile);
       } else if (installTab === 'url') {
         if (!urlInput.trim()) throw new Error('Enter a URL first.');
         await installStackFromUrl(urlInput.trim());
@@ -525,7 +525,7 @@ const Stacks: React.FC = () => {
               onClick={() => setInstallTab(t)}
               className={`ks-tab flex-1 px-3 py-1.5 rounded text-sm flex items-center justify-center gap-1.5 ${installTab === t ? 'ks-tab-active' : ''}`}
             >
-              {t === 'file' ? '.ksps file' : t === 'url' ? 'From URL' : 'Create'}
+              {t === 'file' ? 'YAML file' : t === 'url' ? 'From URL' : 'Create'}
             </button>
           ))}
         </div>
@@ -533,22 +533,22 @@ const Stacks: React.FC = () => {
         {installTab === 'file' && (
           <>
             <p className="text-xs text-gray-400">
-              Choose a stack package (<code className="text-gray-300">.ksps</code> — a zip bundling the
-              manifest with its frontend pages/bundle, theme.css and backend entry). The panel installs it{' '}
+              Choose a stack manifest (<code className="text-gray-300">.yaml</code>/<code className="text-gray-300">.yml</code> —
+              legacy <code className="text-gray-300">.json</code> is accepted). The panel validates it and installs the stack{' '}
               <span className="text-amber-300">inactive</span> — you approve capabilities before activating.
             </p>
-            <input type="file" accept=".ksps,.zip" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="block w-full mt-2 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200" />
+            <input type="file" accept=".yaml,.yml,.json,application/yaml,text/yaml,application/json" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="block w-full mt-2 text-sm text-gray-300 file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-white file:text-black file:text-sm hover:file:bg-gray-200" />
           </>
         )}
 
         {installTab === 'url' && (
           <>
             <p className="text-xs text-gray-400">
-              Paste a <code className="text-gray-300">.ksps</code> or manifest URL. The panel fetches it{' '}
-              <span className="text-emerald-300">server-side</span> and installs it{' '}
-              <span className="text-amber-300">inactive</span>.
+              Paste a stack manifest URL. The panel fetches it{' '}
+              <span className="text-emerald-300">server-side</span> (SSRF-guarded) and installs it{' '}
+              <span className="text-amber-300">inactive</span>. The response must be valid YAML (legacy JSON is accepted).
             </p>
-            <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.ksps" className="block w-full mt-2 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40" />
+            <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="https://example.com/my-stack.yaml" className="block w-full mt-2 bg-black/30 border border-white/10 rounded-md text-sm text-white px-3 py-1.5 font-mono focus:outline-none focus:border-white/40" />
           </>
         )}
 

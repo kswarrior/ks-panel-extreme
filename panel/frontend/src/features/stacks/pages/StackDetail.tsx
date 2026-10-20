@@ -312,6 +312,11 @@ const StackDetail: React.FC = () => {
   const locationType: string = m.locationType || 'host';
   const installType: string = m.installType || 'docker';
   const installImage: string = String(m.installImage || m.image || '');
+  const nodeId = Number(m.nodeId || 0);
+  const nodeName = String(m.nodeName || '');
+  const nodeSummary = nodeName
+    ? `${nodeName}${nodeId ? ` (#${nodeId})` : ''}`
+    : nodeId ? `#${nodeId}` : '—';
   const installSteps: any[] = Array.isArray(m.installSteps) ? m.installSteps : Array.isArray(m.install) ? m.install : [];
   const launchSteps: any[] = Array.isArray(m.launchSteps) ? m.launchSteps : Array.isArray(m.launch) ? m.launch : [];
   const launchTokens: any[] = Array.isArray(m.launchTokens) ? m.launchTokens : [];
@@ -328,9 +333,17 @@ const StackDetail: React.FC = () => {
     ? remoteProtocol === 'wss'
       ? `${remoteHost || '—'}${remotePort ? `:${remotePort}` : ''}`
       : (remoteUrl || '—')
-    : installType === 'docker'
-      ? (installImage || stack.runtime || 'docker')
-      : `${stack.runtime || 'host'}${stack.entrypoint ? ` · ${stack.entrypoint}` : ''}`;
+    : locationType === 'node'
+      ? `${nodeSummary} · ${installType}${installImage ? ` · ${installImage}` : ''}`
+      : installType === 'docker'
+        ? (installImage || stack.runtime || 'docker')
+        : `${stack.runtime || 'host'}${stack.entrypoint ? ` · ${stack.entrypoint}` : ''}`;
+  const runtimeSummary = installType === 'host'
+    ? `host · ${stack.runtime || '—'}`
+    : installType;
+  const artifactSummary = installType === 'host'
+    ? (stack.entrypoint || '—')
+    : (installImage || '—');
 
   const flashNotice = (msg: string) => {
     setNotice(msg);
