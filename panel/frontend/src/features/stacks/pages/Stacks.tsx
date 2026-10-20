@@ -490,7 +490,6 @@ const Stacks: React.FC = () => {
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
             <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No stacks yet</p>
-            <p className="text-sm" style={{ color: 'var(--ks-text-body)', opacity: 0.7 }}>Install a <code className="font-mono">.ksps</code> package, paste a manifest, or create one from scratch.</p>
           </div>
         </div>
       )}
