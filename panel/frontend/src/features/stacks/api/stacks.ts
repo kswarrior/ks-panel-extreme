@@ -175,8 +175,15 @@ export interface StackOpJob {
   updated_at: string;
 }
 
-export async function startStackOp(id: number, op: StackOpName): Promise<StackOpJob> {
-  const res = await client.post<StackOpJob>(`/api/stacks/${id}/op/${op}`);
+export async function startStackOp(
+  id: number,
+  op: StackOpName,
+  tokens?: Record<string, string>,
+): Promise<StackOpJob> {
+  const res = await client.post<StackOpJob>(
+    `/api/stacks/${id}/op/${op}`,
+    tokens && Object.keys(tokens).length > 0 ? { tokens } : undefined,
+  );
   return res.data;
 }
 

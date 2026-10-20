@@ -221,6 +221,35 @@ func TestStackOpBuildDefsLaunch(t *testing.T) {
 	}
 }
 
+func TestStackLaunchTokenEnv(t *testing.T) {
+	manifest := json.RawMessage(`{"launchTokens":[{"name":"API_TOKEN","label":"API token","default":"fallback","required":true},{"name":"REGION","required":true}]}`)
+	env, err := stackLaunchTokenEnv(manifest, map[string]string{"REGION": "eu"})
+	if err != nil {
+		t.Fatalf("resolve defaults: %v", err)
+	}
+	want := map[string]bool{"API_TOKEN=fallback": true, "REGION=eu": true}
+	if len(env) != len(want) {
+		t.Fatalf("env = %v, want two entries", env)
+	}
+	for _, e := range env {
+		if !want[e] {
+			t.Errorf("unexpected env %q", e)
+		}
+	}
+	if _, err := stackLaunchTokenEnv(manifest, map[string]string{"API_TOKEN": "x"}); err == nil || !strings.Contains(err.Error(), "REGION") {
+		t.Fatalf("missing required token should fail naming REGION, got %v", err)
+	}
+	if _, err := stackLaunchTokenEnv(json.RawMessage(`{"launchTokens":[{"name":"BAD-NAME","required":false}]}`), nil); err == nil {
+		t.Fatal("invalid env name should fail")
+	}
+	if _, err := stackLaunchTokenEnv(json.RawMessage(`{"launchTokens":[{"name":"DUP"},{"name":"dup"}]}`), nil); err == nil {
+		t.Fatal("case-insensitive duplicate should fail")
+	}
+	if env, err := stackLaunchTokenEnv(json.RawMessage(`{}`), nil); err != nil || len(env) != 0 {
+		t.Fatalf("no tokens: env=%v err=%v", env, err)
+	}
+}
+
 func TestStackOpLaunchPendingGrants(t *testing.T) {
 	isolateActivityDB(t)
 	db := newStackOpTestDB(t)

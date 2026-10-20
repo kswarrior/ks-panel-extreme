@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +52,71 @@ func stackManifestWorkflowSteps(manifest json.RawMessage) []stackWorkflowStep {
 // manifest. launchSteps[] wins; launch[] is the legacy fallback.
 func stackManifestLaunchSteps(manifest json.RawMessage) []stackWorkflowStep {
 	return stackManifestStepsByKeys(manifest, "launchSteps", "launch")
+}
+
+// stackLaunchToken mirrors one ask-at-launch token in the manifest.
+type stackLaunchToken struct {
+	Name     string `json:"name"`
+	Label    string `json:"label"`
+	Default  string `json:"default"`
+	Required bool   `json:"required"`
+	Secret   bool   `json:"secret"`
+}
+
+// stackLaunchTokenNameRE is the ENV-name grammar the Studio form enforces.
+var stackLaunchTokenNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// stackManifestLaunchTokens parses launchTokens[] from a stack manifest.
+func stackManifestLaunchTokens(manifest json.RawMessage) []stackLaunchToken {
+	if len(manifest) == 0 {
+		return nil
+	}
+	var m struct {
+		LaunchTokens []stackLaunchToken `json:"launchTokens"`
+	}
+	if err := json.Unmarshal(manifest, &m); err != nil {
+		return nil
+	}
+	return m.LaunchTokens
+}
+
+// stackLaunchTokenEnv resolves launch token values into NAME=value entries
+// for the launch workflow environment. Provided values win over manifest
+// defaults; required tokens without a value reject the launch.
+func stackLaunchTokenEnv(manifest json.RawMessage, provided map[string]string) ([]string, error) {
+	defs := stackManifestLaunchTokens(manifest)
+	if len(defs) == 0 {
+		return nil, nil
+	}
+	env := make([]string, 0, len(defs))
+	seen := make(map[string]bool, len(defs))
+	for _, t := range defs {
+		name := strings.TrimSpace(t.Name)
+		if name == "" {
+			return nil, fmt.Errorf("launch token: name is required")
+		}
+		if !stackLaunchTokenNameRE.MatchString(name) {
+			return nil, fmt.Errorf("launch token %q: use letters, digits and underscores, starting with a letter or underscore", name)
+		}
+		upper := strings.ToUpper(name)
+		if seen[upper] {
+			return nil, fmt.Errorf("launch token %q: duplicate name", name)
+		}
+		seen[upper] = true
+		value := provided[name]
+		if value == "" {
+			value = t.Default
+		}
+		if t.Required && value == "" {
+			label := strings.TrimSpace(t.Label)
+			if label == "" {
+				label = name
+			}
+			return nil, fmt.Errorf("launch token %s is required", label)
+		}
+		env = append(env, name+"="+value)
+	}
+	return env, nil
 }
 
 func stackManifestStepsByKeys(manifest json.RawMessage, primary, fallback string) []stackWorkflowStep {
@@ -306,12 +372,13 @@ func runStackWorkflowStep(ctx context.Context, dir, cmd string, job *stackOpJob)
 	c.Dir = dir
 	// Minimal environment (same contract as application panel-shell runs):
 	// PATH plus the run's own home/tmp inside the workdir. Nothing leaks
-	// from the panel process.
+	// from the panel process. Ask-at-launch tokens are appended last.
 	c.Env = []string{
 		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		"HOME=" + dir,
 		"TMPDIR=" + dir,
 	}
+	c.Env = append(c.Env, job.tokenEnv...)
 	stdout, err := c.StdoutPipe()
 	if err != nil {
 		return err
