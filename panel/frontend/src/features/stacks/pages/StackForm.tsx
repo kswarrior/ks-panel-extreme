@@ -773,7 +773,7 @@ const StackForm: React.FC = () => {
                                   </label>
                                 </div>
                                 <p className="text-[11px] text-gray-500">
-                                  Placed into ENV as <code className="font-mono text-gray-400">{t.name.trim() ? `$${t.name.trim()}` : '$NAME'}</code> — reference it in workflow steps as <code className="font-mono text-gray-400">{t.name.trim() ? `{{${t.name.trim()}}} / $${t.name.trim()} / $(${t.name.trim()})` : '{{NAME}} / ${NAME} / $(NAME)'}</code>.
+                                  Placed into ENV as <code className="font-mono text-gray-400">{t.name.trim() ? `$${t.name.trim()}` : '$NAME'}</code> — reference it in workflow steps as <code className="font-mono text-gray-400">{t.name.trim() ? `$${t.name.trim()}` : '${NAME}'}</code>.
                                 </p>
                               </div>
                             )}

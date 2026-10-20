@@ -351,8 +351,7 @@ export const blankStackInstallStep = (): StackInstallStep => ({
 
 // One ask-at-launch token. The launcher prompts for a value (unless a
 // default covers it and the token isn't required) and exports the answer
-// as the environment variable NAME — usable in workflow steps as
-// {{NAME}} / ${NAME} / $(NAME), exactly like template env vars.
+// as the environment variable NAME — usable in workflow steps as ${NAME}.
 export interface StackLaunchToken {
   name: string;
   label: string;
