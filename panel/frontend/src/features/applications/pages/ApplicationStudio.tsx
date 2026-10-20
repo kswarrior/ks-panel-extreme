@@ -346,12 +346,6 @@ const ApplicationStudio: React.FC = () => {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
           <h2 className="text-xl font-semibold text-white">Application Studio</h2>
-          <p className="text-sm text-gray-400 -mt-0.5 max-w-2xl">
-            Visually author an application (bot / service template) and install it in one step. The Studio emits a
-            manifest the engine validates the same way an uploaded <code className="text-gray-300">.ksapp</code> is
-            validated — capabilities stay whitelisted, permissions still need explicit approval, so the Studio never
-            silently unlocks anything.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
