@@ -604,11 +604,14 @@ func StartStackOpHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden: own-scope may only run stacks you uploaded", http.StatusForbidden)
 		return
 	}
-	tokenEnv, err := stackLaunchTokenEnv(s.Manifest, launchReq.Tokens)
-	if err != nil {
-		closeFn()
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	var tokenEnv []string
+	if op == "launch" {
+		tokenEnv, err = stackLaunchTokenEnv(s.Manifest, launchReq.Tokens)
+		if err != nil {
+			closeFn()
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 	defs := stackOpBuildDefs(op, s)
 	steps := make([]stackOpStep, 0, len(defs))
