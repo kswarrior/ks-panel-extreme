@@ -267,10 +267,14 @@ type stackUpsertDTO struct {
 // stackPackageMaxBytes caps an uploaded .ksps zip (mirrors modPackageMaxBytes).
 const stackPackageMaxBytes = 64 << 20
 
-// CreateStackHandler installs a .ksps zip (multipart `package` part) or a
-// bare manifest (application/json, incl. the Studio path tagged via
-// X-KS-Source). Either way the manifest runs through ParseStackManifest,
-// permission rows seed pending, and a .ksps is persisted on disk.
+// stackManifestMaxBytes caps a YAML/JSON manifest upload.
+const stackManifestMaxBytes = 8 << 20
+
+// CreateStackHandler installs a stack from a YAML manifest (canonical),
+// legacy JSON (incl. the Studio path tagged via X-KS-Source), a multipart
+// `manifest` file, or a legacy .ksps zip (multipart `package`). Every path
+// normalizes to JSON, then runs through ParseStackManifest, and a package is
+// persisted on disk for the stack engine.
 func CreateStackHandler(w http.ResponseWriter, r *http.Request) {
 	uid, err := UserIDFromContext(r)
 	if err != nil {

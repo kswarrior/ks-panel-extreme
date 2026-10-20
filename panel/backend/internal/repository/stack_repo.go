@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	"gopkg.in/yaml.v3"
 )
 
 // StackRepository persists Stacks (admin-uploaded full-stack isolated apps)
@@ -232,14 +234,43 @@ type stackBackendBlock struct {
 	Entrypoint string `json:"entrypoint"`
 }
 
-// ParseStackManifest decodes a raw manifest blob into StackManifestInput,
-// validating slug, runtime, theme mode, page style and capability codes.
-// Shared by every install path (file/URL/studio/JSON/sample) so hostile
-// manifests fail identically everywhere.
+// NormalizeStackManifest returns the canonical JSON encoding of a stack
+// manifest supplied as either JSON or YAML. JSON is tried first so every
+// previously-accepted manifest parses byte-identically; YAML is the
+// authoring-friendly fallback (same keys as the JSON manifest). The YAML
+// result is round-tripped through JSON so storage and every downstream
+// reader (workflow steps, install ops) only ever see JSON.
+func NormalizeStackManifest(raw []byte) ([]byte, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return nil, fmt.Errorf("empty manifest")
+	}
+	if json.Valid(trimmed) {
+		return trimmed, nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(trimmed, &doc); err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: %w", err)
+	}
+	if doc == nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: empty document")
+	}
+	normalized, err := json.Marshal(doc)
+	if err != nil {
+		return nil, fmt.Errorf("manifest is neither valid JSON nor valid YAML: %w", err)
+	}
+	return normalized, nil
+}
+
+// ParseStackManifest decodes a raw manifest blob (JSON or YAML) into
+// StackManifestInput, validating slug, runtime, theme mode, page style and
+// capability codes. Shared by every install path (file/URL/studio/JSON/
+// sample) so hostile manifests fail identically everywhere.
 func ParseStackManifest(raw []byte) (StackManifestInput, error) {
 	var in StackManifestInput
-	if len(raw) == 0 || len(strings.TrimSpace(string(raw))) == 0 {
-		return in, fmt.Errorf("empty manifest")
+	raw, err := NormalizeStackManifest(raw)
+	if err != nil {
+		return in, err
 	}
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return in, fmt.Errorf("invalid manifest JSON: %w", err)
