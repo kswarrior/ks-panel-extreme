@@ -589,8 +589,8 @@ const StackForm: React.FC = () => {
               <div className="space-y-4">
                 {/* Installation workflow — the exact template install step
                     editor (shell/download/extract/... + timeout), bound to
-                    the stack draft. Runtime choice (Docker vs Host process)
-                    lives in General under Type Host. */}
+                    the stack draft. Runtime choice (Host process, or a
+                    Node driver) lives in General. */}
                 <TemplateInstallSection
                   heading="Section B · Installation Workflow"
                   install={draft.installSteps as any}
@@ -626,7 +626,7 @@ const StackForm: React.FC = () => {
 
                 {/* Ask at launch — tokens prompted at launch time, placed
                     into ENV (token NAME is the ENV key, e.g. API_TOKEN is
-                    usable as {{API_TOKEN}} / ${API_TOKEN} / $(API_TOKEN)). */}
+                    usable as ${API_TOKEN}). */}
                 <div className={sectionCls}>
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
