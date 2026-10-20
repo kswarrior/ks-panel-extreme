@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { stringify as yamlStringify } from 'yaml';
 import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import GlassModal from '@/shared/components/ui/Modal';
@@ -326,7 +327,7 @@ const StackDetail: React.FC = () => {
   const remotePort: string = String(m.remotePort || '');
   const remoteUrl: string = String(m.remoteUrl || '');
   const prettyManifest = (() => {
-    try { return JSON.stringify(m, null, 2); } catch { return '{}'; }
+    try { return yamlStringify(m); } catch { return ''; }
   })();
 
   const locationSummary = locationType === 'outside'

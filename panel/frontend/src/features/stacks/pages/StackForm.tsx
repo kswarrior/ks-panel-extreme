@@ -104,7 +104,7 @@ const StackForm: React.FC = () => {
       n.driver_lxd && 'lxd',
       n.driver_multipass && 'multipass',
     ].filter(Boolean) as KindKey[];
-    const missing = draft.installType !== 'host' && !driverEnabled(n, kindKey(draft.installType));
+    const missing = !driverEnabled(n, kindKey(draft.installType));
     return (
       <div className="flex items-center gap-2.5">
         <span className={`shrink-0 w-2 h-2 rounded-full ${dot}`} />
