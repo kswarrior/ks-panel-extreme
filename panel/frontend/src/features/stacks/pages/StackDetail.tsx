@@ -17,6 +17,7 @@ import {
   stopStackOp,
   deleteStack,
   updateStack,
+  setStackGrants,
   stackAppUrl,
   rotateStackToken,
   probeStack,
@@ -24,8 +25,8 @@ import {
   extractStackApiError,
 } from '@/features/stacks/api/stacks';
 import type { StackOpJob, StackOpName } from '@/features/stacks/api/stacks';
-import type { StackPairing, StackProbeResult } from '@/shared/types/stack';
-import { Stack, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
+import type { StackLaunchToken, StackPairing, StackProbeResult } from '@/shared/types/stack';
+import { Stack, stackCapabilityMeta, stackSourceMeta, STACK_CATEGORIES } from '@/shared/types/stack';
 import StackOpModal from '@/features/stacks/components/StackOpModal';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -158,6 +159,16 @@ const StackDetail: React.FC = () => {
   const [editColor, setEditColor] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  // Capability grants: the activation gate. Download/Studio stacks seed
+  // every requested capability as pending, so this editor is the only way
+  // to approve them before Launch.
+  const [grantDraft, setGrantDraft] = useState<Record<string, boolean>>({});
+  const [grantSaving, setGrantSaving] = useState(false);
+  // Ask-at-launch tokens: prompted before starting the launch job and
+  // passed to the backend, which exports them as ENV to launch steps.
+  const [launchOpen, setLaunchOpen] = useState(false);
+  const [launchValues, setLaunchValues] = useState<Record<string, string>>({});
+  const [launchError, setLaunchError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,6 +176,7 @@ const StackDetail: React.FC = () => {
     try {
       const s = await getStack(Number(id));
       setStack(s);
+      setGrantDraft(Object.fromEntries(s.permissions.map((p) => [p.capability, p.granted])));
       setProxyPort(s.proxy_port ? String(s.proxy_port) : '');
       setProxyRoot(s.proxy_root_url || '');
       setRemoteAddress(s.remote_address || '');
@@ -320,7 +332,7 @@ const StackDetail: React.FC = () => {
     : nodeId ? `#${nodeId}` : '—';
   const installSteps: any[] = Array.isArray(m.installSteps) ? m.installSteps : Array.isArray(m.install) ? m.install : [];
   const launchSteps: any[] = Array.isArray(m.launchSteps) ? m.launchSteps : Array.isArray(m.launch) ? m.launch : [];
-  const launchTokens: any[] = Array.isArray(m.launchTokens) ? m.launchTokens : [];
+  const launchTokens: StackLaunchToken[] = Array.isArray(m.launchTokens) ? m.launchTokens : [];
   const panelPermissions: string[] = Array.isArray(m.panelPermissions) ? m.panelPermissions : [];
   const remoteProtocol: string = m.remoteProtocol || 'wss';
   const remoteHost: string = String(m.remoteHost || '');
@@ -359,7 +371,7 @@ const StackDetail: React.FC = () => {
       } else {
         const res = await activateStack(stack.id) as any;
         if (res?.pending) {
-          setError(res.message || `${res.pending} grants still pending`);
+          setError(`${res.message || `${res.pending} grants still pending`} Approve them in Capability grants below.`);
           return;
         }
       }
@@ -373,7 +385,7 @@ const StackDetail: React.FC = () => {
 
   // startOp launches an install/launch/reinstall job and opens the
   // operation console. A 409 means one is already running — attach to it.
-  const startOp = async (op: StackOpName) => {
+  const startOp = async (op: StackOpName, tokens?: Record<string, string>) => {
     if (!stack) return;
     if (opJob && opJob.status === 'running') {
       setOpOpen(true);
@@ -381,7 +393,7 @@ const StackDetail: React.FC = () => {
     }
     setError('');
     try {
-      const job = await startStackOp(stack.id, op);
+      const job = await startStackOp(stack.id, op, tokens);
       setOpJob(job);
       setOpOpen(true);
     } catch (e: any) {
@@ -411,7 +423,41 @@ const StackDetail: React.FC = () => {
 
   const launch = () => {
     if (!stack || stack.active) return;
-    void startOp('launch');
+    if (launchTokens.length === 0) {
+      void startOp('launch');
+      return;
+    }
+    setLaunchValues(Object.fromEntries(launchTokens.map((t) => [t.name, t.default || ''])));
+    setLaunchError('');
+    setLaunchOpen(true);
+  };
+
+  const submitLaunchTokens = () => {
+    const missing = launchTokens.find((t) => t.required && !(launchValues[t.name] || '').trim());
+    if (missing) {
+      setLaunchError(`${missing.label || missing.name} is required.`);
+      return;
+    }
+    setLaunchOpen(false);
+    void startOp('launch', launchValues);
+  };
+
+  const saveGrants = async () => {
+    if (!stack) return;
+    setGrantSaving(true);
+    setError('');
+    try {
+      await setStackGrants(
+        stack.id,
+        stack.permissions.map((p) => ({ capability: p.capability, granted: !!grantDraft[p.capability] })),
+      );
+      await load();
+      flashNotice('Capability grants saved.');
+    } catch (e) {
+      setError(extractStackApiError(e, 'Failed to save grants.'));
+    } finally {
+      setGrantSaving(false);
+    }
   };
 
   // Install re-materializes the package + data dir from the stored
