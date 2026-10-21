@@ -21,6 +21,7 @@ import {
   installApplicationFromUrl,
 } from '@/features/applications/api/applications';
 import { extractApiErrorMessage } from '@/features/mods/api/mods';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { APPLICATION_STUDIO_PRESETS } from './applicationStudioPresets';
 import { useConfirm } from '@/shared/stores/confirmStore';
 
@@ -29,7 +30,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 //
 // The Studio models an application as an editable "draft"
 // (ApplicationStudioDraft). The admin edits structured builder blocks
-// (no-code) OR types raw manifest JSON (pro-code), previewing the produced
+// (no-code) OR types raw manifest YAML (pro-code), previewing the produced
 // payload live. Saving the draft ships it through the existing
 // POST /api/applications/ + POST /:id/env endpoints (the same ones the
 // Upload button uses), so the Studio is a GENERATOR, not a new runtime — it
@@ -40,7 +41,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 // Layout:
 //   [tab rail] | [active editor] | [live manifest preview]
 //
-// Tabs: General · Permissions · Configure · Scripts · Raw JSON
+// Tabs: General · Permissions · Configure · Scripts · Raw YAML
 // ---------------------------------------------------------------------------
 
 type Tab = 'general' | 'permissions' | 'configure' | 'scripts' | 'raw';
@@ -61,7 +62,7 @@ const TABS: TabDef[] = [
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M4 6h16M4 12h16M4 18h10"/> </svg> },
   { key: 'scripts', label: 'Scripts', hint: 'Staged script files',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/> </svg> },
-  { key: 'raw', label: 'Raw JSON', hint: 'Author the whole manifest',
+  { key: 'raw', label: 'Raw YAML', hint: 'Author the whole manifest',
     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 7h5l3 5-3 5H3"/><path d="M21 7h-5l-3 5 3 5h5"/> </svg> },
 ];
 
@@ -162,18 +163,18 @@ const ApplicationStudio: React.FC = () => {
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
 
   // Re-seed the raw buffer every time the structured draft changes so the
-  // Raw JSON tab always reflects the structured editor's truth (until the
+  // Raw YAML tab always reflects the structured editor's truth (until the
   // admin starts typing in the raw textarea, which promotes the buffer).
   const emitted = useMemo(() => emitStudioPayload(draft), [draft]);
-  const emittedJson = useMemo(() => {
+  const emittedYaml = useMemo(() => {
     const { payload, env } = emitted;
-    if (Object.keys(env).length > 0) return JSON.stringify({ ...payload, env }, null, 2);
-    return JSON.stringify(payload, null, 2);
+    if (Object.keys(env).length > 0) return stringifyYaml({ ...payload, env });
+    return stringifyYaml(payload);
   }, [emitted]);
   useEffect(() => {
-    setRaw(emittedJson);
+    setRaw(emittedYaml);
     setRawDraft((prev) => prev);
-  }, [emittedJson]);
+  }, [emittedYaml]);
 
   const patch = useCallback((partial: Partial<ApplicationStudioDraft>) => {
     setDraft((d) => ({ ...d, ...partial }));
@@ -181,7 +182,10 @@ const ApplicationStudio: React.FC = () => {
 
   // ---- raw <-> structured sync --------------------------------------------
   const parseRawToDraft = (rawText: string): ApplicationStudioDraft => {
-    const parsed = JSON.parse(rawText) as Record<string, any>;
+    const parsed = parseYaml(rawText) as Record<string, any> | null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('manifest must be a YAML mapping/object');
+    }
     const runtime = typeof parsed.runtime === 'string' ? parsed.runtime : 'nodejs';
     const entrypoint = typeof parsed.entrypoint === 'string' ? parsed.entrypoint : '';
     return {
@@ -213,7 +217,7 @@ const ApplicationStudio: React.FC = () => {
       setDraft(next);
       setRawDraft(null);
     } catch (e: any) {
-      setRawError('invalid JSON: ' + (e?.message || String(e)));
+      setRawError('invalid YAML: ' + (e?.message || String(e)));
     }
   }, [rawDraft]);
 
@@ -267,8 +271,8 @@ const ApplicationStudio: React.FC = () => {
         setDraft(effectiveDraft);
         setRawDraft(null);
       } catch (e: any) {
-        setRawError('invalid JSON: ' + (e?.message || String(e)));
-        setInstallError('Cannot install: the Raw JSON buffer has invalid JSON — fix it and try again.');
+        setRawError('invalid YAML: ' + (e?.message || String(e)));
+        setInstallError('Cannot install: the Raw YAML buffer has invalid YAML — fix it and try again.');
         setTab('raw');
         setInstalling(false);
         return;
@@ -526,19 +530,19 @@ const ApplicationStudio: React.FC = () => {
           {tab === 'raw' && (
             <>
               <p className="text-xs text-gray-400">
-                Author or paste the entire manifest. On blur the editor parses it back into the
+                Author or paste the entire manifest as YAML. On blur the editor parses it back into the
                 structured tabs (General, Permissions, …) so the no-code side stays in sync.
                 The top-level <code className="text-gray-300">env</code> key holds saved env
                 defaults (sent to <code className="text-gray-300">/:id/env</code> after create).
               </p>
               <TextArea
-                label="Manifest JSON"
+                label="Manifest YAML"
                 value={rawDraft !== null ? rawDraft : raw}
                 onChange={(v) => setRawDraft(v)}
                 onBlur={commitRaw}
                 rows={24}
                 mono
-                placeholder="{}"
+                placeholder={'name: My Application\nslug: my-application\nruntime: nodejs\nentrypoint: src/bot.js'}
               />
               {rawError && <p className="text-red-400 text-xs">{rawError}</p>}
             </>
@@ -557,11 +561,11 @@ const ApplicationStudio: React.FC = () => {
           </button>
           {!previewCollapsed && (
             <pre className="text-[11px] font-mono text-gray-200 bg-black/40 border border-white/10 rounded-md p-3 overflow-auto max-h-[70dvh] whitespace-pre">
-{rawDraft !== null ? rawDraft : emittedJson}
+{rawDraft !== null ? rawDraft : emittedYaml}
            </pre>
           )}
           <p className="text-[10px] text-gray-500 mt-2">
-            This is exactly what will be POSTed to <code className="text-gray-400">/api/applications/</code>
+            This YAML manifest is converted to JSON and POSTed to <code className="text-gray-400">/api/applications/</code>
             {Object.keys(emitted.env).length > 0 && (
               <> (plus saved env to <code className="text-gray-400">/:id/env</code>)</>
             )}.
