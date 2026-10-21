@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/stores/authStore';
 import { useSettingsStore } from '@/shared/stores/settingsStore';
 import { PermissionKey, PERMISSION_AREAS, hasPermissionAny } from '@/shared/types/permissions';
@@ -307,7 +307,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
   const loadPanelPages = usePanelPagesStore((s) => s.load);
   const isCollapsed = collapsed;
   const location = useLocation();
-  const navigate = useNavigate();
 
   // System group — closed: single "System" row. Open: same card shows
   // "[SVG] System" on top plus "[SVG] Host" + "[SVG] Panel" side by side in
@@ -330,10 +329,10 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose, collapsed, setCollapse
       setSystemOpen(true);
       return;
     }
-    // Closed → open in place and land on Host so one click shows content.
+    // Closed → open the dropdown in place only. Clicking System itself must
+    // not navigate; only the Host/Panel links inside the group change URL.
     if (!systemOpen) {
       setSystemOpen(true);
-      if (location.pathname !== '/system') navigate('/system?tab=host');
       return;
     }
     setSystemOpen(false);
