@@ -267,7 +267,7 @@ export interface ApplicationActivateConflict {
 // Studio contract in shared/types/mod.ts).
 //
 // The Studio models an application as an editable "draft": the admin edits
-// structured builder blocks (no-code) OR types raw manifest JSON (pro-code),
+// structured builder blocks (no-code) OR types raw manifest YAML (pro-code),
 // previewing the produced manifest live. Saving the draft ships it through
 // the existing POST /api/applications/ + POST /:id/env endpoints (the same
 // ones the upload button uses), so the Studio is a GENERATOR, not a new
