@@ -574,7 +574,27 @@ return (
         <GlassCard className="text-center"><span style={{ color: 'var(--ks-text-body)' }}>No applications match your filters.</span></GlassCard>
       )}
       {!loading && apps.length === 0 && !error && (
-        <div className="ks-card ks-form-card rounded-xl text-center" style={{ color: 'var(--ks-text-body)' }}>No applications in the catalog yet. Click “Upload Application” to add one.</div>
+        <div className="flex flex-col items-center justify-center min-h-[40vh] px-4 animate-fade-in">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-gray-400"
+              aria-hidden="true"
+            >
+              <rect x="2" y="3" width="8" height="8" rx="1.5" />
+              <rect x="14" y="3" width="8" height="8" rx="1.5" />
+              <rect x="2" y="13" width="8" height="8" rx="1.5" />
+              <rect x="14" y="13" width="8" height="8" rx="1.5" />
+            </svg>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No applications yet</p>
+          </div>
+        </div>
       )}
 
       {/* ---- Upload modal ---- */}

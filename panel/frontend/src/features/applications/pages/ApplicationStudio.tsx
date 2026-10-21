@@ -18,7 +18,6 @@ import {
 import {
   createApplication,
   updateApplicationEnv,
-  installApplicationFromUrl,
 } from '@/features/applications/api/applications';
 import { extractApiErrorMessage } from '@/features/mods/api/mods';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
@@ -160,7 +159,6 @@ const ApplicationStudio: React.FC = () => {
   const [installing, setInstalling] = useState(false);
   const [installError, setInstallError] = useState('');
   const [installOk, setInstallOk] = useState('');
-  const [previewCollapsed, setPreviewCollapsed] = useState(false);
 
   // Re-seed the raw buffer every time the structured draft changes so the
   // Raw YAML tab always reflects the structured editor's truth (until the
@@ -307,26 +305,6 @@ const ApplicationStudio: React.FC = () => {
     }
   }, [draft, rawDraft, navigate]);
 
-  // ---- install-from-URL quick-pick ---------------------------------------
-  const [urlInput, setUrlInput] = useState('');
-  const [urlBusy, setUrlBusy] = useState(false);
-  const [urlError, setUrlError] = useState('');
-  const onUrlInstall = useCallback(async () => {
-    if (!urlInput.trim()) return;
-    setUrlBusy(true);
-    setUrlError('');
-    try {
-      await installApplicationFromUrl(urlInput.trim());
-      setUrlInput('');
-      setInstallOk('Installed application from URL — open the Applications page to review its permissions.');
-      setTimeout(() => navigate('/applications'), 700);
-    } catch (e: any) {
-      setUrlError(extractApiErrorMessage(e, 'Install failed'));
-    } finally {
-      setUrlBusy(false);
-    }
-  }, [urlInput, navigate]);
-
   // ---- reset --------------------------------------------------------------
   const reset = useCallback(async () => {
     if (!(await confirm({ title: 'Reset draft', message: 'Discard the current draft and start over?', tone: 'warning', confirmLabel: 'Discard' }))) return;
@@ -340,43 +318,9 @@ const ApplicationStudio: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-white">Application Studio</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => navigate('/applications')}
-            className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-300 hover:bg-white/10"
-          >
-            ← Back to Applications
-          </button>
-        </div>
+      <div className="min-w-0">
+        <h2 className="text-xl font-semibold text-white">Application Studio</h2>
       </div>
-
-      {/* Install-from-URL quick bar (mirrors the Applications page button) */}
-      <GlassCard variant="form" className="flex items-center gap-2 flex-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-300 shrink-0">
-          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-         </svg>
-        <input
-          value={urlInput}
-          onChange={(e) => setUrlInput(e.target.value)}
-          placeholder="Install an existing application from a URL (https://…/app.ksapp)"
-          className="flex-1 min-w-48 bg-black/30 border border-white/10 rounded-md text-sm text-white placeholder-gray-500 px-3 py-1.5 font-mono focus:outline-none focus:border-white/40"
-        />
-        <button
-          type="button"
-          disabled={urlBusy || !urlInput.trim()}
-          onClick={onUrlInstall}
-          className="px-3 py-1.5 rounded text-sm border border-white/10 text-gray-200 hover:bg-white/10 disabled:opacity-50"
-        >
-          {urlBusy ? 'Installing…' : 'Install from URL'}
-        </button>
-        {urlError && <p className="text-red-400 text-xs w-full">{urlError}</p>}
-      </GlassCard>
 
       {installOk && (
         <GlassCard className="text-emerald-300 text-sm border border-emerald-700/40 bg-emerald-900/20">
@@ -389,8 +333,8 @@ const ApplicationStudio: React.FC = () => {
         </GlassCard>
       )}
 
-      {/* Main grid: rail + editor + preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr_minmax(0,1fr)] gap-4">
+      {/* Main grid: rail + editor */}
+      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
         {/* Rail */}
         <GlassCard className="lg:sticky lg:top-4 self-start">
           <nav className="flex lg:flex-col gap-1 overflow-x-auto">
@@ -547,30 +491,6 @@ const ApplicationStudio: React.FC = () => {
               {rawError && <p className="text-red-400 text-xs">{rawError}</p>}
             </>
           )}
-        </GlassCard>
-
-        {/* Live preview */}
-        <GlassCard className="min-w-0 flex flex-col">
-          <button
-            type="button"
-            onClick={() => setPreviewCollapsed((v) => !v)}
-            className="flex items-center justify-between w-full mb-2"
-          >
-            <h3 className="text-sm font-semibold text-white">Live preview</h3>
-            <span className="text-gray-400 text-xs">{previewCollapsed ? 'show' : 'hide'}</span>
-          </button>
-          {!previewCollapsed && (
-            <pre className="text-[11px] font-mono text-gray-200 bg-black/40 border border-white/10 rounded-md p-3 overflow-auto max-h-[70dvh] whitespace-pre">
-{rawDraft !== null ? rawDraft : emittedYaml}
-           </pre>
-          )}
-          <p className="text-[10px] text-gray-500 mt-2">
-            This YAML manifest is converted to JSON and POSTed to <code className="text-gray-400">/api/applications/</code>
-            {Object.keys(emitted.env).length > 0 && (
-              <> (plus saved env to <code className="text-gray-400">/:id/env</code>)</>
-            )}.
-            The backend validates <code className="text-gray-400">permissionsRequested</code> against the capability whitelist.
-          </p>
         </GlassCard>
       </div>
 
