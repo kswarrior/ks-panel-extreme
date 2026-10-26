@@ -302,7 +302,7 @@ const ModDetail: React.FC = () => {
         </GlassCard>
       )}
 
-      <ModSettingsCard modId={mod.id} />
+      <ModSettingsCard modId={mod.id} definitions={meta.settings} />
 
       <GlassCard className="p-4">
         <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Recent logs · {logs.length}</h4>
