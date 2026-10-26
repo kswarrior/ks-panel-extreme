@@ -11,7 +11,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 - Edge untouched unless stated; if touched: `cd edge/backend && go build ./... && go test ./...`
 - `gofmt`-clean the files you touch (the repo has pre-existing drift elsewhere — do not reformat
   unrelated regions). Frontend typecheck runs `tsc --noEmit`.
-- New DB migrations: next free number is **081**; add the same migration to
+- New DB migrations: next free number is **083** (081 mod_settings and 082 remove-seeded-applications are shipped); add the same migration to
   `internal/db/migrations/{mysql,postgres,sqlite}/`. Never edit a shipped migration.
 - Never hand-edit generated output (`release/`, `internal/ui/`, `pagelib/library/`, `themelib/library/`).
 - Update docs in the same item: `docs/vs/mod.md` row(s) that claim the gap, `internal/aiskills/mods.md`
@@ -39,8 +39,8 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 | # | Item | Status |
 |---|------|--------|
 | M6 | Mount UI slots + bundle loader + slot catalog + Studio frontend tab | ☑ done (v1.0.266) |
-| M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ☐ pending |
-| M8 | Typed settings + encrypted secrets (migration 081) | ☐ pending |
+| M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ◐ parser only — not wired |
+| M8 | Typed settings + encrypted secrets (migration 081) | ☑ done (v1.0.268) |
 | M9 | Scoped mod DB tables/migrations (governed) | ☐ pending (assess) |
 | M10 | Dev tooling (scaffold CLI, test harness, docs, optional hot reload) | ☐ pending |
 | M11 | Vendored JS deps in `.kspm` (require loader) | ☐ pending |
@@ -51,6 +51,10 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 
 Excluded by decision (recorded in `docs/vs/mod.md`): marketplace/repo, signing/review, update path.
 Excluded by design: full-trust powers (core patching, PHP, unrestricted DB, free UI replacement).
+
+> Status note (2026-10-26): the master roadmap in `mod.md` supersedes this plan's
+> status column where they disagree. M6/M8/M15 are shipped; M7 is parser-only;
+> M9-M14 remain. The next free migration is 083.
 
 ---
 

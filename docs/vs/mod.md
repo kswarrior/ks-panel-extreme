@@ -32,14 +32,14 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | Enable | `POST /{id}/activate` — **refuses until every requested capability is granted** (unique gate), spins the runtime, installs hooks/slots | install = patch now, no toggle | `p:extension:enable` / admin toggle; migrations run under `ext_` prefix; failed enable keeps previous state | install/enable via admin list, update job | — |
 | Disable | `POST /{id}/deactivate` tears the runtime down, drops hooks/slots (`mod_handler.go:1004`); row/grants survive | uninstall = restore core (blueprint uninstall) | `p:extension:disable` | disable in list | — |
 | Kill switch | panel-wide `PUT /api/mods/engine` persisted in settings KV + `SetEnabled(false)` stops all runtimes; per-mod engine v1/v2 | none (core mutation) | `PTERODACTYL_EXTENSIONS_ENABLED` env | not documented | — |
-| Compat graph | none between mods (honest minus); engine_version only | none | full `requires{}` + topo load + component ownership conflicts | `panel_version` + composer | — |
+| Compat graph | `requires{}` parser exists but is not wired yet (honest minus); engine_version only | none | full `requires{}` + topo load + component ownership conflicts | `panel_version` + composer | — |
 
 ## 4. Isolation / sandbox vs (the big one)
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
 | Model | per-mod VM; host surface only through granted bindings (`ks.db`, `ks.files`, `ks.exec`, `ks.container`, `ks.vm`, `ks.console`, `ks.permissions`, `ks.capabilities`) — each checked per call against the mod's grants; 5s hook timeout; panics recovered, mod flagged broken, panel unaffected (Error Isolation) | none — patched core runs with full panel access | **none** — docs state extensions "run with the same access as the Panel and can read your database, settings, and users' data" | none — Laravel service provider, full app access + composer execution | — |
-| Honest minus | capability grants enforced per call (sandbox bindings + host-side SQL re-validation), custom perms persisted and grant-gated, **but** no signing, no marketplace/update path, no mod-to-mod dependency graph/version constraints | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
+| Honest minus | capability grants enforced per call (sandbox bindings + host-side SQL re-validation), custom perms persisted and grant-gated, **but** no signing, no marketplace/update path, and the dependency-graph parser is not wired yet | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
 
 ## 5. Capabilities / permissions vs
 
