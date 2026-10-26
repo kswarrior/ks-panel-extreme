@@ -88,6 +88,33 @@ export async function uploadModPackage(packageFile: File): Promise<Mod> {
   return res.data;
 }
 
+// Upgrade an installed mod by uploading a replacement .kspm package. The
+// backend validates the new manifest, keeps the slug, diffs the permission
+// request set (new/changed caps start pending) and refuses while the mod is
+// active. Resolves with the updated row.
+export async function upgradeModPackage(id: number, packageFile: File): Promise<Mod> {
+  const form = new FormData();
+  form.append('package', packageFile);
+  const res = await client.post<Mod>(`/api/mods/${id}/upgrade`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    responseType: 'json',
+  });
+  return res.data;
+}
+
+// Upgrade an installed mod from a JSON manifest (Studio/JSON authoring path).
+// The panel wraps it into a .kspm on disk, mirroring createModFromStudio.
+export async function upgradeModManifest(
+  id: number,
+  manifest: Record<string, any>,
+  source: 'studio' | 'json' = 'json',
+): Promise<Mod> {
+  const res = await client.post<Mod>(`/api/mods/${id}/upgrade`, manifest, {
+    headers: { 'Content-Type': 'application/json', 'X-KS-Source': source },
+  });
+  return res.data;
+}
+
 // Download a mod's .kspm package zip. Returns the blob so the SPA can trigger a
 // browser save-as with the mod's slug as the filename. Mods installed from a
 // zip serve the original bytes; Studio/URL/JSON mods are synthesised server-side
