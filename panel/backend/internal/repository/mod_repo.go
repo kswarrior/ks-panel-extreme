@@ -209,13 +209,18 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 
-	// Resolve the manifest's engine version so the mods.engine_version column
-	// reflects what the mod actually ships. Without this the row would keep
-	// the column default (1) even for a v2 manifest, so the admin UI and any
-	// DB-only consumer would misreport a v2 mod as v1. The runtime re-parses
-	// the manifest itself (ParseV2Manifest), so activation is unaffected,
-	// but the stored column must agree for the panel-wide report to be honest.
-	engineVersion := models.ParseV2Manifest(in.Manifest).EngineVersion
+	// Central manifest validation. Every install path (file, URL, Studio,
+	// JSON, sample and future registry installs) funnels through CreateMod, so
+	// this is the one choke point for schema, capability, dependency,
+	// compatibility and ownership-token validation. ParseManifest runs the same
+	// validator earlier with RequireIdentity=true; CreateMod re-runs it with
+	// the resolved Name/Slug fields so direct repository callers cannot bypass
+	// it.
+	validated, err := models.ValidateManifest([]byte(manifest), modManifestValidationOptions(false))
+	if err != nil {
+		return nil, err
+	}
+	engineVersion := validated.EngineVersion
 	if engineVersion == 0 {
 		engineVersion = 1
 	}
@@ -223,34 +228,14 @@ func (r *ModRepository) CreateMod(in CreateModInput) (*models.Mod, error) {
 	// Custom (manifest-declared) permissions ride the same grant table as the
 	// fixed capabilities — namespaced under the mod slug by ParseV2Manifest —
 	// so the admin approves them in the same checklist and a running mod reads
-	// them via ks.permissions.has. Validated here so a hostile manifest can't
-	// seed unbounded / malformed rows.
-	declared := models.ParseV2Manifest(in.Manifest).PermissionsDeclared
+	// them via ks.permissions.has. Validate the resolved request list too:
+	// handlers pass it separately from the raw manifest.
+	declared := validated.PermissionsDeclared
 	if err := validateDeclaredPermissions(declared); err != nil {
 		return nil, err
 	}
-
-	// Validate requested capabilities so a malformed / hostile manifest
-	// can't insert an unknown capability string (which the admin modal would
-	// happily render as a checkbox the panel doesn't actually implement),
-	// and reject duplicates that would trip the UNIQUE constraint.
 	if err := validatePermissionRequests(in.PermissionsRequested); err != nil {
 		return nil, err
-	}
-
-	// Validate the v2 frontend-bundle declarations (uiBundle path shape +
-	// uiBundleSource size cap). Every install path funnels through CreateMod,
-	// so this is the single choke point before the manifest is stored.
-	v2man := models.ParseV2Manifest(in.Manifest)
-	if err := models.ValidateUIBundle(v2man); err != nil {
-		return nil, err
-	}
-	// Same choke point for the typed settings schema: the ks.settings
-	// binding + the settings API both trust that every stored manifest
-	// passed ValidateSettings, so an install with a malformed settings block
-	// must be refused here.
-	if err := models.ValidateSettings(v2man); err != nil {
-		return nil, fmt.Errorf("invalid settings: %w", err)
 	}
 
 	tx, err := r.db.Begin()
@@ -505,10 +490,33 @@ func (r *ModRepository) AllGranted(modID int64) (bool, error) {
 	return pending == 0, nil
 }
 
-// Activate flips a mod's active flag to 1. It refuses if any requested
-// capability is still pending admin approval (AllGranted == false), so the
-// admin can't accidentally run a mod that hasn't been reviewed.
+// Activate flips a mod's active flag to 1 after enforcing the full activation
+// contract: manifest compatibility, installed+active dependencies, provides/
+// conflicts ownership, and the per-capability approval gate. Returning typed
+// errors lets the handler render actionable 409 diagnostics instead of a
+// generic server error.
 func (r *ModRepository) Activate(modID int64) error {
+	mod, err := r.GetMod(modID)
+	if err != nil {
+		return err
+	}
+	if _, err := models.ValidateManifest(mod.Manifest, modManifestValidationOptions(false)); err != nil {
+		return err
+	}
+	all, err := r.ListMods()
+	if err != nil {
+		return err
+	}
+	installed := make([]*models.Mod, len(all))
+	for i := range all {
+		installed[i] = &all[i]
+	}
+	if issues := models.CheckDependencies(mod, installed, true); len(issues) > 0 {
+		return &models.DependencyError{Slug: mod.Slug, Issues: issues}
+	}
+	if conflicts := models.CheckConflicts(mod, installed); len(conflicts) > 0 {
+		return &models.ConflictError{Slug: mod.Slug, Conflicts: conflicts}
+	}
 	ok, err := r.AllGranted(modID)
 	if err != nil {
 		return err
@@ -529,7 +537,26 @@ func (r *ModRepository) Activate(modID int64) error {
 
 // Deactivate flips a mod's active flag back to 0 without touching the grant
 // rows, so the admin can re-activate later without re-approving everything.
+// It refuses when an active mod still requires this one — deactivation never
+// silently cascades and strands a running dependent.
 func (r *ModRepository) Deactivate(modID int64) error {
+	mod, err := r.GetMod(modID)
+	if err != nil {
+		return err
+	}
+	all, err := r.ListMods()
+	if err != nil {
+		return err
+	}
+	active := make([]*models.Mod, 0, len(all))
+	for i := range all {
+		if all[i].Active {
+			active = append(active, &all[i])
+		}
+	}
+	if dependents := models.ActiveDependents(mod, active); len(dependents) > 0 {
+		return &models.DependentsError{Slug: mod.Slug, Dependents: dependents}
+	}
 	now := time.Now().UTC().Format("2006-01-02 15:04:05")
 	res, err := r.db.Exec(`UPDATE mods SET active = 0, updated_at = ? WHERE id = ?`, now, modID)
 	if err != nil {
@@ -565,20 +592,15 @@ var ErrPermissionsNotGranted = fmt.Errorf("not all requested permissions have be
 // re-import path.
 func ParseManifest(raw []byte) (ManifestInput, error) {
 	var in ManifestInput
-	if len(raw) == 0 {
-		return in, fmt.Errorf("empty manifest")
-	}
-	if err := json.Unmarshal(raw, &in); err != nil {
-		return in, fmt.Errorf("invalid manifest JSON: %w", err)
-	}
-	if in.Name == "" || in.Slug == "" {
-		return in, fmt.Errorf("manifest must declare name and slug")
-	}
-	if !models.ValidModSlug(in.Slug) {
-		return in, fmt.Errorf("invalid slug %q: use lowercase letters, digits and hyphens (max 64 chars)", in.Slug)
-	}
-	if err := validatePermissionRequests(in.PermissionsRequested); err != nil {
+	man, err := models.ValidateManifest(raw, modManifestValidationOptions(true))
+	if err != nil {
 		return in, err
 	}
+	in.Name = man.Name
+	in.Slug = man.Slug
+	in.Version = man.Version
+	in.Description = man.Description
+	in.Spec = man.Spec
+	in.PermissionsRequested = man.PermissionsRequested
 	return in, nil
 }

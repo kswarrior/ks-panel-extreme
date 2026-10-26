@@ -945,6 +945,35 @@ func ActivateModHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := repo.Activate(id); err != nil {
+		var depErr *models.DependencyError
+		if errors.As(err, &depErr) {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":        "dependencies unsatisfied",
+				"message":      depErr.Error(),
+				"dependencies": depErr.Issues,
+			})
+			return
+		}
+		var conflictErr *models.ConflictError
+		if errors.As(err, &conflictErr) {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":     "mod conflict",
+				"message":   conflictErr.Error(),
+				"conflicts": conflictErr.Conflicts,
+			})
+			return
+		}
+		var incompat *models.IncompatibilityError
+		if errors.As(err, &incompat) {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":     "incompatible",
+				"message":   incompat.Error(),
+				"component": incompat.Component,
+				"required":  incompat.Required,
+				"current":   incompat.Current,
+			})
+			return
+		}
 		if errors.Is(err, repository.ErrPermissionsNotGranted) {
 			// Re-fetch the checklist so the client can surface what's still
 			// outstanding instead of guessing.
@@ -1047,6 +1076,15 @@ func DeactivateModHandler(w http.ResponseWriter, r *http.Request) {
 	if dbErr != nil {
 		if errors.Is(dbErr, repository.ErrModNotFound) {
 			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		var depsErr *models.DependentsError
+		if errors.As(dbErr, &depsErr) {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":      "active dependents",
+				"message":    depsErr.Error(),
+				"dependents": depsErr.Dependents,
+			})
 			return
 		}
 		log.Println("DeactivateMod error:", dbErr)
