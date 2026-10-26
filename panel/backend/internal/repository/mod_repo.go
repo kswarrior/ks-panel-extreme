@@ -304,6 +304,158 @@ type UpdateModInput struct {
 	Spec        json.RawMessage
 }
 
+// UpgradeModInput replaces a mod's manifest + package metadata. The slug is
+// immutable; an upgrade may add/remove permissions, but newly requested
+// capabilities are always seeded granted=0 (re-approval required) and removed
+// capabilities lose their grant row. Upgrading an active mod is refused so the
+// admin deactivates it explicitly before swapping code.
+type UpgradeModInput struct {
+	Name        string
+	Version     string
+	Description string
+	Manifest    json.RawMessage
+	Spec        json.RawMessage
+	Source      string
+	SourceURL   string
+	PackageSize int64
+}
+
+// ErrModActive is returned by UpgradeMod when the target is currently active.
+var ErrModActive = errors.New("deactivate the mod before upgrading it")
+
+// UpgradeMod validates and atomically replaces a mod's manifest, spec and
+// permission request set. The slug must match the existing row. Existing
+// grants are preserved only when the capability + access level are unchanged;
+// new/changed capabilities start pending so the admin explicitly re-approves
+// the new power surface.
+func (r *ModRepository) UpgradeMod(id int64, in UpgradeModInput) (*models.Mod, error) {
+	existing, err := r.GetMod(id)
+	if err != nil {
+		return nil, err
+	}
+	if existing.Active {
+		return nil, ErrModActive
+	}
+	manifest := in.Manifest
+	if len(manifest) == 0 {
+		manifest = existing.Manifest
+	}
+	validated, err := models.ValidateManifest(manifest, modManifestValidationOptions(false))
+	if err != nil {
+		return nil, err
+	}
+	if validated.Slug != "" && validated.Slug != existing.Slug {
+		return nil, fmt.Errorf("manifest slug %q does not match installed slug %q", validated.Slug, existing.Slug)
+	}
+	name := in.Name
+	if name == "" {
+		name = validated.Name
+	}
+	if name == "" {
+		name = existing.Name
+	}
+	version := in.Version
+	if version == "" {
+		version = validated.Version
+	}
+	if version == "" {
+		version = existing.Version
+	}
+	description := in.Description
+	if description == "" {
+		description = validated.Description
+	}
+	spec := in.Spec
+	if len(spec) == 0 {
+		spec = validated.Spec
+	}
+	if len(spec) == 0 {
+		spec = existing.Spec
+	}
+	if len(spec) == 0 {
+		spec = json.RawMessage("{}")
+	}
+	source := in.Source
+	if source == "" {
+		source = existing.Source
+	}
+	if source == "" {
+		source = models.ModSourceFile
+	}
+	sourceURL := in.SourceURL
+	if sourceURL == "" {
+		sourceURL = existing.SourceURL
+	}
+
+	requested := make(map[string]string, len(validated.PermissionsRequested)+len(validated.PermissionsDeclared))
+	for _, p := range validated.PermissionsRequested {
+		requested[p.Capability] = p.AccessLevel
+	}
+	for _, p := range validated.PermissionsDeclared {
+		requested[p.Key] = "custom"
+	}
+
+	oldRows, err := r.ListModPermissions(id)
+	if err != nil {
+		return nil, err
+	}
+	oldByCap := make(map[string]models.ModPermission, len(oldRows))
+	for _, p := range oldRows {
+		oldByCap[p.Capability] = p
+	}
+
+	tx, err := r.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	now := time.Now().UTC().Format("2006-01-02 15:04:05")
+	res, err := tx.Exec(
+		`UPDATE mods SET name = ?, version = ?, description = ?, manifest = ?, spec = ?, engine_version = ?, source = ?, source_url = ?, package_size = ?, updated_at = ? WHERE id = ?`,
+		name, version, description, string(manifest), string(spec), validated.EngineVersion, source, sourceURL, in.PackageSize, now, id,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, ErrModNotFound
+	}
+
+	for capability, access := range requested {
+		if old, ok := oldByCap[capability]; ok {
+			if old.AccessLevel == access {
+				continue // unchanged -> keep the existing grant decision
+			}
+			if _, err := tx.Exec(
+				`UPDATE mod_permissions SET access_level = ?, granted = 0 WHERE mod_id = ? AND capability = ?`,
+				access, id, capability,
+			); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if _, err := tx.Exec(
+			`INSERT INTO mod_permissions (mod_id, capability, access_level, granted) VALUES (?, ?, ?, 0)`,
+			id, capability, access,
+		); err != nil {
+			return nil, err
+		}
+	}
+	for capability := range oldByCap {
+		if _, keep := requested[capability]; keep {
+			continue
+		}
+		if _, err := tx.Exec(`DELETE FROM mod_permissions WHERE mod_id = ? AND capability = ?`, id, capability); err != nil {
+			return nil, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetMod(id)
+}
+
 func (r *ModRepository) UpdateMod(id int64, in UpdateModInput) (*models.Mod, error) {
 	if id == 0 {
 		return nil, fmt.Errorf("mod id is required")
