@@ -78,12 +78,12 @@ func TestSortModsByDependencyBlocksMissingAndCycles(t *testing.T) {
 }
 
 func TestCheckConflictsAndDependents(t *testing.T) {
-	a := depMod(1, "a", "1.0.0", true, `{"apiVersion":3,"provides":["slot:one"]}`)
-	b := depMod(2, "b", "1.0.0", false, `{"apiVersion":3,"provides":["slot:one"]}`)
+	a := depMod(1, "a", "1.0.0", false, `{"apiVersion":3,"provides":["slot:one"]}`)
+	b := depMod(2, "b", "1.0.0", true, `{"apiVersion":3,"provides":["slot:one"]}`)
 	if got := CheckConflicts(b, []*Mod{a, b}); len(got) != 0 {
 		t.Fatalf("inactive provider should not block activation yet: %v", got)
 	}
-	b.Active = true
+	a.Active = true
 	if got := CheckConflicts(b, []*Mod{a, b}); len(got) != 1 {
 		t.Fatalf("active duplicate provide should conflict: %v", got)
 	}

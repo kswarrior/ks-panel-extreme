@@ -259,6 +259,10 @@ func SortModsByDependency(mods []*Mod) ([]*Mod, map[string][]DependencyIssue) {
 					ok = false
 					break
 				}
+				if _, failed := blocked[depSlug]; failed {
+					ok = false
+					break
+				}
 			}
 			if ok {
 				ready = append(ready, slug)
