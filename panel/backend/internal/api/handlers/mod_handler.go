@@ -766,6 +766,152 @@ func UpdateModHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, toModResponse(repo, mod))
 }
 
+// UpgradeModHandler replaces an installed mod's manifest + package. It accepts
+// the same content types as CreateModHandler: application/json (a manifest the
+// panel wraps into a .kspm) or multipart/form-data with a "package" zip. The
+// mod must be inactive; the slug is immutable. New/changed capabilities start
+// pending so the admin re-approves the expanded power surface.
+func UpgradeModHandler(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	repo, closeFn := openModRepo()
+	if repo == nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	defer closeFn()
+	existing, err := repo.GetMod(id)
+	if err != nil {
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if uid, _ := UserIDFromContext(r); uid != 0 && existing.OwnerID != uid {
+		if con, perr := repository.OpenDB(); perr == nil {
+			chk := permissions.NewChecker(con)
+			hasOwn, hasAll, _ := chk.HasScope(uid, permissions.ModsOwnKey, permissions.ModsAllKey, permissions.ManageModsKey)
+			con.Close()
+			if !hasAll && hasOwn {
+				http.Error(w, "forbidden: own-scope may only upgrade mods you uploaded", http.StatusForbidden)
+				return
+			}
+		}
+	}
+	if existing.Active {
+		http.Error(w, repository.ErrModActive.Error(), http.StatusConflict)
+		return
+	}
+
+	var rawManifest, specOverride, packageBytes []byte
+	source := ""
+	ct := r.Header.Get("Content-Type")
+	if strings.HasPrefix(ct, "application/json") {
+		rawManifest, err = io.ReadAll(io.LimitReader(r.Body, 8<<20))
+		if err != nil {
+			http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		if hs := strings.ToLower(strings.TrimSpace(r.Header.Get("X-KS-Source"))); hs == models.ModSourceStudio || hs == models.ModSourceJSON {
+			source = hs
+		}
+	} else if strings.HasPrefix(ct, "multipart/") {
+		r.Body = http.MaxBytesReader(w, r.Body, modPackageMaxBytes+1024)
+		if err := r.ParseMultipartForm(8 << 20); err != nil {
+			http.Error(w, "invalid multipart payload: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		file, _, ferr := r.FormFile("package")
+		if ferr != nil {
+			http.Error(w, `missing 'package' file part`, http.StatusBadRequest)
+			return
+		}
+		defer file.Close()
+		zipBytes, rerr := io.ReadAll(io.LimitReader(file, modPackageMaxBytes+1))
+		if rerr != nil {
+			http.Error(w, "read package: "+rerr.Error(), http.StatusBadRequest)
+			return
+		}
+		if int64(len(zipBytes)) > modPackageMaxBytes {
+			http.Error(w, fmt.Sprintf("package too large (max %d MiB)", modPackageMaxBytes>>20), http.StatusRequestEntityTooLarge)
+			return
+		}
+		if !modengine.IsZipBytes(zipBytes) {
+			http.Error(w, "package is not a valid .kspm zip", http.StatusBadRequest)
+			return
+		}
+		rawManifest, specOverride, err = modengine.ReadManifestFromZip(zipBytes)
+		if err != nil {
+			http.Error(w, "read package: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+		packageBytes = zipBytes
+		source = models.ModSourceFile
+	} else {
+		http.Error(w, "unsupported content type; use application/json or multipart/form-data", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	in, err := repository.ParseManifest(rawManifest)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if in.Slug != existing.Slug {
+		http.Error(w, fmt.Sprintf("manifest slug %q does not match installed slug %q", in.Slug, existing.Slug), http.StatusBadRequest)
+		return
+	}
+	if len(specOverride) > 0 {
+		in.Spec = specOverride
+	}
+	if len(packageBytes) == 0 {
+		b, berr := modengine.BuildPackageZip(rawManifest, in.Spec, modengine.PackageExtra(models.ParseV2Manifest(rawManifest)))
+		if berr != nil {
+			http.Error(w, "build package: "+berr.Error(), http.StatusInternalServerError)
+			return
+		}
+		packageBytes = b
+	}
+	mod, err := repo.UpgradeMod(id, repository.UpgradeModInput{
+		Name: in.Name, Version: in.Version, Description: in.Description,
+		Manifest: rawManifest, Spec: in.Spec, Source: source,
+		PackageSize: int64(len(packageBytes)),
+	})
+	if err != nil {
+		var incompat *models.IncompatibilityError
+		if errors.As(err, &incompat) {
+			http.Error(w, incompat.Error(), http.StatusConflict)
+			return
+		}
+		if errors.Is(err, repository.ErrModActive) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
+		if errors.Is(err, repository.ErrModNotFound) {
+			http.Error(w, "mod not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := modengine.SavePackage(in.Slug, packageBytes); err != nil {
+		log.Printf("UpgradeMod: save .kspm for %q: %v", in.Slug, err)
+	}
+	RecordActivity(r, repository.ActivityInput{
+		Category:    models.ActivityCategoryMod,
+		Action:      "upgrade",
+		TargetID:    &id,
+		TargetLabel: mod.Name,
+		Message:     fmt.Sprintf("upgraded mod %q to v%s (%d permission requests)", mod.Name, mod.Version, len(in.PermissionsRequested)),
+	})
+	writeJSON(w, toModResponse(repo, mod))
+}
+
 // DeleteModHandler removes a mod and (via FK cascade) its permission rows.
 func DeleteModHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)

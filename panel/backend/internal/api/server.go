@@ -592,6 +592,7 @@ func NewRouter() http.Handler {
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/engine", handlers.SetModEngineEnabledHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionView)).Get("/{id}", handlers.GetModHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Put("/{id}", handlers.UpdateModHandler)
+			r.With(requireUmbrellaOrAction(modsG, permissions.ActionEdit)).Post("/{id}/upgrade", handlers.UpgradeModHandler)
 			r.With(requireUmbrellaOrAction(modsG, permissions.ActionDelete)).Delete("/{id}", handlers.DeleteModHandler)
 			// Download the mod's .kspm package zip (the on-disk bundle if it
 			// was uploaded as a zip, else synthesised from manifest+spec so
