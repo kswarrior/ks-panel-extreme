@@ -465,33 +465,33 @@ Effort: S <= 1 day, M = 2-4 days, L = 1-2 weeks, XL > 2 weeks.
 
 ### 4.1 Correctness and hygiene (P0)
 
-- [ ] **H1 — Reconcile status docs.** Update `plan/mod.md` statuses (M8 done, M7 partial,
+- [x] **H1 — Reconcile status docs.** Update `plan/mod.md` statuses (M8 done, M7 partial,
       next migration 083), update `docs/vs/mod.md` where it points at stale items, and
       make `aiskills/mods.md` the single authoring summary. Effort: S.
-- [ ] **H2 — Manifest schema version + central validator.** Add `apiVersion` (or
+- [x] **H2 — Manifest schema version + central validator.** Add `apiVersion` (or
       `engineVersion: 3`) and one `ValidateManifest` choke point used by every install
       path (file, URL, Studio, JSON, sample, registry). Keep v1/v2 parsing. Effort: M.
-- [ ] **H3 — Manifest/package update path.** Either extend `PUT /api/mods/{id}` to accept
+- [x] **H3 — Manifest/package update path.** Either extend `PUT /api/mods/{id}` to accept
       a new manifest/package or add `POST /api/mods/{id}/upgrade`. Current update only
       changes name/version/description/spec (`mod_repo.go:354-374`). Effort: M.
-- [ ] **H4 — Marketplace metadata.** Add `publisher`, `license`, `homepage`, `icon`,
+- [x] **H4 — Marketplace metadata.** Add `publisher`, `license`, `homepage`, `icon`,
       `screenshots`, `changelog`, `tags` to the manifest and the Mods UI. Effort: M.
-- [ ] **H5 — Compatibility matrix.** Add `requires.panel`, `requires.engine`,
+- [x] **H5 — Compatibility matrix.** Add `requires.panel`, `requires.engine`,
       `requires.sdk` and enforce at install/activate with a clear incompatibility state.
       Effort: M.
-- [ ] **H6 — Provides/conflicts + one-owner.** Add `provides` and `conflicts`; enforce
+- [x] **H6 — Provides/conflicts + one-owner.** Add `provides` and `conflicts`; enforce
       one owner per component/slot/page; surface conflicts before activation. Effort: M.
-- [ ] **H7 — Dead code cleanup.** Wire or remove `models.CapStorageShared`; wire or remove
+- [x] **H7 — Dead code cleanup.** Wire or remove `models.CapStorageShared`; wire or remove
       `models/modver.go`; remove any other unreachable capability/manifest fields. Effort: S.
 
 ### 4.2 Dependency and lifecycle (P0/P1)
 
-- [ ] **L1 — Wire `requires{}` (M7).** Add the field to `ModManifestV2`; reuse
+- [x] **L1 — Wire `requires{}` (M7).** Add the field to `ModManifestV2`; reuse
       `models/modver.go`; validate max 16 deps, no self-dep, slug regex, constraint parse;
       topological sort by dependency with deterministic slug tiebreak; cycle detection;
       `blocked_by` diagnostics; keep the rest of the panel running when one mod is blocked.
       Effort: L.
-- [ ] **L2 — Dependency-aware activate/deactivate.** Activation refuses 409 with the list
+- [x] **L2 — Dependency-aware activate/deactivate.** Activation refuses 409 with the list
       of unsatisfied deps; deactivation refuses 409 when active dependents exist (explicit,
       no silent cascade). Effort: M.
 - [ ] **L3 — Upgrade + version history + rollback.** Keep previous manifest/package/spec

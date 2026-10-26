@@ -12,9 +12,9 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
 | Unit | `Mod` row + `.kspm` package, or manifest-only JSON | addon that patches panel core files at install | `Extension` (`.pteroext` zip + `extension.json`) | `Plugin` folder/zip (`.json` manifest + PHP class) | none (templates + themes only) |
-| Manifest | v2 rich manifest: `engineVersion`, `permissionsRequested[{capability, access_level}]`, `hooks{pre,post}`, `slots`, `customPermissions`, `spec.pages`; v1 static manifest kept for legacy rows (`models/mod.go:39`) | patch definitions, no typed schema in core | `id/name/version/requires{panel,sdk,php}/provider/autoload/ui{entry,mode,prefix,screens}` | `plugin.json` (`id`, `namespace`, `class`, `panels`, `panel_version`, `composer_packages`, `update_url`) | — |
+| Manifest | v2 rich manifest plus v3 `apiVersion`, `requires{mods,panel,engine,sdk}`, `provides`/`conflicts`, marketplace metadata; `permissionsRequested`, `hooks`, `slots`, `customPermissions`, `settings`, `spec.pages`; v1 kept for legacy rows (`models/mod.go:39`) | patch definitions, no typed schema in core | `id/name/version/requires{panel,sdk,php}/provider/autoload/ui{entry,mode,prefix,screens}` | `plugin.json` (`id`, `namespace`, `class`, `panels`, `panel_version`, `composer_packages`, `update_url`) | — |
 | Runtime | per-mod sandboxed Goja JS VM — `rebuild.sh` now builds with `-tags modengine_goja` by default, so stock builds ship the real sandbox; a manifest-only build remains available via `GO_BUILD_TAGS=""` (noop runtime, `runtime_noop.go`, `rebuild.sh:356-357,391`) | PHP executed in the panel process after patching core | PHP/Laravel service provider in-process | PHP/Laravel service provider + Filament plugin; composer deps auto-installed | — |
-| Version axis | per-row `engine_version` 1/2; panel-wide engine toggle | panel-version coupled; updates break addons | `requires{}` + dependency graph + topological load; one-owner-per-component conflict rule | `panel_version` (`^` = minimum) + load order; incompatible plugins marked and skipped | — |
+| Version axis | per-row `engine_version` 1/2/3; v3 compatibility + dependency graph + topo boot; panel-wide engine toggle | panel-version coupled; updates break addons | `requires{}` + dependency graph + topological load; one-owner-per-component conflict rule | `panel_version` (`^` = minimum) + load order; incompatible plugins marked and skipped | — |
 
 ## 2. Install / package vs
 
@@ -32,14 +32,14 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 | Enable | `POST /{id}/activate` — **refuses until every requested capability is granted** (unique gate), spins the runtime, installs hooks/slots | install = patch now, no toggle | `p:extension:enable` / admin toggle; migrations run under `ext_` prefix; failed enable keeps previous state | install/enable via admin list, update job | — |
 | Disable | `POST /{id}/deactivate` tears the runtime down, drops hooks/slots (`mod_handler.go:1004`); row/grants survive | uninstall = restore core (blueprint uninstall) | `p:extension:disable` | disable in list | — |
 | Kill switch | panel-wide `PUT /api/mods/engine` persisted in settings KV + `SetEnabled(false)` stops all runtimes; per-mod engine v1/v2 | none (core mutation) | `PTERODACTYL_EXTENSIONS_ENABLED` env | not documented | — |
-| Compat graph | `requires{}` parser exists but is not wired yet (honest minus); engine_version only | none | full `requires{}` + topo load + component ownership conflicts | `panel_version` + composer | — |
+| Compat graph | `requires{}` (mods + panel/engine/sdk) wired into install/activate; topo boot with cycle/blocked diagnostics; `provides`/`conflicts` one-owner enforcement; no remote registry | none | full `requires{}` + topo load + component ownership conflicts | `panel_version` + composer | — |
 
 ## 4. Isolation / sandbox vs (the big one)
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
 | Model | per-mod VM; host surface only through granted bindings (`ks.db`, `ks.files`, `ks.exec`, `ks.container`, `ks.vm`, `ks.console`, `ks.permissions`, `ks.capabilities`) — each checked per call against the mod's grants; 5s hook timeout; panics recovered, mod flagged broken, panel unaffected (Error Isolation) | none — patched core runs with full panel access | **none** — docs state extensions "run with the same access as the Panel and can read your database, settings, and users' data" | none — Laravel service provider, full app access + composer execution | — |
-| Honest minus | capability grants enforced per call (sandbox bindings + host-side SQL re-validation), custom perms persisted and grant-gated, **but** no signing, no marketplace/update path, and the dependency-graph parser is not wired yet | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
+| Honest minus | capability grants enforced per call (sandbox bindings + host-side SQL re-validation), custom perms persisted and grant-gated, **but** no signing and no marketplace/remote update channel (local `.kspm` upgrade only) | ecosystem now EOL (Oct 2026), patching breaks on updates | beta; arbitrary PHP is a feature to some and a blast radius to others | beta plugin system, same trust model as Ptero v2 | — |
 
 ## 5. Capabilities / permissions vs
 
@@ -76,7 +76,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 |  | KS | Ptero v1 (+Blueprint) | Ptero v2 | Pelican | Puffer |
 |---|---|---|---|---|---|
-| Distribution | manual `.kspm`/URL sharing only — **no marketplace, no update checks** (honest minus) | Blueprint addon sites; framework ceased operations Oct 2026 | official extensions repo + paid marketplace (third-party) | **live Hub marketplace** (`hub.pelican.dev/plugins`; official + community; free while beta), plugins repo | — |
+| Distribution | manual `.kspm`/URL sharing + local `POST /{id}/upgrade` — **no marketplace, no remote update checks** (honest minus) | Blueprint addon sites; framework ceased operations Oct 2026 | official extensions repo + paid marketplace (third-party) | **live Hub marketplace** (`hub.pelican.dev/plugins`; official + community; free while beta), plugins repo | — |
 | State of ecosystem | 4 samples, young | frozen/EOL, team -> Hydrodactyl | open beta, not production; v1 gets security fixes only | most live of the PHP panels, still beta | none |
 
 ## 10. Developer workflow / diagnostics vs
@@ -89,7 +89,7 @@ Panels + latest checked: `KS` (this repo, Mod Engine v2, master @ Oct 2026) vs `
 
 ## 11. Verdict vs (honest)
 
-- **KS vs all on safety-shaped power**: only system with any isolation at all (per-mod JS VM, host access only through granted + per-call-enforced bindings), only one with an *approval gate before activation*, only one with cancellable pre-hooks (409 veto), typed capability+access-level declarations, custom perms persisted and grant-gated, per-slug KV isolated per mod, error isolation (a crashing mod cannot take the panel down), multi-DB, ownership scoping, kill switch, SSRF-guarded URL install, Mod Studio authoring, and (since M6) live slot mounts + an automatic bundle loader with inline fallback. Paid for with the smallest ecosystem, no marketplace/update path, no mod-to-mod dependency graph/version constraints, no signing.
+- **KS vs all on safety-shaped power**: only system with any isolation at all (per-mod JS VM, host access only through granted + per-call-enforced bindings), only one with an *approval gate before activation*, only one with cancellable pre-hooks (409 veto), typed capability+access-level declarations, custom perms persisted and grant-gated, per-slug KV isolated per mod, error isolation (a crashing mod cannot take the panel down), multi-DB, ownership scoping, kill switch, SSRF-guarded URL install, Mod Studio authoring, and (since M6) live slot mounts + an automatic bundle loader with inline fallback, plus v3 mod-to-mod dependency/version constraints. Paid for with the smallest ecosystem, no marketplace/remote update channel, no signing.
 - **Ptero v2 vs KS on raw power**: in-process PHP can do anything — DB reads/writes, migrations, composer deps, deep UI replacement (screens/tabs/columns), dependency graph, official repo, paid marketplace reach. That is also the weakness: no sandbox, no grant gate, post-commit-only events, beta. On any given *capability* ask, v2 can usually out-do KS; on *governed capability* KS out-does v2.
 - **Ptero v1/Blueprint**: the only reason 1.x had extensions; community framework now ceased operations with Pterodactyl (Oct 2026), security-only updates, migration path is the Hydrodactyl fork — anything built there is a dead end. v1's extension story scores accordingly.
 - **Pelican vs KS**: the strongest live ecosystem today (Hub marketplace, scaffold command, Filament-native UI, official+community plugins) and same trust model as Ptero v2 (no sandbox, no veto). Beats KS on ecosystem and event/UI breadth; loses on isolation, approval gate, veto hooks and diagnostics.
@@ -129,7 +129,7 @@ accident), so KS's only structural loss is *ecosystem* (case 9) — the slot mou
 additive-only catalog (no replacing host pages, table columns or built-in screens); typed settings
 + encrypted secrets (M8) lift case 7 to 88, still short of 100 because mods own no schema and
 settings have no per-user/per-server scopes. Closing the rest is cheap and non-structural: a
-mod-to-mod dependency graph, a mod scaffold command and a signed/marketplace path (cases 9-10).
+a mod scaffold command and a signed/marketplace path (cases 9-10).
 The PHP panels cannot match the sandbox + approval gate + veto hooks without a format break. The
 concrete execution list for cases 8, 10 and 7 lives in `plan/mod.md` (items M6-M14).
 

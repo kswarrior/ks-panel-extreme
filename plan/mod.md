@@ -53,8 +53,8 @@ Excluded by decision (recorded in `docs/vs/mod.md`): marketplace/repo, signing/r
 Excluded by design: full-trust powers (core patching, PHP, unrestricted DB, free UI replacement).
 
 > Status note (2026-10-26): the master roadmap in `mod.md` supersedes this plan's
-> status column where they disagree. M6/M8/M15 are shipped; M7 is parser-only;
-> M9-M14 remain. The next free migration is 083.
+> status column where they disagree. M6/M7/M8/M15 are shipped; M9-M14 remain.
+> The next free migration is 083.
 
 ---
 
