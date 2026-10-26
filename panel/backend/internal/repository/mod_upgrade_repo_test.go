@@ -14,7 +14,7 @@ func TestModUpgradeReplacesManifestAndDiffsGrants(t *testing.T) {
 	repo := NewModRepository(con)
 
 	oldManifest := json.RawMessage(`{"name":"Tool","slug":"upgrade-tool","version":"1.0.0","apiVersion":2,"permissionsRequested":[{"capability":"db.read_only","access_level":"read_only"},{"capability":"filesystem","access_level":"read_only"}]}`)
-	mod, err := repo.CreateMod(CreateModInput{Name: "Tool", Slug: "upgrade-tool", Version: "1.0.0", Manifest: oldManifest})
+	mod, err := repo.CreateMod(CreateModInput{Name: "Tool", Slug: "upgrade-tool", Version: "1.0.0", Manifest: oldManifest, PermissionsRequested: []models.PermissionReqV2{{Capability: "db.read_only", AccessLevel: "read_only"}, {Capability: "filesystem", AccessLevel: "read_only"}}})
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -51,6 +51,9 @@ func TestModUpgradeReplacesManifestAndDiffsGrants(t *testing.T) {
 		t.Fatalf("new capability must start pending: %+v", p)
 	}
 
+	if err := repo.SetGrants(mod.ID, []GrantDecision{{Capability: "db.read_write", Granted: true}}); err != nil {
+		t.Fatalf("grant new capability: %v", err)
+	}
 	if err := repo.Activate(mod.ID); err != nil {
 		t.Fatalf("activate: %v", err)
 	}
