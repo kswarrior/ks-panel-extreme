@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	kdb "github.com/example/kspanel/internal/db"
+	"github.com/example/kspanel/internal/models"
 	_ "modernc.org/sqlite"
 )
 
@@ -48,10 +49,10 @@ func TestModSettingsRoundTrip(t *testing.T) {
 	con := newModSettingsTestDB(t)
 	repo := NewModSettingsRepository()
 
-	if err := repo.Set("demo-mod", "greeting", "hello", false); err != nil {
+	if err := repo.Set("demo-mod", "greeting", "hello", false, models.ModSettingScope{}); err != nil {
 		t.Fatalf("set plain: %v", err)
 	}
-	if err := repo.Set("demo-mod", "api_key", "s3cret-token", true); err != nil {
+	if err := repo.Set("demo-mod", "api_key", "s3cret-token", true, models.ModSettingScope{}); err != nil {
 		t.Fatalf("set secret: %v", err)
 	}
 
@@ -79,7 +80,7 @@ func TestModSettingsRoundTrip(t *testing.T) {
 	}
 
 	// List: plain value visible, secret value suppressed.
-	rows, err := repo.List("demo-mod")
+	rows, err := repo.List("demo-mod", models.ModSettingScope{})
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -98,42 +99,42 @@ func TestModSettingsRoundTrip(t *testing.T) {
 	}
 
 	// Reveal: the only decrypt path.
-	v, isSecret, found, err := repo.Reveal("demo-mod", "api_key")
+	v, isSecret, found, err := repo.Reveal("demo-mod", "api_key", models.ModSettingScope{})
 	if err != nil || !found || !isSecret || v != "s3cret-token" {
 		t.Fatalf("reveal secret = (%q, %v, %v, %v)", v, isSecret, found, err)
 	}
-	v, isSecret, found, err = repo.Reveal("demo-mod", "greeting")
+	v, isSecret, found, err = repo.Reveal("demo-mod", "greeting", models.ModSettingScope{})
 	if err != nil || !found || isSecret || v != "hello" {
 		t.Fatalf("reveal plain = (%q, %v, %v, %v)", v, isSecret, found, err)
 	}
-	if _, _, found, err = repo.Reveal("demo-mod", "nope"); err != nil || found {
+	if _, _, found, err = repo.Reveal("demo-mod", "nope", models.ModSettingScope{}); err != nil || found {
 		t.Fatalf("reveal missing: found=%v err=%v, want found=false", found, err)
 	}
 
 	// Upsert: second Set must replace in place (UPDATE path), re-sealing.
-	if err := repo.Set("demo-mod", "api_key", "rotated", true); err != nil {
+	if err := repo.Set("demo-mod", "api_key", "rotated", true, models.ModSettingScope{}); err != nil {
 		t.Fatalf("set secret again: %v", err)
 	}
-	if v, _, _, err := repo.Reveal("demo-mod", "api_key"); err != nil || v != "rotated" {
+	if v, _, _, err := repo.Reveal("demo-mod", "api_key", models.ModSettingScope{}); err != nil || v != "rotated" {
 		t.Fatalf("reveal rotated = (%q, %v)", v, err)
 	}
 	// Type change happens only through reinstall; a plain upsert flips the
 	// stored flag along with the value, so verify a secret->plain write.
-	if err := repo.Set("demo-mod", "api_key", "now-plain", false); err != nil {
+	if err := repo.Set("demo-mod", "api_key", "now-plain", false, models.ModSettingScope{}); err != nil {
 		t.Fatalf("set plain over secret: %v", err)
 	}
-	if v, isSecret, _, err := repo.Reveal("demo-mod", "api_key"); err != nil || isSecret || v != "now-plain" {
+	if v, isSecret, _, err := repo.Reveal("demo-mod", "api_key", models.ModSettingScope{}); err != nil || isSecret || v != "now-plain" {
 		t.Fatalf("reveal after type flip = (%q, %v, %v)", v, isSecret, err)
 	}
 
 	// Delete is a no-op when missing.
-	if err := repo.Delete("demo-mod", "greeting"); err != nil {
+	if err := repo.Delete("demo-mod", "greeting", models.ModSettingScope{}); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := repo.Delete("demo-mod", "greeting"); err != nil {
+	if err := repo.Delete("demo-mod", "greeting", models.ModSettingScope{}); err != nil {
 		t.Fatalf("delete twice: %v", err)
 	}
-	if _, _, found, err := repo.Reveal("demo-mod", "greeting"); err != nil || found {
+	if _, _, found, err := repo.Reveal("demo-mod", "greeting", models.ModSettingScope{}); err != nil || found {
 		t.Fatalf("deleted row still visible: found=%v err=%v", found, err)
 	}
 }
