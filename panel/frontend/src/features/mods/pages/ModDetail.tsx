@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { activateMod, deactivateMod, deleteMod, getMod, getModLogs } from '@/features/mods/api/mods';
-import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry } from '@/shared/types/mod';
+import { activateMod, deactivateMod, deleteMod, getMod, getModLogs, upgradeModPackage } from '@/features/mods/api/mods';
+import { modCapabilityMeta, modSourceMeta, type Mod, type ModLogEntry, type ModManifestV2 } from '@/shared/types/mod';
 import GlassCard from '@/shared/components/ui/Card';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import CardMenu from '@/shared/components/ui/CardMenu/CardMenu';
@@ -50,6 +50,8 @@ const ModDetail: React.FC = () => {
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const upgradeRef = useRef<HTMLInputElement | null>(null);
 
   const numericId = id ? Number(id) : NaN;
   const validId = Number.isFinite(numericId) && numericId > 0;
@@ -103,6 +105,23 @@ const ModDetail: React.FC = () => {
       alert(getErrorMessage(e, 'Failed to toggle mod'));
     } finally {
       setToggling(false);
+    }
+  };
+
+  const handleUpgradeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !mod) return;
+    setUpgrading(true);
+    try {
+      const updated = await upgradeModPackage(mod.id, file);
+      setMod(updated);
+      void refreshSlots();
+      alert(`Upgraded "${updated.name}" to v${updated.version}. New or changed capabilities are pending approval.`);
+    } catch (err: any) {
+      alert(getErrorMessage(err, 'Upgrade failed'));
+    } finally {
+      setUpgrading(false);
     }
   };
 
@@ -171,6 +190,21 @@ const ModDetail: React.FC = () => {
   const pending = mod.pending ?? caps.filter((c) => !c.granted).length;
   const src = modSourceMeta(mod.source);
   const recent = logs.slice(-20).reverse();
+  const meta = (mod.manifest || {}) as Partial<ModManifestV2>;
+  const external = (raw?: string): string | undefined => {
+    if (!raw) return undefined;
+    try {
+      const u = new URL(raw);
+      return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const homepage = external(meta.homepage);
+  const icon = external(meta.icon);
+  const screenshots = (meta.screenshots || []).map(external).filter((u): u is string => !!u);
+  const tags = meta.tags || [];
+  const hasMeta = !!(meta.publisher || meta.license || homepage || icon || screenshots.length || tags.length || meta.changelog);
 
   return (
     <div className="space-y-4">
@@ -179,11 +213,13 @@ const ModDetail: React.FC = () => {
           ariaLabel={`Actions for mod ${mod.name}`}
           items={[
             { key: 'studio', label: 'Edit in Studio', tone: 'default' },
+            { key: 'upgrade', label: upgrading ? 'Upgrading…' : 'Upgrade package', tone: 'default', disabled: upgrading || mod.active },
             { key: 'toggle', label: toggling ? '…' : mod.active ? 'Deactivate' : 'Activate', tone: mod.active ? 'danger' : 'default' },
             { key: 'delete', label: deleting ? 'Deleting…' : 'Delete', tone: 'danger' },
           ]}
           onSelect={(k) => {
             if (k === 'studio') navigate('/mods/studio');
+            if (k === 'upgrade') upgradeRef.current?.click();
             if (k === 'toggle') handleToggle();
             if (k === 'delete') handleDelete();
           }}
@@ -233,10 +269,38 @@ const ModDetail: React.FC = () => {
             <div className="pt-1 flex gap-2">
               <button onClick={handleToggle} disabled={toggling} className="flex-1 px-3 py-1.5 text-xs rounded-md bg-white text-black hover:bg-gray-200 disabled:opacity-50">{mod.active ? 'Deactivate' : 'Activate'}</button>
               <button onClick={() => navigate('/mods/studio')} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white">Studio</button>
+              <button onClick={() => upgradeRef.current?.click()} disabled={upgrading || mod.active} title={mod.active ? 'Deactivate before upgrading' : 'Upload a replacement .kspm'} className="px-3 py-1.5 text-xs rounded-md border border-white/10 bg-white/5 hover:bg-white/10 text-white disabled:opacity-40">{upgrading ? 'Upgrading…' : 'Upgrade'}</button>
             </div>
           </div>
         </GlassCard>
       </div>
+
+      {hasMeta && (
+        <GlassCard className="p-4">
+          <h4 className="text-xs uppercase tracking-wide text-gray-500 mb-2">Marketplace metadata</h4>
+          <div className="flex gap-4">
+            {icon && <img src={icon} alt="" referrerPolicy="no-referrer" className="w-14 h-14 rounded-xl object-cover border border-white/10 bg-black/30" />}
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                {meta.publisher && <div className="flex justify-between gap-2"><span className="text-gray-400">Publisher</span><span className="text-white text-xs truncate">{meta.publisher}</span></div>}
+                {meta.license && <div className="flex justify-between gap-2"><span className="text-gray-400">License</span><span className="text-white text-xs truncate">{meta.license}</span></div>}
+                {homepage && <div className="flex justify-between gap-2"><span className="text-gray-400">Homepage</span><a href={homepage} target="_blank" rel="noopener noreferrer" className="text-sky-300 hover:text-sky-200 text-xs truncate">{homepage}</a></div>}
+              </div>
+              {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((t) => <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-md border border-white/10 bg-white/5 text-gray-300">{t}</span>)}
+                </div>
+              )}
+              {meta.changelog && <p className="text-xs text-gray-300 whitespace-pre-wrap break-words">{meta.changelog}</p>}
+              {screenshots.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {screenshots.map((u) => <img key={u} src={u} alt="" referrerPolicy="no-referrer" className="w-full h-20 rounded-lg object-cover border border-white/10 bg-black/30" />)}
+                </div>
+              )}
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       <ModSettingsCard modId={mod.id} />
 
@@ -252,6 +316,8 @@ const ModDetail: React.FC = () => {
           </pre>
         )}
       </GlassCard>
+
+      <input ref={upgradeRef} type="file" accept=".kspm,.zip,application/zip" className="hidden" onChange={handleUpgradeFile} />
 
       <div className="flex gap-2">
         <button onClick={() => navigate('/mods/studio')} className="px-4 py-2 text-sm rounded-lg bg-white text-black hover:bg-gray-200">Edit in Studio</button>
