@@ -210,8 +210,9 @@ type CustomPermission struct {
 // the declared schema is what the PUT endpoint + the sandbox binding validate
 // writes against.
 //
-// Scope is global per mod for v1 (per-instance / per-user / per-server scopes
-// are noted as a stretch in plan/mod.md, not built).
+// Scope names the value bucket: global (default), instance, user or node.
+// Each key has exactly one scope; the API + sandbox binding take an explicit
+// scope id for non-global buckets.
 type ModSettingDefinition struct {
 	// Key is the stable identifier scripts pass to ks.settings.get/set.
 	// `[a-z0-9_]{1,64}`, unique within the manifest.
@@ -228,6 +229,72 @@ type ModSettingDefinition struct {
 	Default string `json:"default,omitempty"`
 	// Description is optional help text rendered under the field.
 	Description string `json:"description,omitempty"`
+	// Scope is one of global|instance|user|node (empty = global).
+	Scope string `json:"scope,omitempty"`
+}
+
+// Mod setting scopes (D1). A key is declared once and bound to one scope.
+const (
+	ModSettingScopeGlobal   = "global"
+	ModSettingScopeInstance = "instance"
+	ModSettingScopeUser     = "user"
+	ModSettingScopeNode     = "node"
+)
+
+// ModSettingScope identifies one settings bucket. Global has an empty ID;
+// every other type requires a non-empty id (instance id, user id, node id).
+type ModSettingScope struct {
+	Type string
+	ID   string
+}
+
+// ParseModSettingScope parses "global" or "<type>:<id>". Blank means global.
+func ParseModSettingScope(raw string) (ModSettingScope, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == ModSettingScopeGlobal {
+		return ModSettingScope{Type: ModSettingScopeGlobal}, nil
+	}
+	typ, id, ok := strings.Cut(raw, ":")
+	if !ok || strings.TrimSpace(id) == "" {
+		return ModSettingScope{}, fmt.Errorf("scope %q must be global or <instance|user|node>:<id>", raw)
+	}
+	typ = strings.TrimSpace(typ)
+	id = strings.TrimSpace(id)
+	switch typ {
+	case ModSettingScopeInstance, ModSettingScopeUser, ModSettingScopeNode:
+	default:
+		return ModSettingScope{}, fmt.Errorf("unknown setting scope %q (want global|instance|user|node)", typ)
+	}
+	if len(id) > 64 {
+		return ModSettingScope{}, fmt.Errorf("setting scope id too long (max 64 chars)")
+	}
+	if !modSettingScopeIDRE.MatchString(id) {
+		return ModSettingScope{}, fmt.Errorf("invalid setting scope id %q", id)
+	}
+	return ModSettingScope{Type: typ, ID: id}, nil
+}
+
+var modSettingScopeIDRE = regexp.MustCompile(`^[A-Za-z0-9._:-]{1,64}$`)
+
+// String returns the canonical "global" / "type:id" form.
+func (s ModSettingScope) String() string {
+	if s.Type == "" || s.Type == ModSettingScopeGlobal {
+		return ModSettingScopeGlobal
+	}
+	return s.Type + ":" + s.ID
+}
+
+// Normalize validates and canonicalises a scope supplied by an API caller.
+func (s ModSettingScope) Normalize() (ModSettingScope, error) {
+	return ParseModSettingScope(s.String())
+}
+
+// DeclaredScope returns the definition's scope, defaulting empty to global.
+func (d ModSettingDefinition) DeclaredScope() string {
+	if d.Scope == "" {
+		return ModSettingScopeGlobal
+	}
+	return d.Scope
 }
 
 // Mod settings limits (validated at upload + on every write).
@@ -277,6 +344,11 @@ func ValidateSettings(m ModManifestV2) error {
 		}
 		if len(s.Description) > 512 {
 			return fmt.Errorf("setting %q: description too long (max 512 chars)", s.Key)
+		}
+		switch s.Scope {
+		case "", ModSettingScopeGlobal, ModSettingScopeInstance, ModSettingScopeUser, ModSettingScopeNode:
+		default:
+			return fmt.Errorf("setting %q: unknown scope %q (global|instance|user|node)", s.Key, s.Scope)
 		}
 		if s.Type == "select" {
 			if len(s.Options) == 0 || len(s.Options) > MaxSettingOptions {

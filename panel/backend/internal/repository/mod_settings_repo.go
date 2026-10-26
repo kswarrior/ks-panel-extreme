@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/secretbox"
 )
 
@@ -37,7 +38,27 @@ type ModSettingRow struct {
 	// rows (see the type comment). Use Reveal to read a secret.
 	Value     string
 	IsSecret  bool
+	Scope     string
 	UpdatedAt time.Time
+}
+
+// modSettingsTable returns the storage table for a scope. Global values keep
+// using migration 081's table; non-global values live in migration 083's
+// scoped table so the original primary key stays intact on upgrade.
+func modSettingsTable(scope models.ModSettingScope) string {
+	if scope.Type == "" || scope.Type == models.ModSettingScopeGlobal {
+		return "mod_settings"
+	}
+	return "mod_settings_scoped"
+}
+
+// modSettingsScopeSQL returns the extra WHERE fragment + args for a scoped
+// table. Global uses the original table, so it needs no fragment.
+func modSettingsScopeSQL(scope models.ModSettingScope) (string, []any) {
+	if scope.Type == "" || scope.Type == models.ModSettingScopeGlobal {
+		return "", nil
+	}
+	return " AND scope_type = ? AND scope_id = ?", []any{scope.Type, scope.ID}
 }
 
 // scanModSettingTime is a tiny local time parser (the repository package has
@@ -58,18 +79,24 @@ func scanModSettingTime(s string) time.Time {
 
 // List returns every stored value for a mod in key order. Secret rows carry
 // no Value (only IsSecret=true); the caller decides how to render "set".
-func (ModSettingsRepository) List(slug string) ([]ModSettingRow, error) {
+func (ModSettingsRepository) List(slug string, scope models.ModSettingScope) ([]ModSettingRow, error) {
 	if slug == "" {
 		return nil, errors.New("modsettings.list: mod slug is required")
+	}
+	scope, err := scope.Normalize()
+	if err != nil {
+		return nil, fmt.Errorf("modsettings.list: %w", err)
 	}
 	con, err := OpenDB()
 	if err != nil {
 		return nil, fmt.Errorf("modsettings.list: open db: %w", err)
 	}
 	defer con.Close()
+	where, extra := modSettingsScopeSQL(scope)
+	args := append([]any{slug}, extra...)
 	rows, err := con.Query(
-		`SELECT key, value, is_secret, updated_at FROM mod_settings WHERE mod_slug = ? ORDER BY key ASC`,
-		slug,
+		`SELECT key, value, is_secret, updated_at FROM `+modSettingsTable(scope)+` WHERE mod_slug = ?`+where+` ORDER BY key ASC`,
+		args...,
 	)
 	if err != nil {
 		return nil, err
@@ -84,6 +111,7 @@ func (ModSettingsRepository) List(slug string) ([]ModSettingRow, error) {
 			return nil, err
 		}
 		r.ModSlug = slug
+		r.Scope = scope.String()
 		r.IsSecret = secret != 0
 		if !r.IsSecret {
 			r.Value = raw
@@ -97,10 +125,16 @@ func (ModSettingsRepository) List(slug string) ([]ModSettingRow, error) {
 // Set upserts one value. Secret values are sealed before the write; the
 // caller is responsible for validating the value against the declared schema
 // (models.ValidateSettingValue) before calling.
-func (ModSettingsRepository) Set(slug, key, value string, isSecret bool) error {
+func (ModSettingsRepository) Set(slug, key, value string, isSecret bool, scope models.ModSettingScope) error {
 	if slug == "" || key == "" {
 		return errors.New("modsettings.set: mod slug and key are required")
 	}
+	scope, err := scope.Normalize()
+	if err != nil {
+		return fmt.Errorf("modsettings.set: %w", err)
+	}
+	table := modSettingsTable(scope)
+	where, extra := modSettingsScopeSQL(scope)
 	stored := value
 	if isSecret {
 		sealed, err := secretbox.Seal([]byte(value))
@@ -113,9 +147,10 @@ func (ModSettingsRepository) Set(slug, key, value string, isSecret bool) error {
 	// lost insert race converges via the follow-up UPDATE.
 	return withModSettingsConn(func(con *sql.DB) error {
 		now := time.Now().UTC().Format("2006-01-02 15:04:05")
+		updateArgs := append([]any{stored, boolToInt(isSecret), now, slug, key}, extra...)
 		res, err := con.Exec(
-			`UPDATE mod_settings SET value = ?, is_secret = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`,
-			stored, boolToInt(isSecret), now, slug, key,
+			`UPDATE `+table+` SET value = ?, is_secret = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`+where,
+			updateArgs...,
 		)
 		if err != nil {
 			return err
@@ -123,15 +158,21 @@ func (ModSettingsRepository) Set(slug, key, value string, isSecret bool) error {
 		if n, _ := res.RowsAffected(); n > 0 {
 			return nil
 		}
-		if _, err := con.Exec(
-			`INSERT INTO mod_settings (mod_slug, key, value, is_secret, updated_at) VALUES (?, ?, ?, ?, ?)`,
-			slug, key, stored, boolToInt(isSecret), now,
-		); err != nil {
+		var insert string
+		var insertArgs []any
+		if table == "mod_settings" {
+			insert = `INSERT INTO mod_settings (mod_slug, key, value, is_secret, updated_at) VALUES (?, ?, ?, ?, ?)`
+			insertArgs = []any{slug, key, stored, boolToInt(isSecret), now}
+		} else {
+			insert = `INSERT INTO mod_settings_scoped (mod_slug, scope_type, scope_id, key, value, is_secret, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+			insertArgs = []any{slug, scope.Type, scope.ID, key, stored, boolToInt(isSecret), now}
+		}
+		if _, err := con.Exec(insert, insertArgs...); err != nil {
 			low := strings.ToLower(err.Error())
 			if strings.Contains(low, "duplicate") || strings.Contains(low, "unique") {
 				_, err = con.Exec(
-					`UPDATE mod_settings SET value = ?, is_secret = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`,
-					stored, boolToInt(isSecret), now, slug, key,
+					`UPDATE `+table+` SET value = ?, is_secret = ?, updated_at = ? WHERE mod_slug = ? AND key = ?`+where,
+					updateArgs...,
 				)
 				return err
 			}
@@ -145,16 +186,22 @@ func (ModSettingsRepository) Set(slug, key, value string, isSecret bool) error {
 // secret. found=false when no row matches. This is the ONLY path that opens a
 // sealed value; the sandbox binding owns it so the HTTP surface never
 // decrypts.
-func (ModSettingsRepository) Reveal(slug, key string) (value string, isSecret bool, found bool, err error) {
+func (ModSettingsRepository) Reveal(slug, key string, scope models.ModSettingScope) (value string, isSecret bool, found bool, err error) {
 	if slug == "" || key == "" {
 		return "", false, false, errors.New("modsettings.reveal: mod slug and key are required")
 	}
+	scope, nerr := scope.Normalize()
+	if nerr != nil {
+		return "", false, false, fmt.Errorf("modsettings.reveal: %w", nerr)
+	}
+	where, extra := modSettingsScopeSQL(scope)
+	args := append([]any{slug, key}, extra...)
 	cerr := withModSettingsConn(func(con *sql.DB) error {
 		var raw string
 		var secret int
 		qerr := con.QueryRow(
-			`SELECT value, is_secret FROM mod_settings WHERE mod_slug = ? AND key = ?`,
-			slug, key,
+			`SELECT value, is_secret FROM `+modSettingsTable(scope)+` WHERE mod_slug = ? AND key = ?`+where,
+			args...,
 		).Scan(&raw, &secret)
 		if errors.Is(qerr, sql.ErrNoRows) {
 			return nil
@@ -184,12 +231,18 @@ func (ModSettingsRepository) Reveal(slug, key string) (value string, isSecret bo
 
 // Delete removes one value row. Missing keys are a no-op so the API can clear
 // an already-clear setting without special-casing.
-func (ModSettingsRepository) Delete(slug, key string) error {
+func (ModSettingsRepository) Delete(slug, key string, scope models.ModSettingScope) error {
 	if slug == "" || key == "" {
 		return errors.New("modsettings.delete: mod slug and key are required")
 	}
+	scope, nerr := scope.Normalize()
+	if nerr != nil {
+		return fmt.Errorf("modsettings.delete: %w", nerr)
+	}
+	where, extra := modSettingsScopeSQL(scope)
+	args := append([]any{slug, key}, extra...)
 	return withModSettingsConn(func(con *sql.DB) error {
-		_, err := con.Exec(`DELETE FROM mod_settings WHERE mod_slug = ? AND key = ?`, slug, key)
+		_, err := con.Exec(`DELETE FROM `+modSettingsTable(scope)+` WHERE mod_slug = ? AND key = ?`+where, args...)
 		return err
 	})
 }
