@@ -106,7 +106,7 @@ Key files:
 | Models | `panel/backend/internal/models/mod.go`, `modver.go` | Mod, capabilities, manifest v2, slots, hooks, settings, version-constraint parser |
 | Repository | `panel/backend/internal/repository/mod_repo.go`, `mod_settings_repo.go` | CRUD, grants, package metadata, settings + encrypted secrets |
 | API | `panel/backend/internal/api/handlers/mod_handler.go`, `mod_events.go`, `mod_hostops.go`, `mod_settings_handler.go` | Install/lifecycle/grants/logs/slots/assets/settings, hook emitters, host operations bridge |
-| Routes | `panel/backend/internal/api/server.go:578-615`, `:799-805` | `/api/mods*` + `/api/mods/v1/slots|assets` |
+| Routes | `panel/backend/internal/api/server.go:578-615`, `:799-805` | `/api/mods*` + `/api/mods/v1/slots` + `/api/mods/v1/assets` |
 | Migrations | `.../db/migrations/{mysql,postgres,sqlite}/017_mods`, `020_mod_v2`, `027_mod_source`, `036_mod_package`, `081_mod_settings` | Mods, v2 fields, source, package size, typed settings |
 | Frontend | `panel/frontend/src/features/mods/` | Mods list, detail, Studio (9 tabs), stats, schedules, mod screen, settings card, presets |
 | UI registry | `panel/frontend/src/shared/components/ui/Slot.tsx` | Slot fetch, bundle injection, registry, error boundaries |
