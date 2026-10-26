@@ -336,6 +336,9 @@ export interface ModSettingDefinition {
   // UI hint shown when no value is stored. Never present for "password".
   default?: string;
   description?: string;
+  // Value bucket: global (default), instance, user or node. The API/binding
+  // take an explicit id for non-global scopes.
+  scope?: 'global' | 'instance' | 'user' | 'node';
 }
 
 // One declared setting + its stored state in the GET/PUT response. `value`
@@ -348,6 +351,7 @@ export interface ModSettingView extends ModSettingDefinition {
 
 export interface ModSettingsResponse {
   slug: string;
+  scope?: string;
   settings: ModSettingView[];
 }
 

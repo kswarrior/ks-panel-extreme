@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/go-chi/chi/v5"
 

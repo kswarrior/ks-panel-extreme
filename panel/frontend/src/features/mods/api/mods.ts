@@ -214,8 +214,10 @@ export async function deactivateMod(id: number): Promise<void> {
 // Fetch the manifest-declared settings schema plus current values. Password
 // settings never carry a value — only is_set — so this response is safe to
 // hold in component state.
-export async function getModSettings(id: number): Promise<ModSettingsResponse> {
-  const res = await client.get<ModSettingsResponse>(`/api/mods/${id}/settings`);
+export async function getModSettings(id: number, scope?: string): Promise<ModSettingsResponse> {
+  const res = await client.get<ModSettingsResponse>(`/api/mods/${id}/settings`, {
+    params: scope && scope !== 'global' ? { scope } : undefined,
+  });
   return res.data;
 }
 
@@ -225,8 +227,11 @@ export async function getModSettings(id: number): Promise<ModSettingsResponse> {
 export async function updateModSettings(
   id: number,
   values: Record<string, string>,
+  scope?: string,
 ): Promise<ModSettingsResponse> {
-  const res = await client.put<ModSettingsResponse>(`/api/mods/${id}/settings`, { values });
+  const res = await client.put<ModSettingsResponse>(`/api/mods/${id}/settings`, { values }, {
+    params: scope && scope !== 'global' ? { scope } : undefined,
+  });
   return res.data;
 }
 
