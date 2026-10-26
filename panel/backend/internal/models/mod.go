@@ -362,10 +362,18 @@ func (m ModManifestV2) SettingByKey(key string) *ModSettingDefinition {
 // populated. ParseV2Manifest fills the v2 fields when the manifest opted into
 // engine version 2.
 type ModManifestV2 struct {
-	Name                string `json:"name"`
-	Slug                string `json:"slug"`
-	Version             string `json:"version"`
-	Description         string `json:"description"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+	// APIVersion is the manifest schema version (1, 2 or 3). It is separate
+	// from EngineVersion: apiVersion describes which manifest fields are
+	// understood, engineVersion describes whether a JS runtime is required.
+	// A v3 manifest opts into requires/provides/conflicts + marketplace
+	// metadata; older manifests keep parsing unchanged.
+	APIVersion int `json:"apiVersion,omitempty"`
+	// EngineVersion is 1 (static manifest) or 2 (Goja runtime). engineVersion
+	// 3 is accepted as a shorthand for apiVersion 3 when apiVersion is absent.
 	EngineVersion       int    `json:"engineVersion"`
 	BackendScript       string `json:"backendScript"`
 	BackendScriptSource string `json:"backendScriptSource"`
@@ -385,6 +393,26 @@ type ModManifestV2 struct {
 	Hooks                []HookDefinition       `json:"hooks"`
 	PermissionsDeclared  []CustomPermission     `json:"permissionsDeclared"`
 	Settings             []ModSettingDefinition `json:"settings"`
+	// Requires declares mod-to-mod dependencies plus the panel/engine/SDK
+	// compatibility matrix. Both the legacy flat form
+	// {"other-mod": ">=1.2.3"} and the object form
+	// {"mods": {...}, "panel": ">=1.1", "engine": ">=2", "sdk": ">=1"}
+	// are accepted (see ModRequires.UnmarshalJSON).
+	Requires ModRequires `json:"requires,omitempty"`
+	// Provides/Conflicts are v3 ownership tokens. A token is a stable string
+	// such as "slot:instance.detail.tabs", "component:my-widget" or
+	// "page:/reports"; two active mods may not provide the same token.
+	Provides  []string `json:"provides,omitempty"`
+	Conflicts []string `json:"conflicts,omitempty"`
+	// Marketplace metadata (v3). Rendered by the Mods UI; none of it is
+	// trusted for execution.
+	Publisher   string   `json:"publisher,omitempty"`
+	License     string   `json:"license,omitempty"`
+	Homepage    string   `json:"homepage,omitempty"`
+	Icon        string   `json:"icon,omitempty"`
+	Screenshots []string `json:"screenshots,omitempty"`
+	Changelog   string   `json:"changelog,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 	Spec                 json.RawMessage        `json:"spec"`
 	PermissionsRequested []PermissionReqV2      `json:"permissionsRequested"`
 }
