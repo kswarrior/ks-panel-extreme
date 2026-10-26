@@ -39,7 +39,7 @@ Rules for every item (from the repo: read `loop.md` + `map.md` first, scope disc
 | # | Item | Status |
 |---|------|--------|
 | M6 | Mount UI slots + bundle loader + slot catalog + Studio frontend tab | ☑ done (v1.0.266) |
-| M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ◐ parser only — not wired |
+| M7 | Mod-to-mod dependencies (`requires{}`, topo load) | ☑ done |
 | M8 | Typed settings + encrypted secrets (migration 081) | ☑ done (v1.0.268) |
 | M9 | Scoped mod DB tables/migrations (governed) | ☐ pending (assess) |
 | M10 | Dev tooling (scaffold CLI, test harness, docs, optional hot reload) | ☐ pending |
