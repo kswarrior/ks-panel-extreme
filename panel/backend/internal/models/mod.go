@@ -119,11 +119,6 @@ const (
 	CapContainerControl  = "container.control"
 	CapVMControl         = "vm.control"
 	CapFilesystem        = "filesystem"
-	// CapStorageShared unlocks ks.storage.shared(ns): the cross-mod KV
-	// namespace broker. Namespaces still have to be declared in the
-	// manifest (`sharedStorage: [...]`) and grants are approved by the admin
-	// like any other capability.
-	CapStorageShared = "storage.shared"
 )
 
 // AllowedCapabilties returns the well-known capability codes a mod is allowed
