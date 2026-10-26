@@ -54,6 +54,22 @@ remain impossible are the ones that make the PHP panels unsafe: patching panel c
 running arbitrary PHP/Composer in-process, unrestricted DB/ORM access, and unrestricted
 host OS access. Everything else gets a governed equivalent.
 
+### If only ten things get done
+
+1. **H1** — reconcile `plan/mod.md` and `docs/vs/mod.md` so the next agent is not misled.
+2. **L1** — wire `requires{}` and topological activation (the parser already exists).
+3. **L3** — add upgrade, version history and rollback.
+4. **L4** — permission diff on upgrade; never auto-grant new capabilities.
+5. **E1** — sign `.kspm` packages and verify before activation.
+6. **E3** — ship an MVP registry/marketplace with install and search.
+7. **D2** — governed owned schema (`mod_<slug>_*` tables) with multi-DB DDL.
+8. **R3** — mod HTTP routes under `/api/mods/v1/ext/{slug}` with admin auth.
+9. **U3** — table-column injection with one owner per column.
+10. **X1/X2** — `kspanel mod init|pack|validate|lint` so authors can build without guessing.
+
+These ten unlock the rest: signing and registry need packaging; upgrade needs versioning;
+routes/tables need the manifest validator; table columns need slot contracts.
+
 ---
 
 ## 1. Current state audit (verified)
@@ -302,7 +318,7 @@ These are small but they make the current docs lie; fix them first.
 
 ### 2.2 Capability matrix
 
-`Yes` = shipped and usable; `Partial` = exists but incomplete; `No` = absent.
+`Yes` = shipped and usable; `Partial` = exists but incomplete; `No` = absent or not documented in the sources read. Competitor cells are deliberately conservative.
 
 | Capability | KS now | KS target | Ptero v2 | Pelican | Ptero v1 | Puffer |
 |---|---|---|---|---|---|---|
@@ -310,7 +326,7 @@ These are small but they make the current docs lie; fix them first.
 | Panel/engine/SDK compatibility | No | Yes | Yes | Yes | No | No |
 | Mod-to-mod dependencies + topo load | No (parser only) | Yes | Yes | Yes | No | No |
 | Provides/conflicts + one-owner | No | Yes | Yes | Partial | No | No |
-| In-place update + rollback | No | Yes | Partial | Partial | No | No |
+| In-place update + rollback | No | Yes | No | Partial | No | No |
 | Sandbox / isolation | **Yes** | **Yes** | No | No | No | No |
 | Per-call capability enforcement | **Yes** | **Yes** | No | No | No | No |
 | Approval gate before activation | **Yes** | **Yes** | No | No | No | No |
@@ -318,7 +334,7 @@ These are small but they make the current docs lie; fix them first.
 | Post hooks / event breadth | Partial | Yes | Partial | Partial | No | No |
 | Custom/inter-mod events | No | Yes | No | No | No | No |
 | Typed settings | Yes (global) | Yes (scoped) | Yes | Yes | No | No |
-| Encrypted settings secrets | **Yes** | **Yes** | Yes | Yes | No | No |
+| Encrypted settings secrets | **Yes** | **Yes** | Yes | No | No | No |
 | Owned DB schema + migrations | No | Yes | Yes | Yes | No | No |
 | Namespaced KV | Yes | Yes | Yes | Yes | No | No |
 | Shared KV | No | Yes | N/A | N/A | No | No |
@@ -329,20 +345,20 @@ These are small but they make the current docs lie; fix them first.
 | Controlled network fetch | No | Yes | Yes | Yes | No | No |
 | WebSocket / streaming | No | Yes | Yes | Yes | No | No |
 | UI slots / tabs | Yes (6) | Yes (20+) | Yes | Yes | Partial | No |
-| Full-screen mod pages + nav | Yes | Yes | Yes | Yes | No | No |
-| Table column injection | No | Yes | Yes | Yes | No | No |
-| Component/page replacement | No | Controlled | Yes | Yes | No | No |
-| Per-role/per-user UI visibility | No | Yes | Partial | Partial | No | No |
+| Full-screen mod pages + nav | Yes | Yes | Yes | Yes | Partial | No |
+| Table column injection | No | Yes | Yes | Yes | Partial | No |
+| Component/page replacement | No | Controlled | Yes | Yes | Partial | No |
+| Per-role/per-user UI visibility | No | Yes | No | No | No | No |
 | Marketplace / registry | No | Yes | Yes | Yes | No | No |
 | Package signing / SBOM | No | Yes | No | No | No | No |
-| Update channels / auto-update | No | Yes | Partial | Partial | No | No |
-| Scaffold / pack / validate | No | Yes | Yes | Yes | No | No |
+| Update channels / auto-update | No | Yes | No | Partial | No | No |
+| Scaffold / pack / validate | No | Yes | Partial | Yes | No | No |
 | Hot reload / dev emulator | No | Yes | No | No | No | No |
 | Mod test harness | No | Yes | No | No | No | No |
 | TypeScript SDK | No | Yes | No | No | No | No |
-| Per-mod metrics/quotas | No | Yes | Partial | Partial | No | No |
+| Per-mod metrics/quotas | No | Yes | No | No | No | No |
 | Kill switch | **Yes** | **Yes** | Env only | No | No | No |
-| Multi-DB | **Yes** | **Yes** | No | Partial | No | No |
+| Multi-DB | **Yes** | **Yes** | Partial | Yes | Partial | No |
 | Ownership scoping | **Yes** | **Yes** | Partial | Partial | No | No |
 | Audit trail | Yes | Yes | Partial | Partial | No | No |
 
