@@ -32,6 +32,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/permissions"
@@ -57,7 +58,26 @@ type modSettingView struct {
 
 type modSettingsResponse struct {
 	Slug     string           `json:"slug"`
+	Scope    string           `json:"scope"`
 	Settings []modSettingView `json:"settings"`
+}
+
+// requestSettingScope parses ?scope=global|instance:<id>|user:<id>|node:<id>.
+// scope_type + scope_id are also accepted for callers that prefer separate
+// query fields. Blank means global.
+func requestSettingScope(r *http.Request) (models.ModSettingScope, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get("scope"))
+	if raw == "" {
+		st := strings.TrimSpace(r.URL.Query().Get("scope_type"))
+		sid := strings.TrimSpace(r.URL.Query().Get("scope_id"))
+		if st != "" {
+			if sid == "" {
+				return models.ModSettingScope{}, fmt.Errorf("scope_id is required with scope_type")
+			}
+			raw = st + ":" + sid
+		}
+	}
+	return models.ParseModSettingScope(raw)
 }
 
 // updateModSettingsDTO is the PUT body. Values are strings for every type
@@ -69,13 +89,16 @@ type updateModSettingsDTO struct {
 // buildModSettingsView merges the declared schema with the stored rows.
 // `stored` carries no secret cleartext by construction (repository.List zeroes
 // it), so this function cannot leak one.
-func buildModSettingsView(slug string, defs []models.ModSettingDefinition, stored []repository.ModSettingRow) modSettingsResponse {
+func buildModSettingsView(slug string, defs []models.ModSettingDefinition, stored []repository.ModSettingRow, scope models.ModSettingScope) modSettingsResponse {
 	byKey := make(map[string]repository.ModSettingRow, len(stored))
 	for _, row := range stored {
 		byKey[row.Key] = row
 	}
-	resp := modSettingsResponse{Slug: slug, Settings: make([]modSettingView, 0, len(defs))}
+	resp := modSettingsResponse{Slug: slug, Scope: scope.String(), Settings: make([]modSettingView, 0, len(defs))}
 	for _, def := range defs {
+		if def.DeclaredScope() != scope.Type {
+			continue
+		}
 		v := modSettingView{
 			Key: def.Key, Label: def.Label, Type: def.Type,
 			Options: def.Options, Default: def.Default, Description: def.Description,
@@ -141,14 +164,19 @@ func ModSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	scope, err := requestSettingScope(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	defs := models.ParseV2Manifest(mod.Manifest).Settings
-	stored, err := repository.NewModSettingsRepository().List(mod.Slug)
+	stored, err := repository.NewModSettingsRepository().List(mod.Slug, scope)
 	if err != nil {
 		log.Println("ModSettings list error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, buildModSettingsView(mod.Slug, defs, stored))
+	writeJSON(w, buildModSettingsView(mod.Slug, defs, stored, scope))
 }
 
 // UpdateModSettingsHandler serves PUT /api/mods/{id}/settings. The body maps
@@ -175,6 +203,11 @@ func UpdateModSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	scope, err := requestSettingScope(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	man := models.ParseV2Manifest(mod.Manifest)
 
 	// Validate the entire payload before writing anything.
@@ -187,6 +220,10 @@ func UpdateModSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		def := man.SettingByKey(key)
 		if def == nil {
 			http.Error(w, fmt.Sprintf("setting %q is not declared by this mod", key), http.StatusBadRequest)
+			return
+		}
+		if def.DeclaredScope() != scope.Type {
+			http.Error(w, fmt.Sprintf("setting %q is %s-scoped; use ?scope=%s:<id>", key, def.DeclaredScope(), def.DeclaredScope()), http.StatusBadRequest)
 			return
 		}
 		if value == "" {
@@ -210,14 +247,14 @@ func UpdateModSettingsHandler(w http.ResponseWriter, r *http.Request) {
 	settingsRepo := repository.NewModSettingsRepository()
 	for _, wr := range writes {
 		if wr.value == "" {
-			if err := settingsRepo.Delete(mod.Slug, wr.def.Key); err != nil {
+			if err := settingsRepo.Delete(mod.Slug, wr.def.Key, scope); err != nil {
 				log.Println("ModSettings delete error:", err)
 				http.Error(w, "server error", http.StatusInternalServerError)
 				return
 			}
 			continue
 		}
-		if err := settingsRepo.Set(mod.Slug, wr.def.Key, wr.value, wr.def.Type == "password"); err != nil {
+		if err := settingsRepo.Set(mod.Slug, wr.def.Key, wr.value, wr.def.Type == "password", scope); err != nil {
 			log.Println("ModSettings set error:", err)
 			http.Error(w, "server error", http.StatusInternalServerError)
 			return
@@ -229,14 +266,14 @@ func UpdateModSettingsHandler(w http.ResponseWriter, r *http.Request) {
 		Action:      "update",
 		TargetID:    &mod.ID,
 		TargetLabel: mod.Name,
-		Message:     fmt.Sprintf("updated settings for mod %q (%d value(s))", mod.Name, len(writes)),
+		Message:     fmt.Sprintf("updated %s settings for mod %q (%d value(s))", scope.String(), mod.Name, len(writes)),
 	})
 
-	stored, err := settingsRepo.List(mod.Slug)
+	stored, err := settingsRepo.List(mod.Slug, scope)
 	if err != nil {
 		log.Println("ModSettings list after write error:", err)
 		http.Error(w, "server error", http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, buildModSettingsView(mod.Slug, man.Settings, stored))
+	writeJSON(w, buildModSettingsView(mod.Slug, man.Settings, stored, scope))
 }
