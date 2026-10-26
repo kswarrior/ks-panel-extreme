@@ -180,12 +180,30 @@ export interface ModUpsertPayload {
   permissionsRequested: PermissionRequest[];
 }
 
-// Shape of the 409 activate response when there are still pending grants.
+// One unsatisfied dependency returned by the activate 409.
+export interface ModDependencyIssue {
+  mod: string;
+  requires: string;
+  constraint?: string;
+  installed_version?: string;
+  reason: 'missing' | 'inactive' | 'version' | 'self' | 'cycle' | 'dependency_blocked' | 'invalid_constraint';
+}
+
+// Shape of a 409 activate response: pending grants, unsatisfied dependencies,
+// provides/conflicts collisions, panel incompatibility or active dependents.
+// Only `error`/`message` are guaranteed; the caller branches on the optional
+// fields.
 export interface ModActivateConflict {
   error: string;
   message: string;
-  pending: number;
-  permissions: ModPermission[];
+  pending?: number;
+  permissions?: ModPermission[];
+  dependencies?: ModDependencyIssue[];
+  conflicts?: string[];
+  component?: string;
+  required?: string;
+  current?: string;
+  dependents?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -196,13 +214,24 @@ export interface ModActivateConflict {
 // manifest decodes into an object with `engineVersion === 1` and empty v2
 // arrays, which is the contract the React slot loader branches on so an
 // admin-uploaded v1 mod never tries to fetch a JS bundle.
+export interface ModRequires {
+  mods?: Record<string, string>;
+  panel?: string;
+  engine?: string;
+  sdk?: string;
+}
+
 export interface ModManifestV2 {
   name: string;
   slug: string;
   version?: string;
   description?: string;
+  // Manifest schema version. 1/2 are historical; 3 opts into requires/
+  // provides/conflicts and marketplace metadata. engineVersion 3 is accepted
+  // by the backend as a shorthand for apiVersion 3.
+  apiVersion?: 1 | 2 | 3;
   // 1 = static v1 manifest (no JS runtime). 2 = event-driven Goja engine.
-  engineVersion: 1 | 2;
+  engineVersion: 1 | 2 | 3;
   // Entry JS file the panel's embedded VM evaluates on activation.
   backendScript?: string;
   // Inline script source (self-contained dev manifest). Preferred over the
@@ -228,6 +257,20 @@ export interface ModManifestV2 {
   // reads them at runtime via ks.settings.get(key). Keep the schema rules in
   // sync with models.ValidateSettings in internal/models/mod.go.
   settings?: ModSettingDefinition[];
+  // v3 dependency + compatibility block. Both the flat map form
+  // ({"other-mod": ">=1.2.3"}) and the structured form are accepted.
+  requires?: ModRequires;
+  // v3 ownership tokens; two active mods may not provide the same token.
+  provides?: string[];
+  conflicts?: string[];
+  // v3 marketplace metadata (untrusted, rendered only).
+  publisher?: string;
+  license?: string;
+  homepage?: string;
+  icon?: string;
+  screenshots?: string[];
+  changelog?: string;
+  tags?: string[];
   // Opaque editable spec blob (pages/tools definitions).
   spec?: Record<string, any>;
   permissionsRequested?: PermissionRequest[];
