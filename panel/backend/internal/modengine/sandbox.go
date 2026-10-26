@@ -458,7 +458,12 @@ func (r *gojaRuntime) settingsGet(call goja.FunctionCall) goja.Value {
 		return goja.Null()
 	}
 	key, _ := call.Argument(0).Export().(string)
-	val, found, err := r.settings.get(key)
+	scope, serr := modSettingScopeArg(call.Argument(1))
+	if serr != nil {
+		log.Printf("[mod:%s] settings.get(%q) scope: %v", r.slug, key, serr)
+		return goja.Null()
+	}
+	val, found, err := r.settings.get(key, scope)
 	if err != nil {
 		log.Printf("[mod:%s] settings.get(%q) error: %v", r.slug, key, err)
 		return goja.Null()
@@ -496,11 +501,43 @@ func (r *gojaRuntime) settingsSet(call goja.FunctionCall) goja.Value {
 			val = string(b)
 		}
 	}
-	if err := r.settings.set(key, val); err != nil {
+	scope, serr := modSettingScopeArg(call.Argument(2))
+	if serr != nil {
+		log.Printf("[mod:%s] settings.set(%q) scope: %v", r.slug, key, serr)
+		return r.vm.ToValue(false)
+	}
+	if err := r.settings.set(key, val, scope); err != nil {
 		log.Printf("[mod:%s] settings.set(%q): %v", r.slug, key, err)
 		return r.vm.ToValue(false)
 	}
 	return r.vm.ToValue(true)
+}
+
+// modSettingScopeArg accepts the optional scope argument as either a string
+// ("instance:42") or an object ({type:"instance", id:"42"}). Missing/null
+// means "use the declared scope" (global for legacy settings).
+func modSettingScopeArg(v goja.Value) (models.ModSettingScope, error) {
+	if v == nil || goja.IsUndefined(v) || goja.IsNull(v) {
+		return models.ModSettingScope{}, nil
+	}
+	switch e := v.Export().(type) {
+	case string:
+		return models.ParseModSettingScope(e)
+	case map[string]any:
+		typ, _ := e["type"].(string)
+		id, _ := e["id"].(string)
+		typ = strings.TrimSpace(typ)
+		id = strings.TrimSpace(id)
+		if typ == "" {
+			return models.ModSettingScope{}, nil
+		}
+		if typ == models.ModSettingScopeGlobal {
+			return models.ParseModSettingScope(typ)
+		}
+		return models.ParseModSettingScope(typ + ":" + id)
+	default:
+		return models.ModSettingScope{}, fmt.Errorf("scope must be a string or {type,id} object")
+	}
 }
 
 // eventsOn subscribes a JS function to a host event. We wrap it into a bus

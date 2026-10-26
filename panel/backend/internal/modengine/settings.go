@@ -71,12 +71,16 @@ func settingsFromHostEnv(env HostEnv) []models.ModSettingDefinition {
 // get returns the effective value for a declared key: the stored row if one
 // exists (decrypted for secrets — this is the engine-side reveal path), else
 // the declared default. undeclared → found=false.
-func (b *settingsBinding) get(key string) (value string, found bool, err error) {
+func (b *settingsBinding) get(key string, requested models.ModSettingScope) (value string, found bool, err error) {
 	def, ok := b.defs[key]
 	if !ok {
 		return "", false, nil
 	}
-	stored, _, found, err := b.repo.Reveal(b.slug, key)
+	scope, err := settingScopeFor(def, requested)
+	if err != nil {
+		return "", false, err
+	}
+	stored, _, found, err := b.repo.Reveal(b.slug, key, scope)
 	if err != nil {
 		return "", false, err
 	}
@@ -95,16 +99,41 @@ func (b *settingsBinding) get(key string) (value string, found bool, err error) 
 // set validates and upserts one value. An empty value clears the setting
 // (deletes the row) for every type — matching the API's PUT semantics — so a
 // mod cannot accidentally persist "" as a meaningful secret.
-func (b *settingsBinding) set(key, value string) error {
+func (b *settingsBinding) set(key, value string, requested models.ModSettingScope) error {
 	def, ok := b.defs[key]
 	if !ok {
 		return fmt.Errorf("setting %q: %w", key, errSettingUndeclared)
 	}
+	scope, err := settingScopeFor(def, requested)
+	if err != nil {
+		return fmt.Errorf("setting %q: %w", key, err)
+	}
 	if value == "" {
-		return b.repo.Delete(b.slug, key)
+		return b.repo.Delete(b.slug, key, scope)
 	}
 	if err := models.ValidateSettingValue(def, value); err != nil {
 		return fmt.Errorf("setting %q: %w", key, err)
 	}
-	return b.repo.Set(b.slug, key, value, def.Type == "password")
+	return b.repo.Set(b.slug, key, value, def.Type == "password", scope)
+}
+
+// settingScopeFor validates a caller-supplied scope against the declared one.
+// Omitting the scope means global for global settings; a non-global setting
+// requires an explicit id (there is no ambient request context in the VM).
+func settingScopeFor(def models.ModSettingDefinition, requested models.ModSettingScope) (models.ModSettingScope, error) {
+	declared := def.DeclaredScope()
+	if requested.Type == "" {
+		requested = models.ModSettingScope{Type: declared}
+	}
+	normalized, err := requested.Normalize()
+	if err != nil {
+		return models.ModSettingScope{}, err
+	}
+	if normalized.Type != declared {
+		return models.ModSettingScope{}, fmt.Errorf("declared scope is %s", declared)
+	}
+	if declared != models.ModSettingScopeGlobal && normalized.ID == "" {
+		return models.ModSettingScope{}, fmt.Errorf("%s scope requires an id", declared)
+	}
+	return normalized, nil
 }
