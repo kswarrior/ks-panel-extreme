@@ -11,6 +11,23 @@
 > detail for M6-M15; its status column is partly stale (see §1.8). Where the two disagree,
 > this document wins until `plan/mod.md` is reconciled.
 
+Contents:
+
+- [0. Executive verdict](#0-executive-verdict)
+- [1. Current state audit](#1-current-state-audit-verified)
+- [2. Comparison with other panels](#2-comparison-with-other-panels)
+- [3. Target design principles](#3-target-design-principles)
+- [4. Backlog](#4-backlog--everything-to-add)
+- [5. Milestones](#5-milestones)
+- [6. Capability contract](#6-best-mod-system-capability-contract)
+- [7. Security model](#7-security-model-for-the-expanded-system)
+- [8. Compatibility and migration](#8-compatibility-and-migration)
+- [9. Non-goals](#9-non-goals-deliberate)
+- [10. Open decisions](#10-open-decisions)
+- [11. Definition of Done](#11-definition-of-done-for-every-item)
+- [12. Sources read](#12-sources-read)
+- [13. Suggested execution order](#13-suggested-execution-order)
+
 ---
 
 ## 0. Executive verdict
