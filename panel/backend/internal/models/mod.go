@@ -388,11 +388,11 @@ type ModManifestV2 struct {
 	// travels inside the manifest and the asset handler serves it at the
 	// UIBundle path; it wins over a file with the same name. Capped at
 	// MaxUIBundleSourceBytes (1 MiB) at upload.
-	UIBundleSource       string                 `json:"uiBundleSource"`
-	Slots                []SlotDefinition       `json:"slots"`
-	Hooks                []HookDefinition       `json:"hooks"`
-	PermissionsDeclared  []CustomPermission     `json:"permissionsDeclared"`
-	Settings             []ModSettingDefinition `json:"settings"`
+	UIBundleSource      string                 `json:"uiBundleSource"`
+	Slots               []SlotDefinition       `json:"slots"`
+	Hooks               []HookDefinition       `json:"hooks"`
+	PermissionsDeclared []CustomPermission     `json:"permissionsDeclared"`
+	Settings            []ModSettingDefinition `json:"settings"`
 	// Requires declares mod-to-mod dependencies plus the panel/engine/SDK
 	// compatibility matrix. Both the legacy flat form
 	// {"other-mod": ">=1.2.3"} and the object form
@@ -406,15 +406,15 @@ type ModManifestV2 struct {
 	Conflicts []string `json:"conflicts,omitempty"`
 	// Marketplace metadata (v3). Rendered by the Mods UI; none of it is
 	// trusted for execution.
-	Publisher   string   `json:"publisher,omitempty"`
-	License     string   `json:"license,omitempty"`
-	Homepage    string   `json:"homepage,omitempty"`
-	Icon        string   `json:"icon,omitempty"`
-	Screenshots []string `json:"screenshots,omitempty"`
-	Changelog   string   `json:"changelog,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Spec                 json.RawMessage        `json:"spec"`
-	PermissionsRequested []PermissionReqV2      `json:"permissionsRequested"`
+	Publisher            string            `json:"publisher,omitempty"`
+	License              string            `json:"license,omitempty"`
+	Homepage             string            `json:"homepage,omitempty"`
+	Icon                 string            `json:"icon,omitempty"`
+	Screenshots          []string          `json:"screenshots,omitempty"`
+	Changelog            string            `json:"changelog,omitempty"`
+	Tags                 []string          `json:"tags,omitempty"`
+	Spec                 json.RawMessage   `json:"spec"`
+	PermissionsRequested []PermissionReqV2 `json:"permissionsRequested"`
 }
 
 // DefaultUIBundlePath is the bundle path a mod's manifest refers to when it
@@ -497,6 +497,17 @@ func ParseV2Manifest(raw []byte) ModManifestV2 {
 	if m.EngineVersion == 0 {
 		// Default to v1 unless the manifest explicitly opted into 2.
 		m.EngineVersion = 1
+	}
+	if m.APIVersion == 0 {
+		switch {
+		case m.EngineVersion >= ManifestAPIVersionV3:
+			// engineVersion: 3 is the documented shorthand for apiVersion 3.
+			m.APIVersion = ManifestAPIVersionV3
+		case m.EngineVersion == ManifestAPIVersionV2:
+			m.APIVersion = ManifestAPIVersionV2
+		default:
+			m.APIVersion = ManifestAPIVersionV1
+		}
 	}
 	// Normalise the declared custom-permission codes so callers can match
 	// them against granted rows without re-decoding the manifest.
