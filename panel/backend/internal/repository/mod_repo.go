@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/example/kspanel/internal/models"
+	panelversion "github.com/example/kspanel/internal/version"
 )
 
 // ModRepository persists Mods (admin-uploaded add-on packages) and the
@@ -126,10 +125,7 @@ type ManifestInput struct {
 // `permissionsRequested[]`. Capability must be one of the AllowedCapabilties;
 // AccessLevel is an optional human-facing description the shows up next to the
 // capability (e.g. "read_only" / "read_write").
-type PermissionReq struct {
-	Capability  string `json:"capability"`
-	AccessLevel string `json:"access_level"`
-}
+type PermissionReq = models.PermissionReqV2
 
 // CreateModInput is the fully-resolved payload CreateMod accepts. The handler
 // parses the manifest bytes into ManifestInput then forwards the resolved
@@ -159,28 +155,21 @@ type CreateModInput struct {
 // UNIQUE(mod_id, capability) constraint mid-transaction with an obscure SQL
 // error, so we fail early with a message the admin can act on.
 func validatePermissionRequests(perms []PermissionReq) error {
-	allowed := map[string]struct{}{}
-	for _, c := range models.AllowedCapabilties() {
-		allowed[c] = struct{}{}
-	}
-	seen := map[string]struct{}{}
-	for _, p := range perms {
-		if _, ok := allowed[p.Capability]; !ok {
-			return fmt.Errorf("unknown capability %q", p.Capability)
-		}
-		if _, ok := seen[p.Capability]; ok {
-			return fmt.Errorf("duplicate permission request for capability %q", p.Capability)
-		}
-		seen[p.Capability] = struct{}{}
-	}
-	return nil
+	return models.ValidatePermissionRequests(perms)
 }
 
-// modDeclaredPermRe is the contract for the key part of a mod-declared custom
-// permission (after the "<slug>:" namespace): lowercase letters/digits plus
-// "_", "." and "-", 1-64 chars. Kept intentionally narrow so the code reads
-// well in the grant checklist and can never collide with a capability code.
-var modDeclaredPermRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
+// modManifestValidationOptions supplies the running panel's compatibility
+// versions to the central manifest validator. RequireIdentity is false for
+// CreateMod because the repository already validates the resolved Name/Slug
+// fields; upload parsers set it true so the manifest itself must carry them.
+func modManifestValidationOptions(requireIdentity bool) models.ManifestValidationOptions {
+	return models.ManifestValidationOptions{
+		PanelVersion:    panelversion.Version,
+		EngineVersion:   models.CurrentEngineVersion,
+		SDKVersion:      models.CurrentSDKVersion,
+		RequireIdentity: requireIdentity,
+	}
+}
 
 // modDeclaredPermCap bounds how many custom permissions one manifest may
 // declare. The grant checklist renders them inline; an unbounded list would
@@ -193,28 +182,7 @@ const modDeclaredPermCap = 16
 // manifest that skipped normalisation (blank slug edge cases) can't slip a
 // bare or hostile code into the UNIQUE(mod_id, capability) index.
 func validateDeclaredPermissions(declared []models.CustomPermission) error {
-	if len(declared) > modDeclaredPermCap {
-		return fmt.Errorf("too many custom permissions declared (%d; max %d)", len(declared), modDeclaredPermCap)
-	}
-	seen := map[string]struct{}{}
-	for _, p := range declared {
-		code := strings.TrimSpace(p.Key)
-		if code == "" {
-			return fmt.Errorf("custom permission key must not be empty")
-		}
-		key := code
-		if i := strings.Index(code, ":"); i >= 0 {
-			key = code[i+1:]
-		}
-		if !modDeclaredPermRe.MatchString(key) {
-			return fmt.Errorf("invalid custom permission key %q: use lowercase letters, digits, \"_\", \".\" or \"-\" (max 64 chars)", key)
-		}
-		if _, ok := seen[code]; ok {
-			return fmt.Errorf("duplicate custom permission %q", code)
-		}
-		seen[code] = struct{}{}
-	}
-	return nil
+	return models.ValidateCustomPermissions(declared)
 }
 
 // CreateMod inserts a new mod together with its requested-capability rows
