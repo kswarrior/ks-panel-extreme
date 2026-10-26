@@ -219,7 +219,14 @@ func (e *ModEngine) Boot(ctx context.Context, activeMods []*models.Mod) {
 		e.AppendLog("", "warn", "boot skipped: mod engine disabled")
 		return
 	}
-	for _, m := range activeMods {
+	ordered, blocked := models.SortModsByDependency(activeMods)
+	for slug, issues := range blocked {
+		for _, issue := range issues {
+			log.Printf("[modengine] boot blocked %q: %s", slug, issue.Reason)
+		}
+		e.AppendLog(slug, "warn", "boot blocked: dependency/version constraints are not satisfied")
+	}
+	for _, m := range ordered {
 		if m == nil {
 			continue
 		}

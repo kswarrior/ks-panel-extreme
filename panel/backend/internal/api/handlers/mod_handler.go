@@ -354,6 +354,17 @@ func CreateModHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("CreateMod error:", err)
+		var incompat *models.IncompatibilityError
+		if errors.As(err, &incompat) {
+			writeJSONStatus(w, http.StatusConflict, map[string]any{
+				"error":     "incompatible",
+				"message":   incompat.Error(),
+				"component": incompat.Component,
+				"required":  incompat.Required,
+				"current":   incompat.Current,
+			})
+			return
+		}
 		// Duplicate slug -> UNIQUE violation; report a friendly 409.
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
 			http.Error(w, "a mod with this slug already exists", http.StatusConflict)
@@ -664,6 +675,11 @@ func InstallModFromURLHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("InstallModFromURL CreateMod error:", err)
+		var incompat *models.IncompatibilityError
+		if errors.As(err, &incompat) {
+			http.Error(w, incompat.Error(), http.StatusConflict)
+			return
+		}
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") {
 			http.Error(w, "a mod with this slug already exists", http.StatusConflict)
 			return

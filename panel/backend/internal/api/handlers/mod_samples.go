@@ -322,6 +322,11 @@ func InstallSampleModHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Println("InstallSample CreateMod error:", err)
+		var incompat *models.IncompatibilityError
+		if errors.As(err, &incompat) {
+			http.Error(w, incompat.Error(), http.StatusConflict)
+			return
+		}
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "unique") ||
 			strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "Duplicate") {
 			http.Error(w, "a mod with this slug already exists", http.StatusConflict)
