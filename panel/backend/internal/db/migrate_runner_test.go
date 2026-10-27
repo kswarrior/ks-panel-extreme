@@ -176,6 +176,15 @@ func TestSQLiteMigrationsTwice(t *testing.T) {
 	if err := RunMigrations(d, con); err != nil {
 		t.Fatalf("second run: %v", err)
 	}
+	for _, col := range []string{"require_offline", "max_online_users"} {
+		var n int
+		if err := con.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('update_windows') WHERE name = ?`, col).Scan(&n); err != nil {
+			t.Fatalf("inspect update_windows.%s: %v", col, err)
+		}
+		if n != 1 {
+			t.Fatalf("migration 084 must add update_windows.%s", col)
+		}
+	}
 	if err := EnsureSchemaAndSeed(d, con); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
