@@ -796,6 +796,18 @@ func RunMigrations(d Dialect, db *sql.DB) error {
 				return err
 			}
 			continue
+		case name == "084_update_window_online_guard.sql":
+			// Online-user guard for scheduled updates (require_offline +
+			// max_online_users on update_windows, migration 084). The
+			// runtime guard owns convergence so reruns are safe on every
+			// engine regardless of native ADD COLUMN support.
+			if err := guardedAddColumns(d, db, name, "update_windows", []columnSpec{
+				{"require_offline", "INTEGER NOT NULL DEFAULT 0"},
+				{"max_online_users", "INTEGER NOT NULL DEFAULT 0"},
+			}); err != nil {
+				return err
+			}
+			continue
 		case name == "065_tickets_attachments_sla_notify.sql":
 			// Ticket attachments + SLA sidecar + notification prefs. The
 			// CREATE TABLEs are IF NOT EXISTS on every dialect, but the

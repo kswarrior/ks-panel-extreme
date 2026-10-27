@@ -15,7 +15,7 @@ import type {
 } from '@/features/system/types/system';
 import GlassModal from '@/shared/components/ui/Modal';
 import UpdateWindowsCard from './UpdateWindowsCard';
-import { fmtUptime } from './SystemCharts';
+import { fmtMB, fmtUptime } from './SystemCharts';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
 

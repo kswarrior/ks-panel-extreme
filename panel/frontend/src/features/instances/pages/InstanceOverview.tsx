@@ -450,7 +450,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             return {
               id,
               label: meta.label,
-              hint: 'Status, controls & info',
+              hint: 'Facts & timestamps',
               icon: meta.icon,
               accent: '#38bdf8',
               marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,

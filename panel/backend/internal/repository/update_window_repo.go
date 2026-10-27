@@ -14,10 +14,12 @@ type UpdateWindow struct {
 	Target      string     `json:"target"`
 	Name        string     `json:"name"`
 	Cron        string     `json:"cron"`
-	Enabled     bool       `json:"enabled"`
-	WindowStart string     `json:"window_start"`
-	WindowEnd   string     `json:"window_end"`
-	NextRunAt   *time.Time `json:"next_run_at,omitempty"`
+	Enabled        bool       `json:"enabled"`
+	WindowStart    string     `json:"window_start"`
+	WindowEnd      string     `json:"window_end"`
+	RequireOffline bool       `json:"require_offline"`
+	MaxOnlineUsers int        `json:"max_online_users"`
+	NextRunAt      *time.Time `json:"next_run_at,omitempty"`
 	LastRunAt   *time.Time `json:"last_run_at,omitempty"`
 	LastStatus  string     `json:"last_status,omitempty"`
 	CreatedAt   *time.Time `json:"created_at,omitempty"`
@@ -30,10 +32,12 @@ type UpdateWindowInput struct {
 	Target      string
 	Name        string
 	Cron        string
-	Enabled     bool
-	WindowStart string
-	WindowEnd   string
-	NextRunAt   *time.Time
+	Enabled        bool
+	WindowStart    string
+	WindowEnd      string
+	RequireOffline bool
+	MaxOnlineUsers int
+	NextRunAt      *time.Time
 }
 
 // UpdateWindowRepository persists update_windows rows. Time encoding
@@ -60,9 +64,10 @@ func scanUpdateWindow(s updateWindowScanner) (UpdateWindow, bool, error) {
 	var id sql.NullInt64
 	var target, name, cron, windowStart, windowEnd, lastStatus sql.NullString
 	var nextRun, lastRun, created, updated sql.NullString
-	var enabled sql.NullInt64
+	var enabled, requireOffline, maxOnlineUsers sql.NullInt64
 	if err := s.Scan(&id, &target, &name, &cron, &enabled,
-		&windowStart, &windowEnd, &nextRun, &lastRun, &lastStatus,
+		&windowStart, &windowEnd, &requireOffline, &maxOnlineUsers,
+		&nextRun, &lastRun, &lastStatus,
 		&created, &updated); err != nil {
 		return w, false, err
 	}
