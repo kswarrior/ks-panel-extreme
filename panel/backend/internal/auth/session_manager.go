@@ -187,6 +187,30 @@ func (sm *SessionManager) AllActiveSessions() []Session {
 	return out
 }
 
+// ActiveUserCount returns the number of distinct users with an active
+// session last used within window. window <= 0 counts any active session.
+// Used by scheduled update windows to gate runs on live panel users.
+func (sm *SessionManager) ActiveUserCount(window time.Duration) int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+
+	cutoff := time.Time{}
+	if window > 0 {
+		cutoff = time.Now().Add(-window)
+	}
+	users := make(map[int64]struct{})
+	for _, s := range sm.sessions {
+		if !s.IsActive {
+			continue
+		}
+		if !cutoff.IsZero() && s.LastUsed.Before(cutoff) {
+			continue
+		}
+		users[s.UserID] = struct{}{}
+	}
+	return len(users)
+}
+
 // TokenID derives a stable, non-reversible identifier for a session token
 // (first 16 hex chars of SHA-256). The admin API uses it as the revoke
 // handle so full tokens never appear in responses or logs.
