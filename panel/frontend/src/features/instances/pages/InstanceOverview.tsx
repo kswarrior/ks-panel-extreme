@@ -3,14 +3,17 @@
 // not a custom spec.pages entry).
 //
 // It gathers everything the floating menu holds plus full-page extras:
-//   • header with name + status / kind badges (no top-right action pill),
 //   • section tabs: Details (one tile per fact — no Controls / Status
 //     cards, those live in the floating menu; the External ID tile is
 //     click-to-copy), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename + reinstall + destroy),
 //     Activity (audit trail).
 //   • section deck (OverviewTabs: one card, per-tab hue wash + glowing
-//     icon tile + growing underline + live markers, 2×2 on phones).
+//     icon tile + growing underline + live markers, vertically stacked
+//     and scrollable).
+//
+// The instance identity card (name / status / type / node · template)
+// intentionally lives in the floating Instance controls menu, not here.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -24,8 +27,6 @@ import {
 } from '@/shared/api/admin';
 import { listInstanceAudit } from '../api/instanceAdvanced';
 import type { InstanceAuditRow } from '@/features/instances/types/instanceAdvanced';
-import { KindIcon } from '../components/InstanceFormComponents';
-import { KIND_META, kindKey } from '../types/instanceForm';
 import { AreaChart, DonutChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
 import { Sparkline, fmtBytes, fmtPct } from '@/features/system/components/SystemCharts';
 import { useAuthStore } from '@/shared/stores/authStore';

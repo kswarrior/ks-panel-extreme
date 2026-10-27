@@ -2,8 +2,9 @@ import React, { useCallback, useRef } from 'react';
 
 // OverviewTabs — the instance overview page's section switcher, in ONE
 // card. A bespoke style for this page (not a pill, not the shared
-// section rail): a 2×2 deck on phones, one row of four on desktop, so
-// every section is always visible — no dropdown, no scrolling.
+// section rail): full-width rows stacked top → bottom and vertically
+// scrollable when the section list grows, so every section stays
+// reachable without a dropdown.
 //
 // Each tab owns a hue (Details sky, Monitoring emerald, Manage amber,
 // Activity violet): the active tab washes in its hue, lights its icon
@@ -69,9 +70,10 @@ const OverviewTabs: React.FC<OverviewTabsProps> = ({
       <div
         role="tablist"
         aria-label={ariaLabel}
-        aria-orientation="horizontal"
+        aria-orientation="vertical"
         onKeyDown={onKeyDown}
-        className="grid grid-cols-2 xl:grid-cols-4 gap-2"
+        className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto overscroll-contain pr-0.5"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' } as React.CSSProperties}
       >
         {tabs.map((t) => {
           const selected = t.id === active;
@@ -90,7 +92,7 @@ const OverviewTabs: React.FC<OverviewTabsProps> = ({
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(t.id)}
               title={`${t.label} — ${t.hint}`}
-              className="relative overflow-hidden rounded-xl border px-3 py-2.5 text-left outline-none transition-all duration-200 ease-out active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+              className="relative shrink-0 w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left outline-none transition-all duration-200 ease-out active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
               style={
                 selected
                   ? {
