@@ -218,9 +218,6 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
               </svg>
             </button>
           </div>
-          <div className="text-[11px] text-gray-500 font-mono truncate">
-            v{info.local.version || '—'} · pid {snap?.local?.pid || '—'}
-          </div>
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Uptime</div>
           <div className="text-2xl font-semibold text-white tabular-nums">{fmtUptime(snap?.local?.process_uptime || 0)}</div>
         </div>
