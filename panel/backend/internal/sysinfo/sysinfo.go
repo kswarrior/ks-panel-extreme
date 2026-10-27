@@ -33,7 +33,7 @@ type Host struct {
 
 	// Identification ---------------------------------------------------------
 	Hostname string `json:"hostname"`
-	OS       string `json:"os"`     // runtime.GOOS
+	OS       string `json:"os"` // runtime.GOOS
 	Platform string `json:"platform"`
 	Kernel   string `json:"kernel"` // e.g. "5.15.0-…"
 	Arch     string `json:"arch"`
@@ -41,11 +41,11 @@ type Host struct {
 	// CPU model + cores + per-core load -------------------------------------
 	CPUModel   string    `json:"cpu_model"`
 	CPUCores   int       `json:"cpu_cores"`
-	CPUPercent float64   `json:"cpu_percent"`     // most-recent sample (instantaneous load)
+	CPUPercent float64   `json:"cpu_percent"` // most-recent sample (instantaneous load)
 	Load1      float64   `json:"load1"`
 	Load5      float64   `json:"load5"`
 	Load15     float64   `json:"load15"`
-	PerCore    []float64 `json:"per_core"`        // per-core CPU% since last sample
+	PerCore    []float64 `json:"per_core"` // per-core CPU% since last sample
 
 	// Memory ------------------------------------------------------------------
 	RAMTotalMB  float64 `json:"ram_total_mb"`
@@ -73,9 +73,9 @@ type Host struct {
 	Addrs      []string       `json:"addrs"` // non-loopback IPv4/IPv6, sorted
 
 	// Process / uptime ------------------------------------------------------
-	UptimeSec     int64 `json:"uptime_sec"`      // host uptime if readable, else process uptime
-	ProcessUptime int64 `json:"process_uptime"`  // always process uptime
-	PID           int   `json:"pid"`             // panel process PID
+	UptimeSec     int64 `json:"uptime_sec"`     // host uptime if readable, else process uptime
+	ProcessUptime int64 `json:"process_uptime"` // always process uptime
+	PID           int   `json:"pid"`            // panel process PID
 
 	// Go runtime ------------------------------------------------------------
 	GoVer       string  `json:"-"`
@@ -130,10 +130,10 @@ type SeriesSample struct {
 // Series is the rolling window exposed to the dashboard. The window is
 // implementation-configured (see Start) — the dashboard just plots.
 type Series struct {
-	Window     time.Duration `json:"window_ns"`  // nanoseconds (we marshal as ns to keep types tight)
-	Interval   time.Duration `json:"interval_ns"`
-	Samples    []SeriesSample `json:"samples"`
-	Current    SeriesSample   `json:"current"`
+	Window   time.Duration  `json:"window_ns"` // nanoseconds (we marshal as ns to keep types tight)
+	Interval time.Duration  `json:"interval_ns"`
+	Samples  []SeriesSample `json:"samples"`
+	Current  SeriesSample   `json:"current"`
 }
 
 // processStart is the package's wall-clock notion of when the panel

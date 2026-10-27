@@ -1385,7 +1385,7 @@ func isColumnTypeName(tok string) bool {
 	return false
 }
 
-// maskSQLLiterals blanks single-quoted literals ('' = escaped quote) with
+// maskSQLLiterals blanks single-quoted literals (” = escaped quote) with
 // spaces, preserving length so offsets into the mask match the original.
 // Keyword/regex searches run on the mask; splices apply to the original.
 func maskSQLLiterals(s string) string {

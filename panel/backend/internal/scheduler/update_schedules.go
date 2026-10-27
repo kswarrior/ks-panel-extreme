@@ -11,6 +11,7 @@
 //   - otherwise → run detached (fleet rolling rollout / panel stage+relaunch)
 //     so a slow fleet or a multi-minute binary download never blocks the
 //     minute tick.
+//
 // Re-arming (next_run_at + last_status) lives in the handlers package
 // next to the runners so the HTTP CRUD and the sweep share it.
 package scheduler

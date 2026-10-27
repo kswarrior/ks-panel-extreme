@@ -10,28 +10,28 @@ import (
 // (fleet rolling update over every registered node). WindowStart/End are
 // daily "HH:MM" UTC bounds; empty means "always inside the window".
 type UpdateWindow struct {
-	ID          int64      `json:"id"`
-	Target      string     `json:"target"`
-	Name        string     `json:"name"`
-	Cron        string     `json:"cron"`
+	ID             int64      `json:"id"`
+	Target         string     `json:"target"`
+	Name           string     `json:"name"`
+	Cron           string     `json:"cron"`
 	Enabled        bool       `json:"enabled"`
 	WindowStart    string     `json:"window_start"`
 	WindowEnd      string     `json:"window_end"`
 	RequireOffline bool       `json:"require_offline"`
 	MaxOnlineUsers int        `json:"max_online_users"`
 	NextRunAt      *time.Time `json:"next_run_at,omitempty"`
-	LastRunAt   *time.Time `json:"last_run_at,omitempty"`
-	LastStatus  string     `json:"last_status,omitempty"`
-	CreatedAt   *time.Time `json:"created_at,omitempty"`
-	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+	LastRunAt      *time.Time `json:"last_run_at,omitempty"`
+	LastStatus     string     `json:"last_status,omitempty"`
+	CreatedAt      *time.Time `json:"created_at,omitempty"`
+	UpdatedAt      *time.Time `json:"updated_at,omitempty"`
 }
 
 // UpdateWindowInput is the validated create/update payload (validation
 // lives in the handler: cron.Parse + HH:MM window shape).
 type UpdateWindowInput struct {
-	Target      string
-	Name        string
-	Cron        string
+	Target         string
+	Name           string
+	Cron           string
 	Enabled        bool
 	WindowStart    string
 	WindowEnd      string
