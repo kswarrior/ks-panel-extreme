@@ -1,0 +1,122 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - complementary "Main navigation" [ref=f2e4]:
+        - generic [ref=f2e5]: KS Panel
+        - navigation [ref=f2e10]:
+          - paragraph [ref=f2e11]: Overview
+          - button "System" [ref=f2e13] [cursor=pointer]
+          - link "Security" [ref=f2e22] [cursor=pointer]:
+            - /url: /security
+          - link "Activity" [ref=f2e28] [cursor=pointer]:
+            - /url: /activity
+          - link "Database" [ref=f2e33] [cursor=pointer]:
+            - /url: /database
+          - paragraph [ref=f2e40]: Management
+          - link "Users" [ref=f2e41] [cursor=pointer]:
+            - /url: /users
+          - link "Roles" [ref=f2e49] [cursor=pointer]:
+            - /url: /roles
+          - link "Settings" [ref=f2e54] [cursor=pointer]:
+            - /url: /settings
+          - link "API Keys" [ref=f2e60] [cursor=pointer]:
+            - /url: /api-keys
+          - paragraph [ref=f2e65]: Infrastructure
+          - link "Nodes" [ref=f2e66] [cursor=pointer]:
+            - /url: /nodes
+          - link "Templates" [ref=f2e80] [cursor=pointer]:
+            - /url: /templates
+          - link "Instance Pages" [ref=f2e86] [cursor=pointer]:
+            - /url: /instance-pages
+          - link "All Instances" [ref=f2e92] [cursor=pointer]:
+            - /url: /instances
+          - paragraph [ref=f2e102]: Extensions
+          - link "Mods" [ref=f2e103] [cursor=pointer]:
+            - /url: /mods
+          - link "Applications" [ref=f2e108] [cursor=pointer]:
+            - /url: /applications
+          - link "Stacks" [ref=f2e116] [cursor=pointer]:
+            - /url: /stacks
+          - paragraph [ref=f2e123]: Appearance
+          - link "Themes" [ref=f2e124] [cursor=pointer]:
+            - /url: /themes
+          - paragraph [ref=f2e133]: Support
+          - link "Tickets" [ref=f2e134] [cursor=pointer]:
+            - /url: /tickets
+          - link "Notifications" [ref=f2e142] [cursor=pointer]:
+            - /url: /notifications
+        - button "Collapse sidebar" [expanded] [ref=f2e150] [cursor=pointer]:
+          - generic: KS Warrior
+      - generic [ref=f2e151]:
+        - banner [ref=f2e152]:
+          - generic [ref=f2e153]:
+            - navigation "Breadcrumb" [ref=f2e156]:
+              - generic [ref=f2e197]:
+                - generic [ref=f2e206]: "Instance #1"
+                - generic [ref=f2e207]: /
+                - generic [ref=f2e208]: Overview
+            - generic [ref=f2e167]:
+              - button "Notifications, live" [ref=f2e209] [cursor=pointer]
+              - button "Profile menu" [ref=f2e175] [cursor=pointer]:
+                - img "kshosting" [ref=f2e176]:
+                  - generic [ref=f2e177]: KS
+        - main [ref=f2e179]:
+          - generic [ref=f2e211]:
+            - generic [ref=f2e213]:
+              - 'button "Overview sections: Details" [expanded] [active] [ref=f2e214] [cursor=pointer]':
+                - generic [ref=f2e215]: Details
+              - generic [ref=f2e318]:
+                - combobox "Search sections" [expanded] [ref=f2e321]
+                - listbox "Overview sections" [ref=f2e322]:
+                  - option "Details Facts & timestamps" [selected] [ref=f2e323] [cursor=pointer]:
+                    - generic [ref=f2e327]:
+                      - generic [ref=f2e328]: Details
+                      - generic [ref=f2e329]: Facts & timestamps
+                  - option "Monitoring CPU · RAM · disk" [ref=f2e333] [cursor=pointer]:
+                    - generic [ref=f2e339]:
+                      - generic [ref=f2e340]: Monitoring
+                      - generic [ref=f2e341]: CPU · RAM · disk
+                  - option "Manage Rename · reinstall · destroy" [ref=f2e342] [cursor=pointer]:
+                    - generic [ref=f2e347]:
+                      - generic [ref=f2e348]: Manage
+                      - generic [ref=f2e349]: Rename · reinstall · destroy
+                  - option "Activity Audit trail" [ref=f2e350] [cursor=pointer]:
+                    - generic [ref=f2e356]:
+                      - generic [ref=f2e357]: Activity
+                      - generic [ref=f2e358]: Audit trail
+            - generic [ref=f2e223]:
+              - generic "Minecraft" [ref=f2e224]:
+                - generic [ref=f2e229]:
+                  - generic [ref=f2e230]: Minecraft
+                  - generic [ref=f2e231]: Container
+                  - generic "edge workload name" [ref=f2e232]
+              - button "local-edge Node hosting edge" [ref=f2e233] [cursor=pointer]:
+                - generic [ref=f2e238]:
+                  - generic [ref=f2e239]: local-edge
+                  - generic [ref=f2e240]: Node
+                  - generic "hosting edge" [ref=f2e241]
+              - button "Minecraft Template deployed from" [ref=f2e244] [cursor=pointer]:
+                - generic [ref=f2e248]:
+                  - generic [ref=f2e249]: Minecraft
+                  - generic [ref=f2e250]: Template
+                  - generic "deployed from" [ref=f2e251]
+              - generic "No external ID yet" [ref=f2e254]:
+                - generic [ref=f2e259]:
+                  - generic [ref=f2e260]: —
+                  - generic [ref=f2e261]: External ID
+                  - generic "driver-side ID" [ref=f2e262]
+              - generic "Lifecycle timestamps" [ref=f2e263]:
+                - generic [ref=f2e267]:
+                  - generic [ref=f2e268]:
+                    - generic "10/27/2026, 2:45:18 PM" [ref=f2e269]
+                    - generic [ref=f2e270]: Created
+                  - generic [ref=f2e272]:
+                    - generic "10/27/2026, 2:45:18 PM" [ref=f2e273]
+                    - generic [ref=f2e274]: Updated
+    - button "Open AI assistant" [ref=f2e188] [cursor=pointer]
+  - generic:
+    - button "Nudge menu left" [ref=f2e192] [cursor=pointer]
+    - button "Nudge menu right" [ref=f2e193] [cursor=pointer]
+    - button "Nudge menu up" [ref=f2e194] [cursor=pointer]
+    - button "Nudge menu down" [ref=f2e195] [cursor=pointer]
+    - button "Instance menu" [ref=f2e196]
