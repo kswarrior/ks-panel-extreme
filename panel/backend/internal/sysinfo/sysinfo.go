@@ -78,7 +78,7 @@ type Host struct {
 	PID           int   `json:"pid"`             // panel process PID
 
 	// Go runtime ------------------------------------------------------------
-	GoVer       string  `json:"go_version"`
+	GoVer       string  `json:"-"`
 	Goroutines  int     `json:"goroutines"`
 	HeapAllocMB float64 `json:"heap_alloc_mb"`
 	HeapSysMB   float64 `json:"heap_sys_mb"`

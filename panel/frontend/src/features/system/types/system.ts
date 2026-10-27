@@ -84,7 +84,6 @@ export interface LocalHost {
   uptime_sec: number;
   process_uptime: number;
   pid: number;
-  go_version: string;
   goroutines: number;
   heap_alloc_mb: number;
   heap_sys_mb: number;

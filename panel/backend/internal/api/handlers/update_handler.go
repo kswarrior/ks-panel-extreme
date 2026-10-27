@@ -89,16 +89,14 @@ type updateVersionManifest struct {
 // updateInfoResponse is the GET /api/system/update-info payload. It
 // bundles the local build identity + the public update endpoint so the
 // "Updates" tab can render "You are running X" without a separate request
-// per field. The `auto` block carries the background recheck toggle +
-// interval + last result so the Panel tab paints in one round-trip.
+// per field.
 type updateInfoResponse struct {
-	Local       version.Info            `json:"local"`
-	UpdateURL   string                  `json:"update_url"`
-	VersionURL  string                  `json:"version_url"`
-	BinaryPath  string                  `json:"binary_path"`
-	LastCheckAt *string                 `json:"last_check_at,omitempty"`
-	LastRemote  *string                 `json:"last_remote_version,omitempty"`
-	Auto        panelUpdateAutoResponse `json:"auto"`
+	Local       version.Info `json:"local"`
+	UpdateURL   string       `json:"update_url"`
+	VersionURL  string       `json:"version_url"`
+	BinaryPath  string       `json:"binary_path"`
+	LastCheckAt *string      `json:"last_check_at,omitempty"`
+	LastRemote  *string      `json:"last_remote_version,omitempty"`
 }
 
 // updateCheckResponse is the GET /api/system/update-check payload.
@@ -143,20 +141,15 @@ func UpdateInfoHandler(w http.ResponseWriter, r *http.Request) {
 		UpdateURL:  kspanelBinaryURL,
 		VersionURL: kspanelVersionURL,
 		BinaryPath: exe,
-		Auto: panelUpdateAutoResponse{
-			Enabled:     false,
-			IntervalMin: repository.DefaultPanelUpdateAutoInterval,
-		},
 	}
 	// Best-effort auto-check state: a settings-read failure must never 500
-	// the whole update-info payload — fall back to defaults (disabled).
+	// the whole update-info payload.
 	if con, err := repository.OpenDB(); err == nil {
 		func() {
 			defer con.Close()
 			cfg := config.DatabaseConfig()
 			if d, derr := db.NewDialect(cfg.Engine); derr == nil {
 				st := repository.GetPanelUpdateAutoState(con, d)
-				resp.Auto = panelAutoStateResponse(st)
 				if st.LastCheckAt != nil {
 					s := st.LastCheckAt.UTC().Format(time.RFC3339)
 					resp.LastCheckAt = &s
