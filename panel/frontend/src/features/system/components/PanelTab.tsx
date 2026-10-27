@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   checkUpdate,
@@ -143,6 +143,11 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
       setReinstallBackgroundBusy(false);
     }
   }, [info, reload]);
+
+  useEffect(() => {
+    void doCheck().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (infoLoading && !info) {
     return (
@@ -299,23 +304,11 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
             </svg>
           </button>
         </div>
-        <div className="text-[10px] text-gray-500 font-mono break-all">{info.version_url}</div>
-
         <div className="flex items-center gap-2 mb-2">
           {check?.checked_at && (
             <span className="text-xs text-gray-500">last checked {new Date(check.checked_at).toLocaleString()}</span>
           )}
           <div className="flex-1" />
-          <button
-            onClick={() => setReinstallConfirmOpen(true)}
-            disabled={reinstallBackgroundBusy || restarting}
-            className="ks-primary-btn inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-50"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M13 2L3 14h9l-1 8 10-12-10-12z" />
-            </svg>
-            Reinstall
-          </button>
         </div>
 
         {checkErr && <p className="text-red-400 text-sm mb-3">{checkErr}</p>}
@@ -407,6 +400,21 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
         title="Update Schedules"
         description="Cron schedules that self-update the panel binary inside a daily maintenance window (UTC). Outside the window the run is skipped and logged — never executed."
       />
+
+      {/* Reinstall — bottom of panel tab */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setReinstallConfirmOpen(true)}
+          disabled={reinstallBackgroundBusy || restarting}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm disabled:opacity-50"
+          style={{ background: 'var(--ks-accent-danger, #b91c1c)', color: '#fff' }}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <path d="M13 2L3 14h9l-1 8 10-12-10-12z" />
+          </svg>
+          Reinstall
+        </button>
+      </div>
 
       {/* Confirmation modal — Apply update */}
       <GlassModal
