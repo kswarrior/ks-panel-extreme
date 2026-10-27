@@ -4,46 +4,20 @@ import {
   checkUpdate,
   applyUpdate,
   reinstallBackground,
-  updateUpdateAutoConfig,
 } from '@/shared/api/admin';
 import type {
   SystemSnapshot,
   UpdateInfoResponse,
-  PanelUpdateAutoState,
   UpdateCheckResponse,
   UpdateApplyResponse,
   ReinstallBackgroundResponse,
   SeriesSample,
 } from '@/features/system/types/system';
 import GlassModal from '@/shared/components/ui/Modal';
-import ToggleRow from '@/shared/components/ui/ToggleRow';
 import UpdateWindowsCard from './UpdateWindowsCard';
-import { Donut, Gauge, fmtPct, fmtMB, fmtUptime, fmtGB } from './SystemCharts';
+import { fmtUptime } from './SystemCharts';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import { AreaChart, type MetricSample } from '@/shared/components/ui/MetricsChart';
-
-const AUTO_MIN = 5;
-const AUTO_MAX = 43200;
-const AUTO_DEFAULT_INTERVAL = 360;
-const AUTO_PRESETS = [15, 60, 360, 720, 1440];
-
-// fmtAutoInterval renders "15m" / "6h" / "2d" for the recheck hint.
-function fmtAutoInterval(min: number): string {
-  if (!Number.isFinite(min) || min <= 0) return '—';
-  if (min < 60) return `${min}m`;
-  if (min % 1440 === 0) return `${min / 1440}d`;
-  if (min % 60 === 0) return `${min / 60}h`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return `${h}h ${m}m`;
-}
-
-function fmtDateTime(iso?: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString();
-}
 
 interface PanelTabProps {
   snap: SystemSnapshot | null;
@@ -51,9 +25,10 @@ interface PanelTabProps {
   infoErr: string;
   infoLoading: boolean;
   reload: () => Promise<UpdateInfoResponse>;
+  onRefresh: () => void;
 }
 
-const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, reload }) => {
+const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, reload, onRefresh }) => {
   const [check, setCheck] = useState<UpdateCheckResponse | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
   const [checkErr, setCheckErr] = useState('');
