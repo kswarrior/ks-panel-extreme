@@ -9,9 +9,10 @@ interface HostPanelProps {
   recentCPU: number[];
   recentRAM: number[];
   recentLoad: number[];
+  onRefresh: () => void;
 }
 
-const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentCPU, recentRAM, recentLoad }) => {
+const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentCPU, recentRAM, recentLoad, onRefresh }) => {
   const cores = Math.max(host.cpu_cores || 1, 1);
   const safeSamples = useMemo(() => {
     const arr = (samples || []).map((s) => s || { unix_sec: 0, cpu_percent: 0, ram_used_pct: 0, ram_used_mb: 0, load1: 0 });
