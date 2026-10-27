@@ -27,11 +27,23 @@ import (
 // fleet rows run the rolling orchestrator — both detached.
 
 type updateWindowDTO struct {
-	Name        string `json:"name"`
-	Cron        string `json:"cron"`
-	Enabled     bool   `json:"enabled"`
-	WindowStart string `json:"window_start"`
-	WindowEnd   string `json:"window_end"`
+	Name           string `json:"name"`
+	Cron           string `json:"cron"`
+	Enabled        bool   `json:"enabled"`
+	WindowStart    string `json:"window_start"`
+	WindowEnd      string `json:"window_end"`
+	RequireOffline bool   `json:"require_offline"`
+	MaxOnlineUsers int    `json:"max_online_users"`
+}
+
+func updateWindowGuardLabel(requireOffline bool, maxOnlineUsers int) string {
+	if requireOffline {
+		return ", only when nobody is online"
+	}
+	if maxOnlineUsers > 0 {
+		return fmt.Sprintf(", only when fewer than %d users are online", maxOnlineUsers)
+	}
+	return ""
 }
 
 func validateUpdateWindowDTO(dto *updateWindowDTO) error {
@@ -53,6 +65,12 @@ func validateUpdateWindowDTO(dto *updateWindowDTO) error {
 	}
 	if err := updatewin.ValidateWindow("window_end", dto.WindowEnd); err != nil {
 		return err
+	}
+	if dto.MaxOnlineUsers < 0 {
+		return fmt.Errorf("max_online_users must be >= 0")
+	}
+	if dto.MaxOnlineUsers > 1_000_000 {
+		return fmt.Errorf("max_online_users too large (max 1000000)")
 	}
 	return nil
 }
