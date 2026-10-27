@@ -2,3 +2,22 @@
 [     226ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8090/api/mods/v1/slots:0
 [     308ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8090/api/me:0
 [     394ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
+[   43802ms] [ERROR] [KS Slot] failed to load slots registry: AxiosError: Request failed with status code 401
+    at ci (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:11064)
+    at XMLHttpRequest.y (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:18147)
+    at ye.request (http://localhost:8090/assets/vendor-RGRPoOcy.js:30:2225)
+    at async Uo (http://localhost:8090/assets/index-CqdAEZcs.js:1787:11358)
+    at async xa (http://localhost:8090/assets/index-CqdAEZcs.js:1787:13423) @ http://localhost:8090/assets/index-CqdAEZcs.js:1786
+[   43855ms] [ERROR] [KS Slot] failed to load slots registry: AxiosError: Request failed with status code 401
+    at ci (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:11064)
+    at XMLHttpRequest.y (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:18147)
+    at ye.request (http://localhost:8090/assets/vendor-RGRPoOcy.js:30:2225)
+    at async Uo (http://localhost:8090/assets/index-CqdAEZcs.js:1787:11358)
+    at async xa (http://localhost:8090/assets/index-CqdAEZcs.js:1787:13423) @ http://localhost:8090/assets/index-CqdAEZcs.js:1786
+[   43887ms] [ERROR] [KS Slot] failed to load slots registry: AxiosError: Request failed with status code 401
+    at ci (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:11064)
+    at XMLHttpRequest.y (http://localhost:8090/assets/vendor-RGRPoOcy.js:28:18147)
+    at ye.request (http://localhost:8090/assets/vendor-RGRPoOcy.js:30:2225)
+    at async Uo (http://localhost:8090/assets/index-CqdAEZcs.js:1787:11358)
+    at async xa (http://localhost:8090/assets/index-CqdAEZcs.js:1787:13423) @ http://localhost:8090/assets/index-CqdAEZcs.js:1786
+[   43920ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
