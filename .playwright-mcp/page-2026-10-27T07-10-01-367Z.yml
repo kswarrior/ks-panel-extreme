@@ -1,0 +1,123 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - generic [ref=f1e3]:
+      - complementary "Main navigation" [ref=f1e4]:
+        - generic [ref=f1e5]: KS Panel
+        - navigation [ref=f1e10]:
+          - paragraph [ref=f1e11]: Overview
+          - button "System" [ref=f1e13] [cursor=pointer]
+          - link "Security" [ref=f1e22] [cursor=pointer]:
+            - /url: /security
+          - link "Activity" [ref=f1e28] [cursor=pointer]:
+            - /url: /activity
+          - link "Database" [ref=f1e33] [cursor=pointer]:
+            - /url: /database
+          - paragraph [ref=f1e40]: Management
+          - link "Users" [ref=f1e41] [cursor=pointer]:
+            - /url: /users
+          - link "Roles" [ref=f1e49] [cursor=pointer]:
+            - /url: /roles
+          - link "Settings" [ref=f1e54] [cursor=pointer]:
+            - /url: /settings
+          - link "API Keys" [ref=f1e60] [cursor=pointer]:
+            - /url: /api-keys
+          - paragraph [ref=f1e65]: Infrastructure
+          - link "Nodes" [ref=f1e66] [cursor=pointer]:
+            - /url: /nodes
+          - link "Templates" [ref=f1e80] [cursor=pointer]:
+            - /url: /templates
+          - link "Instance Pages" [ref=f1e86] [cursor=pointer]:
+            - /url: /instance-pages
+          - link "All Instances" [ref=f1e92] [cursor=pointer]:
+            - /url: /instances
+          - paragraph [ref=f1e102]: Extensions
+          - link "Mods" [ref=f1e103] [cursor=pointer]:
+            - /url: /mods
+          - link "Applications" [ref=f1e108] [cursor=pointer]:
+            - /url: /applications
+          - link "Stacks" [ref=f1e116] [cursor=pointer]:
+            - /url: /stacks
+          - paragraph [ref=f1e123]: Appearance
+          - link "Themes" [ref=f1e124] [cursor=pointer]:
+            - /url: /themes
+          - paragraph [ref=f1e133]: Support
+          - link "Tickets" [ref=f1e134] [cursor=pointer]:
+            - /url: /tickets
+          - link "Notifications" [ref=f1e142] [cursor=pointer]:
+            - /url: /notifications
+        - button "Collapse sidebar" [expanded] [ref=f1e150] [cursor=pointer]:
+          - generic: KS Warrior
+      - generic [ref=f1e151]:
+        - banner [ref=f1e152]:
+          - generic [ref=f1e153]:
+            - navigation "Breadcrumb" [ref=f1e156]:
+              - generic [ref=f1e199]:
+                - generic [ref=f1e208]: "Instance #1"
+                - generic [ref=f1e209]: /
+                - generic [ref=f1e210]: Overview
+            - generic [ref=f1e169]:
+              - button "Notifications, live" [ref=f1e211] [cursor=pointer]
+              - button "Profile menu" [ref=f1e177] [cursor=pointer]:
+                - img "kshosting" [ref=f1e178]:
+                  - generic [ref=f1e179]: KS
+        - main [ref=f1e181]:
+          - generic [ref=f1e213]:
+            - generic [ref=f1e220]:
+              - generic [ref=f1e221]:
+                - heading "Minecraft" [level=2] [ref=f1e222]
+                - generic [ref=f1e223]: Running
+                - generic [ref=f1e227]: Docker
+              - paragraph [ref=f1e228]: local-edge · Minecraft
+            - tablist "Overview sections" [ref=f1e230]:
+              - tab "Details Status, controls & info" [selected] [ref=f1e231] [cursor=pointer]:
+                - generic [ref=f1e235]:
+                  - generic [ref=f1e236]: Details
+                  - generic [ref=f1e237]: Status, controls & info
+              - tab "Monitoring Streaming live" [ref=f1e240] [cursor=pointer]:
+                - generic [ref=f1e246]:
+                  - generic [ref=f1e247]: Monitoring
+                  - generic [ref=f1e248]: Streaming live
+              - tab "Manage Rename · reinstall · destroy" [ref=f1e252] [cursor=pointer]:
+                - generic [ref=f1e257]:
+                  - generic [ref=f1e258]: Manage
+                  - generic [ref=f1e259]: Rename · reinstall · destroy
+              - tab "Activity Audit trail" [ref=f1e260] [cursor=pointer]:
+                - generic [ref=f1e266]:
+                  - generic [ref=f1e267]: Activity
+                  - generic [ref=f1e268]: Audit trail
+            - generic [ref=f1e269]:
+              - generic "Minecraft" [ref=f1e270]:
+                - generic [ref=f1e275]:
+                  - generic [ref=f1e276]: Minecraft
+                  - generic [ref=f1e277]: Container
+                  - generic "edge workload name" [ref=f1e278]
+              - button "local-edge Node hosting edge" [ref=f1e279] [cursor=pointer]:
+                - generic [ref=f1e284]:
+                  - generic [ref=f1e285]: local-edge
+                  - generic [ref=f1e286]: Node
+                  - generic "hosting edge" [ref=f1e287]
+              - button "Minecraft Template deployed from" [ref=f1e290] [cursor=pointer]:
+                - generic [ref=f1e294]:
+                  - generic [ref=f1e295]: Minecraft
+                  - generic [ref=f1e296]: Template
+                  - generic "deployed from" [ref=f1e297]
+              - button "25b0db6b7b1457ec6c4c3682ecdbcc47985019ebdf6522997b50b3468e05539c External ID driver-side ID — click to copy" [ref=f1e300] [cursor=pointer]:
+                - generic [ref=f1e305]:
+                  - generic [ref=f1e306]: 25b0db6b7b1457ec6c4c3682ecdbcc47985019ebdf6522997b50b3468e05539c
+                  - generic [ref=f1e307]: External ID
+                  - generic "driver-side ID — click to copy" [ref=f1e308]
+              - generic "Lifecycle timestamps" [ref=f1e311]:
+                - generic [ref=f1e315]:
+                  - generic [ref=f1e316]:
+                    - generic "10/27/2026, 7:04:17 AM" [ref=f1e317]
+                    - generic [ref=f1e318]: Created
+                  - generic [ref=f1e320]:
+                    - generic "10/27/2026, 7:09:43 AM" [ref=f1e323]
+                    - generic [ref=f1e322]: Updated
+    - button "Open AI assistant" [ref=f1e190] [cursor=pointer]
+  - generic:
+    - button "Nudge menu left" [ref=f1e194] [cursor=pointer]
+    - button "Nudge menu right" [ref=f1e195] [cursor=pointer]
+    - button "Nudge menu up" [ref=f1e196] [cursor=pointer]
+    - button "Nudge menu down" [ref=f1e197] [cursor=pointer]
+    - button "Instance menu" [ref=f1e198]
