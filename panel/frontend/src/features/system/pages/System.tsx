@@ -19,7 +19,6 @@ import GlassModal from '@/shared/components/ui/Modal';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
 import HostPanel from '../components/HostPanel';
 import PanelTab from '../components/PanelTab';
-import IdentityCard from '../components/IdentityCard';
 import {
   fmtGB, fmtMB, fmtBytes, fmtUptime, fmtPct,
   Donut, Gauge, LineChart, Sparkline, BarChart,
@@ -102,9 +101,6 @@ const System: React.FC = () => {
 
   const host: LocalHost = snap.local || {};
 
-  const hostMeta = host.hostname
-    ? `${host.hostname} · CPU ${(host.cpu_percent || 0).toFixed(0)}% · MEM ${(host.ram_used_pct || 0).toFixed(0)}%`
-    : `CPU ${(host.cpu_percent || 0).toFixed(0)}% · MEM ${(host.ram_used_pct || 0).toFixed(0)}% · Load ${(host.load1 || 0).toFixed(2)}`;
   const panelMeta = info?.local?.version
     ? `v${info.local.version} · pid ${snap?.local?.pid || '—'} · ${snap?.local?.go_version || 'go'}`
     : snap?.local?.pid
@@ -114,42 +110,44 @@ const System: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Section header — the Scope switcher cards now live in the sidebar
-          (System › Host / Panel). This row keeps the live footnote plus the
-          manual refresh that used to sit in the Scope bar toolbar. */}
-      <div className="flex items-center gap-2">
-        <span className="relative flex w-2 h-2 shrink-0" aria-hidden="true">
-          <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
-          <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400" />
-        </span>
-        <span id="system-section-title" className="text-sm font-semibold text-gray-100">
-          {tab === 'host' ? 'Host' : 'Panel'}
-        </span>
-        <span className="text-xs text-gray-500 truncate">
-          {tab === 'host' ? hostMeta : panelMeta}
-        </span>
-        <span className="flex-1" />
-        {lastUpdated && (
-          <span className="hidden sm:inline text-[11px] text-gray-500 font-mono" title={lastUpdated.toLocaleString()}>
-            {lastUpdated.toLocaleTimeString()}
+          (System › Host / Panel). The Host tab's own title, identity and
+          refresh live inside the uptime card, so this row is Panel-only. */}
+      {tab === 'panel' && (
+        <div className="flex items-center gap-2">
+          <span className="relative flex w-2 h-2 shrink-0" aria-hidden="true">
+            <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
+            <span className="relative inline-flex w-2 h-2 rounded-full bg-emerald-400" />
           </span>
-        )}
-        <button
-          type="button"
-          onClick={() => void load()}
-          title="Refresh snapshot now"
-          aria-label="Refresh snapshot now"
-          className="ks-icon-btn inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-          </svg>
-        </button>
-      </div>
+          <span id="system-section-title" className="text-sm font-semibold text-gray-100">
+            Panel
+          </span>
+          <span className="text-xs text-gray-500 truncate">
+            {panelMeta}
+          </span>
+          <span className="flex-1" />
+          {lastUpdated && (
+            <span className="hidden sm:inline text-[11px] text-gray-500 font-mono" title={lastUpdated.toLocaleString()}>
+              {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            title="Refresh snapshot now"
+            aria-label="Refresh snapshot now"
+            className="ks-icon-btn inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {tab === 'host' && (
-          <div role="tabpanel" id="system-panel-host" aria-labelledby="system-section-title">
+          <div role="tabpanel" id="system-panel-host" aria-labelledby="system-host-title">
             {/* Host section */}
             <div>
               {host && (
@@ -159,6 +157,7 @@ const System: React.FC = () => {
                   recentCPU={recentCPU}
                   recentRAM={recentRAM}
                   recentLoad={recentLoad}
+                  onRefresh={() => void load()}
                 />
               )}
             </div>

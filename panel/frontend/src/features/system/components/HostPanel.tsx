@@ -32,18 +32,27 @@ const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentC
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <h3 className="text-sm font-semibold text-white uppercase tracking-wide">
-          Local host — {host.hostname || 'this panel'}
-       </h3>
-        <span className="text-[10px] text-gray-500 font-mono">
-          {host.platform || host.os || 'unknown'} · {host.arch || ''} · {host.go_version || ''}
-        </span>
-      </div>
-
       {/* Metrics tiles */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div className="ks-stat-card rounded-xl flex flex-col gap-2 animate-slide-up">
+          <div className="flex items-center justify-between gap-2">
+            <span id="system-host-title" className="text-sm font-semibold text-white">Host</span>
+            <button
+              type="button"
+              onClick={onRefresh}
+              title="Refresh snapshot now"
+              aria-label="Refresh snapshot now"
+              className="ks-icon-btn inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+          </div>
+          <div className="text-[11px] text-gray-500 font-mono truncate" title={`Local host — ${host.hostname || 'this panel'} ${host.platform || host.os || 'unknown'} · ${host.arch || '—'}`}>
+            Local host — {host.hostname || 'this panel'} {host.platform || host.os || 'unknown'} · {host.arch || '—'}
+          </div>
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Uptime</div>
           <div className="text-2xl font-semibold leading-none tabular-nums text-gray-200">{fmtUptime(host.uptime_sec || 0)}</div>
         </div>
