@@ -82,6 +82,9 @@ func TestUpdateWindowCRUDScopedByTarget(t *testing.T) {
 	if updated.Cron != "30 3 * * *" || updated.Enabled || updated.WindowEnd != "05:00" {
 		t.Fatalf("update not applied: %+v", updated)
 	}
+	if updated.RequireOffline || updated.MaxOnlineUsers != 25 {
+		t.Fatalf("online guard update not applied: %+v", updated)
+	}
 	if err := repo.Delete(id, "fleet"); err != sql.ErrNoRows {
 		t.Fatalf("cross-target delete must 404, got %v", err)
 	}

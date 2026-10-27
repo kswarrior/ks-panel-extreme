@@ -265,6 +265,10 @@ export interface UpdateWindow {
   /** Daily maintenance-window bounds as "HH:MM" UTC; empty = unbounded. */
   window_start: string;
   window_end: string;
+  /** Skip the run unless nobody is online (wins over max_online_users). */
+  require_offline: boolean;
+  /** Skip the run unless fewer than this many distinct users are online; 0 = no limit. */
+  max_online_users: number;
   next_run_at?: string | null;
   last_run_at?: string | null;
   last_status?: string;
