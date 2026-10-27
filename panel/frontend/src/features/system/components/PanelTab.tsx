@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   checkUpdate,
@@ -43,30 +43,12 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
   const [reinstallBackgroundErr, setReinstallBackgroundErr] = useState('');
   const [reinstallBackgroundResult, setReinstallBackgroundResult] = useState<ReinstallBackgroundResponse | null>(null);
 
-  // Automatic background rechecks — toggle + interval backed by
-  // GET/PUT /api/system/update-auto (also embedded as info.auto so the tab
-  // paints in one round-trip). Local draft state syncs from info.auto and
-  // saves explicitly so a half-typed interval never fires a request.
-  const auto: PanelUpdateAutoState = info?.auto ?? { enabled: false, interval_min: AUTO_DEFAULT_INTERVAL };
-  const [autoEnabled, setAutoEnabled] = useState(auto.enabled);
-  const [autoInterval, setAutoInterval] = useState(String(auto.interval_min || AUTO_DEFAULT_INTERVAL));
-  const [autoSaving, setAutoSaving] = useState(false);
-  const [autoErr, setAutoErr] = useState('');
-  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
-
-  useEffect(() => {
-    setAutoEnabled(info?.auto?.enabled ?? false);
-    setAutoInterval(String(info?.auto?.interval_min || AUTO_DEFAULT_INTERVAL));
-  }, [info?.auto?.enabled, info?.auto?.interval_min]);
-
   const doCheck = useCallback(async () => {
     setCheckLoading(true);
     setCheckErr('');
     try {
       const r = await checkUpdate();
       setCheck(r);
-      // Manual checks persist server-side too — refresh info.auto so the
-      // "last checked" line under Automatic checks stays truthful.
       try { await reload(); } catch { /* info refresh is best-effort */ }
     } catch (e: any) {
       setCheckErr(e?.response?.data || e?.message || 'Update check failed');
@@ -74,31 +56,6 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
       setCheckLoading(false);
     }
   }, [reload]);
-
-  const saveAuto = useCallback(async (nextEnabled: boolean, nextIntervalRaw: string) => {
-    const parsed = Math.floor(Number(nextIntervalRaw));
-    if (!Number.isFinite(parsed) || parsed < AUTO_MIN || parsed > AUTO_MAX) {
-      setAutoErr(`Interval must be between ${AUTO_MIN} and ${AUTO_MAX} minutes.`);
-      return;
-    }
-    setAutoSaving(true);
-    setAutoErr('');
-    try {
-      await updateUpdateAutoConfig(nextEnabled, parsed);
-      setAutoSavedAt(new Date().toLocaleTimeString());
-      await reload();
-    } catch (e: any) {
-      const msg = typeof e?.response?.data === 'string' && e.response.data.trim()
-        ? e.response.data
-        : (e?.message || 'Failed to save automatic checks');
-      setAutoErr(msg);
-      // Roll the toggle back to the server truth on failure.
-      setAutoEnabled(auto.enabled);
-      setAutoInterval(String(auto.interval_min || AUTO_DEFAULT_INTERVAL));
-    } finally {
-      setAutoSaving(false);
-    }
-  }, [auto.enabled, auto.interval_min, reload]);
 
   const doApply = useCallback(async () => {
     setConfirmOpen(false);
@@ -243,15 +200,27 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
         </div>
       )}
 
-      {/* Panel Information */}
-      <div className="mb-2">
-        <div className="text-lg font-semibold text-white">Panel Information</div>
-        <div className="text-[10px] text-gray-500 font-mono break-all">binary {info.binary_path || '—'}</div>
-      </div>
-
       {/* Stats cards */}
-      <div className="ks-card-grid grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="ks-card-grid grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
+          <div className="flex items-center justify-between gap-2">
+            <span id="system-panel-title" className="text-sm font-semibold text-white">Panel</span>
+            <button
+              type="button"
+              onClick={onRefresh}
+              title="Refresh snapshot now"
+              aria-label="Refresh snapshot now"
+              className="ks-icon-btn inline-flex items-center justify-center w-7 h-7 rounded-md border border-white/10 text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+            </button>
+          </div>
+          <div className="text-[11px] text-gray-500 font-mono truncate">
+            v{info.local.version || '—'} · pid {snap?.local?.pid || '—'}
+          </div>
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">Uptime</div>
           <div className="text-2xl font-semibold text-white tabular-nums">{fmtUptime(snap?.local?.process_uptime || 0)}</div>
         </div>
@@ -262,10 +231,6 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
         <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
           <div className="text-[10px] text-gray-400 uppercase tracking-wide">PID</div>
           <div className="text-2xl font-semibold text-white tabular-nums break-all">{snap?.local?.pid || '—'}</div>
-        </div>
-        <div className="ks-stat-card rounded-xl flex flex-col gap-2 p-4 animate-slide-up">
-          <div className="text-[10px] text-gray-400 uppercase tracking-wide">Go Version</div>
-          <div className="text-2xl font-semibold text-white tabular-nums">{snap?.local?.go_version || '—'}</div>
         </div>
       </div>
 
