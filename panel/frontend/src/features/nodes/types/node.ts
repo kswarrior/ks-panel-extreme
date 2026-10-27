@@ -282,4 +282,6 @@ export interface UpdateWindowUpsert {
   enabled: boolean;
   window_start: string;
   window_end: string;
+  require_offline: boolean;
+  max_online_users: number;
 }

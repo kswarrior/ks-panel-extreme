@@ -24,6 +24,8 @@ const EMPTY_FORM: UpdateWindowUpsert = {
   enabled: true,
   window_start: '02:00',
   window_end: '04:00',
+  require_offline: false,
+  max_online_users: 0,
 };
 
 function apiFor(target: UpdateWindowTarget) {
@@ -86,6 +88,8 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
       enabled: w.enabled,
       window_start: w.window_start || '',
       window_end: w.window_end || '',
+      require_offline: w.require_offline ?? false,
+      max_online_users: w.max_online_users ?? 0,
     });
     setFormErr('');
     setFormOpen(true);
@@ -166,6 +170,9 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
                 </div>
                 <div className="text-[11px] text-gray-500 truncate">
                   window {w.window_start || '—'}–{w.window_end || '—'} UTC
+                  {w.require_offline
+                    ? ' · only when nobody is online'
+                    : (w.max_online_users > 0 ? ` · only when fewer than ${w.max_online_users} online` : '')}
                   {w.next_run_at ? ` · next ${new Date(w.next_run_at).toLocaleString()}` : ' · not armed'}
                   {w.last_status ? ` · last: ${w.last_status}` : ''}
                 </div>
@@ -227,14 +234,43 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
               />
             </label>
           </div>
-          <label className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="text-xs text-gray-300">Enabled</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.require_offline}
+                onChange={(e) => setForm({ ...form, require_offline: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="text-xs text-gray-300">Only run when nobody is online</span>
+            </label>
+          </div>
+          <label className="block">
+            <span className="block text-[10px] uppercase tracking-wide text-gray-500 mb-1">
+              Or run only when fewer than this many users are online (0 = no limit)
+            </span>
             <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-              className="w-4 h-4"
+              type="number"
+              min={0}
+              max={1000000}
+              step={1}
+              disabled={form.require_offline}
+              value={form.max_online_users}
+              onChange={(e) => setForm({ ...form, max_online_users: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+              className="w-full glass-field text-sm disabled:opacity-40"
             />
-            <span className="text-xs text-gray-300">Enabled</span>
+            <span className="block text-[10px] text-gray-500 mt-1">
+              Counts distinct users with an active panel session in the last 5 minutes. The update is skipped, logged, and re-armed when the guard fails.
+            </span>
           </label>
           {formErr && <p className="text-red-400 text-sm">{formErr}</p>}
           <div className="flex items-center justify-end gap-2">
