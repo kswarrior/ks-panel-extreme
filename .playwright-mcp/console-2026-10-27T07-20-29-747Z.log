@@ -135,3 +135,37 @@
 [  229419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
 [  230227ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
 [  230456ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  232292ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  232420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  234453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  235226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  235419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  236291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  237007ms] [ERROR] WebSocket connection to 'ws://localhost:8090/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/assets/index-CqdAEZcs.js:1782
+[  237009ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  238419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  238453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  240226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  240291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  241419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  242454ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  244291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  244419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  245227ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  246453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  246989ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  247010ms] [ERROR] WebSocket connection to 'ws://localhost:8090/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/assets/index-CqdAEZcs.js:1782
+[  247012ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  247420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  248297ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  250227ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  250419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  250453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  252296ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  253419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  254453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  255227ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  256291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  256419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  257013ms] [ERROR] WebSocket connection to 'ws://localhost:8090/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/assets/index-CqdAEZcs.js:1782
+[  257017ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0

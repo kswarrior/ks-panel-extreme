@@ -1,25 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { systemSnapshot } from '@/shared/api/admin';
-import type {
-  SystemSnapshot,
-  LocalHost,
-  DiskMount,
-  NetInterface,
-  SeriesSample,
-  UpdateInfoResponse,
-  UpdateCheckResponse,
-  UpdateApplyResponse,
-  ReinstallBackgroundResponse,
-} from '@/features/system/types/system';
+import type { SystemSnapshot, LocalHost } from '@/features/system/types/system';
 import SkeletonGrid from '@/shared/components/ui/SkeletonGrid';
 import { useVisibleInterval } from '@/shared/hooks/useVisibleInterval';
 import ErrorState from '@/shared/components/ui/ErrorState';
-import GlassModal from '@/shared/components/ui/Modal';
 import { useUpdateInfo } from '../hooks/useUpdateInfo';
 import HostPanel from '../components/HostPanel';
 import PanelTab from '../components/PanelTab';
-
 
 const REFRESH_MS = 15_000;
 

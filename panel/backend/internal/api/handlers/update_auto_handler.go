@@ -2,9 +2,6 @@ package handlers
 
 import (
 	"database/sql"
-	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -12,27 +9,19 @@ import (
 
 	"github.com/example/kspanel/internal/config"
 	"github.com/example/kspanel/internal/db"
-	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/version"
 )
 
 // ---- Panel auto-update checks (background recheck, no visit required) ----
-// The Panel tab exposes an "Automatic update checks" toggle + recheck
-// interval. When enabled, a once-a-minute ticker in cli/launch.go calls
-// PanelAutoCheckTick(), which re-fetches version.json every interval and
-// persists the result in the settings KV — so the "update available" state
-// stays fresh even if nobody opens the System page for weeks.
+// The panel always re-fetches version.json every five minutes because it is
+// just a small manifest read. A once-a-minute ticker in cli/launch.go calls
+// PanelAutoCheckTick(), which enforces the interval and persists the result
+// in the settings KV — so the "update available" state stays fresh even if
+// nobody opens the System page for weeks.
 //
-// Endpoints (MANAGE_PANEL_UPDATE at the route, like the manual verbs):
-//   GET /api/system/update-auto – config + last result (cheap status read)
-//   PUT /api/system/update-auto – {enabled, interval_min}, audit-logged
-
-// panelUpdateAutoDTO is the PUT /api/system/update-auto payload.
-type panelUpdateAutoDTO struct {
-	Enabled     bool `json:"enabled"`
-	IntervalMin int  `json:"interval_min"`
-}
+// Endpoint (MANAGE_PANEL_UPDATE at the route, like the manual verbs):
+//   GET /api/system/update-auto – last result (cheap status read)
 
 // panelUpdateAutoResponse is the GET /api/system/update-auto payload (and
 // the `auto_*` block embedded in update-info so the Panel tab needs only one
