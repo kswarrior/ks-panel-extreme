@@ -95,42 +95,6 @@ func GetPanelUpdateAutoHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, panelAutoStateResponse(st))
 }
 
-// UpdatePanelUpdateAutoHandler persists the toggle + recheck interval.
-// interval_min must be within [Min,Max] so a typo can't burn the 60/hr
-// unauthenticated GitHub API budget (too low) or silently never recheck
-// (too high). Every mutation is audit-logged.
-func UpdatePanelUpdateAutoHandler(w http.ResponseWriter, r *http.Request) {
-	var dto panelUpdateAutoDTO
-	if err := json.NewDecoder(io.LimitReader(r.Body, 16<<10)).Decode(&dto); err != nil {
-		http.Error(w, "invalid payload", http.StatusBadRequest)
-		return
-	}
-	if dto.IntervalMin < repository.MinPanelUpdateAutoInterval || dto.IntervalMin > repository.MaxPanelUpdateAutoInterval {
-		http.Error(w, fmt.Sprintf("interval_min must be between %d and %d minutes",
-			repository.MinPanelUpdateAutoInterval, repository.MaxPanelUpdateAutoInterval), http.StatusBadRequest)
-		return
-	}
-	dc, d, err := openAutoDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	defer dc.Close()
-	if err := repository.SetPanelUpdateAutoConfig(dc, d, dto.Enabled, dto.IntervalMin); err != nil {
-		log.Println("panel update-auto save failed:", err)
-		http.Error(w, "save failed", http.StatusInternalServerError)
-		return
-	}
-	st := repository.GetPanelUpdateAutoState(dc, d)
-	RecordActivity(r, repository.ActivityInput{
-		Category:    models.ActivityCategorySystem,
-		Action:      "panel_update_auto_config",
-		TargetLabel: fmt.Sprintf("enabled=%v every %d min", dto.Enabled, dto.IntervalMin),
-		Message:     fmt.Sprintf("updated panel auto-update checks: enabled=%v interval=%dmin", dto.Enabled, dto.IntervalMin),
-	})
-	writeJSON(w, panelAutoStateResponse(st))
-}
-
 // recordPanelUpdateCheckResult persists one check outcome (manual or
 // background) so the Panel tab's "last checked …" line stays truthful even
 // when the check was triggered by the ticker instead of a page visit.
@@ -150,10 +114,10 @@ func recordPanelUpdateCheckResult(local, remote string, available *bool, lastErr
 		strings.TrimSpace(local), strings.TrimSpace(remote), available, lastErr)
 }
 
-// PanelAutoCheckTick performs one background recheck if (and only if) the
-// toggle is on and the configured interval has elapsed since the last stored
-// check. Called once a minute from the launch ticker; swallows all errors so
-// the goroutine never dies. Returns true when a network check was attempted.
+// PanelAutoCheckTick performs one background recheck when the fixed
+// five-minute interval has elapsed since the last stored check. Called once
+// a minute from the launch ticker; swallows all errors so the goroutine never
+// dies. Returns true when a network check was attempted.
 func PanelAutoCheckTick() bool {
 	con, err := repository.OpenDB()
 	if err != nil {
@@ -167,15 +131,8 @@ func PanelAutoCheckTick() bool {
 	}
 	st := repository.GetPanelUpdateAutoState(con, d)
 	con.Close()
-	if !st.Enabled {
-		return false
-	}
-	interval := st.IntervalMin
-	if interval <= 0 {
-		interval = repository.DefaultPanelUpdateAutoInterval
-	}
 	if st.LastCheckAt != nil {
-		if time.Since(*st.LastCheckAt) < time.Duration(interval)*time.Minute {
+		if time.Since(*st.LastCheckAt) < time.Duration(repository.DefaultPanelUpdateAutoInterval)*time.Minute {
 			return false
 		}
 	}
