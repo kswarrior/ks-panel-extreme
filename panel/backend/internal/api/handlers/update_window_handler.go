@@ -135,6 +135,7 @@ func createUpdateWindow(w http.ResponseWriter, r *http.Request, target, auditAct
 	id, err := repository.NewUpdateWindowRepository(con).Create(repository.UpdateWindowInput{
 		Target: target, Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		WindowStart: dto.WindowStart, WindowEnd: dto.WindowEnd,
+		RequireOffline: dto.RequireOffline, MaxOnlineUsers: dto.MaxOnlineUsers,
 		NextRunAt: next,
 	})
 	if err != nil {
@@ -145,7 +146,7 @@ func createUpdateWindow(w http.ResponseWriter, r *http.Request, target, auditAct
 		Category:    models.ActivityCategorySystem,
 		Action:      auditAction,
 		TargetLabel: dto.Name,
-		Message:     fmt.Sprintf("created %s update window %q (%s, window %s–%s)", target, dto.Name, dto.Cron, dto.WindowStart, dto.WindowEnd),
+		Message:     fmt.Sprintf("created %s update window %q (%s, window %s–%s%s)", target, dto.Name, dto.Cron, dto.WindowStart, dto.WindowEnd, updateWindowGuardLabel(dto.RequireOffline, dto.MaxOnlineUsers)),
 	})
 	writeJSONStatus(w, http.StatusCreated, map[string]any{"id": id})
 }
@@ -174,6 +175,7 @@ func updateUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, a
 	if err := repository.NewUpdateWindowRepository(con).Update(id, repository.UpdateWindowInput{
 		Target: target, Name: dto.Name, Cron: dto.Cron, Enabled: dto.Enabled,
 		WindowStart: dto.WindowStart, WindowEnd: dto.WindowEnd,
+		RequireOffline: dto.RequireOffline, MaxOnlineUsers: dto.MaxOnlineUsers,
 		NextRunAt: next,
 	}); err != nil {
 		if err == sql.ErrNoRows {
@@ -187,7 +189,7 @@ func updateUpdateWindow(w http.ResponseWriter, r *http.Request, target, param, a
 		Category:    models.ActivityCategorySystem,
 		Action:      auditAction,
 		TargetLabel: dto.Name,
-		Message:     fmt.Sprintf("updated %s update window #%d %q (%s, window %s–%s)", target, id, dto.Name, dto.Cron, dto.WindowStart, dto.WindowEnd),
+		Message:     fmt.Sprintf("updated %s update window #%d %q (%s, window %s–%s%s)", target, id, dto.Name, dto.Cron, dto.WindowStart, dto.WindowEnd, updateWindowGuardLabel(dto.RequireOffline, dto.MaxOnlineUsers)),
 	})
 	writeJSON(w, map[string]any{"id": id})
 }
