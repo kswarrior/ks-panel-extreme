@@ -132,9 +132,15 @@ const MenuRowSkeleton: React.FC = () => (
     aria-hidden="true"
   >
     <div className="flex items-center gap-2">
+      <div className="w-6 h-6 rounded-md bg-white/10 shrink-0" />
+      <div className="h-3.5 w-24 rounded bg-white/10" />
+      <div className="ml-auto h-4 w-14 rounded border border-white/5 bg-white/5 shrink-0" />
+    </div>
+    <div className="h-2.5 w-32 rounded bg-white/5" />
+    <div className="border-t border-white/5" />
+    <div className="flex items-center gap-2">
       <div className="h-3.5 w-16 rounded bg-white/10" />
-      <div className="w-px h-4 bg-white/10 shrink-0" />
-      <div className="h-5 w-20 rounded border border-white/5 bg-white/5" />
+      <div className="h-3.5 w-12 rounded bg-white/5" />
     </div>
     <div className="border-t border-white/5" />
     <div className="flex items-center gap-3">
