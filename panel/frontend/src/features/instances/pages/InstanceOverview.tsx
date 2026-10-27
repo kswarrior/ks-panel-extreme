@@ -8,9 +8,9 @@
 //     click-to-copy), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename + reinstall + destroy),
 //     Activity (audit trail).
-//   • section deck (OverviewTabs: one card, per-tab hue wash + glowing
-//     icon tile + growing underline + live markers, vertically stacked
-//     and scrollable).
+//   • section selector (OverviewSectionSelect: a compact select-style
+//     dropdown in the top-right, with a search field and per-section hue
+//     + live markers — no card in the page body).
 //
 // The instance identity card (name / status / type / node · template)
 // intentionally lives in the floating Instance controls menu, not here.
@@ -34,7 +34,7 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
-import OverviewTabs from '../components/OverviewTabs';
+import OverviewSectionSelect from '../components/OverviewSectionSelect';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import { resolveRedirectTarget } from '@/shared/utils/instancePages';
 
@@ -437,70 +437,72 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           <span className="break-words">{pageMsg}</span>
         </div>
       )}
-      {/* Section deck — one card per visible tab (template allow-list),
-          per-tab hue wash + glowing icon tile + growing underline + live
-          markers. Vertically stacked + scrollable. */}
-      <OverviewTabs
-        ariaLabel="Overview sections"
-        active={tab}
-        onChange={(id) => setTab(id as TabId)}
-        tabs={visibleTabs.map((id) => {
-          const meta = TAB_META[id];
-          if (id === 'details') {
-            return {
-              id,
-              label: meta.label,
-              hint: 'Facts & timestamps',
-              icon: meta.icon,
-              accent: '#38bdf8',
-              marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
-            };
-          }
-          if (id === 'monitoring') {
-            return {
-              id,
-              label: meta.label,
-              hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
-              icon: meta.icon,
-              accent: '#34d399',
-              marker: isRunning
-                ? ({
-                    kind: 'pulse',
-                    title:
-                      last?.cpu !== null && last?.cpu !== undefined
-                        ? `CPU ${fmtPct(last.cpu)} (live)`
-                        : 'Live',
-                  } as const)
-                : undefined,
-            };
-          }
-          if (id === 'activity') {
-            return {
-              id,
-              label: meta.label,
-              hint: 'Audit trail',
-              icon: meta.icon,
-              accent: '#a78bfa',
-              marker:
-                audit !== null
+      {/* Section selector — compact select-style dropdown pinned to the
+          top-right of the page (template allow-list, search field, live
+          markers). Intentionally outside any card. */}
+      <div className="flex justify-end">
+        <OverviewSectionSelect
+          ariaLabel="Overview sections"
+          active={tab}
+          onChange={(id) => setTab(id as TabId)}
+          sections={visibleTabs.map((id) => {
+            const meta = TAB_META[id];
+            if (id === 'details') {
+              return {
+                id,
+                label: meta.label,
+                hint: 'Facts & timestamps',
+                icon: meta.icon,
+                accent: '#38bdf8',
+                marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
+              };
+            }
+            if (id === 'monitoring') {
+              return {
+                id,
+                label: meta.label,
+                hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
+                icon: meta.icon,
+                accent: '#34d399',
+                marker: isRunning
                   ? ({
-                      kind: 'badge',
-                      text: audit.length,
-                      title: `${audit.length} recorded event${audit.length === 1 ? '' : 's'}`,
+                      kind: 'pulse',
+                      title:
+                        last?.cpu !== null && last?.cpu !== undefined
+                          ? `CPU ${fmtPct(last.cpu)} (live)`
+                          : 'Live',
                     } as const)
                   : undefined,
+              };
+            }
+            if (id === 'activity') {
+              return {
+                id,
+                label: meta.label,
+                hint: 'Audit trail',
+                icon: meta.icon,
+                accent: '#a78bfa',
+                marker:
+                  audit !== null
+                    ? ({
+                        kind: 'badge',
+                        text: audit.length,
+                        title: `${audit.length} recorded event${audit.length === 1 ? '' : 's'}`,
+                      } as const)
+                    : undefined,
+              };
+            }
+            return {
+              id,
+              label: meta.label,
+              hint: 'Rename · reinstall · destroy',
+              icon: meta.icon,
+              accent: '#fbbf24',
+              marker: undefined,
             };
-          }
-          return {
-            id,
-            label: meta.label,
-            hint: 'Rename · reinstall · destroy',
-            icon: meta.icon,
-            accent: '#fbbf24',
-            marker: undefined,
-          };
-        })}
-      />
+          })}
+        />
+      </div>
 
       {tab === 'monitoring' && controls.show_monitoring_tab && (
         <ErrorBoundary label="instance-overview-monitoring">
