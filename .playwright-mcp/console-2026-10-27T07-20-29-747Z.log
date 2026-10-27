@@ -1,2 +1,32 @@
 [      24ms] [ERROR] Loading the script 'data:application/octet-stream;base64,aW1wb3J0IFJlYWN0IGZyb20gJ3JlYWN0JzsKaW1wb3J0IFJlYWN0RE9NIGZyb20gJ3JlYWN0LWRvbS9jbGllbnQnOwppbXBvcnQgQXBwIGZyb20gJ0AvYXBwL0FwcCc7CmltcG9ydCB7IGluaXRMb3dQb3dlck1vZGUgfSBmcm9tICdAL3NoYXJlZC91dGlscy9sb3dQb3dlcic7CmltcG9ydCAnLi9pbmRleC5jc3MnOwoKLy8gUnVucyBiZWZvcmUgZmlyc3QgcGFpbnQgc28gbG93LXBvd2VyIGRldmljZXMgbmV2ZXIgY29tcG9zaXRlIGEgc2luZ2xlCi8vIGJsdXJyZWQgZnJhbWUuCmluaXRMb3dQb3dlck1vZGUoKTsKClJlYWN0RE9NLmNyZWF0ZVJvb3QoZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3Jvb3QnKSBhcyBIVE1MRWxlbWVudCkucmVuZGVyKAogIDxSZWFjdC5TdHJpY3RNb2RlPgogICAgPEFwcCAvPgogIDwvUmVhY3QuU3RyaWN0TW9kZT4KKTsK' violates the following Content Security Policy directive: "script-src 'self' 'unsafe-inline'". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked. @ http://localhost:8090/instances/1/overview:6
 [     191ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:0
+[  126990ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  126993ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  127420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  128291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  130226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  130419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  130453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  132297ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  133420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  134453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  135226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  136291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  136420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  136989ms] [ERROR] WebSocket connection to 'ws://localhost:8090/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/assets/index-CqdAEZcs.js:1782
+[  136991ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  138453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  139419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  140226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  140291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  142420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  142454ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  144291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  145226ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  145419ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
+[  146453ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  146989ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  146990ms] [ERROR] WebSocket connection to 'ws://localhost:8090/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/assets/index-CqdAEZcs.js:1782
+[  146991ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/notifications/unread-count:0
+[  148291ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/1/metrics:0
+[  148420ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8090/api/instances/:0
