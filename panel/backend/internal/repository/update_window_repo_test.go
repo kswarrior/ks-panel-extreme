@@ -24,6 +24,8 @@ func newTestUpdateWindowDB(t *testing.T) *sql.DB {
     enabled       INTEGER  NOT NULL DEFAULT 1,
     window_start  TEXT     NOT NULL DEFAULT '',
     window_end    TEXT     NOT NULL DEFAULT '',
+    require_offline INTEGER NOT NULL DEFAULT 0,
+    max_online_users INTEGER NOT NULL DEFAULT 0,
     next_run_at   DATETIME NULL,
     last_run_at   DATETIME NULL,
     last_status   TEXT     NOT NULL DEFAULT '',
@@ -43,7 +45,8 @@ func TestUpdateWindowCRUDScopedByTarget(t *testing.T) {
 	next := time.Date(2026, 9, 4, 3, 0, 0, 0, time.UTC)
 	id, err := repo.Create(UpdateWindowInput{
 		Target: "panel", Name: "nightly", Cron: "0 3 * * *", Enabled: true,
-		WindowStart: "02:00", WindowEnd: "04:00", NextRunAt: &next,
+		WindowStart: "02:00", WindowEnd: "04:00",
+		RequireOffline: true, MaxOnlineUsers: 50, NextRunAt: &next,
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -55,6 +58,9 @@ func TestUpdateWindowCRUDScopedByTarget(t *testing.T) {
 	if got.Name != "nightly" || got.Cron != "0 3 * * *" || !got.Enabled {
 		t.Fatalf("unexpected row: %+v", got)
 	}
+	if !got.RequireOffline || got.MaxOnlineUsers != 50 {
+		t.Fatalf("online guard not preserved: %+v", got)
+	}
 	if got.NextRunAt == nil || !got.NextRunAt.Equal(next) {
 		t.Fatalf("next_run_at not preserved: %+v", got.NextRunAt)
 	}
@@ -64,7 +70,8 @@ func TestUpdateWindowCRUDScopedByTarget(t *testing.T) {
 	}
 	if err := repo.Update(id, UpdateWindowInput{
 		Target: "panel", Name: "nightly", Cron: "30 3 * * *", Enabled: false,
-		WindowStart: "02:00", WindowEnd: "05:00", NextRunAt: &next,
+		WindowStart: "02:00", WindowEnd: "05:00",
+		RequireOffline: false, MaxOnlineUsers: 25, NextRunAt: &next,
 	}); err != nil {
 		t.Fatalf("update: %v", err)
 	}
