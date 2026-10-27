@@ -84,3 +84,24 @@ func TestNextRunArmsFuture(t *testing.T) {
 		t.Fatalf("invalid cron must arm zero time, got %v", got)
 	}
 }
+
+func TestOnlineGuard(t *testing.T) {
+	if skip, _ := OnlineGuard(false, 0, 42); skip {
+		t.Fatal("no guard configured must never skip")
+	}
+	if skip, _ := OnlineGuard(true, 0, 0); skip {
+		t.Fatal("require_offline must run when nobody is online")
+	}
+	if skip, reason := OnlineGuard(true, 0, 1); !skip || reason == "" {
+		t.Fatal("require_offline must skip with an explanatory reason")
+	}
+	if skip, _ := OnlineGuard(false, 100, 99); skip {
+		t.Fatal("limit 100 must run at 99 online")
+	}
+	if skip, _ := OnlineGuard(false, 100, 100); !skip {
+		t.Fatal("limit 100 must skip at 100 online")
+	}
+	if skip, _ := OnlineGuard(true, 5, 3); !skip {
+		t.Fatal("require_offline must win over a satisfied limit")
+	}
+}

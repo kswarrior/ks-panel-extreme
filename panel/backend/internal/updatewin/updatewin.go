@@ -1,8 +1,9 @@
 // Package updatewin holds the shared schedule logic for panel + fleet
-// update windows (migration 068): cron validation/arming plus the daily
-// maintenance-window guard. Kept in its own package (no DB, no HTTP) so
-// the API handlers and the scheduler sweep share one implementation and
-// the guard stays unit-testable without a database.
+// update windows (migrations 068 + 084): cron validation/arming, the daily
+// maintenance-window guard, and the live-user guard. Kept in its own
+// package (no DB, no HTTP) so the API handlers and the scheduler sweep
+// share one implementation and the guards stay unit-testable without a
+// database.
 package updatewin
 
 import (
@@ -112,4 +113,18 @@ func NextRun(cronExpr string, from time.Time) time.Time {
 		return time.Time{}
 	}
 	return sched.Next(from)
+}
+
+// OnlineGuard reports whether a due update must be skipped because of live
+// panel users. requireOffline skips at one or more users; maxOnlineUsers
+// (0 = no limit) skips when the count reaches the limit. requireOffline
+// wins when both are set. The returned reason is safe for last_status.
+func OnlineGuard(requireOffline bool, maxOnlineUsers, online int) (bool, string) {
+	if requireOffline && online > 0 {
+		return true, fmt.Sprintf("%d user(s) currently online; schedule requires nobody online", online)
+	}
+	if maxOnlineUsers > 0 && online >= maxOnlineUsers {
+		return true, fmt.Sprintf("%d user(s) online; limit is fewer than %d", online, maxOnlineUsers)
+	}
+	return false, ""
 }
