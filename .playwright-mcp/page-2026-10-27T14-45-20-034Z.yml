@@ -1,0 +1,109 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e78]:
+    - complementary "Main navigation" [ref=f1e79]:
+      - generic [ref=f1e80]: KS Panel
+      - navigation [ref=f1e85]:
+        - paragraph [ref=f1e86]: Overview
+        - button "System" [ref=f1e88] [cursor=pointer]
+        - link "Security" [ref=f1e97] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=f1e103] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=f1e108] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=f1e115]: Management
+        - link "Users" [ref=f1e116] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=f1e124] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=f1e129] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=f1e135] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=f1e140]: Infrastructure
+        - link "Nodes" [ref=f1e141] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=f1e155] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=f1e161] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=f1e167] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=f1e177]: Extensions
+        - link "Mods" [ref=f1e178] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=f1e183] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=f1e191] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=f1e198]: Appearance
+        - link "Themes" [ref=f1e199] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=f1e208]: Support
+        - link "Tickets" [ref=f1e209] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=f1e217] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=f1e225] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=f1e226]:
+      - banner [ref=f1e227]:
+        - generic [ref=f1e228]:
+          - navigation "Breadcrumb" [ref=f1e230]:
+            - button "Instances" [ref=f1e240] [cursor=pointer]
+            - generic [ref=f1e241]: /
+            - generic [ref=f1e242]: New Instance
+          - generic [ref=f1e243]:
+            - button "Notifications, live" [ref=f1e244] [cursor=pointer]
+            - button "Profile menu" [ref=f1e251] [cursor=pointer]:
+              - img "kshosting" [ref=f1e252]:
+                - generic [ref=f1e253]: KS
+      - main [ref=f1e255]:
+        - generic [ref=f1e257]:
+          - generic [ref=f1e258]:
+            - button "Undo last edit" [disabled]
+            - button "Redo" [disabled]
+            - button "Deploy" [ref=f1e259] [cursor=pointer]
+          - button "Hide form actions" [expanded] [ref=f1e260] [cursor=pointer]
+        - generic [ref=f1e265]:
+          - navigation "Template form sections" [ref=f1e266]:
+            - button "Show tabs — General" [ref=f1e268] [cursor=pointer]
+          - generic [ref=f1e271]:
+            - generic [ref=f1e272]:
+              - generic [ref=f1e273]:
+                - heading "General" [level=3] [ref=f1e274]
+                - paragraph [ref=f1e275]: Icon, names, owner, node and template — everything the deployment runs on.
+              - generic [ref=f1e276]:
+                - generic [ref=f1e277]:
+                  - generic [ref=f1e278]: Icon
+                  - button "Edit icon & colour" [ref=f1e279] [cursor=pointer]
+                - generic [ref=f1e287]:
+                  - generic [ref=f1e288]: Display name (optional)
+                  - textbox "New instance" [ref=f1e289]
+              - generic [ref=f1e290]:
+                - generic [ref=f1e291]:
+                  - generic [ref=f1e292]: Instance name
+                  - textbox "e.g. game-01" [active] [ref=f1e293]
+                - generic [ref=f1e294]:
+                  - generic [ref=f1e295]: Owner
+                  - generic [ref=f1e303]:
+                    - button "kshosting𝑨𝒅𝒎𝒊𝒏𝒊𝒔𝒕𝒓𝒂𝒕𝒐𝒓" [ref=f1e313] [cursor=pointer]
+                    - button "Clear selection" [ref=f1e314] [cursor=pointer]
+                  - paragraph [ref=f1e318]: kshosting@ksmail.com
+            - generic [ref=f1e320]:
+              - generic [ref=f1e321]:
+                - generic [ref=f1e322]:
+                  - generic [ref=f1e323]:
+                    - heading "Template" [level=4] [ref=f1e324]
+                    - paragraph [ref=f1e329]: Pick the blueprint that defines this instance.
+                  - generic [ref=f1e330]: 1 available
+                - textbox "Search templates by name, kind or image…" [ref=f1e340]
+                - paragraph [ref=f1e341]: Choose a template first — its configuration appears on the other tabs.
+              - generic [ref=f1e342]:
+                - generic [ref=f1e343]:
+                  - generic [ref=f1e344]:
+                    - heading "Node" [level=4] [ref=f1e345]
+                    - paragraph [ref=f1e358]: Where the instance runs — the node must advertise this template's driver.
+                  - generic [ref=f1e359]: 1 available
+                - textbox "Search nodes by name or address…" [ref=f1e377]
+  - button "Open AI assistant" [ref=f1e379] [cursor=pointer]
