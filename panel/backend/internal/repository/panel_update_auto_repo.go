@@ -26,27 +26,20 @@ const (
 	DefaultPanelUpdateAutoInterval = 5 // minutes — always-on manifest recheck
 )
 
-// PanelUpdateAutoState is the persisted auto-check status. Enabled and
-// IntervalMin are constants because the background check is unconditional.
+// PanelUpdateAutoState is the persisted auto-check status.
 type PanelUpdateAutoState struct {
-	Enabled       bool
-	IntervalMin   int
 	LastCheckAt   *time.Time
 	LastRemote    string
 	LastAvailable *bool
 	LastError     string
 	LastLocal     string
-	NextCheckAt   *time.Time
 }
 
 // GetPanelUpdateAutoState loads the persisted auto-check status. Never fails
 // the caller on corrupt values — they degrade to "never checked" so the API
 // renders defaults instead of 500ing.
 func GetPanelUpdateAutoState(con *sql.DB, d db.Dialect) PanelUpdateAutoState {
-	st := PanelUpdateAutoState{
-		Enabled:     true,
-		IntervalMin: DefaultPanelUpdateAutoInterval,
-	}
+	st := PanelUpdateAutoState{}
 	if con == nil {
 		return st
 	}
@@ -69,10 +62,6 @@ func GetPanelUpdateAutoState(con *sql.DB, d db.Dialect) PanelUpdateAutoState {
 	}
 	if v, err := settingsGet(con, d, PanelUpdateAutoLastLocalKey); err == nil {
 		st.LastLocal = strings.TrimSpace(v)
-	}
-	if st.LastCheckAt != nil {
-		nxt := st.LastCheckAt.Add(time.Duration(st.IntervalMin) * time.Minute)
-		st.NextCheckAt = &nxt
 	}
 	return st
 }

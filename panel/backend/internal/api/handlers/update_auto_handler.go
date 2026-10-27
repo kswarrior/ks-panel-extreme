@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"database/sql"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 
@@ -19,81 +17,6 @@ import (
 // PanelAutoCheckTick(), which enforces the interval and persists the result
 // in the settings KV — so the "update available" state stays fresh even if
 // nobody opens the System page for weeks.
-//
-// Endpoint (MANAGE_PANEL_UPDATE at the route, like the manual verbs):
-//   GET /api/system/update-auto – last result (cheap status read)
-
-// panelUpdateAutoResponse is the GET /api/system/update-auto payload (and
-// the `auto_*` block embedded in update-info so the Panel tab needs only one
-// round-trip on load).
-type panelUpdateAutoResponse struct {
-	Enabled          bool    `json:"enabled"`
-	IntervalMin      int     `json:"interval_min"`
-	LastCheckAt      *string `json:"last_check_at,omitempty"`
-	LastRemote       *string `json:"last_remote_version,omitempty"`
-	LastAvailable    *bool   `json:"last_available,omitempty"`
-	LastError        string  `json:"last_error,omitempty"`
-	LastLocal        *string `json:"last_local_version,omitempty"`
-	NextCheckAt      *string `json:"next_check_at,omitempty"`
-}
-
-func panelAutoStateResponse(st repository.PanelUpdateAutoState) panelUpdateAutoResponse {
-	out := panelUpdateAutoResponse{
-		Enabled:     st.Enabled,
-		IntervalMin: st.IntervalMin,
-	}
-	if st.LastCheckAt != nil {
-		s := st.LastCheckAt.UTC().Format(time.RFC3339)
-		out.LastCheckAt = &s
-	}
-	if st.LastRemote != "" {
-		s := st.LastRemote
-		out.LastRemote = &s
-	}
-	if st.LastAvailable != nil {
-		b := *st.LastAvailable
-		out.LastAvailable = &b
-	}
-	if st.LastError != "" {
-		out.LastError = st.LastError
-	}
-	if st.LastLocal != "" {
-		s := st.LastLocal
-		out.LastLocal = &s
-	}
-	if st.NextCheckAt != nil {
-		s := st.NextCheckAt.UTC().Format(time.RFC3339)
-		out.NextCheckAt = &s
-	}
-	return out
-}
-
-func openAutoDB() (con *sql.DB, d db.Dialect, err error) {
-	con, err = repository.OpenDB()
-	if err != nil {
-		return nil, nil, err
-	}
-	cfg := config.DatabaseConfig()
-	d, derr := db.NewDialect(cfg.Engine)
-	if derr != nil {
-		con.Close()
-		return nil, nil, derr
-	}
-	return con, d, nil
-}
-
-// GetPanelUpdateAutoHandler returns the auto-check toggle + interval and the
-// last background (or manual) check result. Pure read — safe to poll.
-func GetPanelUpdateAutoHandler(w http.ResponseWriter, r *http.Request) {
-	con, d, err := openAutoDB()
-	if err != nil {
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-	defer con.Close()
-	st := repository.GetPanelUpdateAutoState(con, d)
-	writeJSON(w, panelAutoStateResponse(st))
-}
 
 // recordPanelUpdateCheckResult persists one check outcome (manual or
 // background) so the Panel tab's "last checked …" line stays truthful even
