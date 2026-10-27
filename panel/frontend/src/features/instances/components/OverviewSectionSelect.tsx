@@ -172,12 +172,11 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={LISTBOX_ID}
+        aria-controls={open ? LISTBOX_ID : undefined}
         aria-label={`${ariaLabel}: ${current.label}`}
         title={`${current.label} — ${current.hint}`}
         onClick={() => (open ? close(true) : openMenu())}
-        className="ks-dropdown-trigger inline-flex items-center justify-between gap-2 min-w-[10.5rem] max-w-[15rem]"
-        style={{ borderColor: open ? `${current.accent}88` : undefined }}
+        className="ks-dropdown-trigger inline-flex items-center justify-between gap-2 min-w-[10.5rem] max-w-[15rem] outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span
@@ -191,7 +190,7 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
           >
             <span className="flex [&>svg]:w-3.5 [&>svg]:h-3.5 [&>svg]:block">{current.icon}</span>
           </span>
-          <span className="truncate text-[13px] font-semibold">{current.label}</span>
+          <span className="truncate text-[13px] font-semibold text-white">{current.label}</span>
           {renderMarker(current.marker)}
         </span>
         <svg

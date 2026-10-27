@@ -3,7 +3,7 @@
 // not a custom spec.pages entry).
 //
 // It gathers everything the floating menu holds plus full-page extras:
-//   • section tabs: Details (one tile per fact — no Controls / Status
+//   • sections: Details (one tile per fact — no Controls / Status
 //     cards, those live in the floating menu; the External ID tile is
 //     click-to-copy), Monitoring (live CPU / RAM / disk graphs,
 //     System-page style), Manage (rename + reinstall + destroy),
