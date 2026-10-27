@@ -15,7 +15,7 @@ import ErrorState from '@/shared/components/ui/ErrorState';
 interface UpdateWindowsCardProps {
   target: UpdateWindowTarget;
   title: string;
-  description: string;
+  description?: string;
 }
 
 const EMPTY_FORM: UpdateWindowUpsert = {
@@ -141,7 +141,7 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
           New schedule
         </button>
       </div>
-      <p className="text-xs text-gray-500">{description}</p>
+      {description && <p className="text-xs text-gray-500">{description}</p>}
 
       {loading && <div className="glass-card rounded-xl animate-pulse h-16" />}
       {!loading && err && (
@@ -154,9 +154,27 @@ const UpdateWindowsCard: React.FC<UpdateWindowsCardProps> = ({ target, title, de
         />
       )}
       {!loading && !err && windows.length === 0 && (
-        <p className="text-sm text-gray-500">
-          No schedules yet — updates only run when you trigger them manually.
-        </p>
+        <div className="flex flex-col items-center justify-center min-h-[30vh] px-4 animate-fade-in">
+          <div className="flex flex-col items-center gap-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-20 h-20 text-gray-400"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <p className="text-lg font-medium" style={{ color: 'var(--ks-text-heading)', opacity: 0.85 }}>No schedule yet</p>
+          </div>
+        </div>
       )}
       {!loading && !err && windows.length > 0 && (
         <div className="space-y-1.5">

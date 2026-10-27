@@ -1,0 +1,84 @@
+- generic [ref=e2]:
+  - generic [ref=e40]:
+    - complementary "Main navigation" [ref=e41]:
+      - generic [ref=e42]: KS Panel
+      - navigation [ref=e47]:
+        - paragraph [ref=e48]: Overview
+        - button "System" [ref=e50] [cursor=pointer]
+        - link "Security" [ref=e59] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=e65] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=e70] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=e77]: Management
+        - link "Users" [ref=e78] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=e86] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=e91] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=e97] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=e102]: Infrastructure
+        - link "Nodes" [ref=e103] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=e117] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=e123] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=e129] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=e139]: Extensions
+        - link "Mods" [ref=e140] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=e145] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=e153] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=e160]: Appearance
+        - link "Themes" [ref=e161] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=e170]: Support
+        - link "Tickets" [ref=e171] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=e179] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=e187] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=e188]:
+      - banner [ref=e189]:
+        - generic [ref=e190]:
+          - navigation "Breadcrumb" [ref=e192]:
+            - generic [ref=e193]: Instances
+          - generic [ref=e203]:
+            - button "Notifications, live" [ref=e204] [cursor=pointer]
+            - button "Profile menu" [ref=e211] [cursor=pointer]:
+              - img "kshosting" [ref=e212]:
+                - generic [ref=e213]: KS
+      - main [ref=e215]:
+        - generic [ref=e216]:
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e220]:
+                - button "Search instances" [ref=e221] [cursor=pointer]
+                - searchbox [ref=e226]
+              - button "Open filters" [ref=e228] [cursor=pointer]
+              - link "Instance Statistics" [ref=e231] [cursor=pointer]:
+                - /url: /instances/stats
+              - link "Instance schedules" [ref=e233] [cursor=pointer]:
+                - /url: /instances/schedules
+              - button "Deploy new instance" [ref=e236] [cursor=pointer]
+            - button "Hide actions" [expanded] [ref=e238] [cursor=pointer]
+          - status "0 of 0 instances shown" [ref=e244]:
+            - button "Display settings" [ref=e245] [cursor=pointer]
+            - generic [ref=e251]:
+              - strong [ref=e252]: "0"
+              - generic [ref=e253]: of
+              - strong [ref=e254]: "0"
+            - generic [ref=e256]: instances shown
+            - generic [ref=e258]: 0 running · 0 stopped
+          - generic [ref=e259]:
+            - paragraph [ref=e268]: No instances yet
+            - paragraph [ref=e269]: Deploy your first instance to get started.
+  - button "Open AI assistant" [ref=e270] [cursor=pointer]

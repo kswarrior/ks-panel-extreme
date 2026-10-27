@@ -398,7 +398,6 @@ const PanelTab: React.FC<PanelTabProps> = ({ snap, info, infoErr, infoLoading, r
       <UpdateWindowsCard
         target="panel"
         title="Update Schedules"
-        description="Cron schedules that self-update the panel binary inside a daily maintenance window (UTC). Outside the window the run is skipped and logged — never executed."
       />
 
       {/* Reinstall — bottom of panel tab */}
