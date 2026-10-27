@@ -181,6 +181,9 @@ const InstanceInfoRow: React.FC = () => {
   const k = instance ? kindKey(instance.kind) : 'unknown';
   const typeLabel = (instance && KIND_META[k]?.label) || instance?.kind || '—';
   const typeBadge = (instance && KIND_META[k]?.badge) || '';
+  const displayName = instance ? instance.display_name || instance.name : '';
+  const nodeLabel = instance?.node_name || (instance?.node_id != null ? `#${instance.node_id}` : 'unknown node');
+  const templateLabel = instance?.template_name || 'deleted template';
   const cpuV = metrics?.cpu ?? null;
   const memUsed = metrics?.memUsed ?? null;
   const memTotal = metrics?.memTotal ?? null;
@@ -193,40 +196,60 @@ const InstanceInfoRow: React.FC = () => {
         <MenuRowSkeleton />
       ) : (
         <div className="flex flex-col gap-1.5 rounded-md border border-white/5 bg-white/[0.02] px-2.5 py-2">
-          {/* Line 1: status / uptime + type. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            {isRunning ? (
-              <span
-                className="inline-flex items-center gap-1.5 text-emerald-300 tabular-nums"
-                title={`Uptime: ${uptime}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-emerald-300" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                <span className="text-[13px] font-medium">{uptime}</span>
-              </span>
-            ) : (
-              <span
-                className="inline-flex items-center gap-1.5 text-gray-200"
-                title={`Status: ${sm.label}`}
-              >
-                <span className="relative flex w-2 h-2">
-                  {(sm as any).ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                  <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
-                </span>
-                <span className="text-[13px] font-medium">{sm.label}</span>
-              </span>
-            )}
-            <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+          {/* Line 1: identity — kind + display name + type badge, with
+              node · template underneath (moved here from the Overview
+              header card so the controls menu holds the whole identity). */}
+          <div className="flex items-start gap-2 min-w-0">
             <span
-              className="inline-flex items-center"
-              title={`Type: ${typeLabel}`}
+              aria-hidden="true"
+              className="shrink-0 mt-0.5 flex items-center justify-center w-6 h-6 rounded-md border border-white/10 bg-white/[0.03] text-sky-300"
             >
-              <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
-                <KindIcon kind={k} className="w-3.5 h-3.5" />
-                {typeLabel}
-              </span>
+              <KindIcon kind={k} className="w-3.5 h-3.5" />
             </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="min-w-0 flex-1 text-[13px] font-semibold text-white truncate" title={displayName}>
+                  {displayName}
+                </span>
+                <span
+                  className={`shrink-0 inline-flex items-center text-[10px] px-1.5 py-0.5 rounded border ${typeBadge}`}
+                  title={`Type: ${typeLabel}`}
+                >
+                  {typeLabel}
+                </span>
+              </div>
+              <div className="text-[10px] text-gray-500 truncate mt-0.5" title={`${nodeLabel} · ${templateLabel}`}>
+                {nodeLabel} · {templateLabel}
+              </div>
+            </div>
           </div>
-          {/* Line 2: live resource stats — SVG icon + value only, no word labels.
+          <div className="border-t border-white/5" aria-hidden="true" />
+          {/* Line 2: status / uptime. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+            <span
+              className={`inline-flex items-center gap-1.5 ${isRunning ? 'text-emerald-300' : 'text-gray-200'}`}
+              title={`Status: ${sm.label}`}
+            >
+              <span className="relative flex w-2 h-2">
+                {(sm as any).ping && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
+                <span className={`relative inline-flex rounded-full w-2 h-2 ${sm.dot}`} />
+              </span>
+              <span className="text-[13px] font-medium">{sm.label}</span>
+            </span>
+            {isRunning && (
+              <>
+                <span className="w-px h-4 bg-white/10 shrink-0" aria-hidden="true" />
+                <span
+                  className="inline-flex items-center gap-1.5 text-emerald-300 tabular-nums"
+                  title={`Uptime: ${uptime}`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-emerald-300" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                  <span className="text-[13px] font-medium">{uptime}</span>
+                </span>
+              </>
+            )}
+          </div>
+          {/* Line 3: live resource stats — SVG icon + value only, no word labels.
               While running + waiting for the first snapshot, shimmer
               skeletons render instead of '—' so values pop in without a
               placeholder flash. Each stat honours the template allow-list. */}
