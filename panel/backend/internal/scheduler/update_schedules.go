@@ -1,11 +1,14 @@
-// Scheduled update windows (migration 068): cron schedules for panel +
-// fleet self-updates with a daily maintenance-window guard.
+// Scheduled update windows (migrations 068 + 084): cron schedules for
+// panel + fleet self-updates with a daily maintenance-window guard and an
+// optional live-user guard.
 //
 // Evaluated once per minute from the scheduler sweep, AFTER the backup
 // sweep so update runs never interleave with VACUUM/snapshot I/O. Each
 // due + enabled row:
 //   - outside its window → SKIP + audit-log (the update NEVER executes);
-//   - inside → run detached (fleet rolling rollout / panel stage+relaunch)
+//   - too many users online (require_offline / max_online_users) → SKIP +
+//     audit-log (the update NEVER executes);
+//   - otherwise → run detached (fleet rolling rollout / panel stage+relaunch)
 //     so a slow fleet or a multi-minute binary download never blocks the
 //     minute tick.
 // Re-arming (next_run_at + last_status) lives in the handlers package
@@ -42,6 +45,12 @@ func sweepUpdateWindows(ctx context.Context) {
 		// Maintenance-window guard: run ONLY inside the window.
 		if !updatewin.InWindow(time.Now(), w.WindowStart, w.WindowEnd) {
 			handlers.SkipUpdateWindow(w, "skipped: outside maintenance window")
+			continue
+		}
+		// Live-user guard: optional require_offline / max_online_users
+		// gate. Skips are re-armed and audit-logged like window misses.
+		if skip, reason := updatewin.OnlineGuard(w.RequireOffline, w.MaxOnlineUsers, handlers.OnlinePanelUsers()); skip {
+			handlers.SkipUpdateWindow(w, "skipped: "+reason)
 			continue
 		}
 		switch w.Target {

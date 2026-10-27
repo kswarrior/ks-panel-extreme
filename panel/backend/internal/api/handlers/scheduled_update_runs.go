@@ -6,11 +6,21 @@ import (
 	"os"
 	"time"
 
+	"github.com/example/kspanel/internal/auth"
 	"github.com/example/kspanel/internal/edge"
 	"github.com/example/kspanel/internal/models"
 	"github.com/example/kspanel/internal/repository"
 	"github.com/example/kspanel/internal/updatewin"
 )
+
+const onlineUserWindow = 5 * time.Minute
+
+// OnlinePanelUsers counts distinct users with an active session used in the
+// last five minutes. A run can additionally require zero online users
+// (RequireOffline) or fewer than MaxOnlineUsers.
+func OnlinePanelUsers() int {
+	return auth.SessionManagerInstance.ActiveUserCount(onlineUserWindow)
+}
 
 // ====================== SCHEDULED UPDATE-WINDOW RUNNER ======================
 // The scheduler sweep (internal/scheduler, once a minute) drives these.
@@ -65,8 +75,8 @@ func rearmUpdateWindow(id int64, cronExpr, status string) {
 }
 
 // SkipUpdateWindow marks a due window skipped (outside its maintenance
-// window, unknown target, …) and audit-logs the skip — the update NEVER
-// executes on this path.
+// window, online-user guard, unknown target, …) and audit-logs the skip —
+// the update NEVER executes on this path.
 func SkipUpdateWindow(w repository.UpdateWindow, status string) {
 	rearmUpdateWindow(w.ID, w.Cron, status)
 	recordSystemActivity(models.ActivityCategorySystem, w.Target+"_update_window_skip", w.Name,
