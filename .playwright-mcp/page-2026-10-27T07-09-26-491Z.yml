@@ -1,0 +1,100 @@
+- generic [ref=e2]:
+  - generic [ref=e40]:
+    - complementary "Main navigation" [ref=e41]:
+      - generic [ref=e42]: KS Panel
+      - navigation [ref=e47]:
+        - paragraph [ref=e48]: Overview
+        - button "System" [ref=e50] [cursor=pointer]
+        - link "Security" [ref=e59] [cursor=pointer]:
+          - /url: /security
+        - link "Activity" [ref=e65] [cursor=pointer]:
+          - /url: /activity
+        - link "Database" [ref=e70] [cursor=pointer]:
+          - /url: /database
+        - paragraph [ref=e77]: Management
+        - link "Users" [ref=e78] [cursor=pointer]:
+          - /url: /users
+        - link "Roles" [ref=e86] [cursor=pointer]:
+          - /url: /roles
+        - link "Settings" [ref=e91] [cursor=pointer]:
+          - /url: /settings
+        - link "API Keys" [ref=e97] [cursor=pointer]:
+          - /url: /api-keys
+        - paragraph [ref=e102]: Infrastructure
+        - link "Nodes" [ref=e103] [cursor=pointer]:
+          - /url: /nodes
+        - link "Templates" [ref=e117] [cursor=pointer]:
+          - /url: /templates
+        - link "Instance Pages" [ref=e123] [cursor=pointer]:
+          - /url: /instance-pages
+        - link "All Instances" [ref=e129] [cursor=pointer]:
+          - /url: /instances
+        - paragraph [ref=e139]: Extensions
+        - link "Mods" [ref=e140] [cursor=pointer]:
+          - /url: /mods
+        - link "Applications" [ref=e145] [cursor=pointer]:
+          - /url: /applications
+        - link "Stacks" [ref=e153] [cursor=pointer]:
+          - /url: /stacks
+        - paragraph [ref=e160]: Appearance
+        - link "Themes" [ref=e161] [cursor=pointer]:
+          - /url: /themes
+        - paragraph [ref=e170]: Support
+        - link "Tickets" [ref=e171] [cursor=pointer]:
+          - /url: /tickets
+        - link "Notifications" [ref=e179] [cursor=pointer]:
+          - /url: /notifications
+      - button "Collapse sidebar" [expanded] [ref=e187] [cursor=pointer]:
+        - generic: KS Warrior
+    - generic [ref=e188]:
+      - banner [ref=e189]:
+        - generic [ref=e190]:
+          - navigation "Breadcrumb" [ref=e192]:
+            - generic [ref=e193]: Instances
+          - generic [ref=e203]:
+            - button "Notifications, live" [ref=e204] [cursor=pointer]
+            - button "Profile menu" [ref=e211] [cursor=pointer]:
+              - img "kshosting" [ref=e212]:
+                - generic [ref=e213]: KS
+      - main [ref=e215]:
+        - generic [ref=e216]:
+          - generic [ref=e218]:
+            - generic [ref=e219]:
+              - generic [ref=e220]:
+                - button "Search instances" [ref=e221] [cursor=pointer]
+                - searchbox [ref=e226]
+              - button "Open filters" [ref=e228] [cursor=pointer]
+              - link "Instance Statistics" [ref=e231] [cursor=pointer]:
+                - /url: /instances/stats
+              - link "Instance schedules" [ref=e233] [cursor=pointer]:
+                - /url: /instances/schedules
+              - button "Deploy new instance" [ref=e236] [cursor=pointer]
+            - button "Hide actions" [expanded] [ref=e238] [cursor=pointer]
+          - status "1 of 1 instance shown" [ref=e244]:
+            - button "Display settings" [ref=e245] [cursor=pointer]
+            - generic [ref=e251]:
+              - strong [ref=e252]: "1"
+              - generic [ref=e253]: of
+              - strong [ref=e254]: "1"
+            - generic [ref=e256]: instance shown
+            - generic [ref=e258]: 1 running · 0 stopped
+          - 'button "Minecraft #1 · 25b0db6b7b1457ec6c4c3682ecdbcc47985019ebdf6522997b50b3468e05539c 4m 50s local-edge Minecraft kshosting Created Oct 27, 2026" [ref=e260] [cursor=pointer]':
+            - generic [ref=e261]:
+              - generic [ref=e262]:
+                - generic [ref=e268]:
+                  - heading "Minecraft" [level=3] [ref=e269]
+                  - paragraph [ref=e270]: "#1 · 25b0db6b7b1457ec6c4c3682ecdbcc47985019ebdf6522997b50b3468e05539c"
+                - generic [ref=e271]: 4m 50s
+              - generic [ref=e275]:
+                - generic "Node" [ref=e276]: local-edge
+                - generic "Template" [ref=e282]: Minecraft
+                - generic "Owner" [ref=e285]: kshosting
+              - generic [ref=e289]:
+                - generic [ref=e290]: Created Oct 27, 2026
+                - generic [ref=e291]:
+                  - button "Edit" [ref=e292]
+                  - button "Start" [disabled] [ref=e296]
+                  - button "Stop" [ref=e299]
+                  - button "Restart" [ref=e302]
+                  - button "Destroy" [ref=e307]
+  - button "Open AI assistant" [ref=e310] [cursor=pointer]
