@@ -9,11 +9,12 @@ import { KIND_META, kindKey } from '../types/instanceForm';
 
 // InstanceInfoRow — read-only instance facts as a menu row (no pill
 // chrome). Rendered first in the floating instance menu, in its own box:
-// line 1 is the merged status/uptime slot + type badge, line 2 is the
-// live RAM / CPU / disk stats.
+// line 1 is the instance identity (kind icon + display name + type badge
+// + node · template — moved here from the Overview header card), then the
+// status/uptime slot, then the live RAM / CPU / disk stats.
 //
-// Merged slot (phone + desktop share the same rule):
-//   • running → uptime only, emerald/green (no status label)
+// Status slot (phone + desktop share the same rule):
+//   • running → status dot + "Running" + uptime
 //   • any other state → status dot + label only (no uptime)
 //
 // RAM / CPU / disk are SVG icon + live value only (no word labels); the

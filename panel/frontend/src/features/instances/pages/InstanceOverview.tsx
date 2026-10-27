@@ -336,9 +336,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     }
   }
 
-  const k = kindKey(instance.kind);
-  const typeLabel = KIND_META[k]?.label || instance.kind || '—';
-  const typeBadge = KIND_META[k]?.badge || '';
   const displayName = instance.display_name || instance.name;
   const dot = STATUS_DOT[status] || 'bg-gray-500';
   const statusLabel = STATUS_LABEL[status] || status || '—';
@@ -440,36 +437,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           <span className="break-words">{pageMsg}</span>
         </div>
       )}
-      {/* Header */}
-      <div className="ks-card flex items-center gap-4">
-        <div className="shrink-0 w-12 h-12 rounded-xl flex items-center justify-center border border-white/10 bg-white/[0.03] text-sky-300">
-          <KindIcon kind={k} className="w-6 h-6" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-xl font-semibold text-white truncate" title={displayName}>
-              {displayName}
-            </h2>
-            <span className="inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full border border-white/10 bg-white/5 text-gray-200">
-              <span className="relative flex w-2 h-2">
-                {isRunning && <span className="absolute inline-flex w-full h-full rounded-full bg-emerald-400 opacity-60 animate-ping" />}
-                <span className={`relative inline-flex rounded-full w-2 h-2 ${dot}`} />
-              </span>
-              {statusLabel}
-            </span>
-            <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border ${typeBadge}`}>
-              {typeLabel}
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-1 truncate">
-            {(instance.node_name || 'unknown node') + ' · ' + (instance.template_name || 'deleted template')}
-          </p>
-        </div>
-      </div>
-
       {/* Section deck — one card per visible tab (template allow-list),
           per-tab hue wash + glowing icon tile + growing underline + live
-          markers. 2×2 on phones, one row on desktop. */}
+          markers. Vertically stacked + scrollable. */}
       <OverviewTabs
         ariaLabel="Overview sections"
         active={tab}
