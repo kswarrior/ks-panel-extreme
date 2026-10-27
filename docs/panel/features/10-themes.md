@@ -14,4 +14,3 @@ Local themes in browser localStorage.
 
 ## Market
 `themes_market/` → embedded via `themelib` (rebuild sync). Theme assignment to pages/areas.
-> 
