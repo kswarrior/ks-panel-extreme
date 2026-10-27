@@ -1,0 +1,25 @@
+- generic [ref=f2e4]:
+  - generic [ref=f2e9]:
+    - heading "KS Panel" [level=1] [ref=f2e10]
+    - paragraph [ref=f2e11]: Sign in to your account
+  - form [ref=f2e12]:
+    - heading "Login form" [level=2] [ref=f2e13]
+    - generic [ref=f2e14]:
+      - generic [ref=f2e16]:
+        - textbox "Username or Email" [ref=f2e17]:
+          - /placeholder: " "
+          - text: kshosting
+        - generic: Username or Email
+      - generic [ref=f2e18]:
+        - generic [ref=f2e19]:
+          - textbox "Password" [active] [ref=f2e20]:
+            - /placeholder: " "
+            - text: kshosting@55
+          - generic: Password
+          - button "Show password" [ref=f2e21] [cursor=pointer]
+        - paragraph
+      - generic [ref=f2e25]:
+        - generic "Lifetime 8h • Idle 1d" [ref=f2e40]: Session 8h • Idle 1d
+        - generic [aria-hidden] [ref=f2e31]: .
+      - button "Sign In" [ref=f2e32] [cursor=pointer]
+      - paragraph [ref=f2e39]: Powered by KS Warrior
