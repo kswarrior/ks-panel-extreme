@@ -308,6 +308,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     diskTotal: last?.diskTotal ?? null,
   };
 
+  const dot = STATUS_DOT[status] || 'bg-gray-500';
+  const statusLabel = STATUS_LABEL[status] || status || '—';
+
   const sections = useMemo<OverviewSectionDef[]>(
     () =>
       visibleTabs.map((id) => {
@@ -407,9 +410,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   }
 
   const displayName = instance.display_name || instance.name;
-  const dot = STATUS_DOT[status] || 'bg-gray-500';
-  const statusLabel = STATUS_LABEL[status] || status || '—';
   const diskPct = last?.diskPct ?? 0;
+
+
 
   const onRename = async () => {
     if (!canEdit || !controls.allow_rename || renameBusy) return;
