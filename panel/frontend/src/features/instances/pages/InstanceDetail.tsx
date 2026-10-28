@@ -29,6 +29,9 @@ import Slot from '@/shared/components/ui/Slot';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
 import InstanceTerminal from '@/features/instances/pages/InstanceTerminal';
 import InstanceFiles from '@/features/instances/pages/InstanceFiles';
+import InstancePorts from '@/features/instances/pages/InstancePorts';
+import InstanceAutomation from '@/features/instances/pages/InstanceAutomation';
+import InstanceAutomationEditor from '@/features/instances/pages/InstanceAutomationEditor';
 import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 
@@ -154,19 +157,39 @@ export const InstanceDynamicPage: React.FC = () => {
     return <InstanceSftpCard instanceId={instanceId} />;
   }
 
-  if (effectiveSlug === 'terminal' || effectiveSlug === 'files') {
+  const builtinPageFlag: Record<string, keyof ReturnType<typeof resolveInstanceControls>> = {
+    terminal: 'show_terminal_page',
+    files: 'show_files_page',
+    ports: 'show_ports_page',
+    automation: 'show_automation_page',
+  };
+  if (builtinPageFlag[effectiveSlug]) {
     const controls = resolveInstanceControls(instance.config);
-    const flag = effectiveSlug === 'terminal' ? 'show_terminal_page' : 'show_files_page';
-    if (!controls[flag as keyof typeof controls]) {
+    if (!controls[builtinPageFlag[effectiveSlug]]) {
       return (
         <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
           <p className="text-sm">This page is disabled for this instance.</p>
         </div>
       );
     }
-    return effectiveSlug === 'terminal'
-      ? <InstanceTerminal instanceId={instanceId} />
-      : <InstanceFiles instanceId={instanceId} />;
+    if (effectiveSlug === 'terminal') return <InstanceTerminal instanceId={instanceId} />;
+    if (effectiveSlug === 'files') return <InstanceFiles instanceId={instanceId} />;
+    if (effectiveSlug === 'ports') return <InstancePorts instanceId={instanceId} />;
+    return <InstanceAutomation instanceId={instanceId} config={instance.config} />;
+  }
+
+  // Automation's job editor is a native sub-page (/automation/edit?id=N).
+  // It shares the parent page's control gate.
+  if (effectiveSlug === 'automation/edit') {
+    const controls = resolveInstanceControls(instance.config);
+    if (!controls.show_automation_page) {
+      return (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This page is disabled for this instance.</p>
+        </div>
+      );
+    }
+    return <InstanceAutomationEditor instanceId={instanceId} config={instance.config} />;
   }
 
   // Control pages are native built-ins (not custom spec.pages entries):

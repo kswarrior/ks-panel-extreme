@@ -55,9 +55,7 @@ function errText(e: any, fallback: string): string {
 }
 
 function defaultsFor(editing: Automation | null, allowedKinds: AutomationKind[]): JobDraft {
-  const kind: AutomationKind = editing?.kind && allowedKinds.includes(editing.kind)
-    ? editing.kind
-    : (allowedKinds[0] ?? 'shell');
+  const kind: AutomationKind = editing?.kind ?? allowedKinds[0] ?? 'shell';
   return {
     name: editing?.name ?? '',
     kind,
@@ -327,6 +325,9 @@ const InstanceAutomationEditor: React.FC<{ instanceId: number; config?: string }
               onChange={(e) => update({ kind: e.target.value as AutomationKind })}
               className="glass-field w-full mt-1"
             >
+              {!autoConfig.allowedKinds.includes(draft.kind) && (
+                <option value={draft.kind}>{draft.kind} (disabled by template)</option>
+              )}
               {autoConfig.allowedKinds.includes('shell') && <option value="shell">Shell command — run my own command</option>}
               {autoConfig.allowedKinds.includes('power') && <option value="power">Power — start / stop / restart / kill</option>}
               {autoConfig.allowedKinds.includes('action') && <option value="action">Template action — run any action</option>}
@@ -415,6 +416,9 @@ const InstanceAutomationEditor: React.FC<{ instanceId: number; config?: string }
                     aria-label={`Step ${i + 1} type`}
                     className="glass-field w-full"
                   >
+                    {!autoConfig.allowedKinds.includes(step.kind) && (
+                      <option value={step.kind}>{step.kind} (disabled by template)</option>
+                    )}
                     {autoConfig.allowedKinds.includes('shell') && <option value="shell">shell</option>}
                     {autoConfig.allowedKinds.includes('power') && <option value="power">power</option>}
                     {autoConfig.allowedKinds.includes('action') && <option value="action">action</option>}

@@ -304,12 +304,12 @@ const InstanceAutomation: React.FC<{ instanceId: number; config?: string }> = ({
                       </ul>
                     )}
                     <dl className="text-[11px] text-gray-500 space-y-1">
-                      <div className="flex gap-1"><dt>Schedule</dt><dd className="font-mono text-gray-300">{job.schedule.trim() !== '' ? job.schedule : 'manual only'}</dd></div>
+                      <div className="flex gap-1"><dt>Schedule</dt><dd className="font-mono text-gray-300">{(job.schedule ?? '').trim() !== '' ? job.schedule : 'manual only'}</dd></div>
                       <div className="flex gap-1"><dt>Next</dt><dd className="text-gray-300">{fmtTime(job.next_run_at)}</dd><dt>· Last</dt><dd className="text-gray-300">{fmtTime(job.last_run_at)}</dd></div>
                       {(job.secret_refs ?? []).length > 0 && (
                         <div className="flex gap-1"><dt>Secrets</dt><dd className="font-mono text-gray-300 break-all">{(job.secret_refs ?? []).join(', ')}</dd></div>
                       )}
-                      <div className="flex gap-1"><dt>Timeout</dt><dd className="text-gray-300">{job.timeout_sec > 0 ? `${job.timeout_sec}s` : 'default'}</dd></div>
+                      <div className="flex gap-1"><dt>Timeout</dt><dd className="text-gray-300">{(job.timeout_sec ?? 0) > 0 ? `${job.timeout_sec}s` : 'default'}</dd></div>
                     </dl>
                   </div>
                 );
