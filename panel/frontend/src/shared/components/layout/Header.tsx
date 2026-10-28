@@ -15,6 +15,7 @@ import OverviewSectionSelect, { type OverviewSectionDef } from '@/features/insta
 import { useInstance } from '@/shared/hooks/useInstance';
 import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import type { ResolvedNavEntry } from '@/shared/utils/instancePages';
+import { sanitizeSvgIcon } from '@/shared/utils/sanitizeSvgIcon';
 import { useInstanceNav } from './InstanceNavContext';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
 import UpdateBell from '@/features/system/components/UpdateBell';
