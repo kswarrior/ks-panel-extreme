@@ -44,13 +44,13 @@ import (
 // Handler returns an http.Handler authenticated by the given edge token.
 //
 // The handler:
-//   1. validates ?kind= && ?name= && ?token= (200-with-error-protocol
-//      errors are skipped; we let the upgrader return 4xx on bad input
-//      so simple curl probes get useful status codes);
-//   2. upgrades to a WebSocket;
-//   3. spawns driver.Exec(...) with /bin/sh as the default command;
-//   4. pumps bytes between the WS and the process's pipes until either
-//      side drops, then sends the exit code and tears everything down.
+//  1. validates ?kind= && ?name= && ?token= (200-with-error-protocol
+//     errors are skipped; we let the upgrader return 4xx on bad input
+//     so simple curl probes get useful status codes);
+//  2. upgrades to a WebSocket;
+//  3. spawns driver.Exec(...) with /bin/sh as the default command;
+//  4. pumps bytes between the WS and the process's pipes until either
+//     side drops, then sends the exit code and tears everything down.
 func Handler(token string) http.Handler {
 	up := websocket.Upgrader{
 		// No CSRF/origin check here: the WS endpoint is reached via the
