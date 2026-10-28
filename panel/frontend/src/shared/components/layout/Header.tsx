@@ -294,46 +294,16 @@ const Header: React.FC<HeaderProps> = ({
 
   const { instanceId: navInstanceId } = useInstanceNav();
   const effectiveNav = useEffectiveInstanceNav();
-  // Instance crumb: [Icon] Instance #id / CurrentPage. Slug comes from the
-  // URL after /instances/:id/ ("" = Home "."). Label prefers the resolved
-  // nav entry, falls back to builtin/tool names (Files/Terminal/Ports never
-  // render as tabs but still open as pages).
+  // Instance crumb: just the click-to-copy instance id. The active page
+  // name lives inside the page dropdown on the right, so showing it again
+  // next to "#id /" would be redundant.
   const instanceCrumb = React.useMemo(() => {
     if (!inInstancePanel) return null;
     const m = location.pathname.match(/^\/instances\/(\d+)(?:\/(.*))?$/);
     if (!m) return null;
-    const id = m[1];
     const raw = (m[2] ?? '').replace(/\/+$/, '');
-    const slug = raw === '' ? '.' : raw;
-    const builtin: Record<string, string> = {
-      '.': 'Home',
-      overview: 'Overview',
-      details: 'Details',
-      monitoring: 'Monitoring',
-      manage: 'Manage',
-      activity: 'Activity',
-      files: 'Files',
-      terminal: 'Terminal',
-      ports: 'Ports',
-      sftp: 'SFTP',
-      backups: 'Backups',
-    };
-    let label: string | null = null;
-    const direct = effectiveNav.find((n) => n.to === slug);
-    if (direct) label = direct.label;
-    if (!label && slug.includes('/')) {
-      const parent = slug.split('/')[0];
-      const parentNav = effectiveNav.find((n) => n.to === parent);
-      if (parentNav) label = parentNav.label;
-      else if (builtin[parent]) label = builtin[parent];
-    }
-    if (!label && builtin[slug]) label = builtin[slug];
-    if (!label) {
-      const last = slug.split('/').pop() ?? slug;
-      label = last.charAt(0).toUpperCase() + last.slice(1);
-    }
-    return { id, slug, label };
-  }, [inInstancePanel, location.pathname, effectiveNav]);
+    return { id: m[1], slug: raw === '' ? '.' : raw };
+  }, [inInstancePanel, location.pathname]);
 
   // Page-switch loader — white hairline that sweeps left → right ONLY while
   // a new page is opening (null = hidden/idle, number = visible width %).
@@ -825,8 +795,8 @@ const Header: React.FC<HeaderProps> = ({
           );
         })()}
 
-        {/* Instance row-1 — single toggle pill: [Icon] Instance #id / Page + chevron.
-            Click toggles Row 2 tabs. No back button. */}
+        {/* Instance row-1 — instance identity plus the page dropdown.
+            The dropdown is the only place the active page name is shown. */}
         {inInstancePanel && (
           <div className="relative min-w-0">
           <nav aria-label="Breadcrumb" className="flex items-center min-w-0 text-xs text-gray-400 gap-1.5">
@@ -842,12 +812,6 @@ const Header: React.FC<HeaderProps> = ({
               <InstanceIdTag id={navInstanceId} />
             ) : (
               <span className="shrink-0 text-sm font-medium text-gray-200">Instance</span>
-            )}
-            {instanceCrumb && instanceCrumb.slug !== '.' && !['details', 'monitoring', 'manage', 'activity'].includes(instanceCrumb.slug) && (
-              <>
-                <span className="text-gray-600 shrink-0">/</span>
-                <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
-              </>
             )}
             {navInstanceId != null && (
               <div className="ml-auto">
