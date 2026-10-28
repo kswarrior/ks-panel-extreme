@@ -37,7 +37,7 @@ const FALLBACK_ICON = '<circle cx="12" cy="12" r="9" />';
 // Files, Ports, Env and Automation are custom instance pages
 // (instance_pages/pages/*.json) and resolve through the spec.pages
 // whitelist like every other library page.
-export const BUILTIN_PAGE_SLUGS = ['overview', 'details', 'monitoring', 'manage', 'activity', 'sftp'];
+export const BUILTIN_PAGE_SLUGS = ['overview', 'details', 'monitoring', 'manage', 'activity', 'terminal', 'files', 'sftp'];
 
 // normalizePageSlug trims a user-entered page slug/URL into canonical form:
 // leading/trailing slashes and whitespace go away ("  /overview/ " →

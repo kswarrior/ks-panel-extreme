@@ -272,6 +272,18 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
             label="Activity"
             hint="Per-instance audit trail"
           />
+          <TabRow
+            checked={c.show_terminal_page}
+            onChange={(v) => onUpdate({ show_terminal_page: v })}
+            label="Terminal"
+            hint="Live terminal consoles (YAML page)"
+          />
+          <TabRow
+            checked={c.show_files_page}
+            onChange={(v) => onUpdate({ show_files_page: v })}
+            label="Files"
+            hint="File manager (YAML page)"
+          />
         </div>
         <div className="mt-2">
           <label className={labelCls}>Default tab (dropdown)</label>

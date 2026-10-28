@@ -29,6 +29,7 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import Slot from '@/shared/components/ui/Slot';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
+import InstanceYamlPage from '@/features/instances/pages/InstanceYamlPage';
 import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 
@@ -156,6 +157,19 @@ export const InstanceDynamicPage: React.FC = () => {
   // via fetchPanel('/sftp')).
   if (effectiveSlug === 'sftp') {
     return <InstanceSftpCard instanceId={instanceId} />;
+  }
+
+  if (effectiveSlug === 'terminal' || effectiveSlug === 'files') {
+    const controls = resolveInstanceControls(instance.config);
+    const flag = effectiveSlug === 'terminal' ? 'show_terminal_page' : 'show_files_page';
+    if (!controls[flag as keyof typeof controls]) {
+      return (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This page is disabled for this instance.</p>
+        </div>
+      );
+    }
+    return <InstanceYamlPage instanceId={instanceId} slug={effectiveSlug as 'terminal' | 'files'} />;
   }
 
   // Control pages are native built-ins (not custom spec.pages entries):
