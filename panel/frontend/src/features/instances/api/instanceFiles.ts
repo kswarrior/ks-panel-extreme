@@ -1,5 +1,13 @@
 import client from '@/shared/api/client';
 
+// The edge serialises os.FileMode as a decimal uint32; show the familiar
+// octal permission string (e.g. 420 -> "0644") in the UI.
+function modeString(v: unknown): string {
+  const n = typeof v === 'number' ? v : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return n.toString(8).padStart(4, '0');
+}
+
 // Native Files API for the built-in Files page (pure builtin — not an
 // instance-pages system page). Thin typed wrapper over the panel's
 // /api/instances/:id/files bridges, which proxy to the owning edge.
@@ -50,7 +58,7 @@ export async function listFiles(instanceId: number, dir: string): Promise<FileEn
       .map((e: any) => ({
         name: String(e.name),
         size: Number(e.size) || 0,
-        mode: typeof e.mode === 'string' ? e.mode : '',
+        mode: modeString(e.mode),
         is_dir: !!e.is_dir,
         mod_time: Number(e.mod_time) || 0,
       }));
@@ -68,7 +76,7 @@ export async function statPath(instanceId: number, path: string): Promise<FileSt
     return {
       name: String(d?.name ?? ''),
       size: Number(d?.size) || 0,
-      mode: typeof d?.mode === 'string' ? d.mode : '',
+      mode: modeString(d?.mode),
       is_dir: !!d?.is_dir,
       mod_time: Number(d?.mod_time) || 0,
     };
