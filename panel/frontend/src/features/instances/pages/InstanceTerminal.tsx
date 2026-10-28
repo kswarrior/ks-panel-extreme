@@ -46,6 +46,7 @@ export interface TerminalPaneHandle {
   paste: () => void;
   download: () => void;
   reconnect: () => void;
+  reset: () => void;
   fit: () => void;
   focus: () => void;
   send: (data: string) => void;
@@ -583,6 +584,7 @@ const TerminalPane = forwardRef<TerminalPaneHandle, PaneProps>(
           termRef.current?.writeln('\x1b[90m• reconnecting…\x1b[0m');
           connectRef.current();
         },
+        reset: () => termRef.current?.reset(),
         fit,
         focus: () => termRef.current?.focus(),
         send: (data: string) => sendRaw(data),
@@ -620,6 +622,11 @@ const TerminalPane = forwardRef<TerminalPaneHandle, PaneProps>(
       <div
         ref={hostRef}
         onContextMenu={onContextMenu}
+        onAuxClick={(e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          void paste();
+        }}
         className={`ks-terminal-wrap absolute inset-0 p-1.5 ${active ? 'block' : 'hidden'}`}
         style={{ background: '#090b0f' }}
       />
@@ -948,6 +955,7 @@ const InstanceTerminal: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             <MenuSep />
             <MenuItem label="New shell" hint="Ctrl+Shift+T" onClick={() => { addTab(); setMenu(null); }} />
             {tabs.length > 1 && <MenuItem label="Close shell" hint="Ctrl+Shift+W" onClick={() => { closeTab(active?.id ?? 0); setMenu(null); }} />}
+            <MenuItem label="Reset terminal" onClick={() => { handle()?.reset(); setMenu(null); }} />
             <MenuItem label="Reconnect" onClick={() => { handle()?.reconnect(); setMenu(null); }} />
             <MenuItem label={maximized ? 'Restore size' : 'Maximize'} hint="Ctrl+Shift+Enter" onClick={() => { setMaximized((v) => !v); setMenu(null); }} />
           </div>
