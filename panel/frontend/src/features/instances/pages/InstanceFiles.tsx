@@ -451,7 +451,6 @@ const InstanceFiles: React.FC<{ instanceId: number }> = ({ instanceId }) => {
       load(dir);
     } catch (e) {
       toast(errText(e, 'Failed to save file'), 'error');
-      throw e;
     }
   };
 

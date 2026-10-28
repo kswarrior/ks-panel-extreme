@@ -30,6 +30,14 @@ function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
+function bytesToB64(bytes: Uint8Array): string {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(out);
+}
+
 function copyText(text: string) {
   if (!text) {
     window.dispatchEvent(new CustomEvent('ks-toast', { detail: { message: 'Nothing selected', type: 'info' } }));
@@ -254,7 +262,7 @@ const TerminalPane = forwardRef<TerminalPaneHandle, PaneProps>(({ instanceId, se
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
       try {
-        ws.send(JSON.stringify({ type: 'stdin', data: btoa(String.fromCharCode(...new TextEncoder().encode(data))) }));
+        ws.send(JSON.stringify({ type: 'stdin', data: bytesToB64(new TextEncoder().encode(data)) }));
       } catch {
         /* ignore */
       }
