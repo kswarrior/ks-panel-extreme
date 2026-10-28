@@ -29,7 +29,8 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import Slot from '@/shared/components/ui/Slot';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
-import InstanceYamlPage from '@/features/instances/pages/InstanceYamlPage';
+import InstanceTerminal from '@/features/instances/pages/InstanceTerminal';
+import InstanceFiles from '@/features/instances/pages/InstanceFiles';
 import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 
@@ -169,7 +170,9 @@ export const InstanceDynamicPage: React.FC = () => {
         </div>
       );
     }
-    return <InstanceYamlPage instanceId={instanceId} slug={effectiveSlug as 'terminal' | 'files'} />;
+    return effectiveSlug === 'terminal'
+      ? <InstanceTerminal instanceId={instanceId} />
+      : <InstanceFiles instanceId={instanceId} />;
   }
 
   // Control pages are native built-ins (not custom spec.pages entries):
