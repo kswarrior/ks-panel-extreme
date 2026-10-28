@@ -152,8 +152,15 @@ func Handler(token string) http.Handler {
 		gw := &guardedConn{conn: conn}
 
 		// Default to /bin/sh so the operator gets a useful prompt without
-		// having to figure out which shell the image ships.
-		session, err := drv.Exec(ctx, name, tty, cols, rows, []string{"/bin/sh"})
+		// having to figure out which shell the image ships. Interactive
+		// sessions export a modern TERM first: containers and VMs often
+		// start without one, which makes curses apps (vim, htop, less),
+		// colours and keypad arrows fall back to dumb-terminal behaviour.
+		command := []string{"/bin/sh"}
+		if tty {
+			command = []string{"/bin/sh", "-c", "export TERM=xterm-256color COLORTERM=truecolor; exec /bin/sh"}
+		}
+		session, err := drv.Exec(ctx, name, tty, cols, rows, command)
 		if err != nil {
 			gw.write(map[string]any{"type": "error", "message": err.Error()})
 			// Allow the message to flush before closing.
