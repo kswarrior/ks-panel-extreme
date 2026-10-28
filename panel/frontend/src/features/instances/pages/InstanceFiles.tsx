@@ -465,7 +465,7 @@ const InstanceFiles: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const searchActive = query.trim().length >= 2;
 
   return (
-    <div className="ks-card ks-form-card rounded-xl overflow-hidden">
+    <div className="ks-card ks-form-card relative rounded-xl overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 border-b border-white/10 px-3 py-2.5">
         <button type="button" className={iconButton} onClick={() => navigate(dirname(dir))} disabled={dir === '/'} title="Up one level" aria-label="Up one level">
           {icon(<><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></>)}
@@ -616,7 +616,7 @@ const InstanceFiles: React.FC<{ instanceId: number }> = ({ instanceId }) => {
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-3 py-2 text-[11px] text-gray-500">
         <span>{entries.length} item{entries.length === 1 ? '' : 's'}{dir !== '/' ? ` in ${dir}` : ''}</span>
-        <span>Double-click a text file to edit it · images open in preview</span>
+        <span>Click a text file to edit it · images open in preview</span>
       </div>
 
       {editorBusy && <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 animate-pulse bg-sky-400/70" />}
@@ -625,7 +625,10 @@ const InstanceFiles: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         <EditorModal
           state={editor}
           busy={editorBusy}
-          onClose={() => setEditor(null)}
+          onClose={() => {
+            if (editor.imageUrl) URL.revokeObjectURL(editor.imageUrl);
+            setEditor(null);
+          }}
           onSave={saveEditor}
           onDownload={() => downloadFile(instanceId, editor.path).catch((e) => toast(errText(e, 'Download failed'), 'error'))}
         />
