@@ -140,6 +140,56 @@ export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
 // submenu that switches the active theme for the page's area without
 // bouncing through the Themes page.
 
+const InstanceIdTag: React.FC<{ id: number }> = ({ id }) => {
+  const [copied, setCopied] = React.useState(false);
+  const onCopy = React.useCallback(async () => {
+    const text = String(id);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard denied */
+    }
+  }, [id]);
+  return (
+    <button
+      type="button"
+      onClick={() => void onCopy()}
+      title={copied ? 'Copied!' : `Click to copy ID ${id}`}
+      className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-white/10 text-gray-200 border border-white/15 hover:bg-white/15 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+    >
+      {copied ? 'Copied!' : `#${id}`}
+    </button>
+  );
+};
+
+const OverviewDropdown: React.FC = () => {
+  const sections = useOverviewSectionStore((s) => s.sections);
+  const active = useOverviewSectionStore((s) => s.active);
+  const setActive = useOverviewSectionStore((s) => s.setActive);
+  if (!sections || sections.length === 0) return null;
+  return (
+    <OverviewSectionSelect
+      ariaLabel="Overview sections"
+      active={active}
+      onChange={(id) => setActive(id)}
+      sections={sections}
+    />
+  );
+};
+
 const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   inInstancePanel,
