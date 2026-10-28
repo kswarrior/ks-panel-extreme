@@ -10,7 +10,7 @@ import Avatar from '@/shared/components/ui/Avatar';
 import { PanelBrandLogo } from '@/shared/components/brand/PanelBrand';
 import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
-import InstanceTabs, { useEffectiveInstanceNav } from '@/features/instances/components/InstanceTabs';
+import { useEffectiveInstanceNav } from '@/features/instances/components/InstanceTabs';
 import OverviewSectionSelect from '@/features/instances/components/OverviewSectionSelect';
 import { useOverviewSectionStore } from '@/features/instances/stores/overviewSectionStore';
 import { useInstanceNav } from './InstanceNavContext';
@@ -205,51 +205,8 @@ const Header: React.FC<HeaderProps> = ({
   const location = useLocation();
   const [loggingOut, setLoggingOut] = React.useState<boolean>(false);
 
-  // Sub-header tab row (instance only): collapsed persists per-browser so
-  // phones can hide the tab strip and keep row-1 (bell + profile) free.
-  const [tabsCollapsed, setTabsCollapsed] = React.useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem('kspanel.instance-tabs.collapsed') === '1';
-    } catch {
-      return false;
-    }
-  });
-  React.useEffect(() => {
-    try {
-      window.localStorage.setItem('kspanel.instance-tabs.collapsed', tabsCollapsed ? '1' : '0');
-    } catch {
-      // Storage off: collapse becomes session-only.
-    }
-  }, [tabsCollapsed]);
-  // hasTabs drives both row-1 toggle visibility and row-2 rendering, so a
-  // tab-less instance never shows an empty strip or a dead chevron.
   const { instanceId: navInstanceId, loading: navLoading } = useInstanceNav();
   const effectiveNav = useEffectiveInstanceNav();
-  const hasTabs = inInstancePanel && (navLoading || effectiveNav.length > 0);
-
-  // One-time hint pointing at the » tabs toggle. Persists dismissal
-  // per-browser; X hides it for this view, "Don't show again" hides forever.
-  const [tabsHintDismissed, setTabsHintDismissed] = React.useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem('kspanel.instance-tabs.hint-dismissed') === '1';
-    } catch {
-      return false;
-    }
-  });
-  const [tabsHintOpen, setTabsHintOpen] = React.useState(false);
-  React.useEffect(() => {
-    if (inInstancePanel && hasTabs && !tabsHintDismissed) setTabsHintOpen(true);
-    else setTabsHintOpen(false);
-  }, [inInstancePanel, navInstanceId, hasTabs, tabsHintDismissed]);
-  const dismissTabsHintForever = () => {
-    setTabsHintDismissed(true);
-    setTabsHintOpen(false);
-    try {
-      window.localStorage.setItem('kspanel.instance-tabs.hint-dismissed', '1');
-    } catch {
-      // Storage off: dismissal becomes session-only.
-    }
-  };
   // Instance crumb: [Icon] Instance #id / CurrentPage. Slug comes from the
   // URL after /instances/:id/ ("" = Home "."). Label prefers the resolved
   // nav entry, falls back to builtin/tool names (Files/Terminal/Ports never
@@ -810,50 +767,7 @@ const Header: React.FC<HeaderProps> = ({
                 <OverviewDropdown instanceId={navInstanceId} activeSlug={instanceCrumb?.slug ?? ''} />
               </div>
             )}
-            {hasTabs && (
-              <button
-                type="button"
-                onClick={() => setTabsCollapsed((v) => !v)}
-                aria-expanded={!tabsCollapsed}
-                aria-label={tabsCollapsed ? 'Show instance tabs' : 'Hide instance tabs'}
-                title={tabsCollapsed ? 'Show tabs' : 'Hide tabs'}
-                className="group shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
-                style={{ background: 'transparent' }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 block text-gray-200 group-hover:text-white group-focus-visible:text-white transition-all duration-200 ${tabsCollapsed ? 'opacity-80 group-hover:opacity-100' : 'rotate-180 opacity-100'}`}><path d="M6 9l6 6 6-6" /><path d="M6 14l6 6 6-6" /></svg>
-              </button>
-            )}
           </nav>
-          {/* Hint bubble pointing up at the » toggle. Shows on instance open
-              until dismissed; "Don't show again" persists per-browser. */}
-          {hasTabs && tabsHintOpen && !tabsHintDismissed && (
-            <div role="status" className="absolute left-0 top-full mt-2 z-30 w-64 max-w-[calc(100vw-2rem)]">
-              <span aria-hidden="true" className="absolute -top-1 right-8 w-2.5 h-2.5 rotate-45 bg-neutral-900 border-l border-t border-white/10" />
-              <div className="glass-dropdown rounded-xl p-3 shadow-xl border border-white/10 bg-neutral-900/95">
-                <div className="flex items-start gap-2">
-                  <p className="text-xs text-gray-200 leading-snug flex-1">
-                    Use <span className="font-semibold text-white">»</span> to show / hide the instance tabs below.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setTabsHintOpen(false)}
-                    aria-label="Dismiss hint"
-                    title="Dismiss"
-                    className="shrink-0 rounded-md p-1 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={dismissTabsHintForever}
-                  className="mt-2 text-[11px] font-medium text-gray-400 hover:text-white underline underline-offset-2 transition-colors"
-                >
-                  Don&apos;t show again
-                </button>
-              </div>
-            </div>
-          )}
           </div>
         )}
       </div>
@@ -915,14 +829,6 @@ const Header: React.FC<HeaderProps> = ({
           />
         </div>
       </div>
-      {/* Row 2 — instance tabs below header, full width. Collapsible via the
-          row-1 up/down toggle; hidden state persists per-browser. Keeps Row 1
-          (bell + profile) free on phones. No empty strip when tab-less. */}
-      {hasTabs && !tabsCollapsed && (
-        <div className="w-full border-t border-white/10 mt-1 pt-1">
-          <InstanceTabs />
-        </div>
-      )}
       {/* Page-load bar — Google-style sweep shown ONLY while a page opens
           (Header mounts once in Layout, so the route-key effect above
           re-fires on every navigation). Hidden when idle, when the theme
