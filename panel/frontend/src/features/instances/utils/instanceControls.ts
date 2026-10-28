@@ -31,6 +31,8 @@ export interface InstanceControls {
   // Built-in control pages.
   show_terminal_page: boolean;
   show_files_page: boolean;
+  show_ports_page: boolean;
+  show_automation_page: boolean;
   default_tab: OverviewDefaultTab;
   // Floating menu "More" link target (page slug, e.g. "overview"). Rendered
   // inside the controls block so it snapshots per instance like the rest.
@@ -62,6 +64,8 @@ export const DEFAULT_INSTANCE_CONTROLS: InstanceControls = {
   show_activity_tab: true,
   show_terminal_page: true,
   show_files_page: true,
+  show_ports_page: true,
+  show_automation_page: true,
   default_tab: 'details',
   more_page: 'overview',
   allow_rename: true,
@@ -129,6 +133,8 @@ export function resolveInstanceControls(
     show_activity_tab: boolOr(c.show_activity_tab, d.show_activity_tab),
     show_terminal_page: boolOr(c.show_terminal_page, d.show_terminal_page),
     show_files_page: boolOr(c.show_files_page, d.show_files_page),
+    show_ports_page: boolOr(c.show_ports_page, d.show_ports_page),
+    show_automation_page: boolOr(c.show_automation_page, d.show_automation_page),
     default_tab: def,
     more_page: morePage || d.more_page,
     allow_rename: boolOr(c.allow_rename, d.allow_rename),
