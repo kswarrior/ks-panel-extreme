@@ -172,16 +172,16 @@ const InstanceIdTag: React.FC<{ id: number }> = ({ id }) => {
   );
 };
 
-const OverviewDropdown: React.FC = () => {
+const OverviewDropdown: React.FC<{ instanceId: number; activeSlug: string }> = ({ instanceId, activeSlug }) => {
+  const navigate = useNavigate();
   const sections = useOverviewSectionStore((s) => s.sections);
-  const active = useOverviewSectionStore((s) => s.active);
-  const setActive = useOverviewSectionStore((s) => s.setActive);
   if (!sections || sections.length === 0) return null;
+  const active = sections.some((s) => s.id === activeSlug) ? activeSlug : sections[0].id;
   return (
     <OverviewSectionSelect
-      ariaLabel="Overview sections"
+      ariaLabel="Control pages"
       active={active}
-      onChange={(id) => setActive(id)}
+      onChange={(id) => navigate(`/instances/${instanceId}/${id}`)}
       sections={sections}
     />
   );
@@ -264,6 +264,10 @@ const Header: React.FC<HeaderProps> = ({
     const builtin: Record<string, string> = {
       '.': 'Home',
       overview: 'Overview',
+      details: 'Details',
+      monitoring: 'Monitoring',
+      manage: 'Manage',
+      activity: 'Activity',
       files: 'Files',
       terminal: 'Terminal',
       ports: 'Ports',
@@ -795,14 +799,16 @@ const Header: React.FC<HeaderProps> = ({
             ) : (
               <span className="shrink-0 text-sm font-medium text-gray-200">Instance</span>
             )}
-            {instanceCrumb && instanceCrumb.slug !== '.' && instanceCrumb.slug !== 'overview' && (
+            {instanceCrumb && instanceCrumb.slug !== '.' && !['details', 'monitoring', 'manage', 'activity'].includes(instanceCrumb.slug) && (
               <>
                 <span className="text-gray-600 shrink-0">/</span>
                 <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
               </>
             )}
-            {instanceCrumb && instanceCrumb.slug === 'overview' && (
-              <OverviewDropdown />
+            {navInstanceId != null && (
+              <div className="ml-auto">
+                <OverviewDropdown instanceId={navInstanceId} activeSlug={instanceCrumb?.slug ?? ''} />
+              </div>
             )}
             {hasTabs && (
               <button

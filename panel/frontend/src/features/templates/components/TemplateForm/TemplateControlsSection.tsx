@@ -221,8 +221,8 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
       </div>
 
       <div className={sectionCls}>
-        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">More page · Overview tabs</h4>
-        <p className="text-xs text-gray-500">Which tabs the More → Overview page offers. At least one tab must stay on — the page falls back to the first allowed tab.</p>
+        <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Control Pages</h4>
+        <p className="text-xs text-gray-500">Which control pages (Details, Monitoring, Manage, Activity) instances of this template expose as real pages. At least one page must stay on — the page falls back to the first allowed page.</p>
         <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
           <p className={labelCls}>Visible tabs (checkboxes · {tabCount} of 4 on)</p>
           <TabRow

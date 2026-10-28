@@ -449,8 +449,8 @@ const InstanceMenuFab: React.FC = () => {
                     setOpen(false);
                     navigate(`/instances/${overviewId}/overview`, { state: { fromMore: true } });
                   }}
-                  title="Open the full instance overview page"
-                  aria-label="More — open full instance overview page"
+                  title="Open control pages"
+                  aria-label="More — open control pages"
                   className="shrink-0 inline-flex items-center gap-0.5 rounded-md px-1.5 py-1 text-[11px] font-medium text-gray-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all duration-150"
                 >
                   <span>More</span>
