@@ -29,6 +29,7 @@ import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import Slot from '@/shared/components/ui/Slot';
 import InstanceOverview from '@/features/instances/pages/InstanceOverview';
+import { resolveInstanceControls } from '@/features/instances/utils/instanceControls';
 import InstanceSftpCard from '@/features/instances/components/InstanceSftpCard';
 
 export const InstancePanel: React.FC = () => {
@@ -157,13 +158,37 @@ export const InstanceDynamicPage: React.FC = () => {
     return <InstanceSftpCard instanceId={instanceId} />;
   }
 
-  // Overview is a native built-in like SFTP (not a custom
-  // spec.pages entry): the full-page target of the floating instance
-  // menu's "More" link — the menu's own status row + power controls +
-  // actions, plus live CPU / RAM / disk graphs and manage options
-  // (rename, reinstall, destroy).
+  // Control pages are native built-ins (not custom spec.pages entries):
+  // each renders one section of the former Overview page as a real page.
+  const controlSlugs = ['details', 'monitoring', 'manage', 'activity'] as const;
   if (effectiveSlug === 'overview') {
-    return <InstanceOverview instanceId={instanceId} />;
+    const controls = resolveInstanceControls(instance.config);
+    const flagFor = (s: string) =>
+      s === 'details' ? 'show_details_tab' :
+      s === 'monitoring' ? 'show_monitoring_tab' :
+      s === 'manage' ? 'show_manage_tab' : 'show_activity_tab';
+    const preferred = controlSlugs.includes(controls.default_tab as any) ? controls.default_tab : 'details';
+    const target =
+      controls[flagFor(preferred) as keyof typeof controls]
+        ? preferred
+        : (controlSlugs.find((s) => controls[flagFor(s) as keyof typeof controls]) ?? 'details');
+    return <Navigate to={`/instances/${instanceId}/${target}`} replace />;
+  }
+  if (controlSlugs.includes(effectiveSlug as any)) {
+    const controls = resolveInstanceControls(instance.config);
+    const flagName =
+      effectiveSlug === 'details' ? 'show_details_tab' :
+      effectiveSlug === 'monitoring' ? 'show_monitoring_tab' :
+      effectiveSlug === 'manage' ? 'show_manage_tab' :
+      'show_activity_tab';
+    if (!controls[flagName as keyof typeof controls]) {
+      return (
+        <div className="ks-card ks-form-card rounded-xl text-center text-gray-400">
+          <p className="text-sm">This page is disabled for this instance.</p>
+        </div>
+      );
+    }
+    return <InstanceOverview instanceId={instanceId} section={effectiveSlug as any} />;
   }
 
   // Template home page: the index route (instance card click) lands on the

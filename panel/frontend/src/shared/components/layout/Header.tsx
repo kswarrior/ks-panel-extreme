@@ -141,7 +141,6 @@ export function resolveHeaderCrumb(rawPath: string): HeaderCrumb | null {
 // bouncing through the Themes page.
 
 const InstanceIdTag: React.FC<{ id: number }> = ({ id }) => {
-  const [copied, setCopied] = React.useState(false);
   const onCopy = React.useCallback(async () => {
     const text = String(id);
     try {
@@ -157,8 +156,6 @@ const InstanceIdTag: React.FC<{ id: number }> = ({ id }) => {
         document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1500);
     } catch {
       /* clipboard denied */
     }
@@ -167,10 +164,10 @@ const InstanceIdTag: React.FC<{ id: number }> = ({ id }) => {
     <button
       type="button"
       onClick={() => void onCopy()}
-      title={copied ? 'Copied!' : `Click to copy ID ${id}`}
+      title={`Click to copy ID ${id}`}
       className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-white/10 text-gray-200 border border-white/15 hover:bg-white/15 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
     >
-      {copied ? 'Copied!' : `#${id}`}
+      #{id}
     </button>
   );
 };

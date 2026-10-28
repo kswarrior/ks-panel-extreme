@@ -145,14 +145,18 @@ const tileIcon = (inner: React.ReactNode) => (
   </svg>
 );
 
-const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
+const InstanceOverview: React.FC<{ instanceId: number; section?: TabId }> = ({ instanceId, section }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const confirm = useConfirm();
   const { instance, loading, error, reload } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
-  const activeTab = useOverviewSectionStore((s) => s.active) as TabId;
-  const setActiveTab = useOverviewSectionStore((s) => s.setActive);
+  const storeActive = useOverviewSectionStore((s) => s.active) as TabId;
+  const setStoreActive = useOverviewSectionStore((s) => s.setActive);
+  const activeTab: TabId = section ?? storeActive;
+  const setActiveTab = (id: TabId) => {
+    if (!section) setStoreActive(id);
+  };
   const [rename, setRename] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameMsg, setRenameMsg] = useState('');
