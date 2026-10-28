@@ -17,22 +17,43 @@ export interface PortAllocationInput {
   ip?: string;
 }
 
-export interface PortsResponse {
+export interface LivePort {
+  proto?: string;
+  laddr?: string;
+  raddr?: string;
+  state?: string;
+  pid?: number;
+}
+
+export interface PortsSnapshot {
   allocations: InstancePort[];
-  live: unknown[];
-  ports: unknown[];
+  live: LivePort[];
+}
+
+export interface PortsResponse {
+  allocations?: InstancePort[];
+  live?: LivePort[];
+  ports?: LivePort[];
+}
+
+// getInstancePorts returns both DB allocations and the driver's live
+// listening sockets. Older panels answered with a bare allocation array;
+// normalize both shapes so the native page works against either.
+export async function getInstancePorts(instanceId: number): Promise<PortsSnapshot> {
+  const res = await client.get<PortsResponse | InstancePort[]>(`/api/instances/${instanceId}/ports`);
+  const data: any = res.data;
+  if (Array.isArray(data)) {
+    return { allocations: data as InstancePort[], live: [] };
+  }
+  const allocations = data && Array.isArray(data.allocations) ? (data.allocations as InstancePort[]) : [];
+  const liveRaw = data && (Array.isArray(data.live) ? data.live : data.ports);
+  const live = Array.isArray(liveRaw) ? (liveRaw as LivePort[]) : [];
+  return { allocations, live };
 }
 
 export async function listInstancePorts(instanceId: number): Promise<InstancePort[]> {
-  const res = await client.get<PortsResponse | InstancePort[]>(`/api/instances/${instanceId}/ports`);
-  const data: any = res.data;
-  if (Array.isArray(data)) return data as InstancePort[];
-  if (data && Array.isArray(data.allocations)) return data.allocations as InstancePort[];
-  if (data && Array.isArray(data.ports) && data.allocations === undefined) {
-    // legacy live array, no allocations yet
-    return [];
-  }
-  return [];
+  const { allocations } = await getInstancePorts(instanceId);
+  return allocations;
 }
 
 export async function updateInstancePorts(instanceId: number, ports: PortAllocationInput[]): Promise<InstancePort[]> {
