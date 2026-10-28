@@ -300,7 +300,6 @@ const TerminalPane = forwardRef<TerminalPaneHandle, PaneProps>(
         attemptRef.current = 0;
         setStatus('connecting');
         fit();
-        term.focus();
       };
       ws.onmessage = (ev) => {
         if (wsRef.current !== ws) return;
@@ -659,20 +658,18 @@ const InstanceTerminal: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   }, []);
 
   const closeTab = useCallback((id: number) => {
-    setTabs((prev) => {
-      if (prev.length <= 1) return prev;
-      const remaining = prev.filter((t) => t.id !== id);
-      delete handles.current[id];
-      setStatuses((all) => {
-        const next = { ...all };
-        delete next[id];
-        return next;
-      });
-      setActiveId((current) => (current === id ? remaining[remaining.length - 1].id : current));
-      return remaining;
+    if (tabs.length <= 1) return;
+    const remaining = tabs.filter((t) => t.id !== id);
+    delete handles.current[id];
+    setTabs(remaining);
+    setStatuses((all) => {
+      const next = { ...all };
+      delete next[id];
+      return next;
     });
+    if (activeId === id) setActiveId(remaining[remaining.length - 1].id);
     setFindInfo({ index: 0, total: 0 });
-  }, []);
+  }, [tabs, activeId]);
 
   const selectTab = (id: number) => {
     setActiveId(id);
@@ -895,7 +892,7 @@ const InstanceTerminal: React.FC<{ instanceId: number }> = ({ instanceId }) => {
             onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}
           />
           <div
-            className="fixed z-[79] w-56 rounded-lg border border-white/15 bg-neutral-900/98 p-1 shadow-2xl backdrop-blur"
+            className="fixed z-[79] w-56 rounded-lg border border-white/15 bg-neutral-900 p-1 shadow-2xl backdrop-blur"
             style={{ left: menu.x, top: menu.y }}
             role="menu"
           >
