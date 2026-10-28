@@ -9,14 +9,12 @@
 //   • InstanceDynamicPage — resolves the URL slug against the INSTANCE's
 //                           deploy-time spec and renders CustomPageView.
 //
-// Terminal, Files, Ports, Env and Automation are custom instance pages
-// (instance_pages/pages/*.json).
-// Their backend bridges skip the page whitelist
-// (auth + permission gates still apply). Tool navigation lives in the
-// floating instance menu's shortcut row — there is no Tools card on the page.
-// A slug is allowed when the instance's own config lists it in `pages`
-// (empty-by-default: no rows → no pages). Home uses slug "." and renders at
-// the index route when its page row was imported.
+// Terminal, Files, Ports, Env, Automation, Overview tabs and SFTP are
+// native React built-ins (their backend bridges skip the page whitelist;
+// auth + permission gates still apply). A custom slug is allowed when the
+// instance's own config lists it in `pages` (empty-by-default: no rows →
+// no pages). Home uses slug "." and renders at the index route when its
+// page row was imported.
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useNavigate, useParams } from 'react-router-dom';
@@ -145,10 +143,6 @@ export const InstanceDynamicPage: React.FC = () => {
   const spec = instance.config ? parseConfig(instance.config) : null;
   const slug = (wildcard ?? '').replace(/\/+$/, '');
   const effectiveSlug = slug === '' ? '.' : slug;
-
-  // Terminal, Files, Ports, Env and Automation are custom instance pages
-  // now (instance_pages/pages/*.json) — they resolve through the
-  // spec.pages whitelist below.
 
   // SFTP card is a built-in page (not a custom spec.pages entry).
   // The masked dial params are safe for any instance viewer; the card itself
