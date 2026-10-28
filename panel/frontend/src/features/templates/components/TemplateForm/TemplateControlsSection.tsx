@@ -222,7 +222,7 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
 
       <div className={sectionCls}>
         <h4 className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-1">Control Pages</h4>
-        <p className="text-xs text-gray-500">Which control pages (Details, Monitoring, Manage, Activity) instances of this template expose as real pages. At least one page must stay on — the page falls back to the first allowed page.</p>
+        <p className="text-xs text-gray-500">Which control pages instances of this template expose as real pages. At least one Overview tab must stay on — the page falls back to the first allowed tab. Terminal, Files, Ports, Automation and SFTP are separate native pages.</p>
         <div className="rounded-md border border-white/10 bg-black/20 px-3 py-1 mt-2">
           <p className={labelCls}>Visible tabs (checkboxes · {tabCount} of 4 on)</p>
           <TabRow
@@ -276,13 +276,25 @@ export const TemplateControlsSection: React.FC<ControlsSectionProps> = ({
             checked={c.show_terminal_page}
             onChange={(v) => onUpdate({ show_terminal_page: v })}
             label="Terminal"
-            hint="Live terminal consoles (YAML page)"
+            hint="Live terminal consoles"
           />
           <TabRow
             checked={c.show_files_page}
             onChange={(v) => onUpdate({ show_files_page: v })}
             label="Files"
-            hint="File manager (YAML page)"
+            hint="File manager"
+          />
+          <TabRow
+            checked={c.show_ports_page}
+            onChange={(v) => onUpdate({ show_ports_page: v })}
+            label="Ports"
+            hint="Host → container mappings + live sockets"
+          />
+          <TabRow
+            checked={c.show_automation_page}
+            onChange={(v) => onUpdate({ show_automation_page: v })}
+            label="Automation"
+            hint="Scheduled jobs, manual runs and YAML transfer"
           />
         </div>
         <div className="mt-2">

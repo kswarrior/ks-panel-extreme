@@ -222,6 +222,18 @@ const CONTROL_PAGE_META: Record<string, { label: string; hint: string; accent: s
     accent: '#fb923c',
     icon: controlIcon(<><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="16" r="1" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>),
   },
+  ports: {
+    label: 'Ports',
+    hint: 'Host → container mappings',
+    accent: '#f87171',
+    icon: controlIcon(<><rect x="2" y="7" width="20" height="8" rx="2" /><path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" /><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2" /></>),
+  },
+  automation: {
+    label: 'Automation',
+    hint: 'Scheduled jobs & runs',
+    accent: '#fbbf24',
+    icon: controlIcon(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /><path d="m17 3 2 2" /><path d="m7 3-2 2" /></>),
+  },
 };
 
 function customNavIcon(n: ResolvedNavEntry): React.ReactNode {
@@ -249,6 +261,8 @@ const InstancePageDropdown: React.FC<{ instanceId: number; activeSlug: string; n
     if (controls.show_activity_tab) addBuiltin('activity');
     if (controls.show_terminal_page) addBuiltin('terminal');
     if (controls.show_files_page) addBuiltin('files');
+    if (controls.show_ports_page) addBuiltin('ports');
+    if (controls.show_automation_page) addBuiltin('automation');
     addBuiltin('sftp');
     for (const n of nav) {
       if (!n.to || CONTROL_PAGE_META[n.to]) continue;
@@ -263,7 +277,9 @@ const InstancePageDropdown: React.FC<{ instanceId: number; activeSlug: string; n
     return out;
   }, [controls, nav]);
   if (sections.length === 0) return null;
-  const active = sections.some((s) => s.id === activeSlug) ? activeSlug : sections[0].id;
+  // Sub-pages (automation/edit) keep their family entry highlighted.
+  const rootSlug = activeSlug.split('/')[0];
+  const active = sections.some((s) => s.id === rootSlug) ? rootSlug : sections[0].id;
   return (
     <OverviewSectionSelect
       ariaLabel="Instance pages"
