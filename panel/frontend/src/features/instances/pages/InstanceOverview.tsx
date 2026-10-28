@@ -35,6 +35,7 @@ import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
 import OverviewSectionSelect from '../components/OverviewSectionSelect';
+import { useOverviewSectionStore } from '../stores/overviewSectionStore';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import { resolveRedirectTarget } from '@/shared/utils/instancePages';
 
@@ -150,7 +151,8 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const confirm = useConfirm();
   const { instance, loading, error, reload } = useInstance(instanceId);
   const permissions = useAuthStore((s) => s.permissions);
-  const [tab, setTab] = useState<TabId>('details');
+  const activeTab = useOverviewSectionStore((s) => s.active) as TabId;
+  const setActiveTab = useOverviewSectionStore((s) => s.setActive);
   const [rename, setRename] = useState('');
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameMsg, setRenameMsg] = useState('');
@@ -214,9 +216,9 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   // default tab on first load.
   useEffect(() => {
     if (!instance) return;
-    if (!visibleTabs.includes(tab)) {
-      const preferred = (controls.default_tab as TabId) || 'details';
-      setTab(visibleTabs.includes(preferred) ? preferred : visibleTabs[0]);
+    if (!visibleTabs.includes(activeTab)) {
+      const preferred = (controls.default_tab as TabId) || "details";
+      setActiveTab(visibleTabs.includes(preferred) ? preferred : visibleTabs[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id, visibleTabs]);
@@ -245,7 +247,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
   const [auditErr, setAuditErr] = useState('');
   const [auditLoading, setAuditLoading] = useState(false);
   useEffect(() => {
-    if (tab !== 'activity' || !Number.isFinite(instanceId)) return;
+    if (activeTab !== 'activity' || !Number.isFinite(instanceId)) return;
     let dead = false;
     setAuditLoading(true);
     setAuditErr('');
@@ -273,7 +275,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     return () => {
       dead = true;
     };
-  }, [tab, instanceId]);
+  }, [activeTab, instanceId]);
 
   // Live metrics stream (shared hook — same feed the Home tiles and the
   // floating menu's status row read): history ring for graphs plus the
@@ -443,8 +445,8 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
       <div className="flex justify-end">
         <OverviewSectionSelect
           ariaLabel="Overview sections"
-          active={tab}
-          onChange={(id) => setTab(id as TabId)}
+          active={activeTab}
+          onChange={(id) => setActiveTab(id as TabId)}
           sections={visibleTabs.map((id) => {
             const meta = TAB_META[id];
             if (id === 'details') {
@@ -504,7 +506,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         />
       </div>
 
-      {tab === 'monitoring' && controls.show_monitoring_tab && (
+      {activeTab === 'monitoring' && controls.show_monitoring_tab && (
         <ErrorBoundary label="instance-overview-monitoring">
           {!isRunning ? (
             <div className="glass-card rounded-xl text-center text-gray-400">
@@ -602,7 +604,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </ErrorBoundary>
       )}
 
-      {tab === 'details' && controls.show_details_tab && (
+      {activeTab === 'details' && controls.show_details_tab && (
         /* One datum per card — the old Controls / Status cards duplicated
            the floating menu, and the old Info card stacked every fact in
            one list. Each tile below owns exactly one fact. */
@@ -670,7 +672,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       )}
 
-      {tab === 'manage' && controls.show_manage_tab && (
+      {activeTab === 'manage' && controls.show_manage_tab && (
         <div className="space-y-4">
           {/* Rename */}
           {controls.allow_rename && (
@@ -767,7 +769,7 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
         </div>
       )}
 
-      {tab === 'activity' && controls.show_activity_tab && (
+      {activeTab === 'activity' && controls.show_activity_tab && (
         <div className="ks-card">
           <h3 className="text-sm font-semibold text-white">Activity</h3>
           <p className="text-xs text-gray-500 mt-1 mb-3">Audit trail for this instance only.</p>
