@@ -269,7 +269,7 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
             {filtered.length === 0 ? (
               <p className="px-3 py-3 text-xs text-gray-500">No sections match “{query.trim()}”.</p>
             ) : (
-              <ul id={LISTBOX_ID} role="listbox" aria-label={ariaLabel} className="max-h-64 overflow-y-auto py-1">
+              <ul id={LISTBOX_ID} role="listbox" aria-label={ariaLabel} className="max-h-[55vh] overflow-y-auto py-1">
                 {filtered.map((s, i) => {
                   const selected = s.id === active;
                   const highlighted = i === highlight;
