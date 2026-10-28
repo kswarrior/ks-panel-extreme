@@ -11,6 +11,8 @@ import { PanelBrandLogo } from '@/shared/components/brand/PanelBrand';
 import { usePanelPagesStore } from '@/features/settings/stores/panelPagesStore';
 import RichMenu, { type RichMenuItem } from '@/shared/components/ui/RichMenu';
 import InstanceTabs, { useEffectiveInstanceNav } from '@/features/instances/components/InstanceTabs';
+import OverviewSectionSelect from '@/features/instances/components/OverviewSectionSelect';
+import { useOverviewSectionStore } from '@/features/instances/stores/overviewSectionStore';
 import { useInstanceNav } from './InstanceNavContext';
 import NotificationBell from '@/features/notifications/components/NotificationBell';
 import UpdateBell from '@/features/system/components/UpdateBell';
@@ -732,58 +734,41 @@ const Header: React.FC<HeaderProps> = ({
             Click toggles Row 2 tabs. No back button. */}
         {inInstancePanel && (
           <div className="relative min-w-0">
-          <nav aria-label="Breadcrumb" className="flex items-center min-w-0 text-xs text-gray-400">
-            {hasTabs ? (
+          <nav aria-label="Breadcrumb" className="flex items-center min-w-0 text-xs text-gray-400 gap-1.5">
+            <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
+              {(() => {
+                const rawIcon = SidebarIcons['Instances'];
+                return React.isValidElement(rawIcon)
+                  ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
+                  : rawIcon;
+              })()}
+            </span>
+            {navInstanceId != null ? (
+              <InstanceIdTag id={navInstanceId} />
+            ) : (
+              <span className="shrink-0 text-sm font-medium text-gray-200">Instance</span>
+            )}
+            {instanceCrumb && instanceCrumb.slug !== '.' && instanceCrumb.slug !== 'overview' && (
+              <>
+                <span className="text-gray-600 shrink-0">/</span>
+                <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
+              </>
+            )}
+            {instanceCrumb && instanceCrumb.slug === 'overview' && (
+              <OverviewDropdown />
+            )}
+            {hasTabs && (
               <button
                 type="button"
                 onClick={() => setTabsCollapsed((v) => !v)}
                 aria-expanded={!tabsCollapsed}
                 aria-label={tabsCollapsed ? 'Show instance tabs' : 'Hide instance tabs'}
                 title={tabsCollapsed ? 'Show tabs' : 'Hide tabs'}
-                className="group flex items-center gap-1.5 min-w-0 bg-transparent hover:bg-transparent px-1 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500 rounded-md"
+                className="group shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent hover:bg-white/5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
                 style={{ background: 'transparent' }}
               >
-                <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
-                  {(() => {
-                    const rawIcon = SidebarIcons['Instances'];
-                    return React.isValidElement(rawIcon)
-                      ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
-                      : rawIcon;
-                  })()}
-                </span>
-                <span className="shrink-0 text-sm font-medium text-gray-200">
-                  {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
-                </span>
-                {instanceCrumb && instanceCrumb.slug !== '.' && (
-                  <>
-                    <span className="text-gray-600 shrink-0">/</span>
-                    <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
-                  </>
-                )}
-                <span aria-hidden="true" className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-transparent">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 block text-gray-200 group-hover:text-white group-focus-visible:text-white transition-all duration-200 ${tabsCollapsed ? 'opacity-80 group-hover:opacity-100' : 'rotate-180 opacity-100'}`}><path d="M6 9l6 6 6-6" /><path d="M6 14l6 6 6-6" /></svg>
-                </span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 block text-gray-200 group-hover:text-white group-focus-visible:text-white transition-all duration-200 ${tabsCollapsed ? 'opacity-80 group-hover:opacity-100' : 'rotate-180 opacity-100'}`}><path d="M6 9l6 6 6-6" /><path d="M6 14l6 6 6-6" /></svg>
               </button>
-            ) : (
-              <span className="flex items-center gap-1.5 min-w-0 px-1 py-1">
-                <span aria-hidden="true" className="shrink-0 inline-flex items-center text-gray-300">
-                  {(() => {
-                    const rawIcon = SidebarIcons['Instances'];
-                    return React.isValidElement(rawIcon)
-                      ? React.cloneElement(rawIcon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })
-                      : rawIcon;
-                  })()}
-                </span>
-                <span className="shrink-0 text-sm font-medium text-gray-200">
-                  {navInstanceId != null ? `Instance #${navInstanceId}` : 'Instance'}
-                </span>
-                {instanceCrumb && instanceCrumb.slug !== '.' && (
-                  <>
-                    <span className="text-gray-600 shrink-0">/</span>
-                    <span className="text-gray-200 truncate text-sm">{instanceCrumb.label}</span>
-                  </>
-                )}
-              </span>
             )}
           </nav>
           {/* Hint bubble pointing up at the » toggle. Shows on instance open

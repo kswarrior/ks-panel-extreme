@@ -34,7 +34,7 @@ import { PermissionKey, hasPermissionAny } from '@/shared/types/permissions';
 import { useConfirm } from '@/shared/stores/confirmStore';
 import ErrorBoundary from '@/shared/components/ui/ErrorBoundary';
 import ErrorState from '@/shared/components/ui/ErrorState';
-import OverviewSectionSelect from '../components/OverviewSectionSelect';
+import type { OverviewSectionDef } from '../components/OverviewSectionSelect';
 import { useOverviewSectionStore } from '../stores/overviewSectionStore';
 import { resolveInstanceControls } from '../utils/instanceControls';
 import { resolveRedirectTarget } from '@/shared/utils/instancePages';
@@ -308,6 +308,74 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     diskTotal: last?.diskTotal ?? null,
   };
 
+  const sections = useMemo<OverviewSectionDef[]>(
+    () =>
+      visibleTabs.map((id) => {
+        const meta = TAB_META[id];
+        if (id === 'details') {
+          return {
+            id,
+            label: meta.label,
+            hint: 'Facts & timestamps',
+            icon: meta.icon,
+            accent: '#38bdf8',
+            marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
+          };
+        }
+        if (id === 'monitoring') {
+          return {
+            id,
+            label: meta.label,
+            hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
+            icon: meta.icon,
+            accent: '#34d399',
+            marker: isRunning
+              ? ({
+                  kind: 'pulse',
+                  title:
+                    last?.cpu !== null && last?.cpu !== undefined
+                      ? `CPU ${fmtPct(last.cpu)} (live)`
+                      : 'Live',
+                } as const)
+              : undefined,
+          };
+        }
+        if (id === 'activity') {
+          return {
+            id,
+            label: meta.label,
+            hint: 'Audit trail',
+            icon: meta.icon,
+            accent: '#a78bfa',
+            marker:
+              audit !== null
+                ? ({
+                    kind: 'badge',
+                    text: audit.length,
+                    title: `${audit.length} recorded event${audit.length === 1 ? '' : 's'}`,
+                  } as const)
+                : undefined,
+          };
+        }
+        return {
+          id,
+          label: meta.label,
+          hint: 'Rename · reinstall · destroy',
+          icon: meta.icon,
+          accent: '#fbbf24',
+          marker: undefined,
+        };
+      }),
+    [visibleTabs, dot, statusLabel, isRunning, last, audit],
+  );
+
+  useEffect(() => {
+    useOverviewSectionStore.getState().setSections(sections);
+    return () => {
+      useOverviewSectionStore.getState().reset();
+    };
+  }, [sections]);
+
   if (loading) {
     return (
       <div className="glass-card rounded-xl flex items-center gap-4 animate-pulse">
@@ -439,73 +507,6 @@ const InstanceOverview: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           <span className="break-words">{pageMsg}</span>
         </div>
       )}
-      {/* Section selector — compact select-style dropdown pinned to the
-          top-right of the page (template allow-list, search field, live
-          markers). Intentionally outside any card. */}
-      <div className="flex justify-end">
-        <OverviewSectionSelect
-          ariaLabel="Overview sections"
-          active={activeTab}
-          onChange={(id) => setActiveTab(id as TabId)}
-          sections={visibleTabs.map((id) => {
-            const meta = TAB_META[id];
-            if (id === 'details') {
-              return {
-                id,
-                label: meta.label,
-                hint: 'Facts & timestamps',
-                icon: meta.icon,
-                accent: '#38bdf8',
-                marker: { kind: 'dot', className: dot, title: `Status: ${statusLabel}` } as const,
-              };
-            }
-            if (id === 'monitoring') {
-              return {
-                id,
-                label: meta.label,
-                hint: isRunning ? 'Streaming live' : 'CPU · RAM · disk',
-                icon: meta.icon,
-                accent: '#34d399',
-                marker: isRunning
-                  ? ({
-                      kind: 'pulse',
-                      title:
-                        last?.cpu !== null && last?.cpu !== undefined
-                          ? `CPU ${fmtPct(last.cpu)} (live)`
-                          : 'Live',
-                    } as const)
-                  : undefined,
-              };
-            }
-            if (id === 'activity') {
-              return {
-                id,
-                label: meta.label,
-                hint: 'Audit trail',
-                icon: meta.icon,
-                accent: '#a78bfa',
-                marker:
-                  audit !== null
-                    ? ({
-                        kind: 'badge',
-                        text: audit.length,
-                        title: `${audit.length} recorded event${audit.length === 1 ? '' : 's'}`,
-                      } as const)
-                    : undefined,
-              };
-            }
-            return {
-              id,
-              label: meta.label,
-              hint: 'Rename · reinstall · destroy',
-              icon: meta.icon,
-              accent: '#fbbf24',
-              marker: undefined,
-            };
-          })}
-        />
-      </div>
-
       {activeTab === 'monitoring' && controls.show_monitoring_tab && (
         <ErrorBoundary label="instance-overview-monitoring">
           {!isRunning ? (
