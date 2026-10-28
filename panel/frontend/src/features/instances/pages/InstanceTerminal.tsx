@@ -22,6 +22,23 @@ export interface FindResult {
   total: number;
 }
 
+export type SpecialKey =
+  | 'esc'
+  | 'tab'
+  | 'interrupt'
+  | 'eof'
+  | 'suspend'
+  | 'clear'
+  | 'reverse'
+  | 'left'
+  | 'right'
+  | 'up'
+  | 'down'
+  | 'home'
+  | 'end'
+  | 'pgup'
+  | 'pgdn';
+
 export interface TerminalPaneHandle {
   clear: () => void;
   copySelection: () => void;
@@ -32,6 +49,7 @@ export interface TerminalPaneHandle {
   fit: () => void;
   focus: () => void;
   send: (data: string) => void;
+  sendSpecial: (key: SpecialKey) => void;
   selectAll: () => void;
   clearSelection: () => void;
   find: (query: string, direction: 'next' | 'prev') => FindResult;
@@ -568,6 +586,29 @@ const TerminalPane = forwardRef<TerminalPaneHandle, PaneProps>(
         fit,
         focus: () => termRef.current?.focus(),
         send: (data: string) => sendRaw(data),
+        sendSpecial: (key: SpecialKey) => {
+          const term = termRef.current;
+          if (!term) return;
+          const app = term.modes.applicationCursorKeysMode;
+          const seq: Record<SpecialKey, string> = {
+            esc: '\x1b',
+            tab: '\t',
+            interrupt: '\x03',
+            eof: '\x04',
+            suspend: '\x1a',
+            clear: '\x0c',
+            reverse: '\x12',
+            left: app ? '\x1bOD' : '\x1b[D',
+            right: app ? '\x1bOC' : '\x1b[C',
+            up: app ? '\x1bOA' : '\x1b[A',
+            down: app ? '\x1bOB' : '\x1b[B',
+            home: app ? '\x1bOH' : '\x1b[H',
+            end: app ? '\x1bOF' : '\x1b[F',
+            pgup: '\x1b[5~',
+            pgdn: '\x1b[6~',
+          };
+          sendRaw(seq[key]);
+        },
         selectAll: () => termRef.current?.selectAll(),
         clearSelection: () => termRef.current?.clearSelection(),
         find,
@@ -598,22 +639,22 @@ const icon = (path: React.ReactNode) => (
   </svg>
 );
 
-const QUICK_KEYS: Array<{ label: string; data: string; title: string }> = [
-  { label: 'Esc', data: '\x1b', title: 'Escape' },
-  { label: 'Tab', data: '\t', title: 'Tab' },
-  { label: 'Ctrl+C', data: '\x03', title: 'Interrupt' },
-  { label: 'Ctrl+D', data: '\x04', title: 'End of file' },
-  { label: 'Ctrl+Z', data: '\x1a', title: 'Suspend' },
-  { label: 'Ctrl+L', data: '\x0c', title: 'Clear screen' },
-  { label: 'Ctrl+R', data: '\x12', title: 'Reverse search' },
-  { label: '←', data: '\x1b[D', title: 'Arrow left' },
-  { label: '↑', data: '\x1b[A', title: 'Arrow up' },
-  { label: '↓', data: '\x1b[B', title: 'Arrow down' },
-  { label: '→', data: '\x1b[C', title: 'Arrow right' },
-  { label: 'Home', data: '\x1b[H', title: 'Home' },
-  { label: 'End', data: '\x1b[F', title: 'End' },
-  { label: 'PgUp', data: '\x1b[5~', title: 'Page up' },
-  { label: 'PgDn', data: '\x1b[6~', title: 'Page down' },
+const QUICK_KEYS: Array<{ label: string; key: SpecialKey; title: string }> = [
+  { label: 'Esc', key: 'esc', title: 'Escape' },
+  { label: 'Tab', key: 'tab', title: 'Tab' },
+  { label: 'Ctrl+C', key: 'interrupt', title: 'Interrupt' },
+  { label: 'Ctrl+D', key: 'eof', title: 'End of file' },
+  { label: 'Ctrl+Z', key: 'suspend', title: 'Suspend' },
+  { label: 'Ctrl+L', key: 'clear', title: 'Clear screen' },
+  { label: 'Ctrl+R', key: 'reverse', title: 'Reverse search' },
+  { label: '←', key: 'left', title: 'Arrow left' },
+  { label: '↑', key: 'up', title: 'Arrow up' },
+  { label: '↓', key: 'down', title: 'Arrow down' },
+  { label: '→', key: 'right', title: 'Arrow right' },
+  { label: 'Home', key: 'home', title: 'Home' },
+  { label: 'End', key: 'end', title: 'End' },
+  { label: 'PgUp', key: 'pgup', title: 'Page up' },
+  { label: 'PgDn', key: 'pgdn', title: 'Page down' },
 ];
 
 const MenuItem: React.FC<{ label: string; hint?: string; onClick: () => void }> = ({ label, hint, onClick }) => (
@@ -728,9 +769,9 @@ const InstanceTerminal: React.FC<{ instanceId: number }> = ({ instanceId }) => {
     });
   };
 
-  const sendKey = (data: string) => {
+  const sendKey = (key: SpecialKey) => {
     const h = handle();
-    h?.send(data);
+    h?.sendSpecial(key);
     h?.focus();
   };
 
@@ -870,7 +911,7 @@ const InstanceTerminal: React.FC<{ instanceId: number }> = ({ instanceId }) => {
           <button
             key={k.label}
             type="button"
-            onClick={() => sendKey(k.data)}
+            onClick={() => sendKey(k.key)}
             title={k.title}
             className="shrink-0 rounded border border-white/10 bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] text-gray-400 transition hover:bg-white/10 hover:text-white"
           >
