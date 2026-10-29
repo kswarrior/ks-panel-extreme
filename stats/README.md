@@ -1,4 +1,4 @@
-# ./stats - Private Panel Telemetry
+# ./stats - Panel Fleet Telemetry
 
 Public overview + admin-only fleet dashboard. Panels dial WSS -> stats on startup (if configured), stats shows summary, map + list of all running panels.
 
