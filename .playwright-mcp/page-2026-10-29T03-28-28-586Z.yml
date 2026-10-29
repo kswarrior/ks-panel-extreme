@@ -1,0 +1,74 @@
+- generic [ref=f5e2]:
+  - banner [ref=f5e3]:
+    - button "menu" [ref=f5e4] [cursor=pointer]
+    - generic [ref=f5e7]:
+      - generic [ref=f5e8]: KS
+      - generic [ref=f5e9]: KS Panel — Fleet Stats
+    - generic [ref=f5e10]: 10/29/2026, 3:28:28 AM
+    - button "logout" [ref=f5e11] [cursor=pointer]
+  - generic [ref=f5e15]:
+    - complementary "navigation" [ref=f5e16]:
+      - generic [ref=f5e17]: Navigation
+      - navigation [ref=f5e18]:
+        - link "Overview" [ref=f5e19] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f5e25] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f5e29] [cursor=pointer]:
+          - /url: /table
+      - generic [ref=f5e33]:
+        - generic [ref=f5e34]: Owner only • WSS heartbeat 30s • online if seen <90s
+        - button "Refresh" [ref=f5e35] [cursor=pointer]
+        - generic [ref=f5e39]:
+          - text: 2 panels • 0 online
+          - generic [ref=f5e40]: updated 3:28:28 AM
+    - main [ref=f5e41]:
+      - generic [ref=f5e42]:
+        - generic [ref=f5e43]:
+          - link "← Back to table" [ref=f5e44] [cursor=pointer]:
+            - /url: /table
+          - heading "runnervmlun5p" [level=2] [ref=f5e45]
+          - generic [ref=f5e46]: offline
+        - generic [ref=f5e47]:
+          - generic [ref=f5e48]:
+            - generic [ref=f5e49]: Panel ID
+            - generic [ref=f5e50]: 60c6f0849659d4f8
+          - generic [ref=f5e51]:
+            - generic [ref=f5e52]: Hostname
+            - generic [ref=f5e53]: runnervmlun5p
+          - generic [ref=f5e54]:
+            - generic [ref=f5e55]: Version
+            - generic [ref=f5e56]: 1.0.0 KS Panel Release
+          - generic [ref=f5e57]:
+            - generic [ref=f5e58]: IP / Location
+            - generic [ref=f5e59]: ::1 • —
+          - generic [ref=f5e60]:
+            - generic [ref=f5e61]: Coords
+            - generic [ref=f5e62]: —
+          - generic [ref=f5e63]:
+            - generic [ref=f5e64]: OS / Arch
+            - generic [ref=f5e65]: linux / amd64
+          - generic [ref=f5e66]:
+            - generic [ref=f5e67]: Go
+            - generic [ref=f5e68]: go1.26.7
+          - generic [ref=f5e69]:
+            - generic [ref=f5e70]: CPU / Load
+            - generic [ref=f5e71]: 50.0% • 1.91/1.75
+          - generic [ref=f5e72]:
+            - generic [ref=f5e73]: RAM
+            - generic [ref=f5e74]: 2353 MB / 15989 MB 14.7%
+          - generic [ref=f5e75]:
+            - generic [ref=f5e76]: Disk
+            - generic [ref=f5e77]: 66.0 GB / 144.3 GB
+          - generic [ref=f5e78]:
+            - generic [ref=f5e79]: Nodes / Instances
+            - generic [ref=f5e80]: 0 / 0/0
+          - generic [ref=f5e81]:
+            - generic [ref=f5e82]: Uptime / Goroutines
+            - generic [ref=f5e83]: 1h 58m • 21 gr
+          - generic [ref=f5e84]:
+            - generic [ref=f5e85]: Last seen
+            - generic [ref=f5e86]: 9/18/2026, 6:40:37 PM
+        - generic [ref=f5e87]:
+          - generic [ref=f5e88]: Raw heartbeat
+          - generic [ref=f5e90]: "{ \"panel_id\": \"60c6f0849659d4f8\", \"hostname\": \"runnervmlun5p\", \"version\": \"1.0.0\", \"commit\": \"KS Panel Release\", \"os\": \"linux\", \"arch\": \"amd64\", \"go_version\": \"go1.26.7\", \"ip\": \"::1\", \"city\": \"\", \"region\": \"\", \"country\": \"\", \"country_code\": \"\", \"lat\": 0, \"lon\": 0, \"cpu_percent\": 50, \"ram_total_mb\": 15988.703125, \"ram_used_mb\": 2353, \"ram_used_pct\": 14.716640753188042, \"disk_total_gb\": 144.25645446777344, \"disk_used_gb\": 66.00579452514648, \"load1\": 1.91, \"load5\": 1.75, \"uptime_sec\": 7093, \"process_uptime\": 0, \"nodes\": 0, \"instances\": 0, \"instrunning\": 0, \"goroutines\": 21, \"first_seen\": \"2026-09-18T18:40:37.169251812Z\", \"last_seen\": \"2026-09-18T18:40:37.169251812Z\", \"online\": false }"
