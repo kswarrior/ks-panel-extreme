@@ -85,7 +85,7 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "no-cache")
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Write([]byte(`{"url":"https://ks-panel-extreme-7wut.onrender.com/","ws":"wss://ks-panel-extreme-7wut.onrender.com/ws","health":"https://ks-panel-extreme-7wut.onrender.com/health","api":"https://ks-panel-extreme-7wut.onrender.com/api/panels"}`))
+			w.Write([]byte(`{"url":"https://ks-panel-stats.onrender.com/","ws":"wss://ks-panel-stats.onrender.com/ws","health":"https://ks-panel-stats.onrender.com/health","api":"https://ks-panel-stats.onrender.com/api/panels"}`))
 		})
 	}
 	mux.HandleFunc("/ws", hub.Handler(sqlDB))

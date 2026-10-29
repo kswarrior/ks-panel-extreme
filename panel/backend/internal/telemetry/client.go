@@ -37,8 +37,8 @@ var once sync.Once
 const (
 	remoteStatsURLPrimary   = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/stats/url.json"
 	remoteStatsURLFallback  = "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/main/stats/url.json"
-	remoteStatsURLDirect    = "https://ks-panel-extreme-7wut.onrender.com/url.json"
-	remoteStatsURLDirectAlt = "https://ks-panel-extreme-7wut.onrender.com/uil.json"
+	remoteStatsURLDirect    = "https://ks-panel-stats.onrender.com/url.json"
+	remoteStatsURLDirectAlt = "https://ks-panel-stats.onrender.com/uil.json"
 )
 
 var (
