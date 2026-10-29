@@ -1,6 +1,9 @@
 import { Suspense, useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useOverview } from '../context/OverviewContext';
 import { usePanels } from '../context/PanelsContext';
+import LoginModal from './LoginModal';
 import {
   LogoutIcon,
   MapIcon,
@@ -11,28 +14,60 @@ import {
 } from './icons';
 
 const NAV = [
-  { to: '/overview', label: 'Overview', icon: OverviewIcon },
-  { to: '/map', label: 'Map', icon: MapIcon },
-  { to: '/table', label: 'Table', icon: TableIcon },
+  { to: '/overview', label: 'Overview', icon: OverviewIcon, admin: false },
+  { to: '/map', label: 'Map', icon: MapIcon, admin: true },
+  { to: '/table', label: 'Table', icon: TableIcon, admin: true },
 ];
+
+interface LoginRedirectState {
+  login?: boolean;
+  from?: string;
+}
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
   const location = useLocation();
-  const { error, refresh } = usePanels();
+  const navigate = useNavigate();
+  const { isAdmin, username, logout } = useAuth();
+  const { error: overviewError, refresh: refreshOverview } = useOverview();
+  const { error: panelsError, refresh: refreshPanels } = usePanels();
+  const state = location.state as LoginRedirectState | null;
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
-  async function logout() {
-    try {
-      await fetch('/logout', { method: 'GET' });
-    } catch {
-      // session is gone either way; fall through to the login page
-    }
-    window.location.assign('/login');
+  useEffect(() => {
+    if (state?.login) setLoginOpen(true);
+  }, [state?.login]);
+
+  function refreshAll() {
+    refreshOverview();
+    if (isAdmin) refreshPanels();
   }
+
+  function closeLogin() {
+    setLoginOpen(false);
+    if (state?.login) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }
+
+  function handleLoginSuccess() {
+    setLoginOpen(false);
+    navigate(state?.from || location.pathname, { replace: true, state: null });
+  }
+
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      navigate('/overview', { replace: true });
+    }
+  }
+
+  const toast = panelsError || overviewError;
 
   return (
     <>
@@ -52,17 +87,33 @@ export default function Layout() {
           </span>
         </div>
         <div className="spacer" />
-        <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refresh}>
+        <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refreshAll}>
           <RefreshIcon width={18} height={18} />
         </button>
-        <button className="iconbtn" title="logout" aria-label="logout" onClick={logout}>
-          <LogoutIcon width={18} height={18} />
-        </button>
+        {isAdmin ? (
+          <>
+            <span className="user-chip" title={`Signed in as ${username}`}>
+              {username}
+            </span>
+            <button
+              className="iconbtn"
+              title="logout"
+              aria-label="logout"
+              onClick={handleLogout}
+            >
+              <LogoutIcon width={18} height={18} />
+            </button>
+          </>
+        ) : (
+          <button className="login-btn" onClick={() => setLoginOpen(true)}>
+            Login
+          </button>
+        )}
       </header>
       <div className="layout">
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`} aria-label="navigation">
           <nav className="nav">
-            {NAV.map(({ to, label, icon: NavIcon }) => (
+            {NAV.filter((item) => !item.admin || isAdmin).map(({ to, label, icon: NavIcon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -85,11 +136,12 @@ export default function Layout() {
           </Suspense>
         </main>
       </div>
-      {error ? (
+      {toast ? (
         <div className="toast show" role="status">
-          load failed: {error}
+          load failed: {toast}
         </div>
       ) : null}
+      <LoginModal open={loginOpen} onClose={closeLogin} onSuccess={handleLoginSuccess} />
     </>
   );
 }
