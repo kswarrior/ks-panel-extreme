@@ -1,0 +1,101 @@
+- generic [ref=f6e2]:
+  - banner [ref=f6e3]:
+    - button "menu" [active] [ref=f6e4] [cursor=pointer]
+    - generic [ref=f6e7]:
+      - generic [ref=f6e8]: KS
+      - generic [ref=f6e9]: KS Panel — Fleet Stats
+    - generic [ref=f6e10]: 10/29/2026, 3:30:16 AM
+    - button "logout" [ref=f6e11] [cursor=pointer]
+  - generic [ref=f6e15]:
+    - complementary "navigation" [ref=f6e16]:
+      - generic [ref=f6e17]: Navigation
+      - navigation [ref=f6e18]:
+        - link "Overview" [ref=f6e19] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f6e25] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f6e29] [cursor=pointer]:
+          - /url: /table
+      - generic [ref=f6e33]:
+        - generic [ref=f6e34]: Owner only • WSS heartbeat 30s • online if seen <90s
+        - button "Refresh" [ref=f6e35] [cursor=pointer]
+        - generic [ref=f6e39]:
+          - text: 2 panels • 0 online
+          - generic [ref=f6e40]: updated 3:30:13 AM
+    - main [ref=f6e41]:
+      - generic [ref=f6e42]:
+        - generic [ref=f6e43]:
+          - generic [ref=f6e44]:
+            - generic [ref=f6e45]: Total
+            - generic [ref=f6e52]: "2"
+            - generic [ref=f6e53]: panels known
+          - generic [ref=f6e54]:
+            - generic [ref=f6e55]: Online
+            - generic [ref=f6e60]: "0"
+            - generic [ref=f6e61]: 2 offline
+          - generic [ref=f6e62]:
+            - generic [ref=f6e63]: Offline
+            - generic [ref=f6e68]: "2"
+            - generic [ref=f6e69]: seen >90s
+          - generic [ref=f6e70]:
+            - generic [ref=f6e71]: Resources
+            - generic [ref=f6e75]: 2 nodes
+            - generic [ref=f6e76]: 3/5 instances running
+        - generic [ref=f6e77]:
+          - generic [ref=f6e78]: 2 panels
+          - generic [ref=f6e79]: 0 online
+          - generic [ref=f6e80]: 1 versions • latest 1.0.0
+          - generic [ref=f6e81]: updated 3:30:13 AM
+        - generic [ref=f6e82]:
+          - generic [ref=f6e83]:
+            - generic [ref=f6e84]: Recent panels
+            - generic [ref=f6e85]: updated 3:30:13 AM
+          - table [ref=f6e87]:
+            - rowgroup [ref=f6e88]:
+              - row [ref=f6e89]:
+                - columnheader "status" [ref=f6e90]
+                - columnheader "panel" [ref=f6e91]
+                - columnheader "version" [ref=f6e92]
+                - columnheader "location" [ref=f6e93]
+                - columnheader "load" [ref=f6e94]
+                - columnheader "last seen" [ref=f6e95]
+            - rowgroup [ref=f6e96]:
+              - row [ref=f6e97] [cursor=pointer]:
+                - cell "offline" [ref=f6e98]
+                - cell "runnervmlun5p 60c6f0849659d4f8" [ref=f6e99]:
+                  - text: runnervmlun5p
+                  - generic [ref=f6e100]: 60c6f0849659d4f8
+                - cell "1.0.0" [ref=f6e101]
+                - cell "—" [ref=f6e102]
+                - cell "1.91" [ref=f6e103]
+                - cell "9/18/2026, 6:40:37 PM" [ref=f6e104]
+              - row [ref=f6e105] [cursor=pointer]:
+                - cell "offline" [ref=f6e106]
+                - cell "test-panel test-123" [ref=f6e107]:
+                  - text: test-panel
+                  - generic [ref=f6e108]: test-123
+                - cell "1.0.0" [ref=f6e109]
+                - cell "—" [ref=f6e110]
+                - cell "0.50" [ref=f6e111]
+                - cell "9/18/2026, 6:40:11 PM" [ref=f6e112]
+        - generic [ref=f6e113]:
+          - generic [ref=f6e114]: Fleet health
+          - generic [ref=f6e117]:
+            - generic [ref=f6e118]:
+              - generic [ref=f6e119]: Avg CPU
+              - generic [ref=f6e120]: 31.3%
+            - generic [ref=f6e121]:
+              - generic [ref=f6e122]: Avg RAM used
+              - generic [ref=f6e123]: 7.4%
+            - generic [ref=f6e124]:
+              - generic [ref=f6e125]: Total Nodes
+              - generic [ref=f6e126]: "2"
+            - generic [ref=f6e127]:
+              - generic [ref=f6e128]: Total Instances (running/total)
+              - generic [ref=f6e129]: 3 / 5
+            - generic [ref=f6e130]:
+              - generic [ref=f6e131]: Latest version
+              - generic [ref=f6e132]: 1.0.0
+            - generic [ref=f6e133]:
+              - generic [ref=f6e134]: Distinct versions
+              - generic [ref=f6e135]: 1.0.0
