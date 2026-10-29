@@ -30,6 +30,14 @@ const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentC
   const cpuSamples = useMemo<MetricSample[]>(() => safeSamples.map(s => ({ t: s.unix_sec * 1000, v: s.cpu_percent })), [safeSamples]);
   const memSamples = useMemo<MetricSample[]>(() => safeSamples.map(s => ({ t: s.unix_sec * 1000, v: s.ram_used_pct })), [safeSamples]);
 
+  const containerCPU = Math.max(0, Math.min(100, host.container_cpu_percent || 0));
+  const containerMemUsed = Math.max(0, host.container_ram_used_mb || 0);
+  const containerMemLimit = Math.max(0, host.container_ram_limit_mb || 0);
+  const containerMemTotal = containerMemLimit > 0 ? containerMemLimit : Math.max(0, host.ram_total_mb || 0);
+  const containerMemPct = containerMemTotal > 0
+    ? Math.max(0, Math.min(100, (containerMemUsed / containerMemTotal) * 100))
+    : 0;
+
   return (
     <section>
       {/* Metrics tiles */}
@@ -108,6 +116,58 @@ const HostPanel: React.FC<HostPanelProps> = React.memo(({ host, samples, recentC
           })()}
         </div>
       </div>
+
+      {host.in_container ? (
+        <div className="glass-card rounded-xl mb-4 p-4">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Container</h3>
+              <p className="text-[11px] text-gray-500">
+                {host.container_runtime || 'container'} · cgroup usage for the panel container
+              </p>
+            </div>
+            <span className="text-[10px] text-gray-500 font-mono">{fmtPct(containerCPU)} CPU</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                <span>CPU</span>
+                <span className="font-mono text-gray-300">{fmtPct(containerCPU)}</span>
+              </div>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${containerCPU}%`, backgroundColor: '#7dd3fc' }}
+                />
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                {(host.container_cpu_limit_cores || 0) > 0
+                  ? `${(host.container_cpu_limit_cores || 0).toFixed(2)} core limit`
+                  : 'no CPU limit · percent of host capacity'}
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1">
+                <span>Memory</span>
+                <span className="font-mono text-gray-300">
+                  {fmtMB(containerMemUsed)} / {fmtMB(containerMemTotal)}
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${containerMemPct}%`, backgroundColor: '#6ee7b7' }}
+                />
+              </div>
+              <div className="text-[10px] text-gray-500 mt-1">
+                {containerMemLimit > 0
+                  ? `${fmtPct(containerMemPct)} of container limit`
+                  : 'no container limit · percent of host RAM'}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 });
