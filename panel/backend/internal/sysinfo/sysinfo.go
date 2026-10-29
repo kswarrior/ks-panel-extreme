@@ -85,6 +85,16 @@ type Host struct {
 	SysMB       float64 `json:"sys_mb"`
 	NumGC       uint32  `json:"num_gc"`
 
+	// Container (cgroup) metrics. Zero / false when the panel is not running
+	// inside a container, or when the host cgroup files are not readable.
+	InContainer             bool    `json:"in_container"`
+	ContainerRuntime        string  `json:"container_runtime"`
+	ContainerCPULimitCores  float64 `json:"container_cpu_limit_cores"`
+	ContainerCPUPercent     float64 `json:"container_cpu_percent"`
+	ContainerRAMUsedMB      float64 `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB     float64 `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct     float64 `json:"container_ram_used_pct"`
+
 	// Panel process ---------------------------------------------------------
 	PanelCPUPercent float64 `json:"panel_cpu_percent"`
 	PanelRAMUsedMB  float64 `json:"panel_ram_used_mb"`
@@ -262,6 +272,7 @@ func readOnce() SeriesSample {
 // sampler tick on the loop side.
 func Local() Host {
 	h := readPlatform()
+	applyContainer(&h)
 	// Fill in the bits that are usable everywhere (Go runtime + process).
 	h.CapturedAt = time.Now().UTC()
 	h.GoVer = runtime.Version()
