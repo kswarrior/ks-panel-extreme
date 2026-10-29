@@ -35,9 +35,8 @@ a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 .hamburger{display:none;width:38px;height:38px;border-radius:var(--r);border:1px solid var(--border-strong);background:var(--elev);color:#fff;place-items:center;cursor:pointer}
 .hamburger:hover{border-color:#fff;background:#fff;color:#000}
 .hamburger svg{width:18px;height:18px}
-.login-btn{padding:8px 14px;border-radius:var(--r);border:1px solid #fff;background:#fff;color:#000;font-size:12px;font-weight:700;cursor:pointer}
-.login-btn:hover:not(:disabled){background:#000;color:#fff}
-.login-btn:disabled{opacity:.55;cursor:default}
+.topbar .login-btn{background:transparent;border-color:transparent;color:var(--muted)}
+.topbar .login-btn:hover{background:var(--elev);border-color:var(--border-strong);color:#fff}
 .user-chip{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:var(--r);padding:7px 10px;background:var(--elev)}
 /* layout */
 .layout{display:flex;height:calc(100% - 52px);overflow:hidden}

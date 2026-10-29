@@ -5,6 +5,7 @@ import { useOverview } from '../context/OverviewContext';
 import { usePanels } from '../context/PanelsContext';
 import LoginModal from './LoginModal';
 import {
+  LoginIcon,
   LogoutIcon,
   MapIcon,
   MenuIcon,
@@ -89,9 +90,6 @@ export default function Layout() {
           </span>
         </div>
         <div className="spacer" />
-        <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refreshAll}>
-          <RefreshIcon width={18} height={18} />
-        </button>
         {isAdmin ? (
           <>
             <span className="user-chip" title={`Signed in as ${username}`}>
@@ -107,10 +105,18 @@ export default function Layout() {
             </button>
           </>
         ) : (
-          <button className="login-btn" onClick={() => setLoginOpen(true)}>
-            Login
+          <button
+            className="iconbtn login-btn"
+            title="login"
+            aria-label="login"
+            onClick={() => setLoginOpen(true)}
+          >
+            <LoginIcon width={18} height={18} />
           </button>
         )}
+        <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refreshAll}>
+          <RefreshIcon width={18} height={18} />
+        </button>
       </header>
       <div className="layout">
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`} aria-label="navigation">
