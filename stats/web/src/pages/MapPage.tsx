@@ -35,7 +35,7 @@ export default function MapPage() {
   const mapElement = useRef<HTMLDivElement | null>(null);
   const wrapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const markersRef = useRef<L.Marker[]>([]);
   const fittedRef = useRef(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const located = useMemo(() => panels.filter(hasGeo), [panels]);
@@ -55,7 +55,7 @@ export default function MapPage() {
       window.cancelAnimationFrame(frame);
       map.remove();
       mapRef.current = null;
-      markersRef.current.clear();
+      markersRef.current = [];
       fittedRef.current = false;
     };
   }, []);
@@ -69,18 +69,38 @@ export default function MapPage() {
   }, [located]);
 
   useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(document.fullscreenElement === wrapElement.current);
+      window.requestAnimationFrame(() => mapRef.current?.invalidateSize());
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    const element = wrapElement.current;
+    if (!element) return;
+    try {
+      if (document.fullscreenElement === element) await document.exitFullscreen();
+      else await element.requestFullscreen();
+    } catch {
+      // fullscreen may be unavailable in the current browser context
+    }
+  }, []);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current.clear();
+    markersRef.current = [];
 
     const points: L.LatLngTuple[] = [];
     for (const panel of located) {
       const marker = L.marker([panel.lat, panel.lon])
         .addTo(map)
         .bindPopup(popupContent(panel));
-      markersRef.current.set(panel.panel_id, marker);
+      markersRef.current.push(marker);
       points.push([panel.lat, panel.lon]);
     }
 
@@ -91,16 +111,9 @@ export default function MapPage() {
     }
   }, [located]);
 
-  function focusPanel(panel: Panel) {
-    const map = mapRef.current;
-    if (!map) return;
-    map.setView([panel.lat, panel.lon], 6);
-    markersRef.current.get(panel.panel_id)?.openPopup();
-  }
-
   return (
     <div className="wrap">
-      <div className="mapwrap">
+      <div className="mapwrap" ref={wrapElement}>
         <div className="maphead">
           <span className="title">Fleet map</span>
           <span className="small">
@@ -110,50 +123,20 @@ export default function MapPage() {
           <button className="pill" onClick={fit}>
             Fit bounds
           </button>
+          <button
+            className="iconbtn"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? 'Exit full screen' : 'Full screen'}
+            aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+          >
+            {isFullscreen ? (
+              <ExitFullscreenIcon width={16} height={16} />
+            ) : (
+              <FullscreenIcon width={16} height={16} />
+            )}
+          </button>
         </div>
         <div id="stats-map" ref={mapElement} />
-      </div>
-
-      <div className="table-wrap" style={{ marginTop: 12 }}>
-        <div className="maphead">
-          <span className="title">Located panels</span>
-          <span className="small">{located.length ? `${located.length} panels` : ''}</span>
-        </div>
-        <div className="table-scroll" style={{ maxHeight: '28vh' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>panel</th>
-                <th>ip</th>
-                <th>location</th>
-                <th>coords</th>
-              </tr>
-            </thead>
-            <tbody>
-              {located.map((panel) => (
-                <tr
-                  key={panel.panel_id}
-                  className="rowclick"
-                  tabIndex={0}
-                  onClick={() => focusPanel(panel)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      focusPanel(panel);
-                    }
-                  }}
-                >
-                  <td>{panelName(panel)}</td>
-                  <td>{panel.ip || '—'}</td>
-                  <td>{locStr(panel)}</td>
-                  <td>
-                    {panel.lat.toFixed(2)},{panel.lon.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
