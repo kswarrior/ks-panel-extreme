@@ -170,61 +170,78 @@ export default function TablePage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((panel) => (
-                <tr
-                  key={panel.panel_id}
-                  className="rowclick"
-                  tabIndex={0}
-                  onClick={() => openPanel(panel.panel_id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openPanel(panel.panel_id);
-                    }
-                  }}
-                >
-                  <td>
-                    <StatusBadge online={panel.online} />
-                  </td>
-                  <td title={panel.panel_id}>
-                    <b>{panelName(panel)}</b>
-                    <div className="small">{panel.panel_id.slice(0, 12)}</div>
-                  </td>
-                  <td>
-                    {panel.version || '—'}
-                    <div className="small">{panel.commit || ''}</div>
-                  </td>
-                  <td>{panel.ip || '—'}</td>
-                  <td>
-                    {locStr(panel)}
-                    <div className="small">
-                      {panel.lat && panel.lon
-                        ? `${panel.lat.toFixed(2)},${panel.lon.toFixed(2)}`
-                        : ''}
-                    </div>
-                  </td>
-                  <td>{panel.cpu_percent ? `${panel.cpu_percent.toFixed(1)}%` : '—'}</td>
-                  <td>
-                    {fmtMB(panel.ram_used_mb)} / {fmtMB(panel.ram_total_mb)}
-                    <div className="small">
-                      {panel.ram_used_pct ? `${panel.ram_used_pct.toFixed(1)}%` : ''}
-                    </div>
-                  </td>
-                  <td>
-                    {fmtGB(panel.disk_used_gb)} / {fmtGB(panel.disk_total_gb)}
-                  </td>
-                  <td>
-                    {panel.load1 ? panel.load1.toFixed(2) : '—'} /{' '}
-                    {panel.load5 ? panel.load5.toFixed(2) : '—'}
-                  </td>
-                  <td>{panel.nodes || 0}</td>
-                  <td>
-                    {panel.instrunning || 0}/{panel.instances || 0}
-                  </td>
-                  <td>{fmtUptime(panel.uptime_sec)}</td>
-                  <td>{fmtAgo(panel.last_seen)}</td>
-                </tr>
-              ))}
+              {rows.map((panel) => {
+                const loc = locStr(panel);
+                return (
+                  <tr
+                    key={panel.panel_id}
+                    className="rowclick"
+                    tabIndex={0}
+                    onClick={() => openPanel(panel.panel_id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openPanel(panel.panel_id);
+                      }
+                    }}
+                  >
+                    <td>
+                      <StatusBadge online={panel.online} />
+                    </td>
+                    <td className="cell-panel">
+                      <b className="trunc" title={panel.hostname || panel.panel_id}>
+                        {panelName(panel)}
+                      </b>
+                      <div className="small trunc" title={panel.panel_id}>
+                        {panel.panel_id}
+                      </div>
+                    </td>
+                    <td className="cell-version">
+                      <span className="trunc" title={panel.version || '—'}>
+                        {panel.version || '—'}
+                      </span>
+                      <div className="small trunc" title={panel.commit || ''}>
+                        {panel.commit || ''}
+                      </div>
+                    </td>
+                    <td className="cell-ip">
+                      <span className="trunc" title={panel.ip || '—'}>
+                        {panel.ip || '—'}
+                      </span>
+                    </td>
+                    <td className="cell-location">
+                      <span className="trunc" title={loc}>
+                        {loc}
+                      </span>
+                      <div className="small">
+                        {panel.lat && panel.lon
+                          ? `${panel.lat.toFixed(2)},${panel.lon.toFixed(2)}`
+                          : ''}
+                      </div>
+                    </td>
+                    <td>{panel.cpu_percent ? `${panel.cpu_percent.toFixed(1)}%` : '—'}</td>
+                    <td>
+                      {fmtMB(panel.ram_used_mb)} / {fmtMB(panel.ram_total_mb)}
+                      <div className="small">
+                        {panel.ram_used_pct ? `${panel.ram_used_pct.toFixed(1)}%` : ''}
+                      </div>
+                    </td>
+                    <td>
+                      {fmtGB(panel.disk_used_gb)} / {fmtGB(panel.disk_total_gb)}
+                    </td>
+                    <td>
+                      {panel.load1 ? panel.load1.toFixed(2) : '—'} /{' '}
+                      {panel.load5 ? panel.load5.toFixed(2) : '—'}
+                    </td>
+                    <td>{panel.nodes || 0}</td>
+                    <td>
+                      {panel.instrunning || 0}/{panel.instances || 0}
+                    </td>
+                    <td>{fmtUptime(panel.uptime_sec)}</td>
+                    <td>{fmtAgo(panel.last_seen)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

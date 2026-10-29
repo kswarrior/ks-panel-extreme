@@ -79,6 +79,11 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;le
 .th-sort:hover{color:#fff}
 .sort-ind{font-size:9px;letter-spacing:0}
 tr:hover td{background:#141414}
+.trunc{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.cell-panel .trunc{max-width:220px}
+.cell-version .trunc{max-width:160px}
+.cell-ip .trunc{max-width:150px}
+.cell-location .trunc{max-width:240px}
 .badge{padding:3px 8px;border-radius:var(--r);font-size:11px;font-weight:700}
 .online{background:#fff;color:#000;border:1px solid #fff}
 .offline{background:#1a1a1a;color:var(--muted);border:1px solid #333}
