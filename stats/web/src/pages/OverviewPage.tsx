@@ -1,30 +1,23 @@
-import { useMemo } from 'react';
 import { CheckIcon, OverviewIcon, ServerIcon, XIcon } from '../components/icons';
-import { usePanels } from '../context/PanelsContext';
+import { useOverview } from '../context/OverviewContext';
 
 export default function OverviewPage() {
-  const { panels, lastUpdated } = usePanels();
+  const { overview, lastUpdated, loading } = useOverview();
 
-  const stats = useMemo(() => {
-    const total = panels.length;
-    const online = panels.filter((panel) => panel.online).length;
-    const offline = total - online;
-    const nodes = panels.reduce((sum, panel) => sum + (panel.nodes || 0), 0);
-    const instances = panels.reduce((sum, panel) => sum + (panel.instances || 0), 0);
-    const running = panels.reduce((sum, panel) => sum + (panel.instrunning || 0), 0);
-    const avgCpu = total
-      ? panels.reduce((sum, panel) => sum + (panel.cpu_percent || 0), 0) / total
-      : 0;
-    const avgRam = total
-      ? panels.reduce((sum, panel) => sum + (panel.ram_used_pct || 0), 0) / total
-      : 0;
-    const versions = Array.from(
-      new Set(panels.map((panel) => panel.version).filter((v): v is string => Boolean(v)))
-    ).sort();
-    const latest = versions.length ? versions[versions.length - 1] : '—';
-    return { total, online, offline, nodes, instances, running, avgCpu, avgRam, versions, latest };
-  }, [panels]);
+  if (loading && !overview) {
+    return <div className="page-loader">Loading overview…</div>;
+  }
 
+  const total = overview?.total ?? 0;
+  const online = overview?.online ?? 0;
+  const offline = overview?.offline ?? 0;
+  const nodes = overview?.nodes ?? 0;
+  const instances = overview?.instances ?? 0;
+  const running = overview?.running ?? 0;
+  const avgCpu = overview?.avg_cpu ?? 0;
+  const avgRam = overview?.avg_ram ?? 0;
+  const versions = overview?.versions ?? [];
+  const latest = overview?.latest_version || '—';
   const updated = lastUpdated ? lastUpdated.toLocaleTimeString() : '—';
 
   return (
@@ -37,7 +30,7 @@ export default function OverviewPage() {
             </span>
             Total
           </div>
-          <div className="v">{stats.total}</div>
+          <div className="v">{total}</div>
           <div className="s">panels known</div>
         </div>
         <div className="card ok">
@@ -47,8 +40,8 @@ export default function OverviewPage() {
             </span>
             Online
           </div>
-          <div className="v">{stats.online}</div>
-          <div className="s">{stats.offline} offline</div>
+          <div className="v">{online}</div>
+          <div className="s">{offline} offline</div>
         </div>
         <div className="card bad">
           <div className="k">
@@ -57,7 +50,7 @@ export default function OverviewPage() {
             </span>
             Offline
           </div>
-          <div className="v">{stats.offline}</div>
+          <div className="v">{offline}</div>
           <div className="s">seen &gt;90s</div>
         </div>
         <div className="card">
@@ -67,22 +60,22 @@ export default function OverviewPage() {
             </span>
             Resources
           </div>
-          <div className="v">{stats.nodes} nodes</div>
+          <div className="v">{nodes} nodes</div>
           <div className="s">
-            {stats.running}/{stats.instances} instances running
+            {running}/{instances} instances running
           </div>
         </div>
       </div>
 
       <div className="meta">
         <span className="kv">
-          <b>{stats.total}</b> panels
+          <b>{total}</b> panels
         </span>
         <span className="kv">
-          <b>{stats.online}</b> online
+          <b>{online}</b> online
         </span>
         <span className="kv">
-          <b>{stats.versions.length}</b> versions • latest <b>{stats.latest}</b>
+          <b>{versions.length}</b> versions • latest <b>{latest}</b>
         </span>
         <span className="kv" style={{ marginLeft: 'auto' }}>
           updated <b>{updated}</b>
@@ -97,29 +90,29 @@ export default function OverviewPage() {
           <div className="grid2">
             <div className="kvrow">
               <span>Avg CPU</span>
-              <b>{stats.avgCpu ? `${stats.avgCpu.toFixed(1)}%` : '—'}</b>
+              <b>{avgCpu ? `${avgCpu.toFixed(1)}%` : '—'}</b>
             </div>
             <div className="kvrow">
               <span>Avg RAM used</span>
-              <b>{stats.avgRam ? `${stats.avgRam.toFixed(1)}%` : '—'}</b>
+              <b>{avgRam ? `${avgRam.toFixed(1)}%` : '—'}</b>
             </div>
             <div className="kvrow">
               <span>Total Nodes</span>
-              <b>{stats.nodes}</b>
+              <b>{nodes}</b>
             </div>
             <div className="kvrow">
               <span>Total Instances (running/total)</span>
               <b>
-                {stats.running} / {stats.instances}
+                {running} / {instances}
               </b>
             </div>
             <div className="kvrow">
               <span>Latest version</span>
-              <b>{stats.latest}</b>
+              <b>{latest}</b>
             </div>
             <div className="kvrow">
               <span>Distinct versions</span>
-              <b>{stats.versions.length ? stats.versions.join(', ') : '—'}</b>
+              <b>{versions.length ? versions.join(', ') : '—'}</b>
             </div>
           </div>
         </div>
