@@ -4,8 +4,11 @@ import StatusBadge from '../components/StatusBadge';
 import { SearchIcon } from '../components/icons';
 import { usePanels } from '../context/PanelsContext';
 import { fmtAgo, fmtGB, fmtMB, fmtUptime, locStr, panelName } from '../lib/format';
+import type { Panel } from '../lib/types';
 
 type Filter = 'all' | 'online' | 'offline';
+type SortKey = 'nodes' | 'instances';
+type SortDir = 'asc' | 'desc';
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -13,11 +16,17 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'offline', label: 'Offline' },
 ];
 
+function sortValue(panel: (typeof panels)[number], key: SortKey): number {
+  return key === 'nodes' ? panel.nodes || 0 : panel.instrunning || 0;
+}
+
 export default function TablePage() {
   const { panels } = usePanels();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const rows = useMemo(() => {
     let out = panels.slice();
