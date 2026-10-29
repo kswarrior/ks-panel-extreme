@@ -104,19 +104,30 @@ export default function MapPage() {
     const map = mapRef.current;
     if (!map) return;
 
-    markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = [];
-    markersByIdRef.current = {};
+    const liveIds = new Set(located.map((panel) => panel.panel_id));
+    for (const [id, marker] of Object.entries(markersByIdRef.current)) {
+      if (!liveIds.has(id)) {
+        marker.remove();
+        delete markersByIdRef.current[id];
+      }
+    }
 
     const points: L.LatLngTuple[] = [];
     for (const panel of located) {
-      const marker = L.marker([panel.lat, panel.lon])
-        .addTo(map)
-        .bindPopup(popupContent(panel));
-      markersRef.current.push(marker);
-      markersByIdRef.current[panel.panel_id] = marker;
-      points.push([panel.lat, panel.lon]);
+      const point: L.LatLngTuple = [panel.lat, panel.lon];
+      const existing = markersByIdRef.current[panel.panel_id];
+      if (existing) {
+        existing.setLatLng(point);
+        existing.setPopupContent(popupContent(panel));
+      } else {
+        const marker = L.marker(point)
+          .addTo(map)
+          .bindPopup(popupContent(panel));
+        markersByIdRef.current[panel.panel_id] = marker;
+      }
+      points.push(point);
     }
+    markersRef.current = Object.values(markersByIdRef.current);
 
     if (!fittedRef.current && points.length) {
       fittedRef.current = true;

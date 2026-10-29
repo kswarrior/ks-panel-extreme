@@ -1,0 +1,31 @@
+- generic [ref=f3e2]:
+  - banner [ref=f3e3]:
+    - button "menu" [ref=f3e4] [cursor=pointer]
+    - generic [ref=f3e7]:
+      - generic [ref=f3e8]: KS
+      - generic [ref=f3e9]:
+        - generic [ref=f3e10]: KS Panel
+        - generic [ref=f3e11]: Fleet Stats
+    - button "refresh" [ref=f3e12] [cursor=pointer]
+    - button "logout" [ref=f3e108] [cursor=pointer]
+  - generic [ref=f3e17]:
+    - complementary "navigation" [ref=f3e18]:
+      - navigation [ref=f3e19]:
+        - link "Overview" [ref=f3e20] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f3e112] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f3e116] [cursor=pointer]:
+          - /url: /table
+    - main [ref=f3e26]:
+      - generic [ref=f3e121]:
+        - generic [ref=f3e122]:
+          - generic [ref=f3e123]: Fleet map
+          - generic [ref=f3e124]: 1 located • 2 total
+          - button "Fit bounds" [ref=f3e125] [cursor=pointer]
+          - button "Full screen" [ref=f3e126] [cursor=pointer]
+        - generic [ref=f3e132]:
+          - button "Marker" [ref=f3e133] [cursor=pointer]
+          - generic [ref=f3e134]:
+            - button "Zoom in" [ref=f3e135] [cursor=pointer]: +
+            - button "Zoom out" [ref=f3e136] [cursor=pointer]: −
