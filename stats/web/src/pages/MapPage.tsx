@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapPage.css';
@@ -27,16 +28,25 @@ function popupContent(panel: Panel): HTMLElement {
     root.appendChild(document.createElement('br'));
     root.appendChild(document.createTextNode(panel.version));
   }
+  const link = document.createElement('a');
+  link.className = 'popup-link';
+  link.href = `/panels/${encodeURIComponent(panel.panel_id)}`;
+  link.textContent = 'Open details →';
+  root.appendChild(link);
   return root;
 }
 
 export default function MapPage() {
   const { panels } = usePanels();
+  const [searchParams] = useSearchParams();
+  const focusId = searchParams.get('panel');
   const mapElement = useRef<HTMLDivElement | null>(null);
   const wrapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const markersByIdRef = useRef<Record<string, L.Marker>>({});
   const fittedRef = useRef(false);
+  const focusedIdRef = useRef<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const located = useMemo(() => panels.filter(hasGeo), [panels]);
 
@@ -56,7 +66,9 @@ export default function MapPage() {
       map.remove();
       mapRef.current = null;
       markersRef.current = [];
+      markersByIdRef.current = {};
       fittedRef.current = false;
+      focusedIdRef.current = null;
     };
   }, []);
 
@@ -94,6 +106,7 @@ export default function MapPage() {
 
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
+    markersByIdRef.current = {};
 
     const points: L.LatLngTuple[] = [];
     for (const panel of located) {
@@ -101,6 +114,7 @@ export default function MapPage() {
         .addTo(map)
         .bindPopup(popupContent(panel));
       markersRef.current.push(marker);
+      markersByIdRef.current[panel.panel_id] = marker;
       points.push([panel.lat, panel.lon]);
     }
 
@@ -110,6 +124,21 @@ export default function MapPage() {
       else map.fitBounds(L.latLngBounds(points), { padding: [20, 20] });
     }
   }, [located]);
+
+  useEffect(() => {
+    if (!focusId) {
+      focusedIdRef.current = null;
+      return;
+    }
+    if (focusedIdRef.current === focusId) return;
+    const map = mapRef.current;
+    const target = located.find((panel) => panel.panel_id === focusId);
+    const marker = markersByIdRef.current[focusId];
+    if (!map || !target || !marker) return;
+    focusedIdRef.current = focusId;
+    map.setView([target.lat, target.lon], 8);
+    marker.openPopup();
+  }, [focusId, located]);
 
   return (
     <div className="wrap">

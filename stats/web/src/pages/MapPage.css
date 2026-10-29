@@ -11,6 +11,8 @@
 .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#111;color:#fff;border:1px solid var(--border-strong);box-shadow:none}
 .leaflet-popup-content-wrapper{border-radius:var(--r)}
 .leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
+.leaflet-popup-content .popup-link{display:inline-block;margin-top:6px;font-weight:700;color:#fff}
+.leaflet-popup-content .popup-link:hover{text-decoration:underline}
 .leaflet-bar{border:1px solid var(--border-strong);border-radius:var(--r);overflow:hidden;box-shadow:none}
 .leaflet-bar a{background:#111;color:#fff;border-bottom:1px solid var(--border-strong)}
 .leaflet-bar a:hover{background:#fff;color:#000}
