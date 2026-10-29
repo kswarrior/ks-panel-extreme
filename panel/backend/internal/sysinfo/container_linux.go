@@ -15,6 +15,7 @@ var (
 	containerCPUPrevMu    sync.Mutex
 	containerCPUPrevUsage float64
 	containerCPUPrevTime  time.Time
+	cgroupRoot            = "/sys/fs/cgroup"
 )
 
 func applyContainer(h *Host) {
@@ -25,7 +26,7 @@ func applyContainer(h *Host) {
 	h.InContainer = true
 	h.ContainerRuntime = runtime
 
-	if fileExists("/sys/fs/cgroup/cgroup.controllers") {
+	if fileExists(cgroupPath("cgroup.controllers")) {
 		base := cgroupV2Base()
 		limit := parseCPUMax(readText(filepath.Join(base, "cpu.max")))
 		usageSec := readCPUStatUsage(filepath.Join(base, "cpu.stat"))
@@ -39,16 +40,16 @@ func applyContainer(h *Host) {
 	}
 
 	usageSec := readCPUAcctUsage(
-		"/sys/fs/cgroup/cpuacct/cpuacct.usage",
-		"/sys/fs/cgroup/cpu,cpuacct/cpuacct.usage",
-		"/sys/fs/cgroup/cpu/cpuacct.usage",
+		cgroupPath("cpuacct", "cpuacct.usage"),
+		cgroupPath("cpu,cpuacct", "cpuacct.usage"),
+		cgroupPath("cpu", "cpuacct.usage"),
 	)
 	limit := readV1CPULimit()
 	h.ContainerCPULimitCores = limit
 	h.ContainerCPUPercent = containerCPUPercent(usageSec, limit, h.CPUCores)
 
-	usedBytes, _ := readUintFile("/sys/fs/cgroup/memory/memory.usage_in_bytes")
-	limitBytes := readByteLimit("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+	usedBytes, _ := readUintFile(cgroupPath("memory", "memory.usage_in_bytes"))
+	limitBytes := readByteLimit(cgroupPath("memory", "memory.limit_in_bytes"))
 	setContainerMemory(h, usedBytes, limitBytes)
 }
 
@@ -86,10 +87,9 @@ func detectContainer() (bool, string) {
 }
 
 func cgroupV2Base() string {
-	const root = "/sys/fs/cgroup"
 	data, err := os.ReadFile("/proc/self/cgroup")
 	if err != nil {
-		return root
+		return cgroupRoot
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		if !strings.HasPrefix(line, "0::") {
@@ -99,13 +99,13 @@ func cgroupV2Base() string {
 		if rel == "" || rel == "/" {
 			continue
 		}
-		candidate := filepath.Join(root, strings.TrimPrefix(rel, "/"))
+		candidate := filepath.Join(cgroupRoot, strings.TrimPrefix(rel, "/"))
 		if fileExists(filepath.Join(candidate, "cpu.stat")) ||
 			fileExists(filepath.Join(candidate, "memory.current")) {
 			return candidate
 		}
 	}
-	return root
+	return cgroupRoot
 }
 
 func readCPUStatUsage(path string) float64 {
@@ -152,12 +152,12 @@ func parseCPUMax(raw string) float64 {
 
 func readV1CPULimit() float64 {
 	quotaRaw := readText(firstExisting(
-		"/sys/fs/cgroup/cpu/cpu.cfs_quota_us",
-		"/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us",
+		cgroupPath("cpu", "cpu.cfs_quota_us"),
+		cgroupPath("cpu,cpuacct", "cpu.cfs_quota_us"),
 	))
 	periodRaw := readText(firstExisting(
-		"/sys/fs/cgroup/cpu/cpu.cfs_period_us",
-		"/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us",
+		cgroupPath("cpu", "cpu.cfs_period_us"),
+		cgroupPath("cpu,cpuacct", "cpu.cfs_period_us"),
 	))
 	quota, err1 := strconv.ParseFloat(strings.TrimSpace(quotaRaw), 64)
 	period, err2 := strconv.ParseFloat(strings.TrimSpace(periodRaw), 64)
@@ -251,6 +251,10 @@ func readText(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+func cgroupPath(parts ...string) string {
+	return filepath.Join(append([]string{cgroupRoot}, parts...)...)
 }
 
 func firstExisting(paths ...string) string {
