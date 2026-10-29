@@ -291,36 +291,36 @@ func runOnce(rawURL string) error {
 }
 
 type heartbeat struct {
-	PanelID       string  `json:"panel_id"`
-	Hostname      string  `json:"hostname"`
-	Version       string  `json:"version"`
-	Commit        string  `json:"commit"`
-	OS            string  `json:"os"`
-	Arch          string  `json:"arch"`
-	GoVersion     string  `json:"go_version"`
-	IP            string  `json:"ip"`
-	CPUPercent    float64 `json:"cpu_percent"`
-	RAMTotalMB    float64 `json:"ram_total_mb"`
-	RAMUsedMB     float64 `json:"ram_used_mb"`
-	RAMUsedPct    float64 `json:"ram_used_pct"`
-	DiskTotalGB   float64 `json:"disk_total_gb"`
-	DiskUsedGB    float64 `json:"disk_used_gb"`
-	Load1         float64 `json:"load1"`
-	Load5         float64 `json:"load5"`
-	InContainer   bool    `json:"in_container"`
+	PanelID                string  `json:"panel_id"`
+	Hostname               string  `json:"hostname"`
+	Version                string  `json:"version"`
+	Commit                 string  `json:"commit"`
+	OS                     string  `json:"os"`
+	Arch                   string  `json:"arch"`
+	GoVersion              string  `json:"go_version"`
+	IP                     string  `json:"ip"`
+	CPUPercent             float64 `json:"cpu_percent"`
+	RAMTotalMB             float64 `json:"ram_total_mb"`
+	RAMUsedMB              float64 `json:"ram_used_mb"`
+	RAMUsedPct             float64 `json:"ram_used_pct"`
+	DiskTotalGB            float64 `json:"disk_total_gb"`
+	DiskUsedGB             float64 `json:"disk_used_gb"`
+	Load1                  float64 `json:"load1"`
+	Load5                  float64 `json:"load5"`
+	InContainer            bool    `json:"in_container"`
 	ContainerRuntime       string  `json:"container_runtime"`
 	ContainerCPUPercent    float64 `json:"container_cpu_percent"`
 	ContainerCPULimitCores float64 `json:"container_cpu_limit_cores"`
 	ContainerRAMUsedMB     float64 `json:"container_ram_used_mb"`
 	ContainerRAMLimitMB    float64 `json:"container_ram_limit_mb"`
 	ContainerRAMUsedPct    float64 `json:"container_ram_used_pct"`
-	UptimeSec     int64   `json:"uptime_sec"`
-	ProcessUptime int64   `json:"process_uptime"`
-	Nodes         int     `json:"nodes"`
-	Instances     int     `json:"instances"`
-	InstRunning   int     `json:"instrunning"`
-	Goroutines    int     `json:"goroutines"`
-	CapturedAt    int64   `json:"captured_at"`
+	UptimeSec              int64   `json:"uptime_sec"`
+	ProcessUptime          int64   `json:"process_uptime"`
+	Nodes                  int     `json:"nodes"`
+	Instances              int     `json:"instances"`
+	InstRunning            int     `json:"instrunning"`
+	Goroutines             int     `json:"goroutines"`
+	CapturedAt             int64   `json:"captured_at"`
 }
 
 func sendHeartbeat(conn *websocket.Conn) error {
@@ -341,36 +341,36 @@ func buildHeartbeat() heartbeat {
 	nodes, instances, running := countDB()
 
 	return heartbeat{
-		PanelID:       panelID(hostname),
-		Hostname:      hostname,
-		Version:       vi.Version,
-		Commit:        vi.Commit,
-		OS:            host.OS,
-		Arch:          host.Arch,
-		GoVersion:     host.GoVer,
-		IP:            "", // server derives from RemoteAddr
-		CPUPercent:    host.CPUPercent,
-		RAMTotalMB:    host.RAMTotalMB,
-		RAMUsedMB:     host.RAMUsedMB,
-		RAMUsedPct:    host.RAMUsedPct,
-		DiskTotalGB:   host.DiskTotalGB,
-		DiskUsedGB:    host.DiskUsedGB,
-		Load1:         host.Load1,
-		Load5:         host.Load5,
-		InContainer:             host.InContainer,
-		ContainerRuntime:        host.ContainerRuntime,
-		ContainerCPUPercent:     host.ContainerCPUPercent,
-		ContainerCPULimitCores:  host.ContainerCPULimitCores,
-		ContainerRAMUsedMB:      host.ContainerRAMUsedMB,
-		ContainerRAMLimitMB:     host.ContainerRAMLimitMB,
-		ContainerRAMUsedPct:     host.ContainerRAMUsedPct,
-		UptimeSec:     host.UptimeSec,
-		ProcessUptime: host.ProcessUptime,
-		Nodes:         nodes,
-		Instances:     instances,
-		InstRunning:   running,
-		Goroutines:    host.Goroutines,
-		CapturedAt:    host.CapturedAt.Unix(),
+		PanelID:                panelID(hostname),
+		Hostname:               hostname,
+		Version:                vi.Version,
+		Commit:                 vi.Commit,
+		OS:                     host.OS,
+		Arch:                   host.Arch,
+		GoVersion:              host.GoVer,
+		IP:                     "", // server derives from RemoteAddr
+		CPUPercent:             host.CPUPercent,
+		RAMTotalMB:             host.RAMTotalMB,
+		RAMUsedMB:              host.RAMUsedMB,
+		RAMUsedPct:             host.RAMUsedPct,
+		DiskTotalGB:            host.DiskTotalGB,
+		DiskUsedGB:             host.DiskUsedGB,
+		Load1:                  host.Load1,
+		Load5:                  host.Load5,
+		InContainer:            host.InContainer,
+		ContainerRuntime:       host.ContainerRuntime,
+		ContainerCPUPercent:    host.ContainerCPUPercent,
+		ContainerCPULimitCores: host.ContainerCPULimitCores,
+		ContainerRAMUsedMB:     host.ContainerRAMUsedMB,
+		ContainerRAMLimitMB:    host.ContainerRAMLimitMB,
+		ContainerRAMUsedPct:    host.ContainerRAMUsedPct,
+		UptimeSec:              host.UptimeSec,
+		ProcessUptime:          host.ProcessUptime,
+		Nodes:                  nodes,
+		Instances:              instances,
+		InstRunning:            running,
+		Goroutines:             host.Goroutines,
+		CapturedAt:             host.CapturedAt.Unix(),
 	}
 }
 

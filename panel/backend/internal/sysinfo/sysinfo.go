@@ -87,13 +87,13 @@ type Host struct {
 
 	// Container (cgroup) metrics. Zero / false when the panel is not running
 	// inside a container, or when the host cgroup files are not readable.
-	InContainer             bool    `json:"in_container"`
-	ContainerRuntime        string  `json:"container_runtime"`
-	ContainerCPULimitCores  float64 `json:"container_cpu_limit_cores"`
-	ContainerCPUPercent     float64 `json:"container_cpu_percent"`
-	ContainerRAMUsedMB      float64 `json:"container_ram_used_mb"`
-	ContainerRAMLimitMB     float64 `json:"container_ram_limit_mb"`
-	ContainerRAMUsedPct     float64 `json:"container_ram_used_pct"`
+	InContainer            bool    `json:"in_container"`
+	ContainerRuntime       string  `json:"container_runtime"`
+	ContainerCPULimitCores float64 `json:"container_cpu_limit_cores"`
+	ContainerCPUPercent    float64 `json:"container_cpu_percent"`
+	ContainerRAMUsedMB     float64 `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB    float64 `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct    float64 `json:"container_ram_used_pct"`
 
 	// Panel process ---------------------------------------------------------
 	PanelCPUPercent float64 `json:"panel_cpu_percent"`

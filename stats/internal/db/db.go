@@ -123,65 +123,65 @@ func ensurePanelColumns(db *sql.DB) error {
 }
 
 type Panel struct {
-	PanelID       string    `json:"panel_id"`
-	Hostname      string    `json:"hostname"`
-	Version       string    `json:"version"`
-	Commit        string    `json:"commit"`
-	OS            string    `json:"os"`
-	Arch          string    `json:"arch"`
-	GoVersion     string    `json:"go_version"`
-	IP            string    `json:"ip"`
-	City          string    `json:"city"`
-	Region        string    `json:"region"`
-	Country       string    `json:"country"`
-	CountryCode   string    `json:"country_code"`
-	Lat           float64   `json:"lat"`
-	Lon           float64   `json:"lon"`
-	CPUPercent    float64   `json:"cpu_percent"`
-	RAMTotalMB    float64   `json:"ram_total_mb"`
-	RAMUsedMB     float64   `json:"ram_used_mb"`
-	RAMUsedPct    float64   `json:"ram_used_pct"`
-	DiskTotalGB   float64   `json:"disk_total_gb"`
-	DiskUsedGB    float64   `json:"disk_used_gb"`
-	Load1         float64   `json:"load1"`
-	Load5         float64   `json:"load5"`
-	InContainer             bool    `json:"in_container"`
-	ContainerRuntime        string  `json:"container_runtime"`
-	ContainerCPUPercent     float64 `json:"container_cpu_percent"`
-	ContainerCPULimitCores  float64 `json:"container_cpu_limit_cores"`
-	ContainerRAMUsedMB      float64 `json:"container_ram_used_mb"`
-	ContainerRAMLimitMB     float64 `json:"container_ram_limit_mb"`
-	ContainerRAMUsedPct     float64 `json:"container_ram_used_pct"`
-	UptimeSec     int64     `json:"uptime_sec"`
-	ProcessUptime int64     `json:"process_uptime"`
-	Nodes         int       `json:"nodes"`
-	Instances     int       `json:"instances"`
-	InstRunning   int       `json:"instrunning"`
-	Goroutines    int       `json:"goroutines"`
-	FirstSeen     time.Time `json:"first_seen"`
-	LastSeen      time.Time `json:"last_seen"`
-	Online        bool      `json:"online"`
+	PanelID                string    `json:"panel_id"`
+	Hostname               string    `json:"hostname"`
+	Version                string    `json:"version"`
+	Commit                 string    `json:"commit"`
+	OS                     string    `json:"os"`
+	Arch                   string    `json:"arch"`
+	GoVersion              string    `json:"go_version"`
+	IP                     string    `json:"ip"`
+	City                   string    `json:"city"`
+	Region                 string    `json:"region"`
+	Country                string    `json:"country"`
+	CountryCode            string    `json:"country_code"`
+	Lat                    float64   `json:"lat"`
+	Lon                    float64   `json:"lon"`
+	CPUPercent             float64   `json:"cpu_percent"`
+	RAMTotalMB             float64   `json:"ram_total_mb"`
+	RAMUsedMB              float64   `json:"ram_used_mb"`
+	RAMUsedPct             float64   `json:"ram_used_pct"`
+	DiskTotalGB            float64   `json:"disk_total_gb"`
+	DiskUsedGB             float64   `json:"disk_used_gb"`
+	Load1                  float64   `json:"load1"`
+	Load5                  float64   `json:"load5"`
+	InContainer            bool      `json:"in_container"`
+	ContainerRuntime       string    `json:"container_runtime"`
+	ContainerCPUPercent    float64   `json:"container_cpu_percent"`
+	ContainerCPULimitCores float64   `json:"container_cpu_limit_cores"`
+	ContainerRAMUsedMB     float64   `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB    float64   `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct    float64   `json:"container_ram_used_pct"`
+	UptimeSec              int64     `json:"uptime_sec"`
+	ProcessUptime          int64     `json:"process_uptime"`
+	Nodes                  int       `json:"nodes"`
+	Instances              int       `json:"instances"`
+	InstRunning            int       `json:"instrunning"`
+	Goroutines             int       `json:"goroutines"`
+	FirstSeen              time.Time `json:"first_seen"`
+	LastSeen               time.Time `json:"last_seen"`
+	Online                 bool      `json:"online"`
 }
 
 func Upsert(hb Heartbeat, ip string, geo GeoInfo) error { return nil }
 
 type Heartbeat struct {
-	PanelID       string  `json:"panel_id"`
-	Hostname      string  `json:"hostname"`
-	Version       string  `json:"version"`
-	Commit        string  `json:"commit"`
-	OS            string  `json:"os"`
-	Arch          string  `json:"arch"`
-	GoVersion     string  `json:"go_version"`
-	IP            string  `json:"ip"` // client may send, else server fills from RemoteAddr
-	CPUPercent    float64 `json:"cpu_percent"`
-	RAMTotalMB    float64 `json:"ram_total_mb"`
-	RAMUsedMB     float64 `json:"ram_used_mb"`
-	RAMUsedPct    float64 `json:"ram_used_pct"`
-	DiskTotalGB   float64 `json:"disk_total_gb"`
-	DiskUsedGB    float64 `json:"disk_used_gb"`
-	Load1         float64 `json:"load1"`
-	Load5         float64 `json:"load5"`
+	PanelID                string  `json:"panel_id"`
+	Hostname               string  `json:"hostname"`
+	Version                string  `json:"version"`
+	Commit                 string  `json:"commit"`
+	OS                     string  `json:"os"`
+	Arch                   string  `json:"arch"`
+	GoVersion              string  `json:"go_version"`
+	IP                     string  `json:"ip"` // client may send, else server fills from RemoteAddr
+	CPUPercent             float64 `json:"cpu_percent"`
+	RAMTotalMB             float64 `json:"ram_total_mb"`
+	RAMUsedMB              float64 `json:"ram_used_mb"`
+	RAMUsedPct             float64 `json:"ram_used_pct"`
+	DiskTotalGB            float64 `json:"disk_total_gb"`
+	DiskUsedGB             float64 `json:"disk_used_gb"`
+	Load1                  float64 `json:"load1"`
+	Load5                  float64 `json:"load5"`
 	InContainer            bool    `json:"in_container"`
 	ContainerRuntime       string  `json:"container_runtime"`
 	ContainerCPUPercent    float64 `json:"container_cpu_percent"`
@@ -189,13 +189,13 @@ type Heartbeat struct {
 	ContainerRAMUsedMB     float64 `json:"container_ram_used_mb"`
 	ContainerRAMLimitMB    float64 `json:"container_ram_limit_mb"`
 	ContainerRAMUsedPct    float64 `json:"container_ram_used_pct"`
-	UptimeSec     int64   `json:"uptime_sec"`
-	ProcessUptime int64   `json:"process_uptime"`
-	Nodes         int     `json:"nodes"`
-	Instances     int     `json:"instances"`
-	InstRunning   int     `json:"instrunning"`
-	Goroutines    int     `json:"goroutines"`
-	CapturedAt    int64   `json:"captured_at"`
+	UptimeSec              int64   `json:"uptime_sec"`
+	ProcessUptime          int64   `json:"process_uptime"`
+	Nodes                  int     `json:"nodes"`
+	Instances              int     `json:"instances"`
+	InstRunning            int     `json:"instrunning"`
+	Goroutines             int     `json:"goroutines"`
+	CapturedAt             int64   `json:"captured_at"`
 }
 
 type GeoInfo struct {
