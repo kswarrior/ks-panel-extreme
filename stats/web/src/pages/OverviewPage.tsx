@@ -122,12 +122,6 @@ export default function OverviewPage() {
               <b>{stats.versions.length ? stats.versions.join(', ') : '—'}</b>
             </div>
           </div>
-          {stats.total === 0 ? (
-            <div className="small">
-              No panels yet — panels dial <code>wss://.../ws?token=</code> on startup via env{' '}
-              <code>KSPANEL_STATS_URL</code> or remote <code>stats/url.json</code>.
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
