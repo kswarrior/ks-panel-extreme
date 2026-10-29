@@ -168,7 +168,7 @@ Content types: `html` (sandboxed iframe, full control, needs theme `<style>` hea
 
 ## 8. Stats telemetry — `stats/`
 
-Role: owner-only fleet dashboard (`release/ks-stats`): WSS heartbeat ingress + SQLite + embedded React UI. Not part of `rebuild.sh`; build with `bash stats/rebuild.sh` (builds `stats/web/dist` first, then the Go binary).
+Role: public-overview fleet dashboard (`release/ks-stats`): WSS heartbeat ingress + SQLite + embedded React UI. `/overview` is public (aggregate-only `/api/overview`); `/map`, `/table`, `/panels/:id` and `/api/panels` require admin login (`ADMIN_USERNAME`/`ADMIN_PASSWORD`, header modal -> HttpOnly session cookie). Not part of `rebuild.sh`; build with `bash stats/rebuild.sh` (builds `stats/web/dist` first, then the Go binary).
 
 * `stats/cmd/server/` — HTTP/WSS entrypoint, embedded asset serving with SPA fallback.
 * `stats/internal/` — `db/` (SQLite), `hub/` (WSS), `auth/`, `geo/`, `version/`.

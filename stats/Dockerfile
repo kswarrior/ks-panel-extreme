@@ -52,9 +52,9 @@ USER stats
 ENV STATS_PORT=9090 \
     STATS_DB=/data/stats.db \
     PORT=9090
-# owner auth — MUST set in production:
-# ENV STATS_ADMIN_PASSWORD=changeme
-# ENV STATS_ADMIN_USER=admin
+# admin auth — MUST set in production:
+# ENV ADMIN_USERNAME=admin
+# ENV ADMIN_PASSWORD=changeme
 # optional per-panel PSK — if set, panels must send ?token= or X-Panel-Token
 # ENV STATS_PANEL_TOKEN=
 

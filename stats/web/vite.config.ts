@@ -31,8 +31,6 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/api': 'http://localhost:9090',
-      '/login': 'http://localhost:9090',
-      '/logout': 'http://localhost:9090',
       '/ws': {
         target: 'ws://localhost:9090',
         ws: true,
