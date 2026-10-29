@@ -64,6 +64,14 @@ export interface LocalHost {
   load5: number;
   load15: number;
   per_core: number[];
+  // Container/cgroup usage when the panel process runs in a container.
+  in_container: boolean;
+  container_runtime: string;
+  container_cpu_limit_cores: number;
+  container_cpu_percent: number;
+  container_ram_used_mb: number;
+  container_ram_limit_mb: number;
+  container_ram_used_pct: number;
   ram_total_mb: number;
   ram_used_mb: number;
   ram_used_pct: number;

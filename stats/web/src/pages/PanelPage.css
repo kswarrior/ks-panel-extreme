@@ -7,8 +7,10 @@
 .panel-meta{display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 14px;font-size:11px;color:var(--muted)}
 .panel-meta b{color:var(--fg-dim);font-weight:600}
 .gauges{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.container-gauges{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:1100px){.gauges{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.gauges{grid-template-columns:1fr}}
+@media(max-width:560px){.gauges,.container-gauges{grid-template-columns:1fr}}
+.container-badge{border:1px solid var(--border-strong);background:var(--elev);color:var(--fg-dim);text-transform:lowercase}
 .gauge-card{padding:14px 14px 12px;gap:4px}
 .gauge-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .gauge-ring{width:104px;height:104px;display:block;margin:6px auto 4px;overflow:visible}

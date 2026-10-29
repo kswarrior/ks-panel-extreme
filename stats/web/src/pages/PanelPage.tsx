@@ -124,6 +124,13 @@ export default function PanelPage() {
   const coords = located
     ? `${panel.lat.toFixed(4)}, ${panel.lon.toFixed(4)}`
     : '—';
+  const hasContainer = Boolean(panel.in_container || panel.container_runtime);
+  const containerRuntime = panel.container_runtime || 'container';
+  const containerCPU = clamp(panel.container_cpu_percent || 0);
+  const containerMemUsed = panel.container_ram_used_mb || 0;
+  const containerMemLimit = panel.container_ram_limit_mb || 0;
+  const containerMemPct = containerMemLimit > 0 ? clamp(panel.container_ram_used_pct || 0) : null;
+  const containerCPULimit = panel.container_cpu_limit_cores || 0;
 
   return (
     <div className="wrap">
@@ -133,6 +140,9 @@ export default function PanelPage() {
         </Link>
         <h2 className="detail-title">{panelName(panel)}</h2>
         <StatusBadge online={online} />
+        {hasContainer ? (
+          <span className="badge container-badge">{containerRuntime}</span>
+        ) : null}
         <div className="panel-actions">
           {located ? (
             <Link
@@ -196,6 +206,33 @@ export default function PanelPage() {
           note={`${nodes} node${nodes === 1 ? '' : 's'}`}
         />
       </div>
+
+      {hasContainer ? (
+        <div className="gauges container-gauges">
+          <GaugeCard
+            label="Container CPU"
+            value={containerCPU}
+            center={`${containerCPU.toFixed(1)}%`}
+            detail={
+              containerCPULimit > 0
+                ? `${containerCPULimit.toFixed(2)} CPU limit`
+                : 'of host capacity'
+            }
+            note={`${containerRuntime} cgroup`}
+          />
+          <GaugeCard
+            label="Container memory"
+            value={containerMemPct}
+            center={containerMemPct === null ? fmtMB(containerMemUsed) : `${containerMemPct.toFixed(0)}%`}
+            detail={
+              containerMemLimit > 0
+                ? `${fmtMB(containerMemUsed)} / ${fmtMB(containerMemLimit)}`
+                : `${fmtMB(containerMemUsed)} used · no limit`
+            }
+            note={`${containerRuntime} cgroup`}
+          />
+        </div>
+      ) : null}
 
       <div className="detail-grid">
         <div className="table-wrap">
