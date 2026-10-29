@@ -307,6 +307,13 @@ type heartbeat struct {
 	DiskUsedGB    float64 `json:"disk_used_gb"`
 	Load1         float64 `json:"load1"`
 	Load5         float64 `json:"load5"`
+	InContainer   bool    `json:"in_container"`
+	ContainerRuntime       string  `json:"container_runtime"`
+	ContainerCPUPercent    float64 `json:"container_cpu_percent"`
+	ContainerCPULimitCores float64 `json:"container_cpu_limit_cores"`
+	ContainerRAMUsedMB     float64 `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB    float64 `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct    float64 `json:"container_ram_used_pct"`
 	UptimeSec     int64   `json:"uptime_sec"`
 	ProcessUptime int64   `json:"process_uptime"`
 	Nodes         int     `json:"nodes"`
@@ -350,6 +357,13 @@ func buildHeartbeat() heartbeat {
 		DiskUsedGB:    host.DiskUsedGB,
 		Load1:         host.Load1,
 		Load5:         host.Load5,
+		InContainer:             host.InContainer,
+		ContainerRuntime:        host.ContainerRuntime,
+		ContainerCPUPercent:     host.ContainerCPUPercent,
+		ContainerCPULimitCores:  host.ContainerCPULimitCores,
+		ContainerRAMUsedMB:      host.ContainerRAMUsedMB,
+		ContainerRAMLimitMB:     host.ContainerRAMLimitMB,
+		ContainerRAMUsedPct:     host.ContainerRAMUsedPct,
 		UptimeSec:     host.UptimeSec,
 		ProcessUptime: host.ProcessUptime,
 		Nodes:         nodes,

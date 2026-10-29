@@ -53,6 +53,13 @@ func migrate(db *sql.DB) error {
 		disk_used_gb REAL,
 		load1 REAL,
 		load5 REAL,
+		in_container INTEGER DEFAULT 0,
+		container_runtime TEXT DEFAULT '',
+		container_cpu_percent REAL DEFAULT 0,
+		container_cpu_limit_cores REAL DEFAULT 0,
+		container_ram_used_mb REAL DEFAULT 0,
+		container_ram_limit_mb REAL DEFAULT 0,
+		container_ram_used_pct REAL DEFAULT 0,
 		uptime_sec INTEGER,
 		process_uptime INTEGER,
 		nodes INTEGER,
@@ -65,7 +72,54 @@ func migrate(db *sql.DB) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_panels_last_seen ON panels(last_seen);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	return ensurePanelColumns(db)
+}
+
+func ensurePanelColumns(db *sql.DB) error {
+	wanted := []struct {
+		name string
+		typ  string
+	}{
+		{"in_container", "INTEGER DEFAULT 0"},
+		{"container_runtime", "TEXT DEFAULT ''"},
+		{"container_cpu_percent", "REAL DEFAULT 0"},
+		{"container_cpu_limit_cores", "REAL DEFAULT 0"},
+		{"container_ram_used_mb", "REAL DEFAULT 0"},
+		{"container_ram_limit_mb", "REAL DEFAULT 0"},
+		{"container_ram_used_pct", "REAL DEFAULT 0"},
+	}
+	rows, err := db.Query(`PRAGMA table_info(panels)`)
+	if err != nil {
+		return err
+	}
+	existing := map[string]bool{}
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, typ string
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &pk); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, column := range wanted {
+		if existing[column.name] {
+			continue
+		}
+		if _, err := db.Exec(`ALTER TABLE panels ADD COLUMN ` + column.name + ` ` + column.typ); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type Panel struct {
