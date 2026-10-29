@@ -79,6 +79,7 @@ th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;le
 .th-sort:hover{color:#fff}
 .sort-ind{font-size:9px;letter-spacing:0}
 tr:hover td{background:#141414}
+.rowclick:hover .cell-panel b{text-decoration:underline;text-underline-offset:2px}
 .trunc{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .cell-panel .trunc{max-width:220px}
 .cell-version .trunc{max-width:160px}
@@ -100,11 +101,11 @@ tr:hover td{background:#141414}
 .overlay{display:none}
 /* detail */
 .detail-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
-.detail-title{margin:0;font-size:16px;font-weight:700}
+.detail-title{margin:0;font-size:16px;font-weight:700;overflow-wrap:anywhere}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(max-width:640px){.grid2{grid-template-columns:1fr}}
 .kvrow{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;background:#0d0d0d;border:1px solid var(--border);border-radius:var(--r);font-size:12px}
-.kvrow b{color:#fff;font-weight:600}
+.kvrow b{color:#fff;font-weight:600;text-align:right;overflow-wrap:anywhere;min-width:0}
 pre{margin:0;padding:10px;background:#050505;border:1px solid var(--border);border-radius:var(--r);overflow:auto;font-size:11px;max-height:240px}
 .empty{padding:24px;text-align:center;color:var(--muted);font-size:12px}
 /* toast */
