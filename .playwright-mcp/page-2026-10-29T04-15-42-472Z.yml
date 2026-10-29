@@ -1,0 +1,124 @@
+- generic [ref=f1e2]:
+  - banner [ref=f1e3]:
+    - button "menu" [ref=f1e4] [cursor=pointer]
+    - generic [ref=f1e7]:
+      - generic [ref=f1e8]: KS
+      - generic [ref=f1e9]:
+        - generic [ref=f1e10]: KS Panel
+        - generic [ref=f1e11]: Fleet Stats
+    - button "refresh" [ref=f1e12] [cursor=pointer]
+    - button "logout" [ref=f1e16] [cursor=pointer]
+  - generic [ref=f1e20]:
+    - complementary "navigation" [ref=f1e21]:
+      - navigation [ref=f1e22]:
+        - link "Overview" [ref=f1e23] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f1e29] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f1e33] [cursor=pointer]:
+          - /url: /table
+    - main [ref=f1e37]:
+      - generic [ref=f1e113]:
+        - generic [ref=f1e114]:
+          - link "← Back to table" [ref=f1e115] [cursor=pointer]:
+            - /url: /table
+          - heading "test-panel" [level=2] [ref=f1e116]
+          - generic [ref=f1e117]: offline
+          - button "No map data" [disabled] [ref=f1e119]
+        - generic [ref=f1e123]:
+          - generic [ref=f1e124]: last heartbeat 9/18/2026, 6:40:11 PM
+          - generic [ref=f1e125]: first seen 9/18/2026, 6:40:11 PM
+          - generic [ref=f1e126]: auto-refresh 5s
+          - generic [ref=f1e127]: updated 4:15:39 AM
+        - generic [ref=f1e128]:
+          - generic [ref=f1e129]:
+            - generic [ref=f1e130]: CPU
+            - 'img "CPU: 12.5%" [ref=f1e131]':
+              - generic [ref=f1e134]: 12.5%
+            - generic [ref=f1e135]: load 0.50 / 0.40
+            - generic [ref=f1e136]: 1m / 5m load average
+          - generic [ref=f1e139]:
+            - generic [ref=f1e140]: Memory
+            - 'img "Memory: 50%" [ref=f1e141]':
+              - generic [ref=f1e144]: 50%
+            - generic [ref=f1e145]: 512 MB / 1024 MB
+            - generic [ref=f1e146]: used / total
+          - generic [ref=f1e149]:
+            - generic [ref=f1e150]: Disk
+            - 'img "Disk: 40%" [ref=f1e151]':
+              - generic [ref=f1e154]: 40%
+            - generic [ref=f1e155]: 20.0 GB / 50.0 GB
+            - generic [ref=f1e156]: used / total
+          - generic [ref=f1e159]:
+            - generic [ref=f1e160]: Instances
+            - 'img "Instances: 3/5" [ref=f1e161]':
+              - generic [ref=f1e164]: 3/5
+            - generic [ref=f1e165]: 3 running / 5 total
+            - generic [ref=f1e166]: 2 nodes
+        - generic [ref=f1e169]:
+          - generic [ref=f1e170]:
+            - generic [ref=f1e171]: System
+            - generic [ref=f1e173]:
+              - generic [ref=f1e174]:
+                - generic [ref=f1e175]: Panel ID
+                - generic [ref=f1e176]: test-123
+              - generic [ref=f1e177]:
+                - generic [ref=f1e178]: Hostname
+                - generic [ref=f1e179]: test-panel
+              - generic [ref=f1e180]:
+                - generic [ref=f1e181]: Version
+                - generic [ref=f1e182]: 1.0.0 abc
+              - generic [ref=f1e183]:
+                - generic [ref=f1e184]: OS / Arch
+                - generic [ref=f1e185]: linux / amd64
+              - generic [ref=f1e186]:
+                - generic [ref=f1e187]: Go
+                - generic [ref=f1e188]: go1.25
+          - generic [ref=f1e189]:
+            - generic [ref=f1e190]: Location
+            - generic [ref=f1e192]:
+              - generic [ref=f1e193]:
+                - generic [ref=f1e194]: IP
+                - generic [ref=f1e195]: ::1
+              - generic [ref=f1e196]:
+                - generic [ref=f1e197]: Location
+                - generic [ref=f1e198]: —
+              - generic [ref=f1e199]:
+                - generic [ref=f1e200]: Coords
+                - generic [ref=f1e201]: —
+              - button "No map data" [disabled] [ref=f1e203]
+          - generic [ref=f1e204]:
+            - generic [ref=f1e205]: Workload
+            - generic [ref=f1e207]:
+              - generic [ref=f1e208]:
+                - generic [ref=f1e209]: Nodes
+                - generic [ref=f1e210]: "2"
+              - generic [ref=f1e211]:
+                - generic [ref=f1e212]: Instances
+                - generic [ref=f1e213]: 3 running / 5 total
+              - generic [ref=f1e214]:
+                - generic [ref=f1e215]: Goroutines
+                - generic [ref=f1e216]: "50"
+              - generic [ref=f1e217]:
+                - generic [ref=f1e218]: CPU / Load
+                - generic [ref=f1e219]: 12.5% / 0.50 / 0.40
+          - generic [ref=f1e220]:
+            - generic [ref=f1e221]: Lifetime
+            - generic [ref=f1e223]:
+              - generic [ref=f1e224]:
+                - generic [ref=f1e225]: Uptime
+                - generic [ref=f1e226]: 1h 0m
+              - generic [ref=f1e227]:
+                - generic [ref=f1e228]: Process uptime
+                - generic [ref=f1e229]: 1m
+              - generic [ref=f1e230]:
+                - generic [ref=f1e231]: First seen
+                - generic [ref=f1e232]: 9/18/2026, 6:40:11 PM
+              - generic [ref=f1e233]:
+                - generic [ref=f1e234]: Last seen
+                - generic [ref=f1e235]: 9/18/2026, 6:40:11 PM
+        - group [ref=f1e236]:
+          - generic "▸ Raw heartbeat click to expand" [ref=f1e237] [cursor=pointer]:
+            - text: ▸
+            - generic [ref=f1e238]: Raw heartbeat
+            - generic [ref=f1e239]: click to expand

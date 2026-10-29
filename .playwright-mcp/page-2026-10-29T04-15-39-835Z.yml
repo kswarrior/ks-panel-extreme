@@ -1,0 +1,90 @@
+- generic [ref=f1e2]:
+  - banner [ref=f1e3]:
+    - button "menu" [ref=f1e4] [cursor=pointer]
+    - generic [ref=f1e7]:
+      - generic [ref=f1e8]: KS
+      - generic [ref=f1e9]:
+        - generic [ref=f1e10]: KS Panel
+        - generic [ref=f1e11]: Fleet Stats
+    - button "refresh" [ref=f1e12] [cursor=pointer]
+    - button "logout" [ref=f1e16] [cursor=pointer]
+  - generic [ref=f1e20]:
+    - complementary "navigation" [ref=f1e21]:
+      - navigation [ref=f1e22]:
+        - link "Overview" [ref=f1e23] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f1e29] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f1e33] [cursor=pointer]:
+          - /url: /table
+    - main [ref=f1e37]:
+      - generic [ref=f1e38]:
+        - generic [ref=f1e39]:
+          - generic "search" [ref=f1e40]:
+            - textbox "search" [ref=f1e44]:
+              - /placeholder: search hostname, id, ip, country, version…
+          - button "All" [pressed] [ref=f1e45] [cursor=pointer]
+          - button "Online" [ref=f1e46] [cursor=pointer]
+          - button "Offline" [ref=f1e47] [cursor=pointer]
+          - generic [ref=f1e48]: 2 / 2
+        - table [ref=f1e51]:
+          - rowgroup [ref=f1e52]:
+            - row [ref=f1e53]:
+              - columnheader "status" [ref=f1e54]
+              - columnheader "panel" [ref=f1e55]
+              - columnheader "version" [ref=f1e56]
+              - columnheader "ip" [ref=f1e57]
+              - columnheader "location" [ref=f1e58]
+              - columnheader "cpu" [ref=f1e59]
+              - columnheader "ram" [ref=f1e60]
+              - columnheader "disk" [ref=f1e61]
+              - columnheader "load" [ref=f1e62]
+              - columnheader [ref=f1e63]:
+                - button "nodes ↕" [ref=f1e64] [cursor=pointer]:
+                  - text: nodes
+                  - generic [ref=f1e65]: ↕
+              - columnheader [ref=f1e66]:
+                - button "instances ↕" [ref=f1e67] [cursor=pointer]:
+                  - text: instances
+                  - generic [ref=f1e68]: ↕
+              - columnheader "uptime" [ref=f1e69]
+              - columnheader "last seen" [ref=f1e70]
+          - rowgroup [ref=f1e71]:
+            - row [ref=f1e72] [cursor=pointer]:
+              - cell "offline" [ref=f1e73]
+              - cell "runnervmlun5p 60c6f0849659d4f8" [ref=f1e74]:
+                - generic "runnervmlun5p" [ref=f1e75]
+                - generic "60c6f0849659d4f8" [ref=f1e76]
+              - cell "1.0.0 KS Panel Release" [ref=f1e77]:
+                - generic "1.0.0" [ref=f1e78]
+                - generic "KS Panel Release" [ref=f1e79]
+              - cell "::1" [ref=f1e80]
+              - cell "—" [ref=f1e82]
+              - cell "50.0%" [ref=f1e84]
+              - cell "2353 MB / 15989 MB 14.7%" [ref=f1e85]:
+                - text: 2353 MB / 15989 MB
+                - generic [ref=f1e86]: 14.7%
+              - cell "66.0 GB / 144.3 GB" [ref=f1e87]
+              - cell "1.91 / 1.75" [ref=f1e88]
+              - cell "0" [ref=f1e89]
+              - cell "0/0" [ref=f1e90]
+              - cell "1h 58m" [ref=f1e91]
+              - cell "9/18/2026, 6:40:37 PM" [ref=f1e92]
+            - row [ref=f1e93] [cursor=pointer]:
+              - cell "offline" [ref=f1e94]
+              - cell "test-panel test-123" [ref=f1e95]:
+                - generic "test-panel" [ref=f1e96]
+                - generic "test-123" [ref=f1e97]
+              - cell "1.0.0 abc" [ref=f1e98]:
+                - generic "1.0.0" [ref=f1e99]
+                - generic "abc" [ref=f1e100]
+              - cell "::1" [ref=f1e101]
+              - cell "—" [ref=f1e103]
+              - cell "12.5%" [ref=f1e105]
+              - cell "512 MB / 1024 MB" [ref=f1e106]
+              - cell "20.0 GB / 50.0 GB" [ref=f1e107]
+              - cell "0.50 / 0.40" [ref=f1e108]
+              - cell "2" [ref=f1e109]
+              - cell "3/5" [ref=f1e110]
+              - cell "1h 0m" [ref=f1e111]
+              - cell "9/18/2026, 6:40:11 PM" [ref=f1e112]

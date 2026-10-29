@@ -1,0 +1,90 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - button "menu" [ref=e4] [cursor=pointer]
+    - generic [ref=e7]:
+      - generic [ref=e8]: KS
+      - generic [ref=e9]:
+        - generic [ref=e10]: KS Panel
+        - generic [ref=e11]: Fleet Stats
+    - button "refresh" [ref=e12] [cursor=pointer]
+    - button "logout" [ref=e108] [cursor=pointer]
+  - generic [ref=e17]:
+    - complementary "navigation" [ref=e18]:
+      - navigation [ref=e19]:
+        - link "Overview" [ref=e20] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=e112] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=e116] [cursor=pointer]:
+          - /url: /table
+    - main [ref=e26]:
+      - generic [ref=e120]:
+        - generic [ref=e121]:
+          - generic "search" [ref=e122]:
+            - textbox "search" [ref=e126]:
+              - /placeholder: search hostname, id, ip, country, version…
+          - button "All" [pressed] [ref=e127] [cursor=pointer]
+          - button "Online" [ref=e128] [cursor=pointer]
+          - button "Offline" [ref=e129] [cursor=pointer]
+          - generic [ref=e130]: 2 / 2
+        - table [ref=e133]:
+          - rowgroup [ref=e134]:
+            - row [ref=e135]:
+              - columnheader "status" [ref=e136]
+              - columnheader "panel" [ref=e137]
+              - columnheader "version" [ref=e138]
+              - columnheader "ip" [ref=e139]
+              - columnheader "location" [ref=e140]
+              - columnheader "cpu" [ref=e141]
+              - columnheader "ram" [ref=e142]
+              - columnheader "disk" [ref=e143]
+              - columnheader "load" [ref=e144]
+              - columnheader [ref=e145]:
+                - button "nodes ↕" [ref=e146] [cursor=pointer]:
+                  - text: nodes
+                  - generic [ref=e147]: ↕
+              - columnheader [ref=e148]:
+                - button "instances ↕" [ref=e149] [cursor=pointer]:
+                  - text: instances
+                  - generic [ref=e150]: ↕
+              - columnheader "uptime" [ref=e151]
+              - columnheader "last seen" [ref=e152]
+          - rowgroup [ref=e153]:
+            - row [ref=e154] [cursor=pointer]:
+              - cell "offline" [ref=e155]
+              - cell "runnervmlun5p 60c6f0849659d4f8" [ref=e156]:
+                - generic "runnervmlun5p" [ref=e157]
+                - generic "60c6f0849659d4f8" [ref=e158]
+              - cell "1.0.0 KS Panel Release" [ref=e159]:
+                - generic "1.0.0" [ref=e160]
+                - generic "KS Panel Release" [ref=e161]
+              - cell "::1" [ref=e162]
+              - cell "—" [ref=e164]
+              - cell "50.0%" [ref=e166]
+              - cell "2353 MB / 15989 MB 14.7%" [ref=e167]:
+                - text: 2353 MB / 15989 MB
+                - generic [ref=e168]: 14.7%
+              - cell "66.0 GB / 144.3 GB" [ref=e169]
+              - cell "1.91 / 1.75" [ref=e170]
+              - cell "0" [ref=e171]
+              - cell "0/0" [ref=e172]
+              - cell "1h 58m" [ref=e173]
+              - cell "9/18/2026, 6:40:37 PM" [ref=e174]
+            - row [ref=e175] [cursor=pointer]:
+              - cell "offline" [ref=e176]
+              - cell "test-panel test-123" [ref=e177]:
+                - generic "test-panel" [ref=e178]
+                - generic "test-123" [ref=e179]
+              - cell "1.0.0 abc" [ref=e180]:
+                - generic "1.0.0" [ref=e181]
+                - generic "abc" [ref=e182]
+              - cell "::1" [ref=e183]
+              - cell "—" [ref=e185]
+              - cell "12.5%" [ref=e187]
+              - cell "512 MB / 1024 MB" [ref=e188]
+              - cell "20.0 GB / 50.0 GB" [ref=e189]
+              - cell "0.50 / 0.40" [ref=e190]
+              - cell "2" [ref=e191]
+              - cell "3/5" [ref=e192]
+              - cell "1h 0m" [ref=e193]
+              - cell "9/18/2026, 6:40:11 PM" [ref=e194]
