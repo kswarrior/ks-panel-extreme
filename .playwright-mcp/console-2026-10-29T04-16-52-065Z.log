@@ -628,3 +628,15 @@
 [ 1720051ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249132114:0
 [ 1725034ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249137096:0
 [ 1725051ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249137114:0
+[ 1730033ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249142096:0
+[ 1730051ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249142114:0
+[ 1735033ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249147096:0
+[ 1735050ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249147114:0
+[ 1740033ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249152096:0
+[ 1740050ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249152114:0
+[ 1745033ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249157096:0
+[ 1745050ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249157114:0
+[ 1750038ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249162098:0
+[ 1750051ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249162114:0
+[ 1755034ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/overview?_t=1793249167096:0
+[ 1755053ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://127.0.0.1:9091/api/panels?_t=1793249167116:0
