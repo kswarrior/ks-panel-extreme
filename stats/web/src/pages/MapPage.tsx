@@ -39,10 +39,12 @@ export default function MapPage() {
 
   useEffect(() => {
     if (!mapElement.current) return;
-    const map = L.map(mapElement.current, { zoomControl: true }).setView([20, 0], 2);
+    const map = L.map(mapElement.current, {
+      zoomControl: true,
+      attributionControl: false,
+    }).setView([20, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
-      attribution: '© OSM',
     }).addTo(map);
     mapRef.current = map;
     const frame = window.requestAnimationFrame(() => map.invalidateSize());
