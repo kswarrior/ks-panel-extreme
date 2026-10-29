@@ -1,0 +1,38 @@
+- generic [ref=f2e2]:
+  - banner [ref=f2e3]:
+    - button "menu" [ref=f2e4] [cursor=pointer]
+    - generic [ref=f2e7]:
+      - generic [ref=f2e8]: KS
+      - generic [ref=f2e9]:
+        - generic [ref=f2e10]: KS Panel
+        - generic [ref=f2e11]: Fleet Stats
+    - button "refresh" [ref=f2e12] [cursor=pointer]
+    - button "logout" [ref=f2e16] [cursor=pointer]
+  - generic [ref=f2e20]:
+    - complementary "navigation" [ref=f2e21]:
+      - navigation [ref=f2e22]:
+        - link "Overview" [ref=f2e23] [cursor=pointer]:
+          - /url: /overview
+        - link "Map" [ref=f2e29] [cursor=pointer]:
+          - /url: /map
+        - link "Table" [ref=f2e33] [cursor=pointer]:
+          - /url: /table
+    - main [ref=f2e37]:
+      - generic [ref=f2e169]:
+        - generic [ref=f2e170]:
+          - generic [ref=f2e171]: Fleet map
+          - generic [ref=f2e172]: 1 located • 2 total
+          - button "Fit bounds" [ref=f2e173] [cursor=pointer]
+          - button "Full screen" [ref=f2e174] [cursor=pointer]
+        - generic [ref=f2e180]:
+          - generic:
+            - button "Marker" [active] [ref=f2e193] [cursor=pointer]
+            - generic [ref=f2e194]:
+              - generic [ref=f2e197]:
+                - text: test-panelQuincy, Washington, United States (US)::11.0.0
+                - link "Open details →" [ref=f2e198] [cursor=pointer]:
+                  - /url: /panels/test-123
+              - button "Close popup" [ref=f2e200] [cursor=pointer]: ×
+          - generic [ref=f2e189]:
+            - button "Zoom in" [ref=f2e190] [cursor=pointer]: +
+            - button "Zoom out" [ref=f2e191] [cursor=pointer]: −
