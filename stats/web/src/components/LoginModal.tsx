@@ -9,7 +9,7 @@ interface LoginModalProps {
 }
 
 export default function LoginModal({ open, onClose, onSuccess }: LoginModalProps) {
-  const { login, configured } = useAuth();
+  const { login, configured, loading: authLoading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +63,7 @@ export default function LoginModal({ open, onClose, onSuccess }: LoginModalProps
           </button>
         </div>
         <p className="small">Sign in to open the map, table, and panel details.</p>
-        {!configured ? (
+        {!authLoading && !configured ? (
           <div className="form-note">
             Admin login is not configured. Set <b>ADMIN_USERNAME</b> and <b>ADMIN_PASSWORD</b>.
           </div>
