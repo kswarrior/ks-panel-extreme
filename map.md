@@ -163,3 +163,14 @@ Content types: `html` (sandboxed iframe, full control, needs theme `<style>` hea
 4. Need node execution? → panel `internal/edge/` → `edge/backend/internal/<exec|files|lifecycle|drivers|pageaction>/`.
 5. Need an instance tab? → author `instance_pages/pages/<slug>.yaml` → Studio in `panel/frontend/src/features/instance-pages/` → render via `src/shared/components/ui/` CustomPageView + `src/shared/lib/` SDK → execute via `edge/backend/internal/pageaction/`.
 6. Before creating a file prove no existing dir above already does the job. After editing run `rebuild.sh` and re-read the diff.
+
+---
+
+## 8. Stats telemetry — `stats/`
+
+Role: owner-only fleet dashboard (`release/ks-stats`): WSS heartbeat ingress + SQLite + embedded React UI. Not part of `rebuild.sh`; build with `bash stats/rebuild.sh` (builds `stats/web/dist` first, then the Go binary).
+
+* `stats/cmd/server/` — HTTP/WSS entrypoint, embedded asset serving with SPA fallback.
+* `stats/internal/` — `db/` (SQLite), `hub/` (WSS), `auth/`, `geo/`, `version/`.
+* `stats/web/` — React 18 + TS + Vite app. `src/pages/` is one lazy chunk per URL (`/overview`, `/map`, `/table`, `/panels/:panelId`); `src/components/Layout.tsx` is the shared shell. Leaflet loads only with the map page. Build output `stats/web/dist/` is embedded by `stats/web/embed.go`.
+
