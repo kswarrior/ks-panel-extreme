@@ -1,6 +1,6 @@
 # ./stats - Private Panel Telemetry
 
-Owner-only dashboard. Panels dial WSS -> stats on startup (if configured), stats shows map + list of all running panels.
+Public overview + admin-only fleet dashboard. Panels dial WSS -> stats on startup (if configured), stats shows summary, map + list of all running panels.
 
 ## Recommended Stack for 518MB
 
@@ -39,13 +39,15 @@ Total <60MB — fits 256MB VPS even. Node alt would be 180MB idle + fails.
                                                         |
                                                    [SQLite]
                                                         |
-                                              [Owner Dashboard /]
-                                          auth: ADMIN_PASSWORD bcrypt + cookie
-                                          pages: Map (Leaflet), Table, Detail (sparkline)
+                                              [Public Overview /]
+                                          GET /api/overview (aggregate only)
+                                          auth: ADMIN_USERNAME + ADMIN_PASSWORD
+                                          header login -> HttpOnly session cookie
+                                          admin pages: Map (Leaflet), Table, Detail
 ```
 
 Panel side: add `stats.url` + `stats.token` to `panel/backend/internal/config`. On `panel/backend/internal/api/server.go` startup, goroutine dials WSS if configured, reconnect with backoff.
 
-Stats side: `WSS /ws` validates `token` (per-panel PSK), inserts/updates `panels` table. `GET /api/panels` owner-only. No public signup.
+Stats side: `WSS /ws` validates `token` (per-panel PSK), inserts/updates `panels` table. `GET /api/overview` is public and aggregate-only; `GET /api/panels` is admin-only. No public signup.
 
 Geo: `ip` from `X-Forwarded-For` or WSS remote addr -> MaxMind GeoLite2 mmdb (5MB) or free `ip-api.com` cache.
