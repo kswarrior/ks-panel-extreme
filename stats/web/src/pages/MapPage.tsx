@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapPage.css';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+import { ExitFullscreenIcon, FullscreenIcon } from '../components/icons';
 import { usePanels } from '../context/PanelsContext';
 import { hasGeo, locStr, panelName } from '../lib/format';
 import type { Panel } from '../lib/types';
@@ -32,9 +33,11 @@ function popupContent(panel: Panel): HTMLElement {
 export default function MapPage() {
   const { panels } = usePanels();
   const mapElement = useRef<HTMLDivElement | null>(null);
+  const wrapElement = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Map<string, L.Marker>>(new Map());
   const fittedRef = useRef(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const located = useMemo(() => panels.filter(hasGeo), [panels]);
 
   useEffect(() => {
