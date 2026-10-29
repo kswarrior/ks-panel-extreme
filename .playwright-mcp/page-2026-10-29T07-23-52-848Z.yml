@@ -1,0 +1,17 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - button "menu" [ref=e4] [cursor=pointer]
+    - generic [ref=e7]:
+      - generic [ref=e8]: KS
+      - generic [ref=e9]:
+        - generic [ref=e10]: KS Panel
+        - generic [ref=e11]: Fleet Stats
+    - button "login" [ref=e12] [cursor=pointer]
+    - button "refresh" [ref=e16] [cursor=pointer]
+  - generic [ref=e20]:
+    - complementary "navigation" [ref=e21]:
+      - navigation [ref=e22]:
+        - link "Overview" [ref=e23] [cursor=pointer]:
+          - /url: /overview
+    - main [ref=e29]:
+      - generic [ref=e30]: Loading overview…
