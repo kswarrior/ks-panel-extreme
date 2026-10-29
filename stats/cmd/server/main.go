@@ -26,7 +26,7 @@ func main() {
 			fmt.Printf("ks-stats %s (commit %s, built %s)\n", version.Version, version.Commit, version.BuildDate)
 			os.Exit(0)
 		case "--help", "-h", "help":
-			fmt.Printf("ks-stats %s — private panel telemetry\n\nUsage:\n  ks-stats [--port 3000] [--port=3000]\n  STATS_PORT=3000 ks-stats\n  PORT=3000 ks-stats\n\nEnv:\n  STATS_PORT / PORT            listen port (default 9090, CLI --port wins)\n  STATS_DB / STATS_DB_PATH     sqlite path (default ./stats.db)\n  STATS_ADMIN_PASSWORD         owner dashboard password (BasicAuth admin:password)\n  STATS_ADMIN_USER             owner user (default admin)\n  STATS_PANEL_TOKEN            incoming WSS PSK (panels must send ?token=)\n\nEndpoints:\n  GET  /health                 {\"ok\":true}\n  GET  /  /login               dashboard (owner auth)\n  WSS  /ws  /api/stats/ws      panel heartbeat ingress\n  GET  /api/panels  /api/stats owner JSON\n\n", version.Version)
+			fmt.Printf("ks-stats %s — private panel telemetry\n\nUsage:\n  ks-stats [--port 3000] [--port=3000]\n  STATS_PORT=3000 ks-stats\n  PORT=3000 ks-stats\n\nEnv:\n  ADMIN_USERNAME               admin username (default admin)\n  ADMIN_PASSWORD               admin password (required for map/table)\n  STATS_PORT / PORT            listen port (default 9090, CLI --port wins)\n  STATS_DB / STATS_DB_PATH     sqlite path (default ./stats.db)\n  STATS_PANEL_TOKEN            incoming WSS PSK (panels must send ?token=)\n\nEndpoints:\n  GET  /health                 {\"ok\":true}\n  GET  /api/overview           public fleet summary\n  GET  /api/auth/me            current admin session\n  POST /api/auth/login         admin login\n  POST /api/auth/logout        admin logout\n  GET  /  /overview            public dashboard\n  GET  /map  /table            admin dashboard pages\n  WSS  /ws  /api/stats/ws      panel heartbeat ingress\n  GET  /api/panels  /api/stats admin-only owner JSON\n\n", version.Version)
 			os.Exit(0)
 		}
 	}
@@ -91,40 +91,81 @@ func main() {
 	// alias for panel client if it uses /api/stats/ws
 	mux.HandleFunc("/api/stats/ws", hub.Handler(sqlDB))
 
-	mux.HandleFunc("/api/panels", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/overview", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "no-cache")
-		if r.Method == "OPTIONS" {
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET, OPTIONS")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		summary, err := db.OverviewStats(sqlDB)
+		if err != nil {
+			log.Printf("overview: %v", err)
+			http.Error(w, "could not load overview", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(summary)
+	})
+
+	mux.Handle("/api/panels", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Cache-Control", "no-cache")
+		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET, OPTIONS")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		panels, err := db.ListPanels(sqlDB)
 		if err != nil {
-			http.Error(w, err.Error(), 500)
+			log.Printf("list panels: %v", err)
+			http.Error(w, "could not load panels", http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(panels)
-	})
+	})))
 	// also owner may want raw count
-	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/api/stats", auth.RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Cache-Control", "no-cache")
-		if r.Method == "OPTIONS" {
+		if r.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		panels, _ := db.ListPanels(sqlDB)
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET, OPTIONS")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		panels, err := db.ListPanels(sqlDB)
+		if err != nil {
+			log.Printf("list panels: %v", err)
+			http.Error(w, "could not load panels", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"panels": panels, "count": len(panels)})
-	})
+	})))
 
-	mux.HandleFunc("/login", auth.LoginHandler)
-	mux.HandleFunc("/logout", auth.LogoutHandler)
+	mux.HandleFunc("/api/auth/me", auth.MeHandler)
+	mux.HandleFunc("/api/auth/login", auth.LoginHandler)
+	mux.HandleFunc("/api/auth/logout", auth.LogoutHandler)
 
 	// serve embedded React dashboard; unknown paths fall back to index.html (SPA)
 	assets := web.Assets()
@@ -161,12 +202,10 @@ func main() {
 		w.Write(b)
 	})
 
-	handler := auth.Check(mux)
+	handler := mux
 
 	addr := ":" + strconv.Itoa(port)
 	log.Printf("ks-stats %s (%s) listening on %s db=%s auth=%v panel_token=%v", version.Version, version.Commit, addr, dbPath, auth.IsConfigured(), os.Getenv("STATS_PANEL_TOKEN") != "")
-	// for Check linter: ensure sql import used
-	_ = sql.ErrNoRows
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatal(err)
 	}
