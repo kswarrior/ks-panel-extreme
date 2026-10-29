@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { fetchPanels } from '../lib/api';
+import { fetchPanels, UnauthorizedError } from '../lib/api';
 import type { Panel } from '../lib/types';
+import { useAuth } from './AuthContext';
 
 interface PanelsContextValue {
   panels: Panel[];
@@ -22,6 +23,7 @@ interface PanelsContextValue {
 const PanelsContext = createContext<PanelsContextValue | undefined>(undefined);
 
 export function PanelsProvider({ children }: { children: ReactNode }) {
+  const { isAdmin, loading: authLoading, invalidate } = useAuth();
   const [panels, setPanels] = useState<Panel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export function PanelsProvider({ children }: { children: ReactNode }) {
   const inFlight = useRef(false);
 
   const load = useCallback(async () => {
-    if (inFlight.current) return;
+    if (!isAdmin || inFlight.current) return;
     inFlight.current = true;
     try {
       const next = await fetchPanels();
@@ -37,20 +39,37 @@ export function PanelsProvider({ children }: { children: ReactNode }) {
       setError(null);
       setLastUpdated(new Date());
     } catch (err) {
+      if (err instanceof UnauthorizedError) {
+        setPanels([]);
+        setLastUpdated(null);
+        setError(null);
+        invalidate();
+        return;
+      }
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       inFlight.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin, invalidate]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAdmin) {
+      setPanels([]);
+      setError(null);
+      setLastUpdated(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     void load();
     const timer = window.setInterval(() => {
       void load();
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [authLoading, isAdmin, load]);
 
   const value = useMemo<PanelsContextValue>(
     () => ({ panels, loading, error, lastUpdated, refresh: () => void load() }),
