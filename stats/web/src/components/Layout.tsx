@@ -18,22 +18,12 @@ const NAV = [
 
 export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [clock, setClock] = useState(() => new Date().toLocaleString());
   const location = useLocation();
-  const { panels, lastUpdated, error, refresh } = usePanels();
+  const { error, refresh } = usePanels();
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setClock(new Date().toLocaleString());
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const online = panels.filter((panel) => panel.online).length;
 
   async function logout() {
     try {
@@ -59,14 +49,15 @@ export default function Layout() {
           <span>KS Panel — Fleet Stats</span>
         </div>
         <div className="spacer" />
-        <span className="clock">{clock}</span>
+        <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refresh}>
+          <RefreshIcon width={18} height={18} />
+        </button>
         <button className="iconbtn" title="logout" aria-label="logout" onClick={logout}>
           <LogoutIcon width={18} height={18} />
         </button>
       </header>
       <div className="layout">
         <aside className={`sidebar${sidebarOpen ? ' open' : ''}`} aria-label="navigation">
-          <div className="side-head">Navigation</div>
           <nav className="nav">
             {NAV.map(({ to, label, icon: NavIcon }) => (
               <NavLink
@@ -80,20 +71,6 @@ export default function Layout() {
               </NavLink>
             ))}
           </nav>
-          <div className="side-foot">
-            <div className="hint">Owner only • WSS heartbeat 30s • online if seen &lt;90s</div>
-            <button className="btn" onClick={refresh}>
-              <RefreshIcon />
-              Refresh
-            </button>
-            <div className="hint">
-              <b>{panels.length}</b> panels • <b>{online}</b> online
-              <br />
-              <span className="small">
-                updated {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'}
-              </span>
-            </div>
-          </div>
         </aside>
         <div
           className={`overlay${sidebarOpen ? ' show' : ''}`}
