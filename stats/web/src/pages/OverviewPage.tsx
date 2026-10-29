@@ -1,13 +1,9 @@
 import { useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import StatusBadge from '../components/StatusBadge';
 import { CheckIcon, OverviewIcon, ServerIcon, XIcon } from '../components/icons';
 import { usePanels } from '../context/PanelsContext';
-import { fmtAgo, locStr, panelName } from '../lib/format';
 
 export default function OverviewPage() {
   const { panels, lastUpdated } = usePanels();
-  const navigate = useNavigate();
 
   const stats = useMemo(() => {
     const total = panels.length;
@@ -30,11 +26,6 @@ export default function OverviewPage() {
   }, [panels]);
 
   const updated = lastUpdated ? lastUpdated.toLocaleTimeString() : '—';
-  const recent = panels.slice(0, 7);
-
-  function openPanel(panelId: string) {
-    navigate(`/panels/${encodeURIComponent(panelId)}`);
-  }
 
   return (
     <div className="wrap">
@@ -96,56 +87,6 @@ export default function OverviewPage() {
         <span className="kv" style={{ marginLeft: 'auto' }}>
           updated <b>{updated}</b>
         </span>
-      </div>
-
-      <div className="table-wrap" style={{ marginTop: 8 }}>
-        <div className="maphead">
-          <span className="title">Recent panels</span>
-          <span className="spacer" />
-          <span className="small">updated {updated}</span>
-        </div>
-        <div className="table-scroll" style={{ maxHeight: '38vh' }}>
-          <table>
-            <thead>
-              <tr>
-                <th>status</th>
-                <th>panel</th>
-                <th>version</th>
-                <th>location</th>
-                <th>load</th>
-                <th>last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.map((panel) => (
-                <tr
-                  key={panel.panel_id}
-                  className="rowclick"
-                  tabIndex={0}
-                  onClick={() => openPanel(panel.panel_id)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      openPanel(panel.panel_id);
-                    }
-                  }}
-                >
-                  <td>
-                    <StatusBadge online={panel.online} />
-                  </td>
-                  <td>
-                    <b>{panelName(panel)}</b>
-                    <div className="small">{panel.panel_id}</div>
-                  </td>
-                  <td>{panel.version || '—'}</td>
-                  <td>{locStr(panel)}</td>
-                  <td>{panel.load1 ? panel.load1.toFixed(2) : '—'}</td>
-                  <td>{fmtAgo(panel.last_seen)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       <div className="table-wrap" style={{ marginTop: 12 }}>
