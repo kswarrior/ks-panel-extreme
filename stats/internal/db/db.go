@@ -145,6 +145,13 @@ type Panel struct {
 	DiskUsedGB    float64   `json:"disk_used_gb"`
 	Load1         float64   `json:"load1"`
 	Load5         float64   `json:"load5"`
+	InContainer             bool    `json:"in_container"`
+	ContainerRuntime        string  `json:"container_runtime"`
+	ContainerCPUPercent     float64 `json:"container_cpu_percent"`
+	ContainerCPULimitCores  float64 `json:"container_cpu_limit_cores"`
+	ContainerRAMUsedMB      float64 `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB     float64 `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct     float64 `json:"container_ram_used_pct"`
 	UptimeSec     int64     `json:"uptime_sec"`
 	ProcessUptime int64     `json:"process_uptime"`
 	Nodes         int       `json:"nodes"`
@@ -175,6 +182,13 @@ type Heartbeat struct {
 	DiskUsedGB    float64 `json:"disk_used_gb"`
 	Load1         float64 `json:"load1"`
 	Load5         float64 `json:"load5"`
+	InContainer            bool    `json:"in_container"`
+	ContainerRuntime       string  `json:"container_runtime"`
+	ContainerCPUPercent    float64 `json:"container_cpu_percent"`
+	ContainerCPULimitCores float64 `json:"container_cpu_limit_cores"`
+	ContainerRAMUsedMB     float64 `json:"container_ram_used_mb"`
+	ContainerRAMLimitMB    float64 `json:"container_ram_limit_mb"`
+	ContainerRAMUsedPct    float64 `json:"container_ram_used_pct"`
 	UptimeSec     int64   `json:"uptime_sec"`
 	ProcessUptime int64   `json:"process_uptime"`
 	Nodes         int     `json:"nodes"`
@@ -198,9 +212,12 @@ func UpsertPanel(db *sql.DB, h Heartbeat, ip string, g GeoInfo, raw string) erro
 	// try update, else insert - sqlite UPSERT
 	_, err := db.Exec(`
 	INSERT INTO panels(panel_id, hostname, version, commit_hash, os, arch, go_version, ip, city, region, country, country_code, lat, lon,
-		cpu_percent, ram_total_mb, ram_used_mb, ram_used_pct, disk_total_gb, disk_used_gb, load1, load5, uptime_sec, process_uptime,
+		cpu_percent, ram_total_mb, ram_used_mb, ram_used_pct, disk_total_gb, disk_used_gb, load1, load5,
+		in_container, container_runtime, container_cpu_percent, container_cpu_limit_cores,
+		container_ram_used_mb, container_ram_limit_mb, container_ram_used_pct,
+		uptime_sec, process_uptime,
 		nodes, instances, instrunning, goroutines, first_seen, last_seen, raw)
-	VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+	VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 	ON CONFLICT(panel_id) DO UPDATE SET
 		hostname=excluded.hostname,
 		version=excluded.version,
@@ -223,6 +240,13 @@ func UpsertPanel(db *sql.DB, h Heartbeat, ip string, g GeoInfo, raw string) erro
 		disk_used_gb=excluded.disk_used_gb,
 		load1=excluded.load1,
 		load5=excluded.load5,
+		in_container=excluded.in_container,
+		container_runtime=excluded.container_runtime,
+		container_cpu_percent=excluded.container_cpu_percent,
+		container_cpu_limit_cores=excluded.container_cpu_limit_cores,
+		container_ram_used_mb=excluded.container_ram_used_mb,
+		container_ram_limit_mb=excluded.container_ram_limit_mb,
+		container_ram_used_pct=excluded.container_ram_used_pct,
 		uptime_sec=excluded.uptime_sec,
 		process_uptime=excluded.process_uptime,
 		nodes=excluded.nodes,
@@ -235,7 +259,10 @@ func UpsertPanel(db *sql.DB, h Heartbeat, ip string, g GeoInfo, raw string) erro
 		h.PanelID, h.Hostname, h.Version, h.Commit, h.OS, h.Arch, h.GoVersion, ip,
 		g.City, g.Region, g.Country, g.CountryCode, g.Lat, g.Lon,
 		h.CPUPercent, h.RAMTotalMB, h.RAMUsedMB, h.RAMUsedPct, h.DiskTotalGB, h.DiskUsedGB,
-		h.Load1, h.Load5, h.UptimeSec, h.ProcessUptime,
+		h.Load1, h.Load5,
+		h.InContainer, h.ContainerRuntime, h.ContainerCPUPercent, h.ContainerCPULimitCores,
+		h.ContainerRAMUsedMB, h.ContainerRAMLimitMB, h.ContainerRAMUsedPct,
+		h.UptimeSec, h.ProcessUptime,
 		h.Nodes, h.Instances, h.InstRunning, h.Goroutines,
 		now, now, raw,
 	)
@@ -244,7 +271,10 @@ func UpsertPanel(db *sql.DB, h Heartbeat, ip string, g GeoInfo, raw string) erro
 
 func ListPanels(db *sql.DB) ([]Panel, error) {
 	rows, err := db.Query(`SELECT panel_id, hostname, version, commit_hash, os, arch, go_version, ip, city, region, country, country_code, lat, lon,
-		cpu_percent, ram_total_mb, ram_used_mb, ram_used_pct, disk_total_gb, disk_used_gb, load1, load5, uptime_sec, process_uptime,
+		cpu_percent, ram_total_mb, ram_used_mb, ram_used_pct, disk_total_gb, disk_used_gb, load1, load5,
+		in_container, container_runtime, container_cpu_percent, container_cpu_limit_cores,
+		container_ram_used_mb, container_ram_limit_mb, container_ram_used_pct,
+		uptime_sec, process_uptime,
 		nodes, instances, instrunning, goroutines, first_seen, last_seen FROM panels ORDER BY last_seen DESC`)
 	if err != nil {
 		return nil, err
@@ -256,7 +286,10 @@ func ListPanels(db *sql.DB) ([]Panel, error) {
 		if err := rows.Scan(&p.PanelID, &p.Hostname, &p.Version, &p.Commit, &p.OS, &p.Arch, &p.GoVersion, &p.IP,
 			&p.City, &p.Region, &p.Country, &p.CountryCode, &p.Lat, &p.Lon,
 			&p.CPUPercent, &p.RAMTotalMB, &p.RAMUsedMB, &p.RAMUsedPct, &p.DiskTotalGB, &p.DiskUsedGB,
-			&p.Load1, &p.Load5, &p.UptimeSec, &p.ProcessUptime,
+			&p.Load1, &p.Load5,
+			&p.InContainer, &p.ContainerRuntime, &p.ContainerCPUPercent, &p.ContainerCPULimitCores,
+			&p.ContainerRAMUsedMB, &p.ContainerRAMLimitMB, &p.ContainerRAMUsedPct,
+			&p.UptimeSec, &p.ProcessUptime,
 			&p.Nodes, &p.Instances, &p.InstRunning, &p.Goroutines,
 			&p.FirstSeen, &p.LastSeen); err != nil {
 			continue

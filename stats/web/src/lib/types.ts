@@ -21,6 +21,13 @@ export interface Panel {
   disk_used_gb: number;
   load1: number;
   load5: number;
+  in_container: boolean;
+  container_runtime: string;
+  container_cpu_percent: number;
+  container_cpu_limit_cores: number;
+  container_ram_used_mb: number;
+  container_ram_limit_mb: number;
+  container_ram_used_pct: number;
   uptime_sec: number;
   process_uptime: number;
   nodes: number;
