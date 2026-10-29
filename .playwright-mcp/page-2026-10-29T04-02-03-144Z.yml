@@ -1,0 +1,60 @@
+- generic [ref=f8e2]:
+  - banner [ref=f8e3]:
+    - button "menu" [ref=f8e4] [cursor=pointer]
+    - generic [ref=f8e7]:
+      - generic [ref=f8e8]: KS
+      - generic [ref=f8e9]:
+        - generic [ref=f8e10]: KS Panel
+        - generic [ref=f8e11]: Fleet Stats
+    - button "refresh" [ref=f8e12] [cursor=pointer]
+    - button "Login" [ref=f8e136] [cursor=pointer]
+  - generic [ref=f8e17]:
+    - complementary "navigation" [ref=f8e18]:
+      - navigation [ref=f8e19]:
+        - link "Overview" [ref=f8e20] [cursor=pointer]:
+          - /url: /overview
+    - main [ref=f8e26]:
+      - generic [ref=f8e137]:
+        - generic [ref=f8e138]:
+          - generic [ref=f8e139]:
+            - generic [ref=f8e140]: Total
+            - generic [ref=f8e147]: "0"
+            - generic [ref=f8e148]: panels known
+          - generic [ref=f8e149]:
+            - generic [ref=f8e150]: Online
+            - generic [ref=f8e155]: "0"
+            - generic [ref=f8e156]: 0 offline
+          - generic [ref=f8e157]:
+            - generic [ref=f8e158]: Offline
+            - generic [ref=f8e163]: "0"
+            - generic [ref=f8e164]: seen >90s
+          - generic [ref=f8e165]:
+            - generic [ref=f8e166]: Resources
+            - generic [ref=f8e170]: 0 nodes
+            - generic [ref=f8e171]: 0/0 instances running
+        - generic [ref=f8e172]:
+          - generic [ref=f8e173]: 0 panels
+          - generic [ref=f8e174]: 0 online
+          - generic [ref=f8e175]: 0 versions • latest —
+          - generic [ref=f8e176]: updated 4:02:01 AM
+        - generic [ref=f8e177]:
+          - generic [ref=f8e178]: Fleet health
+          - generic [ref=f8e181]:
+            - generic [ref=f8e182]:
+              - generic [ref=f8e183]: Avg CPU
+              - generic [ref=f8e184]: —
+            - generic [ref=f8e185]:
+              - generic [ref=f8e186]: Avg RAM used
+              - generic [ref=f8e187]: —
+            - generic [ref=f8e188]:
+              - generic [ref=f8e189]: Total Nodes
+              - generic [ref=f8e190]: "0"
+            - generic [ref=f8e191]:
+              - generic [ref=f8e192]: Total Instances (running/total)
+              - generic [ref=f8e193]: 0 / 0
+            - generic [ref=f8e194]:
+              - generic [ref=f8e195]: Latest version
+              - generic [ref=f8e196]: —
+            - generic [ref=f8e197]:
+              - generic [ref=f8e198]: Distinct versions
+              - generic [ref=f8e199]: —
