@@ -46,7 +46,10 @@ export default function Layout() {
         </button>
         <div className="brand">
           <span className="logo">KS</span>
-          <span>KS Panel — Fleet Stats</span>
+          <span className="brand-text">
+            <span className="brand-title">KS Panel</span>
+            <span className="brand-sub">Fleet Stats</span>
+          </span>
         </div>
         <div className="spacer" />
         <button className="iconbtn" title="refresh" aria-label="refresh" onClick={refresh}>
