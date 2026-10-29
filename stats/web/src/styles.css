@@ -28,7 +28,6 @@ a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.02em;font-size:14px;white-space:nowrap}
 .brand .logo{width:28px;height:28px;border-radius:var(--r-lg);background:#fff;display:grid;place-items:center;color:#000;font-weight:800;font-size:12px}
 .topbar .spacer{flex:1}
-.topbar .clock{font-size:12px;color:var(--muted);white-space:nowrap}
 .topbar .iconbtn{width:36px;height:36px;border-radius:var(--r);border:1px solid var(--border-strong);background:var(--elev);color:#fff;display:grid;place-items:center;cursor:pointer}
 .topbar .iconbtn:hover{border-color:#fff;background:#fff;color:#000}
 .hamburger{display:none;width:38px;height:38px;border-radius:var(--r);border:1px solid var(--border-strong);background:var(--elev);color:#fff;place-items:center;cursor:pointer}
@@ -37,17 +36,11 @@ a:focus-visible,button:focus-visible,[tabindex]:focus-visible{outline:2px solid 
 /* layout */
 .layout{display:flex;height:calc(100% - 52px);overflow:hidden}
 .sidebar{width:236px;min-width:236px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
-.side-head{padding:14px 14px 8px;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600}
-.nav{display:flex;flex-direction:column;gap:6px;padding:6px 10px}
+.nav{display:flex;flex-direction:column;gap:6px;padding:12px 10px}
 .nav a{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:var(--r);color:var(--fg-dim);font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent}
 .nav a:hover{background:var(--elev);color:#fff;border-color:var(--border-strong);text-decoration:none}
 .nav a.active{background:#fff;color:#000;border-color:#fff}
 .nav a svg{width:16px;height:16px;opacity:.95}
-.side-foot{margin-top:auto;padding:12px 10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
-.side-foot .hint{font-size:11px;color:var(--muted);line-height:1.4}
-.btn{padding:8px 10px;border-radius:var(--r);border:1px solid #fff;background:#fff;color:#000;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;cursor:pointer;width:100%;justify-content:center}
-.btn:hover{background:#d4d4d4;border-color:#d4d4d4}
-.btn svg{width:14px;height:14px}
 .main{flex:1;overflow:auto;background:var(--bg)}
 .wrap{max-width:1280px;margin:0 auto;padding:16px}
 .page-loader{display:grid;place-items:center;min-height:40vh;color:var(--muted);font-size:12px}
