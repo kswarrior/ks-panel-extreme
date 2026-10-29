@@ -127,11 +127,30 @@ func main() {
 	mux.HandleFunc("/login", auth.LoginHandler)
 	mux.HandleFunc("/logout", auth.LogoutHandler)
 
-	// serve embedded dashboard
+	// serve embedded React dashboard; unknown paths fall back to index.html (SPA)
+	assets := web.Assets()
+	fileServer := http.FileServer(http.FS(assets))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
+		}
+		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		if name != "" && name != "." {
+			if info, err := fs.Stat(assets, name); err == nil && !info.IsDir() {
+				if strings.HasPrefix(name, "assets/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else {
+					w.Header().Set("Cache-Control", "no-cache")
+				}
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+			if strings.HasPrefix(name, "assets/") {
+				http.NotFound(w, r)
+				return
+			}
 		}
 		b := web.Index()
 		if len(b) == 0 {

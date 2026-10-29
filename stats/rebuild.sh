@@ -63,6 +63,24 @@ esac
 # --- deps ---
 command -v go >/dev/null 2>&1 || { echo "ERR: go not found (need Go 1.25+)" >&2; exit 1; }
 
+# --- frontend (React + TS, embedded via stats/web/dist) ---
+WEB_DIR="$STATS_DIR/web"
+if [[ "${SKIP_WEB_BUILD:-0}" != "1" ]]; then
+  command -v node >/dev/null 2>&1 || { echo "ERR: node not found (needed to build stats/web)" >&2; exit 1; }
+  command -v npm >/dev/null 2>&1 || { echo "ERR: npm not found (needed to build stats/web)" >&2; exit 1; }
+  if [[ ! -d "$WEB_DIR/node_modules" ]]; then
+    echo "[stats] installing frontend deps ..."
+    ( cd "$WEB_DIR" && npm ci --prefer-offline --no-audit --no-fund )
+  fi
+  echo "[stats] building frontend ..."
+  ( cd "$WEB_DIR" && npm run build )
+  if [[ ! -f "$WEB_DIR/dist/index.html" ]]; then
+    echo "[stats] ERR frontend build did not produce web/dist/index.html" >&2
+    exit 1
+  fi
+  echo "[stats] frontend dist: $(find "$WEB_DIR/dist" -type f | wc -l | tr -d ' ') files"
+fi
+
 TARGET_GOOS="${GOOS:-linux}"
 if [[ -n "${GOARCH:-}" ]]; then
   TARGET_GOARCH="$GOARCH"

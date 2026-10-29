@@ -1,5 +1,14 @@
 # syntax=docker/dockerfile:1
 
+# ---- frontend ----
+FROM node:22-alpine AS webbuilder
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/tsconfig.json web/vite.config.ts web/index.html ./
+COPY web/src ./src
+RUN npm run build
+
 # ---- builder ----
 FROM golang:1.25-bookworm AS builder
 # fallback if 1.25-bookworm not yet on your mirror: golang:1.25-alpine or golang:bookworm
@@ -10,8 +19,9 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 
-# copy source (embed needs web/index.html + internal/* + cmd/*)
+# copy source (embed needs web/dist + internal/* + cmd/*)
 COPY . .
+COPY --from=webbuilder /web/dist ./web/dist
 
 # pure Go sqlite (modernc.org/sqlite) -> no CGO, static binary ~12-18MB
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/stats ./cmd/server \

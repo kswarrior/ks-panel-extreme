@@ -3,6 +3,9 @@
 ## Build
 ```bash
 cd stats
+./rebuild.sh                    # builds web/dist (React + TS) then the embedded Go binary
+# manual equivalent:
+(cd web && npm ci && npm run build)
 go build -ldflags="-s -w" -o /usr/local/bin/stats ./cmd/server
 # or embed URL at build time (optional, env still wins):
 go build -ldflags="-s -w -X github.com/example/kspanel/internal/telemetry.StatsURL=wss://stats.yourdomain.com/ws" -o ../panel/backend/release/kspanel ../panel/backend/cmd/kspanel
