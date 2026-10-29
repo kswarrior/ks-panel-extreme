@@ -16,7 +16,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'offline', label: 'Offline' },
 ];
 
-function sortValue(panel: (typeof panels)[number], key: SortKey): number {
+function sortValue(panel: Panel, key: SortKey): number {
   return key === 'nodes' ? panel.nodes || 0 : panel.instrunning || 0;
 }
 
@@ -52,8 +52,31 @@ export default function TablePage() {
         return haystack.includes(q);
       });
     }
+
+    if (sortKey) {
+      const direction = sortDir === 'desc' ? -1 : 1;
+      out = out.slice().sort((a, b) => {
+        const diff = (sortValue(a, sortKey) - sortValue(b, sortKey)) * direction;
+        if (diff !== 0) return diff;
+        if (sortKey === 'instances') {
+          const total = ((a.instances || 0) - (b.instances || 0)) * direction;
+          if (total !== 0) return total;
+        }
+        return a.panel_id.localeCompare(b.panel_id);
+      });
+    }
+
     return out;
-  }, [panels, filter, query]);
+  }, [panels, filter, query, sortKey, sortDir]);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((direction) => (direction === 'desc' ? 'asc' : 'desc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir('desc');
+  }
 
   function openPanel(panelId: string) {
     navigate(`/panels/${encodeURIComponent(panelId)}`);
@@ -100,8 +123,48 @@ export default function TablePage() {
                 <th>ram</th>
                 <th>disk</th>
                 <th>load</th>
-                <th>nodes</th>
-                <th>instances</th>
+                <th
+                  aria-sort={
+                    sortKey === 'nodes'
+                      ? sortDir === 'desc'
+                        ? 'descending'
+                        : 'ascending'
+                      : 'none'
+                  }
+                >
+                  <button
+                    type="button"
+                    className="th-sort"
+                    onClick={() => toggleSort('nodes')}
+                    title="Sort by nodes"
+                  >
+                    nodes
+                    <span className="sort-ind">
+                      {sortKey === 'nodes' ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
+                    </span>
+                  </button>
+                </th>
+                <th
+                  aria-sort={
+                    sortKey === 'instances'
+                      ? sortDir === 'desc'
+                        ? 'descending'
+                        : 'ascending'
+                      : 'none'
+                  }
+                >
+                  <button
+                    type="button"
+                    className="th-sort"
+                    onClick={() => toggleSort('instances')}
+                    title="Sort by running instances"
+                  >
+                    instances
+                    <span className="sort-ind">
+                      {sortKey === 'instances' ? (sortDir === 'desc' ? '▼' : '▲') : '↕'}
+                    </span>
+                  </button>
+                </th>
                 <th>uptime</th>
                 <th>last seen</th>
               </tr>
