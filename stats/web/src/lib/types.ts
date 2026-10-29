@@ -1,0 +1,34 @@
+export interface Panel {
+  panel_id: string;
+  hostname: string;
+  version: string;
+  commit: string;
+  os: string;
+  arch: string;
+  go_version: string;
+  ip: string;
+  city: string;
+  region: string;
+  country: string;
+  country_code: string;
+  lat: number;
+  lon: number;
+  cpu_percent: number;
+  ram_total_mb: number;
+  ram_used_mb: number;
+  ram_used_pct: number;
+  disk_total_gb: number;
+  disk_used_gb: number;
+  load1: number;
+  load5: number;
+  uptime_sec: number;
+  process_uptime: number;
+  nodes: number;
+  instances: number;
+  instrunning: number;
+  goroutines: number;
+  first_seen: string;
+  last_seen: string;
+  online: boolean;
+  [key: string]: unknown;
+}
