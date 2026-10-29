@@ -132,6 +132,7 @@ pre{margin:0;padding:10px;background:#050505;border:1px solid var(--border);bord
 .toast.show{display:block}
 @media(max-width:880px){
   .hamburger{display:grid}
+  .user-chip{display:none}
   .sidebar{position:fixed;inset:52px auto 0 0;transform:translateX(-100%);transition:transform .22s ease;z-index:40;width:78vw;min-width:0;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
   .sidebar.open{transform:translateX(0)}
   .overlay{display:block;position:fixed;inset:52px 0 0 0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:35}

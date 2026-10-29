@@ -62,6 +62,8 @@ export default function Layout() {
   async function handleLogout() {
     try {
       await logout();
+    } catch {
+      // the local session is cleared even if the logout request fails
     } finally {
       navigate('/overview', { replace: true });
     }
