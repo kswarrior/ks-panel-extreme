@@ -249,7 +249,7 @@ Values are free-form — any `≤500` string passes validation — but staying w
 * Real examples across the library:
   * `ports.yaml` network `<rect x="2" y="7" width="20" height="8" rx="2"/><path d="M6 7v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 15v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/>`
   * `files.yaml` folder `<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2-2Z"/>`
-  * `terminal.yaml` `<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>`
+  * The Terminal page is a native frontend built-in (xterm.js, full ANSI colours) at `/instances/:id/terminal` — it is intentionally not a library YAML page.
 
 ---
 
@@ -642,7 +642,7 @@ KSPageSDK.navigate(`/instances/${KSPageSDK.instance.id}/files/edit?path=/etc/app
 * Adding a new page: create `pages/<id>.yaml`, add entry to `marketplace.json` with matching `id`, run `rebuild.sh` (which embeds it), commit + push so raw URL serves it.
 * Read via `pagelib.ReadCatalog()` (`pagelib.go:117` disk first, embedded fallback). Frontend imports via `POST /api/instance-pages/import/marketplace {page_id}`.
 
-Shipped catalog currently lists 7 entries: `react-dashboard`, `automation`, `ports`, `env`, `files`, `terminal` (id = file stem) plus `mc-properties` (id = page slug, file `minecraft-properties.yaml`). Add more pages via the Studio, then add a catalog entry per page.
+Shipped catalog currently lists 6 entries: `react-dashboard`, `automation`, `ports`, `env`, `files` (id = file stem) plus `mc-properties` (id = page slug, file `minecraft-properties.yaml`). Add more pages via the Studio, then add a catalog entry per page. Terminal is not a catalog page: it is a native frontend built-in (xterm.js) rendered at `/instances/:id/terminal`.
 
 ---
 
@@ -765,7 +765,7 @@ const stop = KSPageSDK.subscribe({type:'shell', command:'cat /proc/loadavg'}, re
 await KSPageSDK.storage.set('theme','dark');
 const v = await KSPageSDK.storage.get('theme');
 
-// 7) WebSocket terminal (xterm.js wiring like terminal.json)
+// 7) WebSocket terminal (xterm.js wiring over sdk.connectWS)
 const ws = KSPageSDK.connectWS();
 ws.onopen = ()=> ws.send('ls\n');
 ws.onmessage = e=> term.write(e.data);
