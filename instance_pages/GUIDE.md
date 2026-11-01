@@ -1156,7 +1156,7 @@ instance_pages/
   GUIDE.md            # this file — exhaustive manual
   marketplace.json    # catalog (pagelib.ReadCatalog) → version 3.0, pages[].download_url raw GitHub
   pages/
-    *.yaml            # library (canonical authoring format): automation, env, files, minecraft-properties, ports, react-dashboard, terminal
+    *.yaml            # library (canonical authoring format): automation, env, files, minecraft-properties, ports, react-dashboard
 
 panel/backend/
   internal/api/handlers/instance_page_handler.go  # DTO, validation, CRUD, link, execute, import, modules

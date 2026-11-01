@@ -121,7 +121,7 @@ Flow: panel `internal/edge/` → HTTP to edge `internal/<domain>/` → driver/ex
 
 Role: per-instance custom tabs authored once as YAML, embedded in the panel binary, linked into templates, snapshotted into instances, rendered in frontend, executed on edge.
 
-* `instance_pages/pages/` — **Canonical authoring location. One YAML file per page.** Examples in repo: files, terminal, env, ports, automation, minecraft-properties, react-dashboard. New pages belong here as `*.yaml` (literal `|` blocks for HTML/JS/markdown, native lists for actions/sub_pages/components).
+* `instance_pages/pages/` — **Canonical authoring location. One YAML file per page.** Examples in repo: files, env, ports, automation, minecraft-properties, react-dashboard. (Terminal is NOT a YAML page: it is the native frontend built-in `panel/frontend/src/features/instances/pages/InstanceTerminal.tsx` at `/instances/:id/terminal` — xterm.js, full ANSI colours.) New pages belong here as `*.yaml` (literal `|` blocks for HTML/JS/markdown, native lists for actions/sub_pages/components).
 * `instance_pages/marketplace.json` — Catalog whose entries point at raw-GitHub URLs of `pages/*.yaml`. Add entry per new page.
 * `instance_pages/GUIDE.md` — Exhaustive authoring manual (fields, content types html/markdown/blocks/react, actions allow-list, components `{{component:name}}`, sub-pages, KSPageSDK, theme vars, validation limits). Read before authoring.
 * `instance_pages/README.md` — Short format ref.
