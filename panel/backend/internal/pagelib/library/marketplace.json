@@ -78,21 +78,6 @@
       "preview_image": ""
     },
     {
-      "id": "terminal",
-      "name": "Terminal",
-      "description": "Live terminal consoles for this instance: shell panes, bound action/install/startup terminals, shortcuts, copy/download and display settings. Fully theme-aware.",
-      "category": "console",
-      "author": "kswarrior",
-      "version": "1.0",
-      "tags": [
-        "console",
-        "terminal"
-      ],
-      "download_url": "https://raw.githubusercontent.com/kswarrior/ks-panel-extreme/refs/heads/main/instance_pages/pages/terminal.yaml",
-      "icon_svg": "<polyline points=\"4 17 10 11 4 5\"/><line x1=\"12\" y1=\"19\" x2=\"20\" y2=\"19\"/>",
-      "preview_image": ""
-    },
-    {
       "id": "mc-properties",
       "name": "Server Properties",
       "description": "Edit every server.properties key with the right editor (text, number, true/false, options, password). Stateful React page: auto-detects server.properties, mc/server.properties or /mc/server.properties, applies per key with change tracking. Restart required.",

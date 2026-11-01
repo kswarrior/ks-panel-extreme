@@ -1,1 +1,0 @@
-function r(e){if(!e)return 0;const t=new Date(e);return isNaN(t.getTime())||t.getFullYear()<=1?0:t.getTime()}function n(e,t){return r(e)?new Date(e).toLocaleDateString(void 0,{year:"numeric",month:"short",day:"numeric"}):null}export{r as c,n as f};
