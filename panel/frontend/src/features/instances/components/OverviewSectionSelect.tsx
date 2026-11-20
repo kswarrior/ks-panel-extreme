@@ -1,15 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
-// OverviewSectionSelect — the instance overview page's section switcher.
-// A compact select-style trigger in the top-right of the page (no card):
-// it shows the active section ("Details" + chevron) and opens a dropdown
-// with a search field on top and every allowed section below. Sections
-// keep their hue (Details sky, Monitoring emerald, Manage amber, Activity
-// violet) plus their live marker (status dot / LIVE pulse / count badge).
+// OverviewSectionSelect — the instance page switcher.
+// A compact select-style trigger (no card) that shows the active section
+// ("Details" + chevron) and opens a dropdown with a search field on top and
+// every allowed section below. Sections keep their hue (Details sky,
+// Monitoring emerald, Manage amber, Activity violet) plus their live marker
+// (status dot / LIVE pulse / count badge).
+//
+// The panel is portaled to <body> with fixed positioning so it can open from
+// inside the floating Instance controls popover without being clipped by its
+// overflow container.
 //
 // Keyboard: ArrowUp / ArrowDown move the highlight, Home / End jump,
 // Enter selects, Escape closes and returns focus to the trigger. Typing in
 // the search box filters by label and hint.
+
+const PANEL_Z = 2147483642;
 
 export type OverviewMarker =
   | { kind: 'dot'; className?: string; title?: string }
@@ -32,20 +39,32 @@ interface OverviewSectionSelectProps {
   active: string;
   onChange: (id: string) => void;
   ariaLabel?: string;
+  /** Stretch the trigger to its container width (menu row). */
+  fullWidth?: boolean;
 }
 
 const LISTBOX_ID = 'overview-section-listbox';
+
+interface PanelBox {
+  left: number;
+  width: number;
+  top?: number;
+  bottom?: number;
+}
 
 const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
   sections,
   active,
   onChange,
   ariaLabel = 'Overview section',
+  fullWidth = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState(0);
+  const [panelBox, setPanelBox] = useState<PanelBox | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
