@@ -35,3 +35,14 @@
     at async yr (http://localhost:8081/assets/index-6kGPGcDw.js:1787:13423) @ http://localhost:8081/assets/index-6kGPGcDw.js:1787
 [   17897ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:1
 [   17995ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://w0.peakpx.com/wallpaper/131/370/HD-wallpaper-dark-tech-929-black-faded-grunge-metalic-new-smoked-thumbnail.jpg:1
+[   58155ms] NotFoundError: Failed to execute 'setPointerCapture' on 'Element': No active pointer with the given id is found.
+    at ee (http://localhost:8081/assets/index-6kGPGcDw.js:1788:50607)
+    at Object.Bf (http://localhost:8081/assets/react-CQbZUORi.js:37:9852)
+    at Wf (http://localhost:8081/assets/react-CQbZUORi.js:37:10006)
+    at Qf (http://localhost:8081/assets/react-CQbZUORi.js:37:10063)
+    at fi (http://localhost:8081/assets/react-CQbZUORi.js:37:31422)
+    at qs (http://localhost:8081/assets/react-CQbZUORi.js:37:31839)
+    at http://localhost:8081/assets/react-CQbZUORi.js:37:36751
+    at Po (http://localhost:8081/assets/react-CQbZUORi.js:40:36725)
+    at Es (http://localhost:8081/assets/react-CQbZUORi.js:37:8988)
+    at Il (http://localhost:8081/assets/react-CQbZUORi.js:37:33125)
