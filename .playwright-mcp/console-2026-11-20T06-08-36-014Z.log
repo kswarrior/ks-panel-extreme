@@ -46,3 +46,7 @@
     at Po (http://localhost:8081/assets/react-CQbZUORi.js:40:36725)
     at Es (http://localhost:8081/assets/react-CQbZUORi.js:37:8988)
     at Il (http://localhost:8081/assets/react-CQbZUORi.js:37:33125)
+[ 2144280ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/notifications/unread-count:1
+[ 2145887ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/1/metrics:1
+[ 2147863ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/:1
+[ 2149887ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/1/metrics:1
