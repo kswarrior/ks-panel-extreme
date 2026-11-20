@@ -91,8 +91,6 @@ export interface InstancePageSelectProps {
   nav: ResolvedNavEntry[];
   /** Stretch the trigger to fill the menu row. */
   fullWidth?: boolean;
-  /** Fired after a page is picked (used to close the floating menu). */
-  onNavigate?: () => void;
 }
 
 const InstancePageSelect: React.FC<InstancePageSelectProps> = ({
@@ -100,7 +98,6 @@ const InstancePageSelect: React.FC<InstancePageSelectProps> = ({
   activeSlug,
   nav,
   fullWidth = false,
-  onNavigate,
 }) => {
   const navigate = useNavigate();
   const { instance } = useInstance(instanceId);
@@ -142,7 +139,6 @@ const InstancePageSelect: React.FC<InstancePageSelectProps> = ({
       active={active}
       onChange={(id) => {
         navigate(id === '.' ? `/instances/${instanceId}` : `/instances/${instanceId}/${id}`);
-        onNavigate?.();
       }}
       sections={sections}
       fullWidth={fullWidth}
