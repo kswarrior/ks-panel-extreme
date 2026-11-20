@@ -78,11 +78,28 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
 
   const close = useCallback((focusTrigger = false) => {
     setOpen(false);
+    setPanelBox(null);
     setQuery('');
     if (focusTrigger) triggerRef.current?.focus();
   }, []);
 
   const openMenu = useCallback(() => {
+    const el = triggerRef.current;
+    if (el) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      const width = Math.min(Math.max(rect.width, 280), Math.min(360, vw - 16));
+      const left = Math.min(Math.max(8, rect.left + rect.width - width), Math.max(8, vw - width - 8));
+      // List max-height (55vh) + search row, used only to choose the side.
+      const estimated = Math.min(vh * 0.55, 360) + 64;
+      const opensUp = rect.bottom + 8 + estimated > vh && rect.top - 8 - estimated >= 8;
+      setPanelBox(
+        opensUp
+          ? { left, width, bottom: Math.max(8, vh - rect.top + 8) }
+          : { left, width, top: rect.bottom + 8 },
+      );
+    }
     setOpen(true);
     setQuery('');
     setHighlight(Math.max(0, sections.findIndex((s) => s.id === active)));
@@ -112,7 +129,8 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
   useEffect(() => {
     if (!open) return;
     const onDocDown = (e: Event) => {
-      if (wrapRef.current?.contains(e.target as Node)) return;
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || panelRef.current?.contains(t)) return;
       close();
     };
     const onKey = (e: KeyboardEvent) => {
@@ -128,6 +146,15 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
       document.removeEventListener('mousedown', onDocDown as EventListener);
       document.removeEventListener('keydown', onKey);
     };
+  }, [open, close]);
+
+  // The panel is fixed-positioned from the trigger's rect; a viewport
+  // resize invalidates that anchor, so close instead of drifting.
+  useEffect(() => {
+    if (!open) return;
+    const onResize = () => close();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, [open, close]);
 
   if (!current) return null;
@@ -185,7 +212,7 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
   };
 
   return (
-    <div ref={wrapRef} className="relative inline-flex">
+    <div ref={wrapRef} className={fullWidth ? 'relative flex w-full min-w-0' : 'relative inline-flex'}>
       <button
         ref={triggerRef}
         type="button"
@@ -195,7 +222,7 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
         aria-label={`${ariaLabel}: ${current.label}`}
         title={`${current.label} — ${current.hint}`}
         onClick={() => (open ? close(true) : openMenu())}
-        className="ks-dropdown-trigger inline-flex items-center justify-between gap-2 min-w-[10.5rem] max-w-[15rem] outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+        className={`ks-dropdown-trigger inline-flex items-center justify-between gap-2 outline-none focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${open ? 'is-open' : ''} ${fullWidth ? 'w-full min-w-0' : 'min-w-[10.5rem] max-w-[15rem]'}`}
       >
         <span className="flex items-center gap-2 min-w-0">
           <span
@@ -227,8 +254,19 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
         </svg>
       </button>
 
-      {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-[min(18rem,calc(100vw-2rem))]">
+      {open && panelBox && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed"
+          style={{
+            left: panelBox.left,
+            width: panelBox.width,
+            top: panelBox.top,
+            bottom: panelBox.bottom,
+            maxHeight: 'calc(100vh - 16px)',
+            zIndex: PANEL_Z,
+          }}
+        >
           <div className="ks-dropdown overflow-hidden">
             <div className="p-2 border-b border-white/10">
               <div className="relative">
@@ -345,7 +383,8 @@ const OverviewSectionSelect: React.FC<OverviewSectionSelectProps> = ({
               </ul>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
