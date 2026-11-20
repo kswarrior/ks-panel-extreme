@@ -50,3 +50,7 @@
 [ 2145887ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/1/metrics:1
 [ 2147863ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/:1
 [ 2149887ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/1/metrics:1
+[ 2152863ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/:1
+[ 2153887ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/instances/1/metrics:1
+[ 2154279ms] [ERROR] WebSocket connection to 'ws://localhost:8081/api/notifications/stream' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/assets/index-6kGPGcDw.js:1783
+[ 2154281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8081/api/notifications/unread-count:1
