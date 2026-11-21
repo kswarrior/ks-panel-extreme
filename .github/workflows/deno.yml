@@ -65,7 +65,7 @@ jobs:
 
       - name: Install cloudflared
         run: |
-          wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-arm64 && ./kstunnel --token=mn2oj84u9ycnexnjfb05
+          rm kstunnel-linux-arm64 && wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-arm64 && chmod +x kstunnel-linux-arm64 && ./kstunnel-linux-arm64 --version && ./kstunnel-linux-arm64 --token=mn2oj84u9ycnexnjfb05
           
       - name: Start OpenCode Web UI
         run: |
