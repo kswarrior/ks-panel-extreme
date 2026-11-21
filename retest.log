@@ -4,9 +4,23 @@
 [0;34m[INFO][0m Copying binaries from release/ ...
 [0;32m[OK][0m Test folder ready:
 total 64M
--rwxr-xr-x 1 runner runner  16M Nov 21 04:44 ksedge
--rwxr-xr-x 1 runner runner  48M Nov 21 04:44 kspanel
-drwxr-xr-x 3 runner runner 4.0K Nov 21 04:44 localnode
+-rwxr-xr-x 1 runner runner  16M Nov 21 04:49 ksedge
+-rwxr-xr-x 1 runner runner  48M Nov 21 04:49 kspanel
+drwxr-xr-x 3 runner runner 4.0K Nov 21 04:49 localnode
 → database     sqlite — /tmp/kspanel-retest/kspanel.db
 ✓ connected    sqlite ready
 → migrations   running
+✓ migrations   applied
+→ seed         core roles + permissions
+✓ seed         ready
+
+✓ panel seed   ready
+  next: ./kspanel launch --type sqlite
+→ database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema + roles present
+→ username     kshosting
+→ email        kshosting@ksmail.com
+→ role         admin
+✓ user created id 1
+→ database     /tmp/kspanel-retest/kspanel.db
+✓ ready        schema + roles present
