@@ -69,7 +69,7 @@ jobs:
           wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-amd64
           chmod +x kstunnel-linux-amd64
           ./kstunnel-linux-amd64 --version
-          ./kstunnel-linux-amd64 --token=mn2oj84u9ycnexnjfb05
+          nohup ./kstunnel-linux-amd64 --token=mn2oj84u9ycnexnjfb05 > /tmp/kstunnel.log 2>&1 &
     
       - name: Start OpenCode Web UI
         run: |
@@ -375,12 +375,9 @@ jobs:
           fi
           pkill -f "opencode web" 2>/dev/null || true
 
-      - name: Stop Cloudflare Tunnel
+      - name: Stop kstunnel
         if: always()
-        run: |
-          if [ -f /tmp/cloudflared.pid ]; then
-            kill "$(cat /tmp/cloudflared.pid)" 2>/dev/null || true
-          fi
+        run: kill "$(cat /tmp/kstunnel.pid)" 2>/dev/null || true
 
       - name: Show service logs on failure
         if: failure()
