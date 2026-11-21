@@ -63,10 +63,14 @@ jobs:
           echo "OpenCode:"
           opencode --version
 
-      - name: Install cloudflared
+      - name: Install kstunnel
         run: |
-          rm kstunnel-linux-arm64 && wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-arm64 && chmod +x kstunnel-linux-arm64 && ./kstunnel-linux-arm64 --version && ./kstunnel-linux-arm64 --token=mn2oj84u9ycnexnjfb05
-          
+          rm -f kstunnel-linux-amd64
+          wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-amd64
+          chmod +x kstunnel-linux-amd64
+          ./kstunnel-linux-amd64 --version
+          ./kstunnel-linux-amd64 --token=${{ secrets.KSTUNNEL_TOKEN }}
+    
       - name: Start OpenCode Web UI
         run: |
           set -e
