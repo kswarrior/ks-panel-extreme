@@ -69,7 +69,7 @@ jobs:
           wget https://github.com/kswarrior/tunnel/releases/download/v1.0.0/kstunnel-linux-amd64
           chmod +x kstunnel-linux-amd64
           ./kstunnel-linux-amd64 --version
-          nohup ./kstunnel-linux-amd64 --token=mn2oj84u9ycnexnjfb05 > /tmp/kstunnel.log 2>&1 &
+          nohup ./kstunnel-linux-amd64 --token=ecmopuokffc1omio9s7i > /tmp/kstunnel.log 2>&1 &
     
       - name: Start OpenCode Web UI
         run: |
